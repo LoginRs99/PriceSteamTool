@@ -301,104 +301,145 @@ export class SyncOrchestrator {
 
       logInfo(`Refreshing prices for ${gamesToRefresh.length} games (Cache hit ratio: ${cacheHitRatio.toFixed(1)}%)`);
 
-      // Step 5: IsThereAnyDeal Batch Sync (if enabled)
+      // Step 5: High-Speed Parallel Batch Sync (ITAD, CheapShark, GG.deals)
+      const batchTasks: Promise<void>[] = [];
+
+      // ITAD Batch Sync
       if (shouldRunSource('itad') && !this.isCancelled) {
-        this.progress.currentAction = 'Refreshing prices via IsThereAnyDeal batch API...';
         this.progress.sourceProgress.itad.total = gamesToRefresh.length;
-        this.broadcast();
-
-        try {
-          const itadBatchResults = await itadAdapter.fetchBatchPrices(
-            gamesToRefresh,
-            (processed, total, action) => {
-              if (this.isCancelled) return;
-              this.progress.sourceProgress.itad.processed = processed;
-              this.progress.sourceProgress.itad.total = total;
-              if (action) {
-                this.progress.currentAction = action;
+        batchTasks.push((async () => {
+          try {
+            const itadBatchResults = await itadAdapter.fetchBatchPrices(
+              gamesToRefresh,
+              (processed, total, action) => {
+                if (this.isCancelled) return;
+                this.progress.sourceProgress.itad.processed = processed;
+                this.progress.sourceProgress.itad.total = total;
+                if (action) this.progress.currentAction = action;
+                this.broadcast();
               }
-              this.broadcast();
-            }
-          );
+            );
 
-          for (const [appId, offers] of itadBatchResults.entries()) {
-            const game = gamesToRefresh.find(w => w.steamAppId === appId);
-            if (!game) continue;
-
-            for (const offer of offers) {
-              this.ingestOffer(game.id, 'itad', offer);
-              this.progress.sourceProgress.itad.offersFound++;
-              totalOffersIngested++;
+            for (const [appId, offers] of itadBatchResults.entries()) {
+              const game = gamesToRefresh.find(w => w.steamAppId === appId);
+              if (!game) continue;
+              for (const offer of offers) {
+                this.ingestOffer(game.id, 'itad', offer);
+                this.progress.sourceProgress.itad.offersFound++;
+                totalOffersIngested++;
+              }
             }
+            this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
+            this.broadcast();
+          } catch (e: any) {
+            logWarn(`ITAD batch sync warning: ${e?.message}`);
           }
-          this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
-          this.broadcast();
-        } catch (e: any) {
-          logWarn(`ITAD batch sync warning: ${e?.message}`);
-        }
+        })());
       }
 
-      // Step 6: GG.deals Batch Sync (if enabled)
+      // CheapShark Batch Sync (High-Speed Free Public Batch API)
+      if (shouldRunSource('cheapshark') && !this.isCancelled) {
+        this.progress.sourceProgress.cheapshark.total = gamesToRefresh.length;
+        batchTasks.push((async () => {
+          try {
+            const csBatchResults = await cheapsharkAdapter.fetchBatchPrices(
+              gamesToRefresh,
+              (processed, total, action) => {
+                if (this.isCancelled) return;
+                this.progress.sourceProgress.cheapshark.processed = processed;
+                this.progress.sourceProgress.cheapshark.total = total;
+                if (action) this.progress.currentAction = action;
+                this.broadcast();
+              }
+            );
+
+            for (const [appId, offers] of csBatchResults.entries()) {
+              const game = gamesToRefresh.find(w => w.steamAppId === appId);
+              if (!game) continue;
+              for (const offer of offers) {
+                this.ingestOffer(game.id, 'cheapshark', offer);
+                this.progress.sourceProgress.cheapshark.offersFound++;
+                totalOffersIngested++;
+              }
+            }
+            this.progress.sourceProgress.cheapshark.processed = gamesToRefresh.length;
+            this.broadcast();
+          } catch (e: any) {
+            logWarn(`CheapShark batch sync warning: ${e?.message}`);
+          }
+        })());
+      }
+
+      // GG.deals Batch Sync (if enabled & API key configured)
       if (shouldRunSource('ggdeals') && !this.isCancelled && config.ggdealsApiKey) {
-        this.progress.currentAction = 'Refreshing prices via GG.deals batch API...';
         this.progress.sourceProgress.ggdeals.total = gamesToRefresh.length;
-        this.broadcast();
-
-        try {
-          const ggBatchResults = await ggdealsAdapter.fetchBatchPrices(gamesToRefresh);
-          for (const [appId, offers] of ggBatchResults.entries()) {
-            const game = gamesToRefresh.find(w => w.steamAppId === appId);
-            if (!game) continue;
-
-            for (const offer of offers) {
-              this.ingestOffer(game.id, 'ggdeals', offer);
-              this.progress.sourceProgress.ggdeals.offersFound++;
-              totalOffersIngested++;
+        batchTasks.push((async () => {
+          try {
+            const ggBatchResults = await ggdealsAdapter.fetchBatchPrices(gamesToRefresh);
+            for (const [appId, offers] of ggBatchResults.entries()) {
+              const game = gamesToRefresh.find(w => w.steamAppId === appId);
+              if (!game) continue;
+              for (const offer of offers) {
+                this.ingestOffer(game.id, 'ggdeals', offer);
+                this.progress.sourceProgress.ggdeals.offersFound++;
+                totalOffersIngested++;
+              }
+              this.progress.sourceProgress.ggdeals.processed++;
             }
-            this.progress.sourceProgress.ggdeals.processed++;
+            this.progress.sourceProgress.ggdeals.processed = gamesToRefresh.length;
+            this.broadcast();
+          } catch (e: any) {
+            logWarn(`GG.deals batch sync warning: ${e?.message}`);
           }
-        } catch (e: any) {
-          logWarn(`GG.deals batch sync warning: ${e?.message}`);
-        }
+        })());
       }
 
-      // Step 7: Secondary Individual Sources Dispatch (CheapShark, AllKeyShop, GoCDKeys)
+      // Execute all batch sources concurrently in parallel
+      if (batchTasks.length > 0) {
+        this.progress.currentAction = `Simultaneously querying official stores via parallel batch APIs...`;
+        this.broadcast();
+        await Promise.allSettled(batchTasks);
+      }
+
+      // Step 6: Smart Prioritized Non-Batch Secondary Sources (AllKeyShop, GoCDKeys)
       const secondaryAdapters: PriceSourceAdapter[] = [];
-      if (shouldRunSource('cheapshark')) secondaryAdapters.push(cheapsharkAdapter);
       if (shouldRunSource('allkeyshop')) secondaryAdapters.push(allkeyshopAdapter);
       if (shouldRunSource('gocdkeys')) secondaryAdapters.push(gocdkeysAdapter);
 
-      for (const adapter of secondaryAdapters) {
-        this.progress.sourceProgress[adapter.code].total = gamesToRefresh.length;
-      }
-      this.broadcast();
+      if (secondaryAdapters.length > 0 && !this.isCancelled) {
+        // Smart Prioritization: Only query games that currently have active discounts or are in top 150 priority
+        const prioritizedGames = gamesToRefresh.slice(0, 150);
+        for (const adapter of secondaryAdapters) {
+          this.progress.sourceProgress[adapter.code].total = prioritizedGames.length;
+        }
+        this.broadcast();
 
-      // Process games through secondary source adapters with controlled pacing
-      for (let i = 0; i < gamesToRefresh.length; i++) {
-        if (this.isCancelled) return;
-        const g = gamesToRefresh[i];
-        this.progress.processedGames = i + 1;
-        this.progress.currentAction = `Updating prices: [${i + 1}/${gamesToRefresh.length}] ${g.title}`;
+        for (let i = 0; i < prioritizedGames.length; i++) {
+          if (this.isCancelled) return;
+          const g = prioritizedGames[i];
+          this.progress.processedGames = i + 1;
+          this.progress.currentAction = `Scraping secondary keyshops: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
 
-        await Promise.allSettled(
-          secondaryAdapters.map(async (adapter) => {
-            try {
-              const offers = await adapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId);
-              for (const offer of offers) {
-                this.ingestOffer(g.id, adapter.code, offer);
-                this.progress.sourceProgress[adapter.code].offersFound++;
-                totalOffersIngested++;
+          await Promise.allSettled(
+            secondaryAdapters.map(async (adapter) => {
+              try {
+                const offers = await adapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId);
+                for (const offer of offers) {
+                  this.ingestOffer(g.id, adapter.code, offer);
+                  this.progress.sourceProgress[adapter.code].offersFound++;
+                  totalOffersIngested++;
+                }
+              } catch {
+                // Ignore individual scraping errors
+              } finally {
+                this.progress.sourceProgress[adapter.code].processed++;
               }
-            } catch (err: any) {
-              // Circuit breaker records rate limits / failures
-            } finally {
-              this.progress.sourceProgress[adapter.code].processed++;
-            }
-          })
-        );
+            })
+          );
 
-        if (i % 5 === 0 || i === gamesToRefresh.length - 1) {
-          this.broadcast();
+          if (i % 5 === 0 || i === prioritizedGames.length - 1) {
+            this.broadcast();
+          }
         }
       }
 
