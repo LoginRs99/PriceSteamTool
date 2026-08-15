@@ -297,9 +297,32 @@ export class SyncOrchestrator {
         }
       }
 
-      // Step 6: Secondary Sources Dispatch (GG.deals, CheapShark, AllKeyShop, GoCDKeys)
+      // Step 6: GG.deals Batch Sync (if enabled)
+      if (shouldRunSource('ggdeals') && !this.isCancelled && config.ggdealsApiKey) {
+        this.progress.currentAction = 'Refreshing prices via GG.deals batch API...';
+        this.progress.sourceProgress.ggdeals.total = gamesToRefresh.length;
+        this.broadcast();
+
+        try {
+          const ggBatchResults = await ggdealsAdapter.fetchBatchPrices(gamesToRefresh);
+          for (const [appId, offers] of ggBatchResults.entries()) {
+            const game = gamesToRefresh.find(w => w.steamAppId === appId);
+            if (!game) continue;
+
+            for (const offer of offers) {
+              this.ingestOffer(game.id, 'ggdeals', offer);
+              this.progress.sourceProgress.ggdeals.offersFound++;
+              totalOffersIngested++;
+            }
+            this.progress.sourceProgress.ggdeals.processed++;
+          }
+        } catch (e: any) {
+          logWarn(`GG.deals batch sync warning: ${e?.message}`);
+        }
+      }
+
+      // Step 7: Secondary Individual Sources Dispatch (CheapShark, AllKeyShop, GoCDKeys)
       const secondaryAdapters: PriceSourceAdapter[] = [];
-      if (shouldRunSource('ggdeals')) secondaryAdapters.push(ggdealsAdapter);
       if (shouldRunSource('cheapshark')) secondaryAdapters.push(cheapsharkAdapter);
       if (shouldRunSource('allkeyshop')) secondaryAdapters.push(allkeyshopAdapter);
       if (shouldRunSource('gocdkeys')) secondaryAdapters.push(gocdkeysAdapter);
