@@ -168,13 +168,12 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
   };
 }
 
+import { exchangeRateService } from './exchangeRate.js';
+
 /**
- * Converts other currencies to EUR if necessary (e.g. USD / GBP standard rates)
+ * Converts other currencies to EUR using dynamic exchange rates.
  */
 export function convertToEur(price: number, currency: string = 'EUR'): number {
-  const curr = currency.toUpperCase().trim();
-  if (curr === 'EUR' || curr === '€') return Math.round(price * 100) / 100;
-  if (curr === 'USD' || curr === '$') return Math.round(price * 0.92 * 100) / 100;
-  if (curr === 'GBP' || curr === '£') return Math.round(price * 1.17 * 100) / 100;
-  return Math.round(price * 100) / 100;
+  return exchangeRateService.convertToEur(price, currency);
 }
+

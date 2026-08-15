@@ -3,6 +3,7 @@ import type {
   Profile, 
   Game, 
   WishlistFilterOptions, 
+  WishlistStatistics,
   SyncProgressUpdate,
   Anomaly,
   SourceCode
@@ -10,6 +11,7 @@ import type {
 import { api } from './api.js';
 import { Navbar } from './components/Navbar.js';
 import { SyncBanner } from './components/SyncBanner.js';
+import { DealsDashboard } from './components/DealsDashboard.js';
 import { FilterBar } from './components/FilterBar.js';
 import { GameCard } from './components/GameCard.js';
 import { GameDetailModal } from './components/GameDetailModal.js';
@@ -26,6 +28,10 @@ export const App: React.FC = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [totalGames, setTotalGames] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // v1.2 Stats and Best Deals
+  const [stats, setStats] = useState<WishlistStatistics | null>(null);
+  const [topDeals, setTopDeals] = useState<Game[]>([]);
 
   const [syncProgress, setSyncProgress] = useState<SyncProgressUpdate | null>(null);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
@@ -55,6 +61,20 @@ export const App: React.FC = () => {
     } catch (e) {
       console.error('Failed to load profiles:', e);
       return null;
+    }
+  }, []);
+
+  // Load stats and top deals
+  const loadStatsAndDeals = useCallback(async () => {
+    try {
+      const [s, d] = await Promise.all([
+        api.getWishlistStatistics(),
+        api.getBestDeals(4)
+      ]);
+      setStats(s);
+      setTopDeals(d.deals || []);
+    } catch (e) {
+      console.error('Failed to load statistics or best deals:', e);
     }
   }, []);
 
@@ -90,6 +110,7 @@ export const App: React.FC = () => {
     loadProfiles().then((active) => {
       if (active) {
         loadGames();
+        loadStatsAndDeals();
       } else {
         setLoading(false);
       }
@@ -104,9 +125,10 @@ export const App: React.FC = () => {
         const update: SyncProgressUpdate = JSON.parse(event.data);
         setSyncProgress(update);
 
-        // If sync just completed, refresh the game list & anomalies
+        // If sync just completed, refresh the game list, stats & anomalies
         if (update.status === 'COMPLETED') {
           loadGames();
+          loadStatsAndDeals();
           loadAnomalies();
         }
       } catch (e) {
@@ -117,7 +139,7 @@ export const App: React.FC = () => {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [loadProfiles, loadGames, loadStatsAndDeals, loadAnomalies]);
 
   const handleFilterChange = (newFilters: Partial<WishlistFilterOptions>) => {
     const updated = { ...filters, ...newFilters };
@@ -178,6 +200,16 @@ export const App: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* v1.2 Deals Dashboard & Statistics Bar */}
+          <DealsDashboard
+            stats={stats}
+            topDeals={topDeals}
+            onSelectGame={(id) => setSelectedGameId(id)}
+            onFilterATL={() => handleFilterChange({ allTimeLowOnly: true, majorDealsOnly: false, saleOnly: false, page: 1 })}
+            onFilterMajor={() => handleFilterChange({ majorDealsOnly: true, allTimeLowOnly: false, saleOnly: false, page: 1 })}
+            onFilterSale={() => handleFilterChange({ saleOnly: true, majorDealsOnly: false, allTimeLowOnly: false, page: 1 })}
+          />
+
           {/* Filters and Search Bar */}
           <FilterBar
             filters={filters}
@@ -264,6 +296,7 @@ export const App: React.FC = () => {
           onRefresh={async () => {
             await loadProfiles();
             loadGames();
+            loadStatsAndDeals();
           }}
         />
       )}
@@ -278,6 +311,7 @@ export const App: React.FC = () => {
           onRefresh={() => {
             loadAnomalies();
             loadGames();
+            loadStatsAndDeals();
           }}
         />
       )}

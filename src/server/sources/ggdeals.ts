@@ -2,6 +2,7 @@ import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { gameRepo } from '../db/index.js';
+import { convertToEur } from '../domain/normalizer.js';
 
 export interface GGDealsPriceData {
   title: string;
@@ -83,18 +84,23 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
           const offers: NormalizedSourceOffer[] = [];
           const game = gameRepo.getBySteamAppId(appId);
 
+          const curr = data.prices.currency || 'EUR';
+
           // 1. Check historical retail low
           if (data.prices.historicalRetail) {
-            const histRetail = parseFloat(data.prices.historicalRetail);
-            if (!isNaN(histRetail) && histRetail > 0 && game) {
+            const rawHistRetail = parseFloat(data.prices.historicalRetail);
+            if (!isNaN(rawHistRetail) && rawHistRetail > 0 && game) {
+              const histRetail = convertToEur(rawHistRetail, curr);
               gameRepo.updateHistoricalLow(game.id, histRetail, new Date().toISOString(), 'GG.deals (Official)');
             }
           }
 
           // 2. Add current retail price if available
           if (data.prices.currentRetail) {
-            const priceEur = parseFloat(data.prices.currentRetail);
-            if (!isNaN(priceEur) && priceEur > 0) {
+            const rawPrice = parseFloat(data.prices.currentRetail);
+            if (!isNaN(rawPrice) && rawPrice > 0) {
+              const priceEur = convertToEur(rawPrice, curr);
+              const histRetailEur = data.prices.historicalRetail ? convertToEur(parseFloat(data.prices.historicalRetail), curr) : undefined;
               offers.push({
                 merchantCode: 'ggdeals_retail',
                 merchantName: 'GG.deals (Official)',
@@ -102,8 +108,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 productTypeRaw: 'STEAM_KEY',
                 regionRaw: 'EU',
                 priceEur,
+                rawPrice,
+                rawCurrency: curr,
                 dealUrl: data.url || `https://gg.deals/game/${appId}/`,
-                historicalLowEur: data.prices.historicalRetail ? parseFloat(data.prices.historicalRetail) : undefined,
+                historicalLowEur: histRetailEur,
                 rawPayload: data
               });
             }
@@ -111,8 +119,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
 
           // 3. Add current keyshop price if available
           if (data.prices.currentKeyshops) {
-            const priceEur = parseFloat(data.prices.currentKeyshops);
-            if (!isNaN(priceEur) && priceEur > 0) {
+            const rawKeyshopPrice = parseFloat(data.prices.currentKeyshops);
+            if (!isNaN(rawKeyshopPrice) && rawKeyshopPrice > 0) {
+              const priceEur = convertToEur(rawKeyshopPrice, curr);
+              const histKeyshopEur = data.prices.historicalKeyshops ? convertToEur(parseFloat(data.prices.historicalKeyshops), curr) : undefined;
               offers.push({
                 merchantCode: 'ggdeals_keyshops',
                 merchantName: 'GG.deals (Keyshops)',
@@ -120,8 +130,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 productTypeRaw: 'STEAM_KEY',
                 regionRaw: 'GLOBAL',
                 priceEur,
+                rawPrice: rawKeyshopPrice,
+                rawCurrency: curr,
                 dealUrl: data.url || `https://gg.deals/game/${appId}/`,
-                historicalLowEur: data.prices.historicalKeyshops ? parseFloat(data.prices.historicalKeyshops) : undefined,
+                historicalLowEur: histKeyshopEur,
                 rawPayload: data
               });
             }

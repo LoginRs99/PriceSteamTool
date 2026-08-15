@@ -1,7 +1,7 @@
 {
   "name": "pricetool",
-  "version": "1.0.0",
-  "description": "Self-hosted Steam Wishlist Price Aggregator",
+  "version": "1.3.0",
+  "description": "Self-hosted Steam Wishlist Price Aggregator & Intelligence Engine",
   "type": "module",
   "scripts": {
     "dev:server": "tsx watch src/server/index.ts",
@@ -13,7 +13,6 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/server/index.js",
     "test": "vitest run --fileParallelism=false",
-    "test:watch": "vitest --fileParallelism=false",
     "test:sources": "tsx scripts/test-sources.ts"
   },
   "dependencies": {

@@ -6,8 +6,10 @@ import type {
   SourceStatus, 
   SyncProgressUpdate, 
   WishlistFilterOptions, 
+  WishlistStatistics,
   Anomaly,
-  SourceCode
+  SourceCode,
+  PriceIntelligenceResponse
 } from './types.js';
 
 const API_BASE = '/api';
@@ -52,14 +54,29 @@ export const api = {
     if (options.search) params.set('search', options.search);
     if (options.sort) params.set('sort', options.sort);
     if (options.saleOnly) params.set('saleOnly', 'true');
+    if (options.majorDealsOnly) params.set('majorDealsOnly', 'true');
+    if (options.allTimeLowOnly) params.set('allTimeLowOnly', 'true');
+    if (options.trustedOnly) params.set('trustedOnly', 'true');
     if (options.historicalLowOnly) params.set('historicalLowOnly', 'true');
     if (options.underPrice) params.set('underPrice', String(options.underPrice));
+    if (options.minPrice !== undefined) params.set('minPrice', String(options.minPrice));
+    if (options.maxPrice !== undefined) params.set('maxPrice', String(options.maxPrice));
     if (options.merchantType) params.set('merchantType', options.merchantType);
     if (options.hasAnomaly) params.set('hasAnomaly', 'true');
     if (options.page) params.set('page', String(options.page));
     if (options.limit) params.set('limit', String(options.limit));
 
     const res = await fetch(`${API_BASE}/games?${params.toString()}`);
+    return res.json();
+  },
+
+  async getWishlistStatistics(): Promise<WishlistStatistics> {
+    const res = await fetch(`${API_BASE}/wishlist/statistics`);
+    return res.json();
+  },
+
+  async getBestDeals(limit: number = 12): Promise<{ deals: Game[] }> {
+    const res = await fetch(`${API_BASE}/wishlist/best-deals?limit=${limit}`);
     return res.json();
   },
 
@@ -70,6 +87,12 @@ export const api = {
   }> {
     const res = await fetch(`${API_BASE}/games/${id}`);
     if (!res.ok) throw new Error('Failed to load game details');
+    return res.json();
+  },
+
+  async getPriceIntelligence(id: string): Promise<PriceIntelligenceResponse> {
+    const res = await fetch(`${API_BASE}/games/${id}/intelligence`);
+    if (!res.ok) throw new Error('Failed to load price intelligence');
     return res.json();
   },
 

@@ -37,12 +37,18 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
   }
 
   // 2. Check for Historical Low
-  if (historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur < historicalLowEur * 0.98) {
-    // Confirmed if high confidence or multi-source consensus and not high risk
-    if ((sourceAgreementCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH') {
-      return 'NEW_HISTORICAL_LOW';
+  if (historicalLowEur !== undefined && historicalLowEur > 0) {
+    if (currentPriceEur < historicalLowEur * 0.98) {
+      // Confirmed if high confidence or multi-source consensus and not high risk
+      if ((sourceAgreementCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH') {
+        return 'NEW_HISTORICAL_LOW';
+      }
+      return 'SUSPECTED_HISTORICAL_LOW';
+    } else if (currentPriceEur <= historicalLowEur * 1.02 && riskLevel !== 'HIGH') {
+      return 'AT_HISTORICAL_LOW';
+    } else if (currentPriceEur <= historicalLowEur * 1.10 && riskLevel !== 'HIGH') {
+      return 'NEAR_HISTORICAL_LOW';
     }
-    return 'SUSPECTED_HISTORICAL_LOW';
   }
 
   // 3. Magnitude Evaluation against MSRP / Original price

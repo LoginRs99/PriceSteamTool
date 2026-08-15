@@ -8,6 +8,9 @@ export interface NormalizedSourceOffer {
   regionRaw?: string;
   priceEur: number;
   originalPriceEur?: number;
+  rawPrice?: number;
+  rawCurrency?: string;
+  rawOriginalPrice?: number;
   voucherCode?: string;
   dealUrl: string;
   historicalLowEur?: number;

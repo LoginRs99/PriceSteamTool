@@ -85,6 +85,9 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
               regionRaw: 'GLOBAL',
               priceEur,
               originalPriceEur,
+              rawPrice: salePriceUsd,
+              rawCurrency: 'USD',
+              rawOriginalPrice: retailPriceUsd > 0 ? retailPriceUsd : undefined,
               dealUrl: `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
               rawPayload: d
             });

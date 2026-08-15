@@ -192,23 +192,49 @@ export class SyncOrchestrator {
 
       logInfo(`Ingested ${wishlistItems.length} wishlist entries from Steam API.`);
 
-      // Step 2: Ingest games and sync wishlist entries in SQLite
-      gameRepo.syncWishlistEntries(
-        profileId, 
-        wishlistItems.map(w => ({ steamAppId: w.steamAppId, title: `App ${w.steamAppId}`, priority: w.priority, dateAdded: w.dateAdded }))
-      );
+      // Step 2: Ingest games and sync wishlist entries in SQLite with batch metadata
+      gameRepo.syncWishlistEntries(profileId, wishlistItems);
 
-      // Step 3: Populate metadata for games that are missing title/images (if steam source is active)
+      // Step 3: If Steam source is active, record store offers directly from batch metadata
       const allWishlistGames = gameRepo.getAllWishlistGameIds(profileId);
       if (shouldRunSource('steam')) {
-        this.progress.currentAction = 'Checking store assets and titles...';
+        this.progress.currentAction = 'Processing Steam Store prices...';
+        this.progress.sourceProgress.steam.total = wishlistItems.length;
         this.broadcast();
 
-        for (let i = 0; i < allWishlistGames.length; i++) {
+        for (const item of wishlistItems) {
           if (this.isCancelled) return;
-          const g = allWishlistGames[i];
-          
-          if (g.title.startsWith('App ')) {
+          if (item.currentPriceEur !== undefined) {
+            const game = allWishlistGames.find(g => g.steamAppId === item.steamAppId);
+            if (game) {
+              this.ingestOffer(game.id, 'steam', {
+                merchantCode: 'steam',
+                merchantName: 'Steam Store',
+                isOfficial: true,
+                productTypeRaw: 'DIRECT_PURCHASE',
+                regionRaw: 'GLOBAL',
+                priceEur: item.currentPriceEur,
+                originalPriceEur: item.basePriceEur,
+                rawPrice: item.rawPrice,
+                rawCurrency: item.rawCurrency,
+                rawOriginalPrice: item.rawOriginalPrice,
+                dealUrl: `https://store.steampowered.com/app/${item.steamAppId}/`
+              }, item.basePriceEur);
+              this.progress.sourceProgress.steam.offersFound++;
+              totalOffersIngested++;
+            }
+          }
+          this.progress.sourceProgress.steam.processed++;
+        }
+
+        // Check if any games still need fallback individual AppDetails (e.g. title starts with 'App ')
+        const gamesNeedingFallback = allWishlistGames.filter(g => g.title.startsWith('App '));
+        if (gamesNeedingFallback.length > 0) {
+          this.progress.currentAction = `Resolving fallback metadata for ${gamesNeedingFallback.length} items...`;
+          this.broadcast();
+
+          for (const g of gamesNeedingFallback) {
+            if (this.isCancelled) return;
             try {
               const details = await steamAdapter.fetchAppDetails(g.steamAppId);
               if (details) {
@@ -233,6 +259,9 @@ export class SyncOrchestrator {
                     regionRaw: 'GLOBAL',
                     priceEur: details.currentPriceEur,
                     originalPriceEur: details.basePriceEur,
+                    rawPrice: details.rawPrice,
+                    rawCurrency: details.rawCurrency,
+                    rawOriginalPrice: details.rawOriginalPrice,
                     dealUrl: `https://store.steampowered.com/app/${g.steamAppId}/`
                   }, updatedGame.basePriceEur);
                   this.progress.sourceProgress.steam.offersFound++;
@@ -240,10 +269,9 @@ export class SyncOrchestrator {
                 }
               }
             } catch (e) {
-              // Ignore single game detail error
+              // Ignore fallback error
             }
           }
-          this.progress.sourceProgress.steam.processed++;
         }
       }
 
@@ -466,6 +494,9 @@ export class SyncOrchestrator {
       regionConfidence: regionNorm.regionConfidence,
       priceEur: rawOffer.priceEur,
       originalPriceEur: rawOffer.originalPriceEur,
+      rawPrice: rawOffer.rawPrice,
+      rawCurrency: rawOffer.rawCurrency,
+      rawOriginalPrice: rawOffer.rawOriginalPrice,
       voucherCode: rawOffer.voucherCode,
       dealUrl: rawOffer.dealUrl,
       isValid: true,

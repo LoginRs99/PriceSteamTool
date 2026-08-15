@@ -81,8 +81,12 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       search: query.search || undefined,
       sort: query.sort || 'priority',
       saleOnly: query.saleOnly === 'true' || query.saleOnly === true,
-      historicalLowOnly: query.historicalLowOnly === 'true' || query.historicalLowOnly === true,
+      majorDealsOnly: query.majorDealsOnly === 'true' || query.majorDealsOnly === true,
+      allTimeLowOnly: query.allTimeLowOnly === 'true' || query.allTimeLowOnly === true || query.historicalLowOnly === 'true' || query.historicalLowOnly === true,
+      trustedOnly: query.trustedOnly === 'true' || query.trustedOnly === true,
       underPrice: query.underPrice ? parseFloat(query.underPrice) : undefined,
+      minPrice: query.minPrice ? parseFloat(query.minPrice) : undefined,
+      maxPrice: query.maxPrice ? parseFloat(query.maxPrice) : undefined,
       merchantType: query.merchantType || 'all',
       hasAnomaly: query.hasAnomaly === 'true' || query.hasAnomaly === true,
       page: query.page ? parseInt(query.page, 10) : 1,
@@ -96,6 +100,60 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       page: filterOptions.page,
       limit: filterOptions.limit
     };
+  });
+
+  fastify.get('/api/wishlist/statistics', async () => {
+    const activeProfile = profileRepo.getActive();
+    if (!activeProfile) {
+      return {
+        totalGames: 0,
+        gamesOnSale: 0,
+        gamesAtHistoricalLow: 0,
+        majorDropsCount: 0,
+        gamesWithHighRiskOffers: 0,
+        averageDiscountPercent: 0
+      };
+    }
+    return gameRepo.getWishlistStatistics(activeProfile.id);
+  });
+
+  // Alias for statistics
+  fastify.get('/api/games/statistics', async () => {
+    const activeProfile = profileRepo.getActive();
+    if (!activeProfile) {
+      return {
+        totalGames: 0,
+        gamesOnSale: 0,
+        gamesAtHistoricalLow: 0,
+        majorDropsCount: 0,
+        gamesWithHighRiskOffers: 0,
+        averageDiscountPercent: 0
+      };
+    }
+    return gameRepo.getWishlistStatistics(activeProfile.id);
+  });
+
+  fastify.get('/api/wishlist/best-deals', async (request) => {
+    const activeProfile = profileRepo.getActive();
+    if (!activeProfile) {
+      return { deals: [] };
+    }
+    const query = request.query as any;
+    const limit = query.limit ? parseInt(query.limit, 10) : 12;
+    const deals = gameRepo.getBestDeals(activeProfile.id, limit);
+    return { deals };
+  });
+
+  // Alias for best-deals
+  fastify.get('/api/games/best-deals', async (request) => {
+    const activeProfile = profileRepo.getActive();
+    if (!activeProfile) {
+      return { deals: [] };
+    }
+    const query = request.query as any;
+    const limit = query.limit ? parseInt(query.limit, 10) : 12;
+    const deals = gameRepo.getBestDeals(activeProfile.id, limit);
+    return { deals };
   });
 
   fastify.get('/api/games/:id', async (request, reply) => {
@@ -113,6 +171,15 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       offers,
       history
     };
+  });
+
+  fastify.get('/api/games/:id/intelligence', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const intelligence = gameRepo.getPriceIntelligence(id);
+    if (!intelligence) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+    return intelligence;
   });
 
   // ----------------------------------------------------

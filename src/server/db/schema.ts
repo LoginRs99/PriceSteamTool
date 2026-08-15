@@ -80,6 +80,9 @@ CREATE TABLE IF NOT EXISTS offers (
   region_confidence REAL NOT NULL DEFAULT 1.0,
   price_eur REAL NOT NULL,
   original_price_eur REAL,
+  raw_price REAL,
+  raw_currency TEXT DEFAULT 'EUR',
+  raw_original_price REAL,
   discount_percent INTEGER NOT NULL DEFAULT 0,
   voucher_code TEXT,
   deal_url TEXT NOT NULL,
@@ -94,6 +97,7 @@ CREATE TABLE IF NOT EXISTS offers (
   anomaly_score REAL NOT NULL DEFAULT 0.0,
   anomaly_reason TEXT,
   fetched_at TEXT NOT NULL,
+  last_observed_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE(game_id, merchant_id, product_type, region_type)
@@ -109,6 +113,8 @@ CREATE TABLE IF NOT EXISTS source_observations (
   offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
   source_code TEXT NOT NULL,
   observed_price_eur REAL NOT NULL,
+  observed_raw_price REAL,
+  observed_currency TEXT DEFAULT 'EUR',
   observed_at TEXT NOT NULL,
   raw_data_json TEXT,
   UNIQUE(offer_id, source_code)
@@ -124,6 +130,8 @@ CREATE TABLE IF NOT EXISTS price_history (
   source_code TEXT NOT NULL,
   price_eur REAL NOT NULL,
   discount_percent INTEGER,
+  price_event TEXT,
+  deal_score INTEGER,
   recorded_at TEXT NOT NULL
 );
 

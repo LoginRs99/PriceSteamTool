@@ -2,6 +2,7 @@ import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { gameRepo } from '../db/index.js';
+import { convertToEur } from '../domain/normalizer.js';
 
 export class ItadSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'itad' as const;
@@ -124,10 +125,16 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
 
         const offers: NormalizedSourceOffer[] = [];
 
+        const itemCurrency = item.current?.price?.currency || item.lowest?.price?.currency || 'EUR';
+        const rawCurrentPrice = item.current?.price?.amount !== undefined ? Number(item.current.price.amount) : undefined;
+        const rawRegularPrice = item.current?.regular?.amount !== undefined ? Number(item.current.regular.amount) : undefined;
+
         // 1. Record historical low if present
         const lowObj = item.lowest || item.historyLow;
         if (lowObj?.price?.amount !== undefined) {
-          const histPrice = Number(lowObj.price.amount);
+          const rawHistPrice = Number(lowObj.price.amount);
+          const histCurrency = lowObj.price.currency || itemCurrency;
+          const histPrice = convertToEur(rawHistPrice, histCurrency);
           const histDate = lowObj.timestamp || (lowObj.cut ? new Date().toISOString() : undefined);
           const game = gameRepo.getBySteamAppId(steamAppId);
           if (game) {
@@ -136,9 +143,11 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
         }
 
         // 2. Record current best deal
-        if (item.current?.price?.amount !== undefined) {
+        if (rawCurrentPrice !== undefined) {
           const shop = item.current.shop || {};
           const shopCode = (shop.name || 'Store').toLowerCase().replace(/[^a-z0-9]+/g, '');
+          const priceEur = convertToEur(rawCurrentPrice, itemCurrency);
+          const originalPriceEur = rawRegularPrice !== undefined ? convertToEur(rawRegularPrice, itemCurrency) : undefined;
           
           offers.push({
             merchantCode: shopCode,
@@ -146,11 +155,14 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
             isOfficial: true,
             productTypeRaw: 'STEAM_KEY',
             regionRaw: 'GLOBAL',
-            priceEur: Number(item.current.price.amount),
-            originalPriceEur: item.current.regular?.amount ? Number(item.current.regular.amount) : undefined,
+            priceEur,
+            originalPriceEur,
+            rawPrice: rawCurrentPrice,
+            rawCurrency: itemCurrency,
+            rawOriginalPrice: rawRegularPrice,
             voucherCode: item.current.voucher || undefined,
             dealUrl: item.current.url || `https://isthereanydeal.com/game/${itadId}/info/`,
-            historicalLowEur: lowObj?.price?.amount ? Number(lowObj.price.amount) : undefined,
+            historicalLowEur: lowObj?.price?.amount ? convertToEur(Number(lowObj.price.amount), itemCurrency) : undefined,
             rawPayload: item
           });
         }

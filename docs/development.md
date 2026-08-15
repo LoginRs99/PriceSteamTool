@@ -11,24 +11,26 @@ Pricetool/
 ├── .github/
 │   └── workflows/
 │       └── docker-publish.yml     # GitHub Actions CI/CD to GHCR
-├── docs/                          # Architectural & source specifications
+├── docs/                          # Architectural & user documentation
+│   ├── user-guide.md              # User guide: Pricing Engine, Deal Score, Advisor
 │   ├── architecture.md
 │   ├── sources.md
 │   ├── data-model.md
 │   ├── sync.md
+│   ├── audit.md
 │   └── development.md
 ├── src/
 │   ├── server/                    # Fastify backend & sync engine
 │   │   ├── config/                # Environment variables & constants
-│   │   ├── db/                    # SQLite database & migrations (Drizzle/better-sqlite3)
-│   │   ├── domain/                # Domain models, normalizers, deduplication, anomaly scoring
-│   │   ├── sources/               # Source adapters (ITAD, GGDeals, CheapShark, Steam, AllKeyShop)
+│   │   ├── db/                    # SQLite database & migrations (better-sqlite3)
+│   │   ├── domain/                # Pricing Engine, Deal Score, Price Intelligence, Normalizers
+│   │   ├── sources/               # Source adapters (ITAD, GGDeals, CheapShark, Steam)
 │   │   ├── sync/                  # Job queue, rate limiters, circuit breakers, orchestrator
 │   │   ├── routes/                # REST API routes & SSE stream (/api/*)
 │   │   └── index.ts               # Server entry point
-│   ├── client/                    # Modern React SPA (Vite)
+│   ├── client/                    # Modern React 19 SPA (Vite)
 │   │   ├── src/
-│   │   │   ├── components/        # UI components (GameCard, OfferList, SyncStatus, Filters)
+│   │   │   ├── components/        # DealsDashboard, FilterBar, GameCard, GameDetailModal, PriceChart
 │   │   │   ├── hooks/             # Custom hooks (useWishlist, useSyncProgress, useFilters)
 │   │   │   ├── types/             # Frontend shared domain types
 │   │   │   ├── App.tsx            # Main application
@@ -36,12 +38,12 @@ Pricetool/
 │   │   ├── index.html
 │   │   └── vite.config.ts
 │   └── shared/                    # Shared types & schemas
-├── tests/                         # Unit, integration, & adapter fixture tests
-│   ├── unit/
-│   ├── adapters/
-│   └── e2e/
+├── tests/                         # Automated unit & integration tests (106 tests)
+│   ├── unit/                      # Domain logic, Deal Score, Price Intelligence, Normalizer tests
+│   └── integration/               # Real-world 2000-game validation & production readiness tests
 ├── Dockerfile                     # Multi-stage production container
 ├── docker-compose.yml             # Local production compose
+├── CHANGELOG.md                   # Release history
 ├── package.json
 ├── tsconfig.json
 └── README.md

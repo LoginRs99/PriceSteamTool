@@ -6,9 +6,13 @@ export default defineConfig({
     pool: 'forks',
     poolOptions: {
       forks: {
-        singleFork: true,
-        isolate: false
+        singleFork: true
       }
+    },
+    fileParallelism: false,
+    isolate: false,
+    env: {
+      DB_PATH: ':memory:'
     }
   }
 });

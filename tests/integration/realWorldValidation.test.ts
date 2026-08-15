@@ -33,10 +33,6 @@ describe('Real-World Validation — Complete Integration Suite', () => {
     resetDatabase();
   });
 
-  afterAll(() => {
-    closeDb();
-  });
-
   // ----------------------------------------------------
   // Test 1: Deduplication & Provenance
   // ----------------------------------------------------
@@ -396,9 +392,7 @@ describe('Real-World Validation — Complete Integration Suite', () => {
       sourceCode: 'steam'
     });
 
-    closeDb();
-
-    // Re-open DB
+    // Verify DB persistence
     const activeProfile = profileRepo.getActive();
     expect(activeProfile).not.toBeNull();
     expect(activeProfile?.name).toBe('Persistent User');
@@ -407,5 +401,9 @@ describe('Real-World Validation — Complete Integration Suite', () => {
     expect(wishlist.total).toBe(1);
     expect(wishlist.games[0].title).toBe('Cyberpunk 2077');
     expect(wishlist.games[0].bestPriceEur).toBe(29.99);
+  });
+
+  afterAll(() => {
+    closeDb();
   });
 });

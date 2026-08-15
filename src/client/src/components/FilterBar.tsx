@@ -1,6 +1,6 @@
 import React from 'react';
 import type { WishlistFilterOptions } from '../types.js';
-import { Search } from 'lucide-react';
+import { Search, Flame, Sparkles, ShieldCheck, Tag } from 'lucide-react';
 
 interface FilterBarProps {
   filters: WishlistFilterOptions;
@@ -15,12 +15,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   const currentPill = filters.hasAnomaly 
     ? 'anomaly'
-    : filters.historicalLowOnly 
-    ? 'historical_low'
+    : filters.majorDealsOnly
+    ? 'major_deals'
+    : filters.allTimeLowOnly
+    ? 'atl'
+    : filters.trustedOnly
+    ? 'trusted'
     : filters.underPrice === 5
     ? 'under_5'
     : filters.underPrice === 10
     ? 'under_10'
+    : filters.underPrice === 20
+    ? 'under_20'
     : filters.saleOnly
     ? 'sale'
     : filters.merchantType === 'official' || (filters.merchantType as any) === 'official_only'
@@ -32,7 +38,47 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       case 'all':
         onFilterChange({
           saleOnly: false,
-          historicalLowOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: undefined,
+          minPrice: undefined,
+          maxPrice: undefined,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'major_deals':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: true,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: undefined,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'atl':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: true,
+          trustedOnly: false,
+          underPrice: undefined,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'trusted':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: true,
           underPrice: undefined,
           merchantType: 'all',
           hasAnomaly: false,
@@ -42,28 +88,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       case 'sale':
         onFilterChange({
           saleOnly: true,
-          historicalLowOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
           underPrice: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
-        });
-        break;
-      case 'historical_low':
-        onFilterChange({
-          saleOnly: false,
-          historicalLowOnly: true,
-          underPrice: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
-        });
-        break;
-      case 'under_10':
-        onFilterChange({
-          saleOnly: false,
-          historicalLowOnly: false,
-          underPrice: 10,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -72,8 +100,34 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       case 'under_5':
         onFilterChange({
           saleOnly: false,
-          historicalLowOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
           underPrice: 5,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'under_10':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: 10,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'under_20':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: 20,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -82,7 +136,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       case 'official':
         onFilterChange({
           saleOnly: false,
-          historicalLowOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
           underPrice: undefined,
           merchantType: 'official',
           hasAnomaly: false,
@@ -92,7 +148,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       case 'anomaly':
         onFilterChange({
           saleOnly: false,
-          historicalLowOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
           underPrice: undefined,
           merchantType: 'all',
           hasAnomaly: true,
@@ -116,18 +174,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           />
         </div>
 
-        <select
-          className="select-input"
-          value={filters.sort || 'priority'}
-          onChange={(e) => onFilterChange({ sort: e.target.value as any, page: 1 })}
-        >
-          <option value="priority">Sort: Wishlist Priority</option>
-          <option value="price_asc">Sort: Price (Lowest first)</option>
-          <option value="price_desc">Sort: Price (Highest first)</option>
-          <option value="discount_desc">Sort: Discount % (Highest first)</option>
-          <option value="historical_low">Sort: Closest to Historical Low</option>
-          <option value="title_asc">Sort: Title (A - Z)</option>
-        </select>
+        <div className="filter-controls-group">
+          <select
+            className="select-input"
+            value={filters.sort || 'priority'}
+            onChange={(e) => onFilterChange({ sort: e.target.value as any, page: 1 })}
+          >
+            <option value="priority">Sort: Wishlist Priority</option>
+            <option value="deal_score_desc">★ Highest Deal Score (0–100)</option>
+            <option value="price_asc">Price: Lowest first</option>
+            <option value="price_desc">Price: Highest first</option>
+            <option value="discount_desc">Discount: Highest first</option>
+            <option value="historical_low">Closest to All-Time Low</option>
+            <option value="title_asc">Title (A - Z)</option>
+          </select>
+        </div>
       </div>
 
       <div className="filter-pills-row">
@@ -139,24 +200,35 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </button>
 
         <button
+          className={`pill-btn ${currentPill === 'major_deals' ? 'active' : ''}`}
+          onClick={() => setPill('major_deals')}
+        >
+          <Sparkles size={13} />
+          <span>Major Deals</span>
+        </button>
+
+        <button
+          className={`pill-btn ${currentPill === 'atl' ? 'active' : ''}`}
+          onClick={() => setPill('atl')}
+        >
+          <Flame size={13} />
+          <span>All-Time Low</span>
+        </button>
+
+        <button
+          className={`pill-btn ${currentPill === 'trusted' ? 'active' : ''}`}
+          onClick={() => setPill('trusted')}
+        >
+          <ShieldCheck size={13} />
+          <span>Trusted Only</span>
+        </button>
+
+        <button
           className={`pill-btn ${currentPill === 'sale' ? 'active' : ''}`}
           onClick={() => setPill('sale')}
         >
-          🏷️ On Sale
-        </button>
-
-        <button
-          className={`pill-btn ${currentPill === 'historical_low' ? 'active' : ''}`}
-          onClick={() => setPill('historical_low')}
-        >
-          🔥 Historical Low
-        </button>
-
-        <button
-          className={`pill-btn ${currentPill === 'under_10' ? 'active' : ''}`}
-          onClick={() => setPill('under_10')}
-        >
-          Under €10
+          <Tag size={13} />
+          <span>On Sale</span>
         </button>
 
         <button
@@ -167,18 +239,35 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </button>
 
         <button
-          className={`pill-btn ${currentPill === 'official' ? 'active' : ''}`}
-          onClick={() => setPill('official')}
+          className={`pill-btn ${currentPill === 'under_10' ? 'active' : ''}`}
+          onClick={() => setPill('under_10')}
         >
-          🛡️ Official Stores Only
+          Under €10
         </button>
 
         <button
-          className={`pill-btn ${currentPill === 'anomaly' ? 'active' : ''}`}
-          onClick={() => setPill('anomaly')}
+          className={`pill-btn ${currentPill === 'under_20' ? 'active' : ''}`}
+          onClick={() => setPill('under_20')}
         >
-          ⚠ Anomalies
+          Under €20
         </button>
+
+        <button
+          className={`pill-btn ${currentPill === 'official' ? 'active' : ''}`}
+          onClick={() => setPill('official')}
+        >
+          Official Stores
+        </button>
+
+        {filters.hasAnomaly && (
+          <button
+            className="pill-btn active"
+            style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#f87171' }}
+            onClick={() => setPill('all')}
+          >
+            ⚠️ High Risk Anomaly Active (Click to clear)
+          </button>
+        )}
       </div>
     </div>
   );

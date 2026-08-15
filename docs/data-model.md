@@ -29,7 +29,7 @@ This document outlines the database schema, entity relationships, normalization 
 
 ---
 
-## 2. Schema Specification (SQLite / Drizzle ORM)
+## 2. Schema Specification (SQLite with WAL mode)
 
 ### 2.1 Profiles (`profiles`)
 | Column | Type | Description |
@@ -94,24 +94,36 @@ This document outlines the database schema, entity relationships, normalization 
 | `region_type` | TEXT NOT NULL | `GLOBAL`, `EU`, `HU`, `RESTRICTED` |
 | `region_code` | TEXT | Specific ISO region or `WW`/`EU` |
 | `region_confidence`| REAL DEFAULT 1.0 | 0.0 - 1.0 region compatibility score |
-| `price_eur` | REAL NOT NULL | Current purchase price in EUR |
-| `original_price_eur`| REAL | Base price before discount in EUR |
+| `price_eur` | REAL NOT NULL | Normalized purchase price in EUR |
+| `original_price_eur`| REAL | Normalized base price before discount in EUR |
+| `raw_price` | REAL | Original un-converted price from store |
+| `raw_currency` | TEXT DEFAULT 'EUR' | Original store currency (EUR, USD, GBP, HUF) |
+| `raw_original_price`| REAL | Original un-converted base price |
 | `discount_percent`| INTEGER DEFAULT 0 | Calculated discount percentage |
 | `voucher_code`| TEXT | Coupon code if publicly available |
 | `deal_url` | TEXT NOT NULL | Direct offer redirect link |
 | `is_best_deal`| INTEGER DEFAULT 0 | 1 if current best valid offer for game |
-| `is_valid` | INTEGER DEFAULT 1 | 1 if valid, 0 if filtered (e.g. wrong region/account) |
-| `is_anomaly` | INTEGER DEFAULT 0 | 1 if flagged as possible price error |
-| `anomaly_score`| REAL DEFAULT 0.0 | Calculated anomaly score |
-| `fetched_at` | DATETIME NOT NULL | Observation timestamp |
+| `is_valid` | INTEGER DEFAULT 1 | 1 if valid, 0 if filtered (e.g. wrong region) |
+| `price_event` | TEXT DEFAULT 'NONE' | `NEW_HISTORICAL_LOW`, `MAJOR_DROP`, etc. |
+| `risk_level` | TEXT DEFAULT 'SAFE' | `SAFE`, `LOW`, `MEDIUM`, `HIGH` |
+| `risk_score` | REAL DEFAULT 0.0 | Calculated risk probability (0.00 – 1.00) |
+| `risk_flags` | TEXT (JSON Array) | Active risk flag identifiers |
+| `evaluation_confidence`| REAL DEFAULT 1.0 | Data confidence score (0.10 – 1.00) |
+| `is_anomaly` | INTEGER DEFAULT 0 | 1 if flagged as price error / glitch |
+| `anomaly_score`| REAL DEFAULT 0.0 | Legacy anomaly score |
+| `anomaly_reason`| TEXT | Human-readable explanation of risk |
+| `fetched_at` | DATETIME NOT NULL | Initial record timestamp |
+| `last_observed_at`| DATETIME | Most recent observation timestamp |
 
 ### 2.6 Source Observations (`source_observations`)
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | TEXT (UUID) PK | Observation ID |
 | `offer_id` | TEXT FK -> offers(id) | Canonical offer |
-| `source_code` | TEXT NOT NULL | `itad`, `ggdeals`, `cheapshark`, `allkeyshop`, `gocdkeys` |
-| `observed_price_eur`| REAL NOT NULL | Price as reported by this specific source |
+| `source_code` | TEXT NOT NULL | `itad`, `ggdeals`, `cheapshark`, etc. |
+| `observed_price_eur`| REAL NOT NULL | Normalized EUR price from this source |
+| `observed_raw_price`| REAL | Raw price from source |
+| `observed_currency` | TEXT DEFAULT 'EUR' | Raw currency from source |
 | `observed_at` | DATETIME NOT NULL | Timestamp of observation |
 | `raw_data_json`| TEXT | Truncated debug payload |
 
@@ -121,24 +133,36 @@ This document outlines the database schema, entity relationships, normalization 
 | `id` | TEXT (UUID) PK | History entry ID |
 | `game_id` | TEXT FK -> games(id) | Game reference |
 | `merchant_id` | TEXT FK -> merchants(id) | Merchant reference |
-| `source_code` | TEXT NOT NULL | Source code |
-| `price_eur` | REAL NOT NULL | Price in EUR |
+| `source_code` | TEXT NOT NULL | Source adapter code |
+| `price_eur` | REAL NOT NULL | Normalized price in EUR |
 | `discount_percent`| INTEGER | Discount percentage |
-| `recorded_at` | DATETIME NOT NULL | Timestamp |
-
-### 2.8 Sync Runs & Jobs (`sync_runs`, `sync_jobs`)
-* Tracks synchronization sessions, duration, per-source progress, request counters, 429 rates, and errors.
-
-### 2.9 Anomalies (`anomalies`)
-* Records detected price anomalies, rule violation triggers, and user dismissal actions.
+| `price_event` | TEXT | Market event at time of recording |
+| `deal_score` | INTEGER | Deal Score (0–100) at time of recording |
+| `recorded_at` | DATETIME NOT NULL | Timestamp (Idempotent tracking) |
 
 ---
 
-## 3. Deduplication Logic
+## 3. API Endpoints Reference
 
-Unique constraint on active offers: `UNIQUE(game_id, merchant_id, product_type, region_type)`
+### 3.1 Profiles & Wishlist
+* `GET /api/profiles` — List all profiles with game counts.
+* `POST /api/profiles` — Create or activate a profile by Steam ID / URL.
+* `GET /api/games` — Paginated wishlist query with instant filters (`search`, `onSaleOnly`, `historicalLowOnly`, `majorDealsOnly`, `trustedOnly`, `maxPriceEur`, `page`, `limit`).
+* `GET /api/wishlist/statistics` — Summary statistics (total games, on sale, ATLs, major drops, avg discount).
+* `GET /api/wishlist/best-deals` — Top deals sorted by Deal Score.
 
-When Source A and Source B both report an offer for the same `(game_id, merchant_id, product_type, region_type)`:
-1. The canonical `offers` record is updated with the freshest price (or lowest if observed within the same sync cycle).
-2. Separate `source_observations` records are created for both Source A and Source B.
-3. The UI indicates multi-source verification (`Verified by ITAD + GG.deals`).
+### 3.2 Game Details & Price Intelligence
+* `GET /api/games/:id` — Full details (game metadata, all active offers, price history).
+* `GET /api/games/:id/intelligence` — Consolidated v1.3 Price Intelligence response:
+  * `periodLows`: 7d, 30d, 90d, 1y, confirmed ATL (with nullable fallback).
+  * `typicalSale`: Statistical IQR median and range.
+  * `frequency`: 12-month sale cycles and drop cadence.
+  * `volatility`: Daily Best Trusted Price CV on observed calendar days.
+  * `marketComparison`: Compatible regional offers median and rank.
+  * `advice`: BUY / FAIR / WAIT decision with confidence and reasons.
+  * `chartData`: Stepped timeline points with MSRP, ATL, and Typical Sale baselines.
+
+### 3.3 Synchronization
+* `POST /api/sync/start` — Start asynchronous wishlist and price synchronization.
+* `GET /api/sync/progress` — Real-time Server-Sent Events (SSE) stream.
+* `GET /api/sync/status` — Current orchestrator state and per-source metrics.

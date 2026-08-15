@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, Sparkles } from 'lucide-react';
+import { Flame, AlertTriangle, Sparkles, ShieldAlert, Clock } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -15,11 +15,20 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isFree = game.isFree || game.bestPriceEur === 0;
   
+  // Deal Score and Tier
+  const dealScore = game.bestDealScore ?? 0;
+  const dealTier = game.bestDealTier || 'Fair';
+
+  const tierColor = 
+    dealTier === 'Exceptional' ? '#8b5cf6' : 
+    dealTier === 'Great' ? '#10b981' : 
+    dealTier === 'Fair' ? '#3b82f6' : '#64748b';
+
   // 2D Event indicators
-  const isHistoricalLow = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || 
-    (hasBestDeal && game.historicalLowEur !== undefined && game.bestPriceEur !== undefined && game.bestPriceEur <= (game.historicalLowEur + 0.05));
+  const isConfirmedATL = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW';
   const isMajorDrop = game.bestPriceEvent === 'MAJOR_DROP' || game.bestPriceEvent === 'EXTREME_DROP';
   const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
+  const isMediumRisk = game.bestRiskLevel === 'MEDIUM';
 
   return (
     <div className="game-card" onClick={onClick}>
@@ -34,41 +43,45 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
           }}
         />
 
-        {/* Discount Badge */}
+        {/* Top-Left: Discount Badge */}
         {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
           <div className="discount-badge">
             -{game.bestDiscountPercent}%
           </div>
         )}
 
-        {/* High Risk Anomaly Badge */}
+        {/* Top-Right: Deal Score Badge (0-100) */}
+        {hasBestDeal && dealScore > 0 && !isHighRisk && (
+          <div 
+            className="deal-score-badge"
+            style={{ background: tierColor }}
+            title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
+          >
+            <span className="deal-score-num">{dealScore}</span>
+            <span className="deal-score-tier-label">{dealTier}</span>
+          </div>
+        )}
+
+        {/* High Risk Anomaly Warning */}
         {isHighRisk && (
-          <div className="anomaly-tag" title="Possible price glitch or extreme unverified outlier">
+          <div className="anomaly-tag" title="High risk pricing anomaly suppressed">
             <AlertTriangle size={12} />
             <span>High Risk</span>
           </div>
         )}
 
-        {/* Verified Event Badge */}
-        {!isHighRisk && isMajorDrop && (
-          <div style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            background: 'rgba(139, 92, 246, 0.9)',
-            color: '#fff',
-            fontSize: 10,
-            fontWeight: 800,
-            padding: '3px 8px',
-            borderRadius: 4,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            textTransform: 'uppercase',
-            letterSpacing: 0.4
-          }}>
+        {/* Price Event Pills */}
+        {!isHighRisk && isConfirmedATL && (
+          <div className="price-event-pill atl-pill">
+            <Flame size={11} />
+            <span>ATL</span>
+          </div>
+        )}
+
+        {!isHighRisk && !isConfirmedATL && isMajorDrop && (
+          <div className="price-event-pill major-pill">
             <Sparkles size={11} />
-            <span>Mega Deal</span>
+            <span>Major Drop</span>
           </div>
         )}
       </div>
@@ -81,8 +94,8 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
           
           {/* Historical Low Indicator */}
           {game.historicalLowEur !== undefined && (
-            <div className="hist-low-indicator" style={{ marginTop: 6 }}>
-              {isHistoricalLow ? (
+            <div className="hist-low-indicator" style={{ marginTop: 4 }}>
+              {isConfirmedATL ? (
                 <>
                   <Flame size={12} color="#f59e0b" />
                   <span>ALL-TIME LOW</span>
@@ -93,6 +106,14 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
             </div>
           )}
         </div>
+
+        {/* Risk warning chip if medium risk */}
+        {isMediumRisk && !isHighRisk && (
+          <div className="risk-warning-chip">
+            <ShieldAlert size={12} color="#f59e0b" />
+            <span>Caution: Unverified merchant</span>
+          </div>
+        )}
 
         <div className="game-meta-row">
           <div className="price-block">
