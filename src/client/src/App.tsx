@@ -396,11 +396,12 @@ export const App: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="view-mode-group">
+                <div className="view-mode-group" role="group" aria-label="View Mode">
                   <button
                     className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
                     onClick={() => handleViewModeChange('grid')}
                     title="Grid View"
+                    aria-label="Grid View"
                   >
                     <LayoutGrid size={16} />
                   </button>
@@ -408,6 +409,7 @@ export const App: React.FC = () => {
                     className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
                     onClick={() => handleViewModeChange('list')}
                     title="Compact List View"
+                    aria-label="Compact List View"
                   >
                     <List size={16} />
                   </button>
@@ -415,6 +417,7 @@ export const App: React.FC = () => {
                     className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
                     onClick={() => handleViewModeChange('table')}
                     title="Dense Table View"
+                    aria-label="Dense Table View"
                   >
                     <TableIcon size={16} />
                   </button>

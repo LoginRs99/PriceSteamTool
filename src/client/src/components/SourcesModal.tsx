@@ -23,10 +23,18 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   };
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     fetchSources();
     const interval = setInterval(fetchSources, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const handleToggle = async (code: SourceCode, isEnabled: boolean) => {
     await api.toggleSource(code, isEnabled);
@@ -34,14 +42,14 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sources-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 700 }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Activity size={20} color="#10b981" />
-            <h2 style={{ fontSize: 18, fontWeight: 800 }}>Source Adapters & Diagnostics</h2>
+            <h2 id="sources-modal-title" style={{ fontSize: 18, fontWeight: 800 }}>Source Adapters & Diagnostics</h2>
           </div>
-          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }}>
+          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
             <X size={18} />
           </button>
         </div>

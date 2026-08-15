@@ -21,6 +21,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !steamId.trim()) return;
@@ -52,11 +60,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 580 }}>
         <div className="modal-header">
-          <h2 style={{ fontSize: 18, fontWeight: 800 }}>Steam Profiles</h2>
-          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }}>
+          <h2 id="profile-modal-title" style={{ fontSize: 18, fontWeight: 800 }}>Steam Profiles</h2>
+          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
             <X size={18} />
           </button>
         </div>

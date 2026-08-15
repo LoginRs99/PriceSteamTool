@@ -33,6 +33,11 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     let isMounted = true;
     Promise.all([
       api.getGameDetails(gameId),
@@ -52,12 +57,15 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
         if (isMounted) setLoading(false);
       });
 
-    return () => { isMounted = false; };
-  }, [gameId]);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [gameId, onClose]);
 
   if (loading || !data) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Loading game details">
         <div className="modal-content" onClick={e => e.stopPropagation()} style={{ padding: 40, textAlign: 'center' }}>
           <p>Loading price intelligence & deal history...</p>
         </div>
@@ -98,12 +106,12 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
   const marketComp = intelligence?.marketComparison;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="game-detail-title">
       <div className="modal-content modal-intel-content" onClick={e => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="modal-header">
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800 }}>{game.title}</h2>
+            <h2 id="game-detail-title" style={{ fontSize: 20, fontWeight: 800 }}>{game.title}</h2>
             <a 
               href={`https://store.steampowered.com/app/${game.steamAppId}/`}
               target="_blank"
@@ -113,7 +121,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
               Steam Store (AppID: {game.steamAppId}) <ExternalLink size={12} />
             </a>
           </div>
-          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }}>
+          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
             <X size={18} />
           </button>
         </div>

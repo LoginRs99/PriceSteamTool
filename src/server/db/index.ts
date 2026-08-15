@@ -1135,7 +1135,9 @@ export const offerRepo = {
     const best = prepareStmt(`
       SELECT id FROM offers 
       WHERE game_id = ? AND is_valid = 1 
-      ORDER BY price_eur ASC 
+      ORDER BY 
+        CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
+        price_eur ASC 
       LIMIT 1
     `).get(gameId) as any;
 

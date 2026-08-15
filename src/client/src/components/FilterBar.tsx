@@ -160,13 +160,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Top Search & Controls Row */}
       <div className="filter-controls-row">
         <div className="search-box">
-          <Search size={18} className="search-icon" />
+          <Search size={18} className="search-icon" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search games by title..."
             value={filters.search || ''}
             onChange={(e) => onFilterChange({ search: e.target.value, page: 1 })}
             className="search-input"
+            aria-label="Search wishlist games by title"
           />
         </div>
 
@@ -176,6 +177,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="select-input"
             value={filters.sort || 'priority'}
             onChange={(e) => onFilterChange({ sort: e.target.value as any, page: 1 })}
+            aria-label="Sort wishlist games"
           >
             <option value="priority">Sort: Wishlist Priority</option>
             <option value="deal_score_desc">★ Highest Deal Score (0–100)</option>
@@ -193,6 +195,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             value={filters.limit || 50}
             onChange={(e) => onFilterChange({ limit: parseInt(e.target.value, 10), page: 1 })}
             title="Items per page"
+            aria-label="Items per page"
           >
             <option value="24">24 / page</option>
             <option value="50">50 / page</option>
@@ -201,11 +204,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </select>
 
           {/* View Mode Toggle Buttons */}
-          <div className="view-mode-group">
+          <div className="view-mode-group" role="group" aria-label="View Mode">
             <button
               className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
               onClick={() => onViewModeChange('grid')}
               title="Grid View (Cards)"
+              aria-label="Grid View (Cards)"
             >
               <LayoutGrid size={16} />
             </button>
@@ -213,6 +217,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => onViewModeChange('list')}
               title="Compact List View (Dense Rows)"
+              aria-label="Compact List View (Dense Rows)"
             >
               <List size={16} />
             </button>
@@ -220,6 +225,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
               onClick={() => onViewModeChange('table')}
               title="Dense Table View (Data Table)"
+              aria-label="Dense Table View (Data Table)"
             >
               <TableIcon size={16} />
             </button>

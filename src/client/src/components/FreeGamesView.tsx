@@ -39,21 +39,23 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
         {/* View Switcher & Search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div className="search-box" style={{ maxWidth: 260 }}>
-            <Search size={16} className="search-icon" />
+            <Search size={16} className="search-icon" aria-hidden="true" />
             <input
               type="text"
               placeholder="Search free games..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="search-input"
+              aria-label="Search free games by title"
             />
           </div>
 
-          <div className="view-mode-group">
+          <div className="view-mode-group" role="group" aria-label="View Mode">
             <button
               className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
               onClick={() => onViewModeChange('grid')}
               title="Grid View"
+              aria-label="Grid View"
             >
               <LayoutGrid size={16} />
             </button>
@@ -61,6 +63,7 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
               className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => onViewModeChange('list')}
               title="Compact List View"
+              aria-label="Compact List View"
             >
               <List size={16} />
             </button>
@@ -68,6 +71,7 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
               className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
               onClick={() => onViewModeChange('table')}
               title="Dense Table View"
+              aria-label="Dense Table View"
             >
               <TableIcon size={16} />
             </button>

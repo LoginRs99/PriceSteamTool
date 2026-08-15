@@ -58,6 +58,7 @@ export const api = {
     if (options.allTimeLowOnly) params.set('allTimeLowOnly', 'true');
     if (options.trustedOnly) params.set('trustedOnly', 'true');
     if (options.historicalLowOnly) params.set('historicalLowOnly', 'true');
+    if (options.isFreeOnly !== undefined) params.set('isFreeOnly', String(options.isFreeOnly));
     if (options.underPrice) params.set('underPrice', String(options.underPrice));
     if (options.minPrice !== undefined) params.set('minPrice', String(options.minPrice));
     if (options.maxPrice !== undefined) params.set('maxPrice', String(options.maxPrice));

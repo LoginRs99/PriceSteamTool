@@ -1,0 +1,61 @@
+{
+  "project": "Pricetool",
+  "version": "1.3.0",
+  "audit_scope": "Comprehensive Frontend, Runtime, Rate-Limiting, Docker, and Production Readiness Audit",
+  "skills": [
+    {
+      "name": "ui-review",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/ui-review/SKILL.md",
+      "role": "UI & Design System Review",
+      "justification": "Ensures design token compliance, visual consistency, alignment, spacing hierarchy, control sizing, and avoids AI-cliche design tropes."
+    },
+    {
+      "name": "ui-a11y",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/ui-a11y/SKILL.md",
+      "role": "Accessibility & Usability Audit",
+      "justification": "Audits WCAG AA compliance, touch targets, keyboard navigation (ESC, focus rings), aria labels, and prefers-reduced-motion."
+    },
+    {
+      "name": "frontend-design",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/frontend-design/SKILL.md",
+      "role": "Frontend Aesthetics & Compact Dashboard UX",
+      "justification": "Ensures the UI feels clean, compact, readable, responsive across 600px-1920px viewports, and maintains strong information hierarchy."
+    },
+    {
+      "name": "code-reviewer",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/code-reviewer/SKILL.md",
+      "role": "Code Quality & Integration Review",
+      "justification": "Static analysis, data model integrity, risk scoring consistency, error boundaries, and production reliability."
+    },
+    {
+      "name": "react-component-performance",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/react-component-performance/SKILL.md",
+      "role": "React Rendering & Client Performance",
+      "justification": "Audits unnecessary re-renders, expensive sorting/filtering on 2000+ games, memoization, and chart performance."
+    },
+    {
+      "name": "performance-engineer",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/performance-engineer/SKILL.md",
+      "role": "Backend & Source Pipeline Profiling",
+      "justification": "Audits SQLite performance, sync queue concurrency, background tasks, memory footprint, and network latency."
+    },
+    {
+      "name": "systematic-debugging",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/systematic-debugging/SKILL.md",
+      "role": "Runtime & Browser Error Diagnostics",
+      "justification": "Diagnoses console warnings, failed requests, stale states, modal scrolling, and edge case bugs."
+    },
+    {
+      "name": "security-auditor",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/security-auditor/SKILL.md",
+      "role": "Security, Docker & Production Hardening",
+      "justification": "Audits Dockerfile, docker-compose.yml, Portainer compatibility, env variables, healthcheck, and storage persistence."
+    },
+    {
+      "name": "api-patterns",
+      "path": "C:/Users/Logo/.gemini/antigravity-cli/skills/api-patterns/SKILL.md",
+      "role": "API Contract & Request Efficiency",
+      "justification": "Audits duplicate requests, payload sizing, caching, HTTP 429/500/404 handling, and rate limit backoff."
+    }
+  ]
+}

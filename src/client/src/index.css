@@ -280,7 +280,8 @@ body {
 }
 
 /* Filter Bar */
-.filter-bar {
+.filter-bar,
+.filter-bar-container {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -291,21 +292,31 @@ body {
   gap: 14px;
 }
 
-.filter-top-row {
+.filter-top-row,
+.filter-controls-row {
   display: flex;
-  gap: 14px;
+  gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
 }
 
-.search-input-wrapper {
+.search-input-wrapper,
+.search-box {
   flex: 1;
-  min-width: 260px;
+  min-width: 240px;
   position: relative;
+}
+
+.filter-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .search-input {
   width: 100%;
-  padding: 11px 16px 11px 40px;
+  padding: 10px 16px 10px 38px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -313,10 +324,11 @@ body {
   font-size: 14px;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-input:focus {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-dim);
 }
 
 .search-icon {
@@ -1637,5 +1649,231 @@ body {
   border-radius: 12px;
 }
 
+/* ==================================================== */
+/* Animations & Interactive Polish                      */
+/* ==================================================== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
 
+/* Deals Header */
+.deals-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Accessible Focus States */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion Support (WCAG AA) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==================================================== */
+/* Responsive Viewport Breakpoints                      */
+/* ==================================================== */
+
+/* Large Desktop (1440px - 1920px) */
+@media (min-width: 1440px) {
+  .app-container {
+    max-width: 1560px;
+  }
+  .games-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+/* Standard Desktop / Laptop (1024px - 1280px) */
+@media (max-width: 1280px) {
+  .app-container {
+    padding: 0 20px 48px 20px;
+  }
+  .stats-bar-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+}
+
+/* Tablet Landscape / Small Desktop (769px - 1024px) */
+@media (max-width: 1024px) {
+  .app-container {
+    padding: 0 16px 40px 16px;
+  }
+  .stats-bar-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .period-lows-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+  .intel-metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
+/* Tablet Portrait & Mobile Landscape (601px - 768px) */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 14px 0;
+    margin-bottom: 18px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .nav-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .nav-actions .btn {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+  .stats-bar-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+  }
+  .games-grid {
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 14px;
+  }
+  .compact-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .compact-left {
+    flex: 1 1 auto;
+  }
+  .compact-mid {
+    justify-content: space-between;
+    padding-left: 36px;
+  }
+  .compact-right {
+    justify-content: space-between;
+    padding-left: 36px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding-top: 6px;
+  }
+  .main-tabs-bar {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 8px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .main-tab-btn {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+  .filter-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filter-dropdowns {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .filter-dropdowns .select-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .free-games-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .modal-intel-content {
+    max-width: 95vw;
+  }
+}
+
+/* Mobile Devices (<600px) */
+@media (max-width: 600px) {
+  .app-container {
+    padding: 0 10px 30px 10px;
+  }
+  .brand-name {
+    font-size: 17px;
+  }
+  .brand-badge {
+    display: none;
+  }
+  .nav-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .nav-actions .btn {
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .games-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .stat-card {
+    padding: 10px 12px;
+  }
+  .stat-value {
+    font-size: 20px;
+  }
+  .stats-bar-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .modal-overlay {
+    padding: 6px;
+  }
+  .modal-content {
+    max-height: 96vh;
+    border-radius: var(--radius-md);
+  }
+  .modal-header {
+    padding: 14px 16px;
+  }
+  .modal-body {
+    padding: 14px;
+    gap: 14px;
+  }
+  .best-deals-grid {
+    grid-template-columns: 1fr;
+  }
+  .period-lows-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .intel-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  .price-chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .price-chart-legend {
+    gap: 8px;
+  }
+  .dense-table th,
+  .dense-table td {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+}

@@ -23,6 +23,11 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     api.getSources().then(list => {
       setSources(list);
       const initial: Record<string, boolean> = {};
@@ -32,7 +37,9 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
       setSelectedSources(initial as Record<SourceCode, boolean>);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const toggleSource = (code: SourceCode) => {
     setSelectedSources(prev => ({
@@ -62,14 +69,14 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
   const selectedCount = Object.values(selectedSources).filter(Boolean).length;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sync-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 580 }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <RefreshCw size={20} color="#10b981" />
-            <h2 style={{ fontSize: 18, fontWeight: 800 }}>Synchronize Wishlist & Prices</h2>
+            <h2 id="sync-modal-title" style={{ fontSize: 18, fontWeight: 800 }}>Synchronize Wishlist & Prices</h2>
           </div>
-          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }}>
+          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
             <X size={18} />
           </button>
         </div>

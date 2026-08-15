@@ -24,8 +24,14 @@ export const AnomaliesModal: React.FC<AnomaliesModalProps> = ({ onClose, onRefre
   };
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     fetchAnomalies();
-  }, []);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleDismiss = async (id: string) => {
     await api.dismissAnomaly(id);
@@ -34,14 +40,14 @@ export const AnomaliesModal: React.FC<AnomaliesModalProps> = ({ onClose, onRefre
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="anomalies-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 680 }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={20} color="#f59e0b" />
-            <h2 style={{ fontSize: 18, fontWeight: 800 }}>Price Anomalies & Glitch Review</h2>
+            <h2 id="anomalies-modal-title" style={{ fontSize: 18, fontWeight: 800 }}>Price Anomalies & Glitch Review</h2>
           </div>
-          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }}>
+          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
             <X size={18} />
           </button>
         </div>
