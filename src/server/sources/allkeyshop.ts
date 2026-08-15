@@ -9,8 +9,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private queue = new PacedSourceQueue('allkeyshop', config.delays.allkeyshop, 500);
 
   public isEnabled(): boolean {
-    // Disabled by default to avoid aggressive scraping; opt-in via sources setting
-    return false;
+    return true;
   }
 
   public async fetchPricesForGame(

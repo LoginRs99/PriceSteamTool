@@ -48,24 +48,20 @@ This document provides a thorough analysis of each game price source, detailing 
 * **Circuit Breaker**: Trips on repeated rate-limits (HTTP 429) or Cloudflare verification challenges, entering `PAUSED` state for 30 minutes to prevent IP blocks.
 
 ### 2.4 CheapShark
-* **Canonical Role**: Fast, key-less secondary verification across 30+ digital storefronts.
+* **Canonical Role**: High-speed, key-less official batch verification across 25+ digital storefronts.
 * **API Endpoints**:
-  * Store List: `GET https://www.cheapshark.com/api/1.0/stores` (cached in-memory for 7 days).
-  * Deals Lookup: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID={appId}`
-  * Game Deals: `GET https://www.cheapshark.com/api/1.0/games?id={gameId}`
-* **Rate Limit Policy**: Respects `Retry-After` header. Default delay: 1000ms between requests.
+  * Store List: `GET https://www.cheapshark.com/api/1.0/stores` (cached in-memory for 24 hours).
+  * Batch Deals Lookup: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID=id1,id2,id3...&pageSize=60` (up to 50–60 Steam AppIDs in a single HTTP request).
+  * Single Game Deals: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID={appId}`
+* **Rate Limit Policy**: Respects `Retry-After` header. Default batch delay: 500ms between batch requests (~50 requests total for 2,570 games).
 * **Circuit Breaker**: If 429 received, waits according to `Retry-After` header + 500ms safety buffer.
 
 ### 2.5 AllKeyShop
-* **Canonical Role**: Deep keyshop comparison fallback.
-* **Integration Reality**:
-  * Does not offer a free public developer REST API.
-  * Internal JSON endpoints and search feeds are subject to bot detection.
-* **Strategy**:
-  * Executed only for games where higher keyshop coverage is requested.
-  * Adapter attempts lightweight JSON search endpoint first using standard HTTP client with rotating headers.
-  * If anti-bot challenge is detected, adapter gracefully skips and trips circuit breaker into `PAUSED` without stalling the rest of the sync pipeline.
-  * Headless browser worker is only spawned if explicitly enabled in configuration.
+* **Canonical Role**: Comprehensive grey-market keyshop coverage (Eneba, Kinguin, G2A, CDKeys, Instant Gaming, Gamivo, etc.).
+* **Integration Strategy**:
+  * Runs with **Smart Priority Scraping**: focuses on the TOP 150 priority wishlist games and actively discounted titles.
+  * Adapter queries the lightweight JSON search endpoint (`/blog/wp-admin/admin-ajax.php?action=get_search_results`) with conservative 2500ms pacing.
+  * If anti-bot challenge (403/429) is detected, adapter trips circuit breaker into `PAUSED` without stalling or interrupting the main sync pipeline.
 
 ### 2.6 GoCDKeys
 * **Canonical Role**: Secondary keyshop comparison fallback.

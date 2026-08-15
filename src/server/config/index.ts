@@ -22,14 +22,14 @@ export const config = {
   itadApiKey: process.env.ITAD_API_KEY || '',
   ggdealsApiKey: process.env.GGDEALS_API_KEY || '',
   
-  // Source Pacing Defaults (ms) - All at least 2000ms for safe, respectful execution
+  // Source Pacing Defaults (ms) - Optimized for batch APIs & respectful scraping
   delays: {
-    steam: parseInt(process.env.STEAM_DELAY_MS || '2000', 10),
-    itad: parseInt(process.env.ITAD_DELAY_MS || '2000', 10),
-    ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '2500', 10),
-    cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '2000', 10),
-    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '4000', 10),
-    gocdkeys: parseInt(process.env.GOCDKEYS_DELAY_MS || '5000', 10),
+    steam: parseInt(process.env.STEAM_DELAY_MS || '1000', 10),
+    itad: parseInt(process.env.ITAD_DELAY_MS || '500', 10),
+    ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1000', 10),
+    cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '500', 10),
+    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '2500', 10),
+    gocdkeys: parseInt(process.env.GOCDKEYS_DELAY_MS || '4000', 10),
   },
 
   // Cache & Periodic Auto-Sync settings
