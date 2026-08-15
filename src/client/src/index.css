@@ -1149,4 +1149,493 @@ body {
   color: var(--text-muted);
 }
 
+/* ==================================================== */
+/* Main Navigation Tabs                                 */
+/* ==================================================== */
+.main-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.main-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.main-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+.main-tab-btn.active {
+  color: #fff;
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-active);
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-count-badge {
+  font-size: 11px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 1px 7px;
+  border-radius: 12px;
+}
+
+.free-tab-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.deals-tab-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* ==================================================== */
+/* View Mode Switcher Button Group                      */
+/* ==================================================== */
+.view-mode-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.view-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-mode-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.view-mode-btn.active {
+  color: var(--accent-primary);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Smaller button sizes */
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.btn-xs {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+/* ==================================================== */
+/* Compact List View                                    */
+/* ==================================================== */
+.compact-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 12px;
+}
+
+.compact-row:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-active);
+  transform: translateX(2px);
+}
+
+.compact-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.compact-priority {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-dim);
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.compact-thumb {
+  width: 60px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.compact-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.compact-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.tag-atl {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.tag-major {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c084fc;
+}
+
+.tag-risk {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.tag-free {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.compact-mid {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.compact-score-pill {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.compact-merchant {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.compact-pricing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 85px;
+}
+
+.compact-price-main {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.compact-price {
+  font-size: 15px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.compact-discount {
+  font-size: 12px;
+  font-weight: 800;
+  color: #34d399;
+}
+
+.compact-msrp {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.compact-untracked {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.compact-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* ==================================================== */
+/* Dense Table View (Ideal for 2500+ items)             */
+/* ==================================================== */
+.dense-table-wrapper {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.dense-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.dense-table th {
+  padding: 10px 14px;
+  background: var(--bg-surface-elevated);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.dense-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.dense-table-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.dense-table-row:hover td {
+  background: var(--bg-surface-hover);
+}
+
+.cell-priority {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.cell-title {
+  min-width: 220px;
+}
+
+.table-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.table-game-title {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.table-flags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mini-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+.mini-flag.atl-mini {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+.mini-flag.major-mini {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c084fc;
+}
+.mini-flag.risk-mini {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.cell-msrp {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cell-price {
+  font-family: var(--font-mono);
+}
+
+.price-bold {
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.free-badge-sm {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border-radius: 4px;
+}
+
+.discount-tag-sm {
+  font-size: 11px;
+  font-weight: 800;
+  color: #34d399;
+}
+
+.score-chip-sm {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: #fff;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.store-cell-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.store-name-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.atl-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.cell-action {
+  text-align: right;
+}
+
+/* ==================================================== */
+/* Free Games View                                      */
+/* ==================================================== */
+.free-games-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.free-games-banner {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.free-count-pill {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+
 

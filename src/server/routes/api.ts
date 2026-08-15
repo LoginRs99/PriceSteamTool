@@ -84,6 +84,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       majorDealsOnly: query.majorDealsOnly === 'true' || query.majorDealsOnly === true,
       allTimeLowOnly: query.allTimeLowOnly === 'true' || query.allTimeLowOnly === true || query.historicalLowOnly === 'true' || query.historicalLowOnly === true,
       trustedOnly: query.trustedOnly === 'true' || query.trustedOnly === true,
+      isFreeOnly: query.isFreeOnly === 'true' || query.isFreeOnly === true ? true : query.isFreeOnly === 'false' || query.isFreeOnly === false ? false : undefined,
       underPrice: query.underPrice ? parseFloat(query.underPrice) : undefined,
       minPrice: query.minPrice ? parseFloat(query.minPrice) : undefined,
       maxPrice: query.maxPrice ? parseFloat(query.maxPrice) : undefined,

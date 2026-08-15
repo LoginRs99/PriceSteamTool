@@ -9,8 +9,8 @@ export default defineConfig({
         singleFork: true
       }
     },
-    fileParallelism: false,
     isolate: false,
+    fileParallelism: false,
     env: {
       DB_PATH: ':memory:'
     }

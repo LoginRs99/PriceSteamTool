@@ -319,12 +319,13 @@ export const gameRepo = {
   getWishlistStatistics(profileId: string): WishlistStatistics {
     const row = prepareStmt(`
       SELECT
-        COUNT(DISTINCT w.game_id) as total_games,
-        COUNT(DISTINCT CASE WHEN bo.discount_percent > 0 THEN w.game_id END) as games_on_sale,
-        COUNT(DISTINCT CASE WHEN bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW') THEN w.game_id END) as games_at_historical_low,
-        COUNT(DISTINCT CASE WHEN bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') THEN w.game_id END) as major_drops_count,
-        COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM offers ho WHERE ho.game_id = w.game_id AND ho.risk_level = 'HIGH' AND ho.is_valid = 1) THEN w.game_id END) as games_with_high_risk,
-        AVG(CASE WHEN bo.discount_percent > 0 THEN bo.discount_percent END) as avg_discount
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) THEN w.game_id END) as total_games,
+        COUNT(DISTINCT CASE WHEN g.is_free = 1 THEN w.game_id END) as free_games,
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND bo.discount_percent > 0 THEN w.game_id END) as games_on_sale,
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW') THEN w.game_id END) as games_at_historical_low,
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') THEN w.game_id END) as major_drops_count,
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND EXISTS (SELECT 1 FROM offers ho WHERE ho.game_id = w.game_id AND ho.risk_level = 'HIGH' AND ho.is_valid = 1) THEN w.game_id END) as games_with_high_risk,
+        AVG(CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND bo.discount_percent > 0 THEN bo.discount_percent END) as avg_discount
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
@@ -333,6 +334,7 @@ export const gameRepo = {
 
     return {
       totalGames: Number(row?.total_games || 0),
+      freeGamesCount: Number(row?.free_games || 0),
       gamesOnSale: Number(row?.games_on_sale || 0),
       gamesAtHistoricalLow: Number(row?.games_at_historical_low || 0),
       majorDropsCount: Number(row?.major_drops_count || 0),
@@ -367,6 +369,7 @@ export const gameRepo = {
       JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
       JOIN merchants m ON bo.merchant_id = m.id
       WHERE w.profile_id = ? AND w.is_active = 1
+        AND (g.is_free = 0 OR g.is_free IS NULL)
         AND bo.is_valid = 1
         AND bo.risk_level != 'HIGH'
         AND bo.is_anomaly = 0
@@ -394,6 +397,13 @@ export const gameRepo = {
   getWishlistGames(profileId: string, options: WishlistFilterOptions = {}): { games: Game[]; total: number } {
     const params: any[] = [profileId];
     let whereClauses = [`w.profile_id = ?`, `w.is_active = 1`];
+
+    // Free vs Paid filtering
+    if (options.isFreeOnly === true) {
+      whereClauses.push(`(g.is_free = 1 OR g.base_price_eur = 0)`);
+    } else {
+      whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL)`);
+    }
 
     if (options.search && options.search.trim() !== '') {
       whereClauses.push(`g.title LIKE ?`);

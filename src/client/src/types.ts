@@ -219,6 +219,9 @@ export interface SyncProgressUpdate {
   }>;
 }
 
+export type ViewMode = 'grid' | 'list' | 'table';
+export type MainTab = 'wishlist' | 'free' | 'deals';
+
 export interface WishlistFilterOptions {
   search?: string;
   sort?: 'priority' | 'price_asc' | 'price_desc' | 'discount_desc' | 'title_asc' | 'historical_low' | 'deal_score_desc';
@@ -227,6 +230,7 @@ export interface WishlistFilterOptions {
   allTimeLowOnly?: boolean;
   historicalLowOnly?: boolean;
   trustedOnly?: boolean;
+  isFreeOnly?: boolean;
   underPrice?: number;
   minPrice?: number;
   maxPrice?: number;
@@ -240,6 +244,7 @@ export interface WishlistFilterOptions {
 
 export interface WishlistStatistics {
   totalGames: number;
+  freeGamesCount?: number;
   gamesOnSale: number;
   gamesAtHistoricalLow: number;
   majorDropsCount: number;

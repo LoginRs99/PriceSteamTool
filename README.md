@@ -49,6 +49,14 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
 * **Price vs Market**: Ranks best deal against all active compatible regional offers (`GLOBAL`, `EU`, `HU`).
 * **Interactive SVG Price Chart**: Stepped price movement timeline with Steam MSRP baseline, ATL dashed line, Typical Sale band, and hover tooltips.
 
+### 5. Multi-View Architecture & Free Games Separation (2,500+ Games Support)
+* **Dedicated Free-to-Play Section**: Free games (`is_free = 1`) are separated into their own navigation tab with direct Steam launcher (`steam://run/<id>`) and store links, keeping the paid deal catalog clean.
+* **3 Ergonomic View Modes**:
+  * 🔲 **Grid View**: Rich visual card layout with cover artwork, discount flags, and Deal Score badges.
+  * 📄 **Compact List View**: Clean single-line horizontal strips for fast vertical scanning.
+  * 📊 **Dense Data Table View**: Highly compact multi-column data table showing Rank, Title, MSRP, Best Price, Discount %, Deal Score, Store, and ATL in tabular rows.
+* **High-Capacity Pagination**: Adjustable page limits (24, 50, 100, 200 items per page) and persistent user view preferences via `localStorage`.
+
 ---
 
 ## ⚡ Quick Start (Docker Compose)

@@ -117,3 +117,23 @@ The recommendation card provides factual guidance based on strict deterministic 
 5. WAIT Fallback
    └─ Full MSRP or weak discount ───────────────> WAIT (Medium/High confidence)
 ```
+
+---
+
+## 5. Navigation Tabs & High-Capacity View Modes
+
+For wishlists with 2,500+ items, Pricetool provides dedicated navigation and layout modes:
+
+### 5.1 Main Navigation Tabs
+* **Wishlist Deals**: Focuses exclusively on paid games on your wishlist, filtering out free titles so average discount percentages and deal metrics remain unskewed.
+* **Free to Play**: Gathers all free titles (`is_free = 1` or free-to-play) in one place with direct **Steam Store** links and **1-Click Launch/Install** (`steam://run/<appId>`) buttons.
+* **Top Best Deals**: Highlights the highest Deal Score opportunities across the entire catalog.
+
+### 5.2 3 Ergonomic View Modes
+* 🔲 **Grid View**: Visual cover artwork with Deal Score badges, price tags, and quick price event flags (ideal for visual browsing).
+* 📄 **Compact List View**: Single-line dense horizontal cards showing Priority, Title, Steam MSRP, Best Deal, Discount %, Store badge, and direct deal links.
+* 📊 **Dense Table View**: Data-dense tabular layout with sortable headers, compact indicators, and quick action buttons.
+
+### 5.3 Page Size Flexibility
+Choose between **24**, **50**, **100**, or **200 items per page** from the dropdown selector. View mode preferences are automatically remembered across browser sessions via `localStorage`.
+

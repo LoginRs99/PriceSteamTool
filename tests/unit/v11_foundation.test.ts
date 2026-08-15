@@ -273,8 +273,4 @@ describe('v1.1 Foundation — Data Quality & Deal System', () => {
     expect(w3Game!.title).toBe('The Witcher 3: Wild Hunt');
     expect(w3Game!.basePriceEur).toBe(29.99);
   });
-
-  afterAll(() => {
-    closeDb();
-  });
 });

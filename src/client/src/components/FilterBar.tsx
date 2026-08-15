@@ -1,16 +1,20 @@
 import React from 'react';
-import type { WishlistFilterOptions } from '../types.js';
-import { Search, Flame, Sparkles, ShieldCheck, Tag } from 'lucide-react';
+import type { WishlistFilterOptions, ViewMode } from '../types.js';
+import { Search, Flame, Sparkles, ShieldCheck, Tag, LayoutGrid, List, Table as TableIcon } from 'lucide-react';
 
 interface FilterBarProps {
   filters: WishlistFilterOptions;
   totalGames: number;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   onFilterChange: (newFilters: Partial<WishlistFilterOptions>) => void;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
   totalGames,
+  viewMode,
+  onViewModeChange,
   onFilterChange,
 }) => {
   const currentPill = filters.hasAnomaly 
@@ -104,6 +108,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: 5,
+          maxPrice: 5,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -116,6 +121,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: 10,
+          maxPrice: 10,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -128,6 +134,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: 20,
+          maxPrice: 20,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -145,36 +152,26 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           page: 1
         });
         break;
-      case 'anomaly':
-        onFilterChange({
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          merchantType: 'all',
-          hasAnomaly: true,
-          page: 1
-        });
-        break;
     }
   };
 
   return (
-    <div className="filter-bar">
-      <div className="filter-top-row">
-        <div className="search-input-wrapper">
+    <div className="filter-bar-container">
+      {/* Top Search & Controls Row */}
+      <div className="filter-controls-row">
+        <div className="search-box">
           <Search size={18} className="search-icon" />
           <input
             type="text"
-            className="search-input"
-            placeholder="Search wishlist games..."
+            placeholder="Search games by title..."
             value={filters.search || ''}
             onChange={(e) => onFilterChange({ search: e.target.value, page: 1 })}
+            className="search-input"
           />
         </div>
 
-        <div className="filter-controls-group">
+        <div className="filter-dropdowns">
+          {/* Sorting */}
           <select
             className="select-input"
             value={filters.sort || 'priority'}
@@ -188,15 +185,55 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <option value="historical_low">Closest to All-Time Low</option>
             <option value="title_asc">Title (A - Z)</option>
           </select>
+
+          {/* Page Size Selector */}
+          <select
+            className="select-input"
+            style={{ width: 'auto', minWidth: 100 }}
+            value={filters.limit || 50}
+            onChange={(e) => onFilterChange({ limit: parseInt(e.target.value, 10), page: 1 })}
+            title="Items per page"
+          >
+            <option value="24">24 / page</option>
+            <option value="50">50 / page</option>
+            <option value="100">100 / page</option>
+            <option value="200">200 / page</option>
+          </select>
+
+          {/* View Mode Toggle Buttons */}
+          <div className="view-mode-group">
+            <button
+              className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => onViewModeChange('grid')}
+              title="Grid View (Cards)"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => onViewModeChange('list')}
+              title="Compact List View (Dense Rows)"
+            >
+              <List size={16} />
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
+              onClick={() => onViewModeChange('table')}
+              title="Dense Table View (Data Table)"
+            >
+              <TableIcon size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Filter Quick Pills */}
       <div className="filter-pills-row">
         <button
           className={`pill-btn ${currentPill === 'all' ? 'active' : ''}`}
           onClick={() => setPill('all')}
         >
-          All Games ({totalGames})
+          All Paid Games ({totalGames})
         </button>
 
         <button

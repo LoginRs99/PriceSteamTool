@@ -332,8 +332,4 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
     const sortedByDealScore = gameRepo.getWishlistGames(profile.id, { sort: 'deal_score_desc' });
     expect(sortedByDealScore.games[0].id).toBe(g1_atl.id);
   });
-
-  afterAll(() => {
-    closeDb();
-  });
 });
