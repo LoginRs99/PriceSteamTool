@@ -125,12 +125,13 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
         const offers: NormalizedSourceOffer[] = [];
 
         // 1. Record historical low if present
-        if (item.historyLow?.price?.amount !== undefined) {
-          const histPrice = Number(item.historyLow.price.amount);
-          const histDate = item.historyLow.cut ? new Date().toISOString() : undefined;
+        const lowObj = item.lowest || item.historyLow;
+        if (lowObj?.price?.amount !== undefined) {
+          const histPrice = Number(lowObj.price.amount);
+          const histDate = lowObj.timestamp || (lowObj.cut ? new Date().toISOString() : undefined);
           const game = gameRepo.getBySteamAppId(steamAppId);
           if (game) {
-            gameRepo.updateHistoricalLow(game.id, histPrice, histDate || new Date().toISOString(), `ITAD (${item.historyLow.shop?.name || 'Store'})`);
+            gameRepo.updateHistoricalLow(game.id, histPrice, histDate || new Date().toISOString(), `ITAD (${lowObj.shop?.name || 'Store'})`);
           }
         }
 
@@ -149,7 +150,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
             originalPriceEur: item.current.regular?.amount ? Number(item.current.regular.amount) : undefined,
             voucherCode: item.current.voucher || undefined,
             dealUrl: item.current.url || `https://isthereanydeal.com/game/${itadId}/info/`,
-            historicalLowEur: item.historyLow?.price?.amount ? Number(item.historyLow.price.amount) : undefined,
+            historicalLowEur: lowObj?.price?.amount ? Number(lowObj.price.amount) : undefined,
             rawPayload: item
           });
         }
