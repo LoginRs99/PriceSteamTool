@@ -11,7 +11,6 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:client && npm run build:server",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
     "start": "node dist/server/index.js",
     "test": "vitest run --fileParallelism=false",
     "test:watch": "vitest --fileParallelism=false"

@@ -1,4 +1,4 @@
-import { getDb, closeDb, profileRepo, gameRepo, merchantRepo, offerRepo } from '../src/server/db/index.js';
+import { getDb, closeDb, clearStmtCache, profileRepo, gameRepo, merchantRepo, offerRepo } from '../src/server/db/index.js';
 import { normalizeProductType, normalizeRegion } from '../src/server/domain/normalizer.js';
 import { evaluateOfferAnomaly } from '../src/server/domain/anomaly.js';
 import { CircuitBreakerRegistry, circuitBreakers } from '../src/server/sync/circuitBreaker.js';
@@ -19,6 +19,7 @@ function assert(condition: boolean, message: string) {
 }
 
 function resetDatabase() {
+  clearStmtCache();
   const db = getDb();
   db.exec(`
     PRAGMA foreign_keys = OFF;

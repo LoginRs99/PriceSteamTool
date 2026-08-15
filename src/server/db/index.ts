@@ -39,6 +39,10 @@ export function prepareStmt(sql: string): Database.Statement {
   return stmt;
 }
 
+export function clearStmtCache(): void {
+  stmtCache.clear();
+}
+
 export function closeDb(): void {
   if (dbInstance) {
     stmtCache.clear();
