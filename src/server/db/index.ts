@@ -65,6 +65,18 @@ export function getDb(): Database.Database {
             LOWER(name) LIKE '%blizzard%' OR 
             LOWER(name) LIKE '%battle.net%'
         );
+
+        -- Reassign is_best_deal for any games that now lack an active best deal
+        UPDATE offers SET is_best_deal = 1 WHERE id IN (
+          SELECT o.id FROM offers o
+          INNER JOIN (
+            SELECT game_id, MIN(price_eur) as min_price
+            FROM offers
+            WHERE is_valid = 1 AND (is_anomaly = 0 AND risk_level != 'HIGH')
+            GROUP BY game_id
+          ) best ON o.game_id = best.game_id AND o.price_eur = best.min_price
+          WHERE o.game_id NOT IN (SELECT game_id FROM offers WHERE is_best_deal = 1)
+        );
       `);
     } catch {}
   }
