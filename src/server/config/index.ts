@@ -37,6 +37,7 @@ export const config = {
   historyRetentionDays: parseInt(process.env.HISTORY_RETENTION_DAYS || '365', 10),
   autoSyncEnabled: process.env.AUTO_SYNC_ENABLED !== 'false',
   autoSyncIntervalHours: parseInt(process.env.AUTO_SYNC_INTERVAL_HOURS || '6', 10),
+  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '0', 10), // 0 = unlimited / all games
 
   // Region preferences (default: Hungary / EU / Global)
   preferredCountry: 'HU',

@@ -11,6 +11,7 @@ export default defineConfig({
       }
     },
     fileParallelism: false,
+    setupFiles: ['./tests/setup.ts'],
     env: {
       DB_PATH: ':memory:'
     }

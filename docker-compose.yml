@@ -27,6 +27,7 @@ services:
       - GGDEALS_DELAY_MS=${GGDEALS_DELAY_MS:-1000}
       - ALLKEYSHOP_DELAY_MS=${ALLKEYSHOP_DELAY_MS:-2500}
       - GOCDKEYS_DELAY_MS=${GOCDKEYS_DELAY_MS:-4000}
+      - ALLKEYSHOP_MAX_GAMES=${ALLKEYSHOP_MAX_GAMES:-0}
     volumes:
       - ./data:/data
     healthcheck:

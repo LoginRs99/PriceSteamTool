@@ -61,7 +61,7 @@ This document provides a thorough analysis of each game price source, detailing 
 * **Integration Strategy**:
   * Queries AllKeyShop's high-fidelity **`vaks.php` v2 JSON API** (`https://www.allkeyshop.com/api/v2/vaks.php?action=products&currency=eur&name=...`).
   * Extracts exact merchant names (*Gamivo, Eneba, Kinguin, Instant Gaming*), active voucher codes (`bestVoucher`), direct redirect URLs, and discount depths.
-  * Runs with **Smart Priority Scraping**: focuses on the TOP 150 priority wishlist games and actively discounted titles with 2500ms pacing (~6 minutes runtime).
+  * Runs with respectful 2500ms pacing across the full catalog (`ALLKEYSHOP_MAX_GAMES=0` by default), or can be capped to TOP N games via configuration.
   * If anti-bot challenge (403/429) is detected, adapter trips circuit breaker into `PAUSED` without stalling or interrupting the main sync pipeline.
 
 ### 2.6 GoCDKeys

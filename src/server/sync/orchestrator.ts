@@ -407,8 +407,12 @@ export class SyncOrchestrator {
       if (shouldRunSource('gocdkeys')) secondaryAdapters.push(gocdkeysAdapter);
 
       if (secondaryAdapters.length > 0 && !this.isCancelled) {
-        // Smart Prioritization: Only query games that currently have active discounts or are in top 150 priority
-        const prioritizedGames = gamesToRefresh.slice(0, 150);
+        // Full wishlist coverage by default (0 = all games), or capped if configured
+        const maxGames = config.allkeyshopMaxGames;
+        const prioritizedGames = (maxGames > 0 && maxGames < gamesToRefresh.length) 
+          ? gamesToRefresh.slice(0, maxGames) 
+          : gamesToRefresh;
+
         for (const adapter of secondaryAdapters) {
           this.progress.sourceProgress[adapter.code].total = prioritizedGames.length;
         }
@@ -418,7 +422,7 @@ export class SyncOrchestrator {
           if (this.isCancelled) return;
           const g = prioritizedGames[i];
           this.progress.processedGames = i + 1;
-          this.progress.currentAction = `Scraping secondary keyshops: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
+          this.progress.currentAction = `Querying keyshops: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
 
           await Promise.allSettled(
             secondaryAdapters.map(async (adapter) => {
