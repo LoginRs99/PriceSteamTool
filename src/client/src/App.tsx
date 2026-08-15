@@ -4,7 +4,8 @@ import type {
   Game, 
   WishlistFilterOptions, 
   SyncProgressUpdate,
-  Anomaly 
+  Anomaly,
+  SourceCode
 } from './types.js';
 import { api } from './api.js';
 import { Navbar } from './components/Navbar.js';
@@ -15,6 +16,7 @@ import { GameDetailModal } from './components/GameDetailModal.js';
 import { ProfileModal } from './components/ProfileModal.js';
 import { SourcesModal } from './components/SourcesModal.js';
 import { AnomaliesModal } from './components/AnomaliesModal.js';
+import { SyncModal } from './components/SyncModal.js';
 import { ChevronLeft, ChevronRight, Gamepad2, PlusCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -33,6 +35,7 @@ export const App: React.FC = () => {
   const [showProfilesModal, setShowProfilesModal] = useState(false);
   const [showSourcesModal, setShowSourcesModal] = useState(false);
   const [showAnomaliesModal, setShowAnomaliesModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState<WishlistFilterOptions>({
@@ -122,9 +125,13 @@ export const App: React.FC = () => {
     loadGames(updated);
   };
 
-  const handleTriggerSync = async () => {
+  const handleTriggerSync = () => {
+    setShowSyncModal(true);
+  };
+
+  const handleExecuteSync = async (forceRefresh: boolean, selectedSources?: SourceCode[]) => {
     try {
-      await api.startSync();
+      await api.startSync({ forceRefresh, sources: selectedSources });
     } catch (err: any) {
       alert(err.message || 'Failed to start sync');
     }
@@ -272,6 +279,14 @@ export const App: React.FC = () => {
             loadAnomalies();
             loadGames();
           }}
+        />
+      )}
+
+      {showSyncModal && (
+        <SyncModal
+          onClose={() => setShowSyncModal(false)}
+          onStartSync={handleExecuteSync}
+          isSyncing={syncProgress?.status === 'RUNNING'}
         />
       )}
     </div>

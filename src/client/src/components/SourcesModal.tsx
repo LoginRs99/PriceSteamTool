@@ -47,9 +47,20 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
         </div>
 
         <div className="modal-body">
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            Each source adapter is isolated with its own token-bucket rate limiter and 4-state Circuit Breaker. If an unauthenticated source hits rate limits or bot challenges, it safely pauses without delaying other sources.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+              Each source adapter is isolated with its own token-bucket rate limiter and 4-state Circuit Breaker.
+            </p>
+            <a
+              href="/api/diagnostics/logs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline"
+              style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+            >
+              <span>📋 View Raw Logs</span>
+            </a>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {sources.map(s => {

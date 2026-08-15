@@ -172,10 +172,30 @@ export const gameRepo = {
         game.isFree !== undefined ? (game.isFree ? 1 : 0) : null,
         game.basePriceEur !== undefined ? game.basePriceEur : null,
         game.itadId || null,
-        now, 
+        now,
         existing.id
       );
-      return this.getById(existing.id)!;
+
+      return {
+        id: existing.id,
+        steamAppId: existing.steam_app_id,
+        itadId: existing.itad_id || undefined,
+        title: game.title || existing.title,
+        slug: existing.slug,
+        headerImage: game.headerImage || existing.header_image || undefined,
+        capsuleImage: game.capsuleImage || existing.capsule_image || undefined,
+        releaseDate: game.releaseDate || existing.release_date || undefined,
+        isDlc: game.isDlc !== undefined ? game.isDlc : Boolean(existing.is_dlc),
+        isFree: game.isFree !== undefined ? game.isFree : Boolean(existing.is_free),
+        basePriceEur: game.basePriceEur !== undefined ? game.basePriceEur : (existing.base_price_eur ? Number(existing.base_price_eur) : undefined),
+        historicalLowEur: existing.historical_low_eur ? Number(existing.historical_low_eur) : undefined,
+        historicalLowDate: existing.historical_low_date || undefined,
+        historicalLowSource: existing.historical_low_source || undefined,
+        hasAnomaly: false,
+        offersCount: 0,
+        createdAt: existing.created_at,
+        updatedAt: now
+      };
     }
 
     const id = randomUUID();
@@ -198,7 +218,23 @@ export const gameRepo = {
       now
     );
 
-    return this.getById(id)!;
+    return {
+      id,
+      steamAppId: game.steamAppId,
+      itadId: game.itadId,
+      title: game.title,
+      slug,
+      headerImage: game.headerImage,
+      capsuleImage: game.capsuleImage,
+      releaseDate: game.releaseDate,
+      isDlc: Boolean(game.isDlc),
+      isFree: Boolean(game.isFree),
+      basePriceEur: game.basePriceEur,
+      hasAnomaly: false,
+      offersCount: 0,
+      createdAt: now,
+      updatedAt: now
+    };
   },
 
   getById(id: string): Game | null {
@@ -377,26 +413,40 @@ export const gameRepo = {
   syncWishlistEntries(profileId: string, items: { steamAppId: number; title: string; priority: number; dateAdded?: string }[]): void {
     const db = getDb();
     const now = new Date().toISOString();
+
+    const stmtDeactivate = prepareStmt(`UPDATE wishlist_entries SET is_active = 0 WHERE profile_id = ?`);
+    const stmtFindGame = prepareStmt(`SELECT id, title, slug FROM games WHERE steam_app_id = ?`);
+    const stmtInsertGame = prepareStmt(`
+      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, created_at, updated_at)
+      VALUES (?, ?, null, ?, ?, null, null, null, 0, 0, null, ?, ?)
+    `);
+    const stmtWishlistEntry = prepareStmt(`
+      INSERT INTO wishlist_entries (id, profile_id, game_id, priority, date_added_steam, is_active, last_synced_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?)
+      ON CONFLICT(profile_id, game_id) DO UPDATE SET
+        priority = excluded.priority,
+        date_added_steam = COALESCE(excluded.date_added_steam, wishlist_entries.date_added_steam),
+        is_active = 1,
+        last_synced_at = excluded.last_synced_at
+    `);
     
     const tx = db.transaction(() => {
-      prepareStmt(`UPDATE wishlist_entries SET is_active = 0 WHERE profile_id = ?`).run(profileId);
+      stmtDeactivate.run(profileId);
 
       for (const item of items) {
-        const game = gameRepo.upsert({
-          steamAppId: item.steamAppId,
-          title: item.title,
-        });
+        const slug = item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const existing = stmtFindGame.get(item.steamAppId) as any;
+        let gameId: string;
+
+        if (existing) {
+          gameId = existing.id;
+        } else {
+          gameId = randomUUID();
+          stmtInsertGame.run(gameId, item.steamAppId, item.title, slug, now, now);
+        }
 
         const entryId = randomUUID();
-        prepareStmt(`
-          INSERT INTO wishlist_entries (id, profile_id, game_id, priority, date_added_steam, is_active, last_synced_at)
-          VALUES (?, ?, ?, ?, ?, 1, ?)
-          ON CONFLICT(profile_id, game_id) DO UPDATE SET
-            priority = excluded.priority,
-            date_added_steam = COALESCE(excluded.date_added_steam, wishlist_entries.date_added_steam),
-            is_active = 1,
-            last_synced_at = excluded.last_synced_at
-        `).run(entryId, profileId, game.id, item.priority, item.dateAdded || null, now);
+        stmtWishlistEntry.run(entryId, profileId, gameId, item.priority, item.dateAdded || null, now);
       }
     });
 

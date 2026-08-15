@@ -74,8 +74,12 @@ export const api = {
   },
 
   // Sync
-  async startSync(): Promise<SyncProgressUpdate> {
-    const res = await fetch(`${API_BASE}/sync/start`, { method: 'POST' });
+  async startSync(options: { forceRefresh?: boolean; sources?: SourceCode[] } = {}): Promise<SyncProgressUpdate> {
+    const res = await fetch(`${API_BASE}/sync/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options)
+    });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to start sync');

@@ -1,4 +1,4 @@
-import { getDb, closeDb, clearStmtCache, profileRepo, gameRepo, merchantRepo, offerRepo } from '../src/server/db/index.js';
+import { getDb, closeDb, prepareStmt, clearStmtCache, profileRepo, gameRepo, merchantRepo, offerRepo } from '../src/server/db/index.js';
 import { normalizeProductType, normalizeRegion } from '../src/server/domain/normalizer.js';
 import { evaluateOfferAnomaly } from '../src/server/domain/anomaly.js';
 import { CircuitBreakerRegistry, circuitBreakers } from '../src/server/sync/circuitBreaker.js';
@@ -19,7 +19,6 @@ function assert(condition: boolean, message: string) {
 }
 
 function resetDatabase() {
-  clearStmtCache();
   const db = getDb();
   db.exec(`
     PRAGMA foreign_keys = OFF;
@@ -176,32 +175,28 @@ async function runAllValidations() {
   const steamStore = merchantRepo.getOrCreate('steam', 'Steam Store', true);
   const fanatical = merchantRepo.getOrCreate('fanatical', 'Fanatical', true);
 
+  const stmtOffer = prepareStmt(`
+    INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, discount_percent, is_valid, is_best_deal, anomaly_score, fetched_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 0, datetime('now'), datetime('now'), datetime('now'))
+  `);
+  const stmtObs = prepareStmt(`
+    INSERT INTO source_observations (id, offer_id, source_code, observed_price_eur, observed_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+  `);
+
   const db = getDb();
   const seedTx = db.transaction(() => {
     for (let i = 0; i < 2000; i++) {
       const gId = totalWishlist[i].id;
       const base = 29.99;
-      offerRepo.upsertOffer({
-        gameId: gId,
-        merchantId: steamStore.id,
-        productType: 'DIRECT_PURCHASE',
-        regionType: 'GLOBAL',
-        priceEur: base,
-        dealUrl: `https://steam/${totalWishlist[i].steamAppId}`,
-        sourceCode: 'steam'
-      });
+      const oId1 = `off-steam-${i}`;
+      stmtOffer.run(oId1, gId, steamStore.id, 'DIRECT_PURCHASE', 'GLOBAL', base, 0);
+      stmtObs.run(`obs-steam-${i}`, oId1, 'steam', base);
+
       if (i % 2 === 0) {
-        offerRepo.upsertOffer({
-          gameId: gId,
-          merchantId: fanatical.id,
-          productType: 'STEAM_KEY',
-          regionType: 'EU',
-          priceEur: 14.99,
-          originalPriceEur: base,
-          discountPercent: 50,
-          dealUrl: `https://fanatical/game-${i}`,
-          sourceCode: 'itad'
-        });
+        const oId2 = `off-fan-${i}`;
+        stmtOffer.run(oId2, gId, fanatical.id, 'STEAM_KEY', 'EU', 14.99, 50);
+        stmtObs.run(`obs-fan-${i}`, oId2, 'itad', 14.99);
       }
     }
   });
