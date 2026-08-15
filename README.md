@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.3.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-111%2F111%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-1.4.0-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-112%2F112%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -141,7 +141,7 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 * [`docs/sync.md`](./docs/sync.md) — Sync orchestrator, queue token buckets, and multi-source pacing.
 * [`docs/sources.md`](./docs/sources.md) — Source comparison matrix, rate limits, and API analysis.
 * [`docs/development.md`](./docs/development.md) — Development workflow, testing guidelines, and CI/CD.
-* [`CHANGELOG.md`](./CHANGELOG.md) — Version history from v1.0.0 through v1.3.0.
+* [`CHANGELOG.md`](./CHANGELOG.md) — Version history from v1.0.0 through v1.4.0.
 
 ---
 

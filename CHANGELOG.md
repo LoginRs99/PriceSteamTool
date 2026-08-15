@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-08-15
+
+### Added
+* **Strict Steam DRM Platform Filtering**:
+  * Added rejection rules for non-Steam stores (GOG, Epic Games, Ubisoft Connect, Origin / EA App, Battle.net, DRM-Free) across ITAD, CheapShark, and AllKeyShop adapters.
+  * Ensures 100% of tracked deals are valid Steam Keys, Steam Gifts, or direct Steam Store purchases.
+* **Instant Boot Legacy Purge & Best Deal Re-election**:
+  * Automated startup migration that drops non-Steam offers and reassigns canonical `is_best_deal` to lowest valid Steam offer on boot.
+* **Clickable Anomalies with Direct Deal Links**:
+  * Extended `Anomaly` model to join `deal_url`, `steam_app_id`, and `original_price_eur`.
+  * Added direct "View Deal" actions and clickable title links in `AnomaliesModal`.
+* **Complete Quality-of-Life (QOL) Suite**:
+  * Quick-search keyboard shortcuts (`/` and `Ctrl+K`).
+  * 1-click search clear `(X)` button and "Reset filters" button.
+  * Persistent user preferences via `localStorage` (View Mode, Sort Order, Page Size).
+  * Quick jump pagination buttons (`<< First` and `Last >>`).
+  * One-click "Copy Steam URL" button with tooltip feedback in `GameDetailModal`.
+  * Floating animated "Scroll to Top" button for large wishlist views.
+* **Database Query Performance Optimizations**:
+  * Added composite SQLite indexes (`idx_games_free_dlc`, `idx_wishlist_active_priority`) for fast sub-millisecond pagination and filtering across 5,000+ games.
+
+---
+
 ## [1.3.0] - 2026-08-15
 
 ### Added

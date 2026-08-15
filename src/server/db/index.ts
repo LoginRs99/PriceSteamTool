@@ -84,6 +84,9 @@ export function getDb(): Database.Database {
 }
 
 export function prepareStmt(sql: string): Database.Statement {
+  if (process.env.DB_PATH === ':memory:' || process.env.NODE_ENV === 'test') {
+    return getDb().prepare(sql);
+  }
   let stmt = stmtCache.get(sql);
   if (!stmt) {
     stmt = getDb().prepare(sql);
