@@ -124,11 +124,17 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       return reply.status(400).send({ error: 'Please create and select an active Steam profile first.' });
     }
 
-    const body = request.body as any;
-    const forceRefresh = Boolean(body?.forceRefresh);
+    const schema = z.object({
+      forceRefresh: z.boolean().optional(),
+      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'gocdkeys'])).optional()
+    }).optional();
+
+    const parsed = schema.safeParse(request.body);
+    const forceRefresh = Boolean(parsed.success && parsed.data?.forceRefresh);
+    const selectedSources = parsed.success && parsed.data?.sources ? parsed.data.sources as SourceCode[] : undefined;
 
     try {
-      const progress = await syncOrchestrator.startSync(activeProfile.id, forceRefresh);
+      const progress = await syncOrchestrator.startSync(activeProfile.id, forceRefresh, selectedSources, 'MANUAL');
       return progress;
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -178,6 +184,23 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     sourceRepo.toggle(code, parsed.data.isEnabled);
     return { success: true, code, isEnabled: parsed.data.isEnabled };
+  });
+
+  // Diagnostics & Debug Logs Export
+  fastify.get('/api/diagnostics/logs', async (request, reply) => {
+    const { getRecentDiagnosticsLogs } = await import('../utils/logger.js');
+    const lines = getRecentDiagnosticsLogs(300);
+    reply.header('Content-Type', 'text/plain; charset=utf-8');
+    return lines;
+  });
+
+  fastify.get('/api/diagnostics/summary', async () => {
+    const sources = sourceRepo.list();
+    return {
+      timestamp: new Date().toISOString(),
+      syncRunning: syncOrchestrator.isSyncRunning(),
+      sources
+    };
   });
 
   // ----------------------------------------------------

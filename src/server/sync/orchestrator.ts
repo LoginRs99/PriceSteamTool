@@ -22,6 +22,7 @@ import {
 } from '../domain/normalizer.js';
 import { evaluateOfferAnomaly } from '../domain/anomaly.js';
 import { circuitBreakers } from './circuitBreaker.js';
+import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
 import type { 
   SyncProgressUpdate, 
   SourceCode
@@ -34,6 +35,7 @@ export class SyncOrchestrator {
   private sseClients = new Set<SseCallback>();
   private activeRunId: string | null = null;
   private isCancelled = false;
+  private startTime = 0;
   private progress: SyncProgressUpdate = {
     runId: '',
     status: 'IDLE',
@@ -52,7 +54,6 @@ export class SyncOrchestrator {
 
   public subscribe(cb: SseCallback): () => void {
     this.sseClients.add(cb);
-    // Send current state immediately
     cb(this.getProgress());
     return () => this.sseClients.delete(cb);
   }
@@ -68,7 +69,6 @@ export class SyncOrchestrator {
   }
 
   public getProgress(): SyncProgressUpdate {
-    // Refresh circuit breaker states
     for (const code of Object.keys(this.progress.sourceProgress) as SourceCode[]) {
       this.progress.sourceProgress[code].state = circuitBreakers.getState(code);
     }
@@ -84,11 +84,17 @@ export class SyncOrchestrator {
       this.isCancelled = true;
       this.progress.status = 'CANCELLED';
       this.progress.currentAction = 'Sync cancelled by user';
+      logWarn(`Sync run ${this.activeRunId} cancelled by user.`);
       this.broadcast();
     }
   }
 
-  public async startSync(profileId?: string, forceRefresh: boolean = false): Promise<SyncProgressUpdate> {
+  public async startSync(
+    profileId?: string, 
+    forceRefresh: boolean = false, 
+    selectedSources?: SourceCode[],
+    trigger: 'MANUAL' | 'SCHEDULED' = 'MANUAL'
+  ): Promise<SyncProgressUpdate> {
     if (this.progress.status === 'RUNNING') {
       return this.getProgress();
     }
@@ -104,6 +110,7 @@ export class SyncOrchestrator {
     const runId = randomUUID();
     this.activeRunId = runId;
     this.isCancelled = false;
+    this.startTime = Date.now();
 
     this.progress = {
       runId,
@@ -123,9 +130,14 @@ export class SyncOrchestrator {
     };
     this.broadcast();
 
+    logInfo(`Starting sync run [${runId}] (${trigger}) for profile "${targetProfile.name}" (${targetProfile.steamId})`, {
+      forceRefresh,
+      selectedSources: selectedSources || 'ALL_ENABLED'
+    });
+
     // Run execution in background so HTTP response is returned immediately
-    this.runSyncPipeline(targetProfile.id, targetProfile.steamId, forceRefresh).catch(err => {
-      console.error('Sync pipeline failed:', err);
+    this.runSyncPipeline(targetProfile.id, targetProfile.steamId, targetProfile.name, forceRefresh, selectedSources, trigger).catch(err => {
+      logError(`Sync pipeline ${runId} encountered an error:`, err);
       this.progress.status = 'FAILED';
       this.progress.currentAction = `Error: ${err.message || 'Sync failed'}`;
       this.broadcast();
@@ -134,7 +146,27 @@ export class SyncOrchestrator {
     return this.getProgress();
   }
 
-  private async runSyncPipeline(profileId: string, steamId: string, forceRefresh: boolean): Promise<void> {
+  private async runSyncPipeline(
+    profileId: string, 
+    steamId: string, 
+    profileName: string,
+    forceRefresh: boolean, 
+    selectedSources?: SourceCode[],
+    trigger: string = 'MANUAL'
+  ): Promise<void> {
+    const activeSourcesList = sourceRepo.list();
+    const shouldRunSource = (code: SourceCode) => {
+      if (selectedSources && selectedSources.length > 0) {
+        return selectedSources.includes(code);
+      }
+      const found = activeSourcesList.find(s => s.code === code);
+      return Boolean(found?.isEnabled);
+    };
+
+    let totalWishlistCount = 0;
+    let staleQueriedCount = 0;
+    let totalOffersIngested = 0;
+
     try {
       // Step 1: Ingest Steam Wishlist
       this.progress.currentAction = 'Fetching Wishlist from Steam API...';
@@ -143,11 +175,14 @@ export class SyncOrchestrator {
       const wishlistItems = await steamAdapter.fetchWishlist(steamId);
       if (this.isCancelled) return;
 
+      totalWishlistCount = wishlistItems.length;
+
       if (wishlistItems.length === 0) {
         this.progress.currentAction = 'Wishlist is empty or profile is private.';
         this.progress.status = 'COMPLETED';
         this.progress.completedAt = new Date().toISOString();
         this.broadcast();
+        logWarn(`Wishlist for ${steamId} returned 0 items. Ensure game details are Public.`);
         return;
       }
 
@@ -155,58 +190,61 @@ export class SyncOrchestrator {
       this.progress.currentAction = `Discovered ${wishlistItems.length} games. Resolving metadata...`;
       this.broadcast();
 
+      logInfo(`Ingested ${wishlistItems.length} wishlist entries from Steam API.`);
+
       // Step 2: Ingest games and sync wishlist entries in SQLite
       gameRepo.syncWishlistEntries(
         profileId, 
         wishlistItems.map(w => ({ steamAppId: w.steamAppId, title: `App ${w.steamAppId}`, priority: w.priority, dateAdded: w.dateAdded }))
       );
 
-      // Step 3: Populate metadata for games that are missing title/images
+      // Step 3: Populate metadata for games that are missing title/images (if steam source is active)
       const allWishlistGames = gameRepo.getAllWishlistGameIds(profileId);
-      this.progress.currentAction = 'Checking store assets and titles...';
-      this.broadcast();
+      if (shouldRunSource('steam')) {
+        this.progress.currentAction = 'Checking store assets and titles...';
+        this.broadcast();
 
-      for (let i = 0; i < allWishlistGames.length; i++) {
-        if (this.isCancelled) return;
-        const g = allWishlistGames[i];
-        
-        // If title is just placeholder App ID, fetch store details
-        if (g.title.startsWith('App ')) {
-          try {
-            const details = await steamAdapter.fetchAppDetails(g.steamAppId);
-            if (details) {
-              const updatedGame = gameRepo.upsert({
-                steamAppId: g.steamAppId,
-                title: details.title,
-                headerImage: details.headerImage,
-                capsuleImage: details.capsuleImage,
-                releaseDate: details.releaseDate,
-                isDlc: details.isDlc,
-                isFree: details.isFree,
-                basePriceEur: details.basePriceEur
-              });
-              g.title = updatedGame.title;
+        for (let i = 0; i < allWishlistGames.length; i++) {
+          if (this.isCancelled) return;
+          const g = allWishlistGames[i];
+          
+          if (g.title.startsWith('App ')) {
+            try {
+              const details = await steamAdapter.fetchAppDetails(g.steamAppId);
+              if (details) {
+                const updatedGame = gameRepo.upsert({
+                  steamAppId: g.steamAppId,
+                  title: details.title,
+                  headerImage: details.headerImage,
+                  capsuleImage: details.capsuleImage,
+                  releaseDate: details.releaseDate,
+                  isDlc: details.isDlc,
+                  isFree: details.isFree,
+                  basePriceEur: details.basePriceEur
+                });
+                g.title = updatedGame.title;
 
-              // Store Steam baseline price
-              if (details.currentPriceEur !== undefined) {
-                this.ingestOffer(updatedGame.id, 'steam', {
-                  merchantCode: 'steam',
-                  merchantName: 'Steam Store',
-                  isOfficial: true,
-                  productTypeRaw: 'DIRECT_PURCHASE',
-                  regionRaw: 'GLOBAL',
-                  priceEur: details.currentPriceEur,
-                  originalPriceEur: details.basePriceEur,
-                  dealUrl: `https://store.steampowered.com/app/${g.steamAppId}/`
-                }, updatedGame.basePriceEur);
-                this.progress.sourceProgress.steam.offersFound++;
+                if (details.currentPriceEur !== undefined) {
+                  this.ingestOffer(updatedGame.id, 'steam', {
+                    merchantCode: 'steam',
+                    merchantName: 'Steam Store',
+                    isOfficial: true,
+                    productTypeRaw: 'DIRECT_PURCHASE',
+                    regionRaw: 'GLOBAL',
+                    priceEur: details.currentPriceEur,
+                    originalPriceEur: details.basePriceEur,
+                    dealUrl: `https://store.steampowered.com/app/${g.steamAppId}/`
+                  }, updatedGame.basePriceEur);
+                  this.progress.sourceProgress.steam.offersFound++;
+                  totalOffersIngested++;
+                }
               }
+            } catch (e) {
+              // Ignore single game detail error
             }
-          } catch (e) {
-            // Ignore single game detail error
           }
+          this.progress.sourceProgress.steam.processed++;
         }
-        this.progress.sourceProgress.steam.processed++;
       }
 
       // Step 4: Determine which games require price refreshes (Cache-First TTL Strategy)
@@ -214,21 +252,29 @@ export class SyncOrchestrator {
         ? allWishlistGames 
         : gameRepo.getStaleWishlistGameIds(profileId, config.cacheTtlHours);
 
+      staleQueriedCount = gamesToRefresh.length;
+      const cacheHitRatio = totalWishlistCount > 0 
+        ? Math.max(0, ((totalWishlistCount - staleQueriedCount) / totalWishlistCount) * 100) 
+        : 100;
+
       if (gamesToRefresh.length === 0) {
+        const duration = Math.round((Date.now() - this.startTime) / 1000);
         this.progress.status = 'COMPLETED';
         this.progress.completedAt = new Date().toISOString();
         this.progress.currentAction = `Wishlist is up to date (cached). No stale items to refresh.`;
         this.broadcast();
+
+        this.generateSummary(profileName, steamId, trigger, 'COMPLETED', duration, totalWishlistCount, 0, 100, totalOffersIngested, selectedSources);
         return;
       }
 
       this.progress.currentAction = `Found ${gamesToRefresh.length} items needing price refresh...`;
       this.broadcast();
 
-      // Step 5: IsThereAnyDeal Batch Sync (Primary Official Aggregator)
-      const sourcesList = sourceRepo.list();
-      const itadConfig = sourcesList.find(s => s.code === 'itad');
-      if (itadConfig?.isEnabled && !this.isCancelled) {
+      logInfo(`Refreshing prices for ${gamesToRefresh.length} games (Cache hit ratio: ${cacheHitRatio.toFixed(1)}%)`);
+
+      // Step 5: IsThereAnyDeal Batch Sync (if enabled)
+      if (shouldRunSource('itad') && !this.isCancelled) {
         this.progress.currentAction = 'Refreshing prices via IsThereAnyDeal batch API...';
         this.progress.sourceProgress.itad.total = gamesToRefresh.length;
         this.broadcast();
@@ -242,20 +288,21 @@ export class SyncOrchestrator {
             for (const offer of offers) {
               this.ingestOffer(game.id, 'itad', offer);
               this.progress.sourceProgress.itad.offersFound++;
+              totalOffersIngested++;
             }
             this.progress.sourceProgress.itad.processed++;
           }
         } catch (e: any) {
-          console.warn('ITAD sync error:', e?.message);
+          logWarn(`ITAD batch sync warning: ${e?.message}`);
         }
       }
 
       // Step 6: Secondary Sources Dispatch (GG.deals, CheapShark, AllKeyShop, GoCDKeys)
       const secondaryAdapters: PriceSourceAdapter[] = [];
-      if (sourcesList.find(s => s.code === 'ggdeals')?.isEnabled) secondaryAdapters.push(ggdealsAdapter);
-      if (sourcesList.find(s => s.code === 'cheapshark')?.isEnabled) secondaryAdapters.push(cheapsharkAdapter);
-      if (sourcesList.find(s => s.code === 'allkeyshop')?.isEnabled) secondaryAdapters.push(allkeyshopAdapter);
-      if (sourcesList.find(s => s.code === 'gocdkeys')?.isEnabled) secondaryAdapters.push(gocdkeysAdapter);
+      if (shouldRunSource('ggdeals')) secondaryAdapters.push(ggdealsAdapter);
+      if (shouldRunSource('cheapshark')) secondaryAdapters.push(cheapsharkAdapter);
+      if (shouldRunSource('allkeyshop')) secondaryAdapters.push(allkeyshopAdapter);
+      if (shouldRunSource('gocdkeys')) secondaryAdapters.push(gocdkeysAdapter);
 
       for (const adapter of secondaryAdapters) {
         this.progress.sourceProgress[adapter.code].total = gamesToRefresh.length;
@@ -269,7 +316,6 @@ export class SyncOrchestrator {
         this.progress.processedGames = i + 1;
         this.progress.currentAction = `Updating prices: [${i + 1}/${gamesToRefresh.length}] ${g.title}`;
 
-        // Query secondary adapters concurrently across decoupled queues
         await Promise.allSettled(
           secondaryAdapters.map(async (adapter) => {
             try {
@@ -277,9 +323,10 @@ export class SyncOrchestrator {
               for (const offer of offers) {
                 this.ingestOffer(g.id, adapter.code, offer);
                 this.progress.sourceProgress[adapter.code].offersFound++;
+                totalOffersIngested++;
               }
             } catch (err: any) {
-              // Circuit breaker and rate limiter handle the error recording
+              // Circuit breaker records rate limits / failures
             } finally {
               this.progress.sourceProgress[adapter.code].processed++;
             }
@@ -292,17 +339,64 @@ export class SyncOrchestrator {
       }
 
       // Finalize
+      const duration = Math.round((Date.now() - this.startTime) / 1000);
       this.progress.status = 'COMPLETED';
       this.progress.completedAt = new Date().toISOString();
       this.progress.currentAction = `Sync completed! Refreshed ${gamesToRefresh.length} games.`;
       this.broadcast();
 
+      this.generateSummary(profileName, steamId, trigger, 'COMPLETED', duration, totalWishlistCount, staleQueriedCount, cacheHitRatio, totalOffersIngested, selectedSources);
+
     } catch (err: any) {
+      const duration = Math.round((Date.now() - this.startTime) / 1000);
       this.progress.status = 'FAILED';
       this.progress.currentAction = `Sync failed: ${err.message || 'Unknown error'}`;
       this.broadcast();
+
+      this.generateSummary(profileName, steamId, trigger, 'FAILED', duration, totalWishlistCount, staleQueriedCount, 0, totalOffersIngested, selectedSources);
       throw err;
     }
+  }
+
+  private generateSummary(
+    profileName: string, 
+    steamId: string, 
+    trigger: string, 
+    status: string, 
+    durationSec: number,
+    totalWishlist: number,
+    staleQueried: number,
+    cacheHitPercent: number,
+    offersUpdated: number,
+    selectedSources?: SourceCode[]
+  ): void {
+    const currentSources = sourceRepo.list();
+    const sourceStats: Record<string, any> = {};
+
+    for (const s of currentSources) {
+      sourceStats[s.name] = {
+        requests: s.requestCount,
+        success: s.successCount,
+        failures: s.failureCount,
+        rateLimits: s.rateLimitCount,
+        state: circuitBreakers.getState(s.code)
+      };
+    }
+
+    logSummaryReport({
+      runId: this.activeRunId || 'N/A',
+      trigger,
+      profileName,
+      steamId,
+      status,
+      durationSec,
+      totalWishlist,
+      staleQueried,
+      cacheHitPercent,
+      offersUpdated,
+      selectedSources: selectedSources || currentSources.filter(s => s.isEnabled).map(s => s.code),
+      sourceStats
+    });
   }
 
   /**
@@ -314,21 +408,12 @@ export class SyncOrchestrator {
     rawOffer: NormalizedSourceOffer,
     knownBasePrice?: number
   ): void {
-    // 1. Validate Product Type
     const productNorm = normalizeProductType(rawOffer.productTypeRaw);
-    if (!productNorm.isValid) {
-      // Discard forbidden account products as per spec
-      return;
-    }
+    if (!productNorm.isValid) return;
 
-    // 2. Validate Region
     const regionNorm = normalizeRegion(rawOffer.regionRaw);
-    if (!regionNorm.isValid) {
-      // Discard foreign region-locked products
-      return;
-    }
+    if (!regionNorm.isValid) return;
 
-    // 3. Ensure Merchant exists in DB
     const merchant = merchantRepo.getOrCreate(
       rawOffer.merchantCode, 
       rawOffer.merchantName, 
@@ -336,11 +421,9 @@ export class SyncOrchestrator {
       rawOffer.dealUrl
     );
 
-    // 4. Gather other merchant prices for this game for anomaly scoring
     const existingOffers = offerRepo.getOffersForGame(gameId);
     const otherPrices = existingOffers.map(o => o.priceEur);
 
-    // 5. Evaluate Price Anomaly
     const anomalyEval = evaluateOfferAnomaly({
       priceEur: rawOffer.priceEur,
       originalPriceEur: rawOffer.originalPriceEur,
@@ -351,7 +434,6 @@ export class SyncOrchestrator {
       otherPrices
     });
 
-    // 6. Upsert Offer and Observation
     const offer = offerRepo.upsertOffer({
       gameId,
       merchantId: merchant.id,
@@ -371,7 +453,6 @@ export class SyncOrchestrator {
       rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined
     });
 
-    // 7. Record in Anomaly log if flagged
     if (anomalyEval.isAnomaly && anomalyEval.type) {
       anomalyRepo.record(gameId, offer.id, anomalyEval.type, anomalyEval.score, anomalyEval.reason || 'Anomaly detected');
     }

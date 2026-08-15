@@ -51,12 +51,18 @@ export async function createApp(): Promise<FastifyInstance> {
   return fastify;
 }
 
+import { initAutoSyncScheduler, stopAutoSyncScheduler } from './sync/scheduler.js';
+
 async function bootstrap() {
   const app = await createApp();
+
+  // Initialize automatic periodic background sync scheduler
+  initAutoSyncScheduler();
 
   // Graceful shutdown
   const handleShutdown = async (signal: string) => {
     app.log.info(`Received ${signal}. Shutting down gracefully...`);
+    stopAutoSyncScheduler();
     syncOrchestrator.cancelSync();
     await app.close();
     closeDb();
