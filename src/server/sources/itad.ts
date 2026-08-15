@@ -71,9 +71,13 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
     const itadIdsToFetch: string[] = [];
 
     for (const g of games) {
-      if (g.itadId) {
-        itadIdToAppId.set(g.itadId, g.steamAppId);
-        itadIdsToFetch.push(g.itadId);
+      let resolvedItadId = g.itadId;
+      if (!resolvedItadId) {
+        resolvedItadId = (await this.lookupItadId(g.steamAppId)) || undefined;
+      }
+      if (resolvedItadId) {
+        itadIdToAppId.set(resolvedItadId, g.steamAppId);
+        itadIdsToFetch.push(resolvedItadId);
       }
     }
 

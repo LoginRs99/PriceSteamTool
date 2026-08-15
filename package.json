@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/server/index.js",
     "test": "vitest run --fileParallelism=false",
-    "test:watch": "vitest --fileParallelism=false"
+    "test:watch": "vitest --fileParallelism=false",
+    "test:sources": "tsx scripts/test-sources.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
