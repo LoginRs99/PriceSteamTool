@@ -17,12 +17,13 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     gameTitle: string
   ): Promise<NormalizedSourceOffer[]> {
     return this.queue.enqueue(async () => {
-      // Respectful fallback: search lightweight public JSON endpoint if available
+      const offers: NormalizedSourceOffer[] = [];
       try {
-        const searchUrl = `https://www.allkeyshop.com/blog/wp-admin/admin-ajax.php?action=get_search_results&query=${encodeURIComponent(gameTitle)}`;
-        const response = await fetch(searchUrl, {
+        // 1. High-fidelity VAKS v2 JSON API endpoint from AllKeyShop
+        const vaksUrl = `https://www.allkeyshop.com/api/v2/vaks.php?action=products&currency=eur&name=${encodeURIComponent(gameTitle)}`;
+        const response = await fetch(vaksUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*'
           }
         });
@@ -33,24 +34,36 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           throw err;
         }
 
-        if (!response.ok) return [];
-        const data: any = await response.json();
-        // Parse results if available
-        if (data?.products && Array.isArray(data.products)) {
-          const matched = data.products.find((p: any) => p.name?.toLowerCase().includes(gameTitle.toLowerCase()));
-          if (matched && matched.price) {
-            const priceEur = parseFloat(matched.price);
-            if (!isNaN(priceEur) && priceEur > 0) {
-              return [{
-                merchantCode: 'allkeyshop_best',
-                merchantName: 'AllKeyShop Best',
-                isOfficial: false,
-                productTypeRaw: 'STEAM_KEY',
-                regionRaw: 'GLOBAL',
-                priceEur,
-                dealUrl: matched.url || 'https://www.allkeyshop.com',
-                rawPayload: matched
-              }];
+        if (response.ok) {
+          const data: any = await response.json();
+          const products = data?.products || data?.games;
+          if (Array.isArray(products) && products.length > 0) {
+            // Find closest match for game title
+            const lowerTitle = gameTitle.toLowerCase();
+            const matched = products.find((p: any) => p.name?.toLowerCase().includes(lowerTitle)) || products[0];
+
+            if (matched) {
+              const best = matched.bestOffer;
+              const priceEur = best?.price ? Number(best.price) : (matched.offerAggregate?.lowestPrice ? Number(matched.offerAggregate.lowestPrice) : undefined);
+              
+              if (priceEur && priceEur > 0) {
+                const storeName = best?.store?.name || 'AllKeyShop Best';
+                const merchantCode = storeName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                const isOfficial = Boolean(best?.store?.isOfficialStore);
+                const regionName = best?.region?.name || 'GLOBAL';
+
+                offers.push({
+                  merchantCode,
+                  merchantName: storeName,
+                  isOfficial,
+                  productTypeRaw: 'STEAM_KEY',
+                  regionRaw: regionName,
+                  priceEur,
+                  voucherCode: best?.bestVoucher?.code || undefined,
+                  dealUrl: best?.url || matched.link || 'https://www.allkeyshop.com',
+                  rawPayload: matched
+                });
+              }
             }
           }
         }
@@ -59,7 +72,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           throw err; // Trigger circuit breaker
         }
       }
-      return [];
+      return offers;
     });
   }
 }
