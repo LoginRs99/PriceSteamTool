@@ -16,18 +16,32 @@ import type {
 } from '../../shared/types.js';
 
 let dbInstance: Database.Database | null = null;
+const stmtCache = new Map<string, Database.Statement>();
 
 export function getDb(): Database.Database {
   if (!dbInstance) {
     dbInstance = new Database(config.dbPath);
+    dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('busy_timeout = 5000');
+    dbInstance.pragma('foreign_keys = ON');
     dbInstance.exec(SCHEMA_SQL);
     dbInstance.exec(SEED_SOURCES_SQL);
   }
   return dbInstance;
 }
 
+export function prepareStmt(sql: string): Database.Statement {
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = getDb().prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
+}
+
 export function closeDb(): void {
   if (dbInstance) {
+    stmtCache.clear();
     dbInstance.close();
     dbInstance = null;
   }
@@ -38,8 +52,7 @@ export function closeDb(): void {
 // ----------------------------------------------------
 export const profileRepo = {
   list(): Profile[] {
-    const db = getDb();
-    const rows = db.prepare(`
+    const rows = prepareStmt(`
       SELECT p.*, COUNT(w.id) as gameCount 
       FROM profiles p 
       LEFT JOIN wishlist_entries w ON p.id = w.profile_id AND w.is_active = 1
@@ -61,8 +74,7 @@ export const profileRepo = {
   },
 
   getActive(): Profile | null {
-    const db = getDb();
-    const row = db.prepare(`SELECT * FROM profiles WHERE is_active = 1 LIMIT 1`).get() as any;
+    const row = prepareStmt(`SELECT * FROM profiles WHERE is_active = 1 LIMIT 1`).get() as any;
     if (!row) return null;
     return {
       id: row.id,
@@ -77,15 +89,13 @@ export const profileRepo = {
   },
 
   create(name: string, steamId: string, customUrl?: string, avatarUrl?: string): Profile {
-    const db = getDb();
     const id = randomUUID();
     const now = new Date().toISOString();
     
-    // If this is the first profile, make it active
-    const count = (db.prepare(`SELECT COUNT(*) as count FROM profiles`).get() as any).count;
+    const count = (prepareStmt(`SELECT COUNT(*) as count FROM profiles`).get() as any).count;
     const isActive = count === 0 ? 1 : 0;
 
-    db.prepare(`
+    prepareStmt(`
       INSERT INTO profiles (id, name, steam_id, custom_url, avatar_url, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, name, steamId, customUrl || null, avatarUrl || null, isActive, now, now);
@@ -96,16 +106,15 @@ export const profileRepo = {
   setActive(id: string): void {
     const db = getDb();
     const tx = db.transaction(() => {
-      db.prepare(`UPDATE profiles SET is_active = 0`).run();
-      db.prepare(`UPDATE profiles SET is_active = 1 WHERE id = ?`).run(id);
+      prepareStmt(`UPDATE profiles SET is_active = 0`).run();
+      prepareStmt(`UPDATE profiles SET is_active = 1 WHERE id = ?`).run(id);
     });
     tx();
   },
 
   update(id: string, name: string, steamId: string, customUrl?: string, avatarUrl?: string): void {
-    const db = getDb();
     const now = new Date().toISOString();
-    db.prepare(`
+    prepareStmt(`
       UPDATE profiles 
       SET name = ?, steam_id = ?, custom_url = ?, avatar_url = ?, updated_at = ?
       WHERE id = ?
@@ -113,8 +122,7 @@ export const profileRepo = {
   },
 
   delete(id: string): void {
-    const db = getDb();
-    db.prepare(`DELETE FROM profiles WHERE id = ?`).run(id);
+    prepareStmt(`DELETE FROM profiles WHERE id = ?`).run(id);
   }
 };
 
@@ -134,13 +142,12 @@ export const gameRepo = {
     basePriceEur?: number;
     itadId?: string;
   }): Game {
-    const db = getDb();
     const now = new Date().toISOString();
     const slug = game.slug || game.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     
-    const existing = db.prepare(`SELECT * FROM games WHERE steam_app_id = ?`).get(game.steamAppId) as any;
+    const existing = prepareStmt(`SELECT * FROM games WHERE steam_app_id = ?`).get(game.steamAppId) as any;
     if (existing) {
-      db.prepare(`
+      prepareStmt(`
         UPDATE games 
         SET title = COALESCE(?, title),
             header_image = COALESCE(?, header_image),
@@ -168,7 +175,7 @@ export const gameRepo = {
     }
 
     const id = randomUUID();
-    db.prepare(`
+    prepareStmt(`
       INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -191,8 +198,7 @@ export const gameRepo = {
   },
 
   getById(id: string): Game | null {
-    const db = getDb();
-    const r = db.prepare(`
+    const r = prepareStmt(`
       SELECT g.*, 
         bo.id as best_offer_id,
         bo.price_eur as best_price_eur,
@@ -215,20 +221,17 @@ export const gameRepo = {
   },
 
   getBySteamAppId(steamAppId: number): Game | null {
-    const db = getDb();
-    const r = db.prepare(`SELECT id FROM games WHERE steam_app_id = ?`).get(steamAppId) as any;
+    const r = prepareStmt(`SELECT id FROM games WHERE steam_app_id = ?`).get(steamAppId) as any;
     if (!r) return null;
     return this.getById(r.id);
   },
 
   updateItadId(steamAppId: number, itadId: string): void {
-    const db = getDb();
-    db.prepare(`UPDATE games SET itad_id = ?, updated_at = datetime('now') WHERE steam_app_id = ?`).run(itadId, steamAppId);
+    prepareStmt(`UPDATE games SET itad_id = ?, updated_at = datetime('now') WHERE steam_app_id = ?`).run(itadId, steamAppId);
   },
 
   updateHistoricalLow(gameId: string, priceEur: number, date: string, source: string): void {
-    const db = getDb();
-    db.prepare(`
+    prepareStmt(`
       UPDATE games 
       SET historical_low_eur = ?, 
           historical_low_date = ?, 
@@ -286,20 +289,21 @@ export const gameRepo = {
       orderSql = 'ORDER BY (bo.price_eur - g.historical_low_eur) ASC';
     }
 
-    const countRow = db.prepare(`
+    const countSql = `
       SELECT COUNT(*) as total 
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
       LEFT JOIN merchants m ON bo.merchant_id = m.id
       ${whereSql}
-    `).get(...params) as any;
+    `;
+    const countRow = prepareStmt(countSql).get(...params) as any;
 
     const limit = Math.min(options.limit || 50, 500);
     const page = Math.max(options.page || 1, 1);
     const offset = (page - 1) * limit;
 
-    const rows = db.prepare(`
+    const selectSql = `
       SELECT g.*, 
         w.priority,
         w.date_added_steam,
@@ -320,7 +324,8 @@ export const gameRepo = {
       ${whereSql}
       ${orderSql}
       LIMIT ? OFFSET ?
-    `).all(...params, limit, offset) as any[];
+    `;
+    const rows = prepareStmt(selectSql).all(...params, limit, offset) as any[];
 
     return {
       games: rows.map(mapGameRow),
@@ -329,8 +334,7 @@ export const gameRepo = {
   },
 
   getAllWishlistGameIds(profileId: string): { id: string; steamAppId: number; itadId?: string; title: string }[] {
-    const db = getDb();
-    const rows = db.prepare(`
+    const rows = prepareStmt(`
       SELECT g.id, g.steam_app_id, g.itad_id, g.title
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
@@ -347,8 +351,7 @@ export const gameRepo = {
   },
 
   getStaleWishlistGameIds(profileId: string, ttlHours: number = 6): { id: string; steamAppId: number; itadId?: string; title: string }[] {
-    const db = getDb();
-    const rows = db.prepare(`
+    const rows = prepareStmt(`
       SELECT g.id, g.steam_app_id, g.itad_id, g.title
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
@@ -372,19 +375,16 @@ export const gameRepo = {
     const now = new Date().toISOString();
     
     const tx = db.transaction(() => {
-      // Mark existing entries as inactive first
-      db.prepare(`UPDATE wishlist_entries SET is_active = 0 WHERE profile_id = ?`).run(profileId);
+      prepareStmt(`UPDATE wishlist_entries SET is_active = 0 WHERE profile_id = ?`).run(profileId);
 
       for (const item of items) {
-        // Ensure game exists
         const game = gameRepo.upsert({
           steamAppId: item.steamAppId,
           title: item.title,
         });
 
-        // Insert or update wishlist entry
         const entryId = randomUUID();
-        db.prepare(`
+        prepareStmt(`
           INSERT INTO wishlist_entries (id, profile_id, game_id, priority, date_added_steam, is_active, last_synced_at)
           VALUES (?, ?, ?, ?, ?, 1, ?)
           ON CONFLICT(profile_id, game_id) DO UPDATE SET
@@ -405,8 +405,7 @@ export const gameRepo = {
 // ----------------------------------------------------
 export const merchantRepo = {
   getOrCreate(code: string, name: string, isOfficial: boolean = true, defaultUrl?: string): Merchant {
-    const db = getDb();
-    const row = db.prepare(`SELECT * FROM merchants WHERE code = ?`).get(code) as any;
+    const row = prepareStmt(`SELECT * FROM merchants WHERE code = ?`).get(code) as any;
     if (row) {
       return {
         id: row.id,
@@ -420,7 +419,7 @@ export const merchantRepo = {
 
     const id = randomUUID();
     const now = new Date().toISOString();
-    db.prepare(`
+    prepareStmt(`
       INSERT INTO merchants (id, code, name, default_url, is_official, trust_score, created_at)
       VALUES (?, ?, ?, ?, ?, 1.0, ?)
     `).run(id, code, name, defaultUrl || null, isOfficial ? 1 : 0, now);
@@ -429,8 +428,7 @@ export const merchantRepo = {
   },
 
   list(): Merchant[] {
-    const db = getDb();
-    const rows = db.prepare(`SELECT * FROM merchants ORDER BY is_official DESC, name ASC`).all() as any[];
+    const rows = prepareStmt(`SELECT * FROM merchants ORDER BY is_official DESC, name ASC`).all() as any[];
     return rows.map(r => ({
       id: r.id,
       code: r.code,
@@ -474,14 +472,14 @@ export const offerRepo = {
 
     const tx = db.transaction(() => {
       let offerId: string;
-      const existing = db.prepare(`
+      const existing = prepareStmt(`
         SELECT id, price_eur FROM offers 
         WHERE game_id = ? AND merchant_id = ? AND product_type = ? AND region_type = ?
       `).get(data.gameId, data.merchantId, data.productType, data.regionType) as any;
 
       if (existing) {
         offerId = existing.id;
-        db.prepare(`
+        prepareStmt(`
           UPDATE offers
           SET price_eur = ?,
               original_price_eur = COALESCE(?, original_price_eur),
@@ -513,7 +511,7 @@ export const offerRepo = {
         );
       } else {
         offerId = randomUUID();
-        db.prepare(`
+        prepareStmt(`
           INSERT INTO offers (
             id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
             price_eur, original_price_eur, discount_percent, voucher_code, deal_url,
@@ -544,7 +542,7 @@ export const offerRepo = {
 
       // Record / update source observation
       const obsId = randomUUID();
-      db.prepare(`
+      prepareStmt(`
         INSERT INTO source_observations (id, offer_id, source_code, observed_price_eur, observed_at, raw_data_json)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(offer_id, source_code) DO UPDATE SET
@@ -554,14 +552,14 @@ export const offerRepo = {
       `).run(obsId, offerId, data.sourceCode, data.priceEur, now, data.rawObservationJson || null);
 
       // Record price history only if price or discount actually changed
-      const lastHistory = db.prepare(`
+      const lastHistory = prepareStmt(`
         SELECT price_eur, discount_percent FROM price_history 
         WHERE game_id = ? AND merchant_id = ? 
         ORDER BY recorded_at DESC LIMIT 1
       `).get(data.gameId, data.merchantId) as any;
 
       if (!lastHistory || lastHistory.price_eur !== data.priceEur || lastHistory.discount_percent !== discount) {
-        db.prepare(`
+        prepareStmt(`
           INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, recorded_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).run(randomUUID(), data.gameId, data.merchantId, data.sourceCode, data.priceEur, discount, now);
@@ -578,8 +576,7 @@ export const offerRepo = {
   },
 
   getById(id: string): Offer | null {
-    const db = getDb();
-    const r = db.prepare(`
+    const r = prepareStmt(`
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
@@ -588,7 +585,7 @@ export const offerRepo = {
 
     if (!r) return null;
 
-    const sources = db.prepare(`
+    const sources = prepareStmt(`
       SELECT source_code FROM source_observations WHERE offer_id = ?
     `).all(id) as any[];
 
@@ -619,8 +616,7 @@ export const offerRepo = {
   },
 
   getOffersForGame(gameId: string): Offer[] {
-    const db = getDb();
-    const rows = db.prepare(`
+    const rows = prepareStmt(`
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
@@ -629,7 +625,7 @@ export const offerRepo = {
     `).all(gameId) as any[];
 
     return rows.map(r => {
-      const sources = db.prepare(`
+      const sources = prepareStmt(`
         SELECT source_code FROM source_observations WHERE offer_id = ?
       `).all(r.id) as any[];
 
@@ -661,12 +657,9 @@ export const offerRepo = {
   },
 
   recomputeBestDealForGame(gameId: string): void {
-    const db = getDb();
-    // Clear existing best deal flag
-    db.prepare(`UPDATE offers SET is_best_deal = 0 WHERE game_id = ?`).run(gameId);
+    prepareStmt(`UPDATE offers SET is_best_deal = 0 WHERE game_id = ?`).run(gameId);
 
-    // Find the cheapest valid offer
-    const best = db.prepare(`
+    const best = prepareStmt(`
       SELECT id FROM offers 
       WHERE game_id = ? AND is_valid = 1 
       ORDER BY price_eur ASC 
@@ -674,13 +667,12 @@ export const offerRepo = {
     `).get(gameId) as any;
 
     if (best) {
-      db.prepare(`UPDATE offers SET is_best_deal = 1 WHERE id = ?`).run(best.id);
+      prepareStmt(`UPDATE offers SET is_best_deal = 1 WHERE id = ?`).run(best.id);
     }
   },
 
   getPriceHistory(gameId: string, limit: number = 100): PriceHistoryEntry[] {
-    const db = getDb();
-    const rows = db.prepare(`
+    const rows = prepareStmt(`
       SELECT ph.*, m.name as merchant_name
       FROM price_history ph
       JOIN merchants m ON ph.merchant_id = m.id
@@ -706,8 +698,7 @@ export const offerRepo = {
 // ----------------------------------------------------
 export const sourceRepo = {
   list(): SourceStatus[] {
-    const db = getDb();
-    const rows = db.prepare(`SELECT * FROM sources ORDER BY priority ASC`).all() as any[];
+    const rows = prepareStmt(`SELECT * FROM sources ORDER BY priority ASC`).all() as any[];
     return rows.map(r => ({
       code: r.code as SourceCode,
       name: r.name,
@@ -725,8 +716,7 @@ export const sourceRepo = {
   },
 
   updateCircuitState(code: SourceCode, state: CircuitState, cooldownUntil?: string): void {
-    const db = getDb();
-    db.prepare(`
+    prepareStmt(`
       UPDATE sources 
       SET state = ?, cooldown_until = ?, updated_at = datetime('now') 
       WHERE code = ?
@@ -734,10 +724,9 @@ export const sourceRepo = {
   },
 
   incrementCounters(code: SourceCode, status: 'success' | 'failure' | 'ratelimit', errorMessage?: string): void {
-    const db = getDb();
     const now = new Date().toISOString();
     if (status === 'success') {
-      db.prepare(`
+      prepareStmt(`
         UPDATE sources 
         SET request_count = request_count + 1, 
             success_count = success_count + 1, 
@@ -746,7 +735,7 @@ export const sourceRepo = {
         WHERE code = ?
       `).run(now, now, code);
     } else if (status === 'ratelimit') {
-      db.prepare(`
+      prepareStmt(`
         UPDATE sources 
         SET request_count = request_count + 1, 
             rate_limit_count = rate_limit_count + 1,
@@ -755,7 +744,7 @@ export const sourceRepo = {
         WHERE code = ?
       `).run(errorMessage || 'Rate limit encountered (429)', now, code);
     } else {
-      db.prepare(`
+      prepareStmt(`
         UPDATE sources 
         SET request_count = request_count + 1, 
             failure_count = failure_count + 1,
@@ -767,8 +756,7 @@ export const sourceRepo = {
   },
 
   toggle(code: SourceCode, isEnabled: boolean): void {
-    const db = getDb();
-    db.prepare(`UPDATE sources SET is_enabled = ?, updated_at = datetime('now') WHERE code = ?`).run(isEnabled ? 1 : 0, code);
+    prepareStmt(`UPDATE sources SET is_enabled = ?, updated_at = datetime('now') WHERE code = ?`).run(isEnabled ? 1 : 0, code);
   }
 };
 
@@ -777,10 +765,9 @@ export const sourceRepo = {
 // ----------------------------------------------------
 export const anomalyRepo = {
   record(gameId: string, offerId: string, type: Anomaly['anomalyType'], score: number, reason: string): void {
-    const db = getDb();
     const id = randomUUID();
     const now = new Date().toISOString();
-    db.prepare(`
+    prepareStmt(`
       INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `).run(id, gameId, offerId, type, score, reason, now);
@@ -803,7 +790,7 @@ export const anomalyRepo = {
          JOIN merchants m ON o.merchant_id = m.id
          ORDER BY a.detected_at DESC`;
 
-    const rows = db.prepare(sql).all() as any[];
+    const rows = prepareStmt(sql).all() as any[];
     return rows.map(r => ({
       id: r.id,
       gameId: r.game_id,
@@ -819,8 +806,7 @@ export const anomalyRepo = {
   },
 
   dismiss(id: string): void {
-    const db = getDb();
-    db.prepare(`UPDATE anomalies SET is_dismissed = 1 WHERE id = ?`).run(id);
+    prepareStmt(`UPDATE anomalies SET is_dismissed = 1 WHERE id = ?`).run(id);
   }
 };
 

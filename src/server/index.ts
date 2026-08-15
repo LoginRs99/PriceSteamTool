@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
@@ -12,7 +12,7 @@ import { syncOrchestrator } from './sync/orchestrator.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function bootstrap() {
+export async function createApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: {
       level: config.isDev ? 'info' : 'warn'
@@ -48,11 +48,17 @@ async function bootstrap() {
     });
   }
 
+  return fastify;
+}
+
+async function bootstrap() {
+  const app = await createApp();
+
   // Graceful shutdown
   const handleShutdown = async (signal: string) => {
-    fastify.log.info(`Received ${signal}. Shutting down gracefully...`);
+    app.log.info(`Received ${signal}. Shutting down gracefully...`);
     syncOrchestrator.cancelSync();
-    await fastify.close();
+    await app.close();
     closeDb();
     process.exit(0);
   };
@@ -61,12 +67,19 @@ async function bootstrap() {
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
   try {
-    await fastify.listen({ port: config.port, host: config.host });
+    await app.listen({ port: config.port, host: config.host });
     console.log(`🚀 Pricetool Server running at http://${config.host}:${config.port}`);
   } catch (err) {
-    fastify.log.error(err);
+    app.log.error(err);
     process.exit(1);
   }
 }
 
-bootstrap();
+// Only auto-start when run directly as the main entrypoint
+const isMain = process.argv[1] && (
+  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
+);
+
+if (isMain) {
+  bootstrap();
+}
