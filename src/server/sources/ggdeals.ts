@@ -45,6 +45,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
 
     const chunkSize = 100;
     for (let i = 0; i < games.length; i += chunkSize) {
+      if (i > 0) {
+        // GG.deals allows 100 records per minute; pause 60s between 100-record batch chunks
+        await new Promise(r => setTimeout(r, 60000));
+      }
       const chunk = games.slice(i, i + chunkSize);
       const appIds = chunk.map(g => g.steamAppId);
       
