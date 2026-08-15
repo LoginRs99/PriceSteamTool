@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Flame, AlertTriangle, Sparkles } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -14,10 +14,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
 
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isFree = game.isFree || game.bestPriceEur === 0;
-  const isHistoricalLow = hasBestDeal && 
-    game.historicalLowEur !== undefined && 
-    game.bestPriceEur !== undefined &&
-    game.bestPriceEur <= (game.historicalLowEur + 0.05);
+  
+  // 2D Event indicators
+  const isHistoricalLow = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || 
+    (hasBestDeal && game.historicalLowEur !== undefined && game.bestPriceEur !== undefined && game.bestPriceEur <= (game.historicalLowEur + 0.05));
+  const isMajorDrop = game.bestPriceEvent === 'MAJOR_DROP' || game.bestPriceEvent === 'EXTREME_DROP';
+  const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
 
   return (
     <div className="game-card" onClick={onClick}>
@@ -28,7 +30,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
           className="game-card-image"
           loading="lazy"
           onError={(e) => {
-            // Fallback to Steam header image if capsule fails
             (e.target as HTMLImageElement).src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
           }}
         />
@@ -40,11 +41,34 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
           </div>
         )}
 
-        {/* Anomaly Badge */}
-        {game.hasAnomaly && (
-          <div className="anomaly-tag" title="Possible price anomaly detected">
+        {/* High Risk Anomaly Badge */}
+        {isHighRisk && (
+          <div className="anomaly-tag" title="Possible price glitch or extreme unverified outlier">
             <AlertTriangle size={12} />
-            <span>Anomaly</span>
+            <span>High Risk</span>
+          </div>
+        )}
+
+        {/* Verified Event Badge */}
+        {!isHighRisk && isMajorDrop && (
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            background: 'rgba(139, 92, 246, 0.9)',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 800,
+            padding: '3px 8px',
+            borderRadius: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.4
+          }}>
+            <Sparkles size={11} />
+            <span>Mega Deal</span>
           </div>
         )}
       </div>
@@ -61,7 +85,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick }) => {
               {isHistoricalLow ? (
                 <>
                   <Flame size={12} color="#f59e0b" />
-                  <span>NEW HISTORICAL LOW</span>
+                  <span>ALL-TIME LOW</span>
                 </>
               ) : (
                 <span>Hist. Low: €{game.historicalLowEur.toFixed(2)}</span>

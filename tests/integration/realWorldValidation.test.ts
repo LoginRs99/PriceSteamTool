@@ -223,7 +223,7 @@ describe('Real-World Validation — Complete Integration Suite', () => {
     const under10Result = gameRepo.getWishlistGames(profile.id, { underPrice: 10.00, page: 1, limit: 48 });
     expect(under10Result.games.every(g => g.bestPriceEur !== undefined && g.bestPriceEur <= 10.00)).toBe(true);
 
-    const officialResult = gameRepo.getWishlistGames(profile.id, { merchantType: 'official_only', page: 1, limit: 48 });
+    const officialResult = gameRepo.getWishlistGames(profile.id, { merchantType: 'official', page: 1, limit: 48 });
     expect(officialResult.games.length).toBe(48);
   });
 

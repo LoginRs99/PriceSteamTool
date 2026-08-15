@@ -84,7 +84,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                 </span>
                 <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#34d399', margin: '4px 0' }}>
                   €{bestOffer.priceEur.toFixed(2)}
-                  {bestOffer.discountPercent > 0 && (
+                  {(bestOffer.discountPercent || 0) > 0 && (
                     <span style={{ fontSize: 14, color: 'var(--text-muted)', marginLeft: 8, textDecoration: 'line-through' }}>
                       €{bestOffer.originalPriceEur?.toFixed(2)}
                     </span>
@@ -167,6 +167,30 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                               </span>
                             )}
                           </div>
+                          
+                          {/* 2D Evaluation Summary & Risk Flags */}
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                            {offer.priceEvent === 'NEW_HISTORICAL_LOW' && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', borderRadius: 3 }}>
+                                🏆 ALL-TIME LOW
+                              </span>
+                            )}
+                            {offer.priceEvent === 'EXTREME_DROP' && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(139, 92, 246, 0.2)', color: '#a78bfa', borderRadius: 3 }}>
+                                🔥 MEGA DEAL
+                              </span>
+                            )}
+                            {offer.riskLevel === 'HIGH' ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', borderRadius: 3, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <AlertTriangle size={10} /> HIGH RISK
+                              </span>
+                            ) : offer.riskLevel === 'MEDIUM' ? (
+                              <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', borderRadius: 3 }}>
+                                ⚠️ CAUTION
+                              </span>
+                            ) : null}
+                          </div>
+
                           {offer.isAnomaly && (
                             <span style={{ fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                               <AlertTriangle size={11} /> {offer.anomalyReason || 'Anomaly'}
@@ -187,14 +211,14 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                           <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                             €{offer.priceEur.toFixed(2)}
                           </div>
-                          {offer.discountPercent > 0 && (
+                          {(offer.discountPercent || 0) > 0 && (
                             <span style={{ fontSize: 11, color: '#34d399' }}>
                               -{offer.discountPercent}%
                             </span>
                           )}
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                             {offer.sources.map(s => (
                               <span 
                                 key={s} 
@@ -210,6 +234,9 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                                 {s}
                               </span>
                             ))}
+                            <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 2 }} title="Evaluation Confidence">
+                              ({(offer.evaluationConfidence * 100).toFixed(0)}% conf)
+                            </span>
                           </div>
                         </td>
                         <td>

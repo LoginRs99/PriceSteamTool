@@ -457,7 +457,7 @@ export class SyncOrchestrator {
       otherPrices
     });
 
-    const offer = offerRepo.upsertOffer({
+    offerRepo.upsertOffer({
       gameId,
       merchantId: merchant.id,
       productType: productNorm.productType,
@@ -469,16 +469,9 @@ export class SyncOrchestrator {
       voucherCode: rawOffer.voucherCode,
       dealUrl: rawOffer.dealUrl,
       isValid: true,
-      isAnomaly: anomalyEval.isAnomaly,
-      anomalyScore: anomalyEval.score,
-      anomalyReason: anomalyEval.reason,
       sourceCode,
       rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined
     });
-
-    if (anomalyEval.isAnomaly && anomalyEval.type) {
-      anomalyRepo.record(gameId, offer.id, anomalyEval.type, anomalyEval.score, anomalyEval.reason || 'Anomaly detected');
-    }
   }
 }
 

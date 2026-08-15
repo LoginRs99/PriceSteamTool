@@ -23,7 +23,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     ? 'under_10'
     : filters.saleOnly
     ? 'sale'
-    : filters.merchantType === 'official_only'
+    : filters.merchantType === 'official' || (filters.merchantType as any) === 'official_only'
     ? 'official'
     : 'all';
 
@@ -84,7 +84,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           saleOnly: false,
           historicalLowOnly: false,
           underPrice: undefined,
-          merchantType: 'official_only',
+          merchantType: 'official',
           hasAnomaly: false,
           page: 1
         });

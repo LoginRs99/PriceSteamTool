@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { config } from '../config/index.js';
 import { SCHEMA_SQL, SEED_SOURCES_SQL } from './schema.js';
+import { evaluatePriceMovement, type PriceEvaluationInput } from '../domain/pricingEngine.js';
 import type { 
   Profile, 
   Game, 
@@ -12,7 +13,9 @@ import type {
   SourceStatus,
   WishlistFilterOptions,
   PriceHistoryEntry,
-  Anomaly
+  Anomaly,
+  PriceEventType,
+  PriceRiskLevel
 } from '../../shared/types.js';
 
 let dbInstance: Database.Database | null = null;
@@ -26,6 +29,15 @@ export function getDb(): Database.Database {
     dbInstance.pragma('foreign_keys = ON');
     dbInstance.exec(SCHEMA_SQL);
     dbInstance.exec(SEED_SOURCES_SQL);
+
+    // Apply safe column migrations for existing databases
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN price_event TEXT NOT NULL DEFAULT 'NONE'"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'SAFE'"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_score REAL NOT NULL DEFAULT 0.0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_flags TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN evaluation_confidence REAL NOT NULL DEFAULT 1.0"); } catch {}
+    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level)"); } catch {}
+    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event)"); } catch {}
   }
   return dbInstance;
 }
@@ -246,6 +258,9 @@ export const gameRepo = {
         bo.product_type as best_product_type,
         bo.region_type as best_region_type,
         bo.deal_url as best_deal_url,
+        bo.price_event as best_price_event,
+        bo.risk_level as best_risk_level,
+        bo.evaluation_confidence as best_evaluation_confidence,
         m.name as best_merchant_name,
         m.code as best_merchant_code,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
@@ -308,9 +323,9 @@ export const gameRepo = {
       whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) > 0`);
     }
 
-    if (options.merchantType === 'official_only') {
+    if (options.merchantType === 'official' || (options.merchantType as any) === 'official_only') {
       whereClauses.push(`m.is_official = 1`);
-    } else if (options.merchantType === 'keyshop_only') {
+    } else if (options.merchantType === 'keyshop' || (options.merchantType as any) === 'keyshop_only') {
       whereClauses.push(`m.is_official = 0`);
     }
 
@@ -353,6 +368,9 @@ export const gameRepo = {
         bo.product_type as best_product_type,
         bo.region_type as best_region_type,
         bo.deal_url as best_deal_url,
+        bo.price_event as best_price_event,
+        bo.risk_level as best_risk_level,
+        bo.evaluation_confidence as best_evaluation_confidence,
         m.name as best_merchant_name,
         m.code as best_merchant_code,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
@@ -511,9 +529,6 @@ export const offerRepo = {
     voucherCode?: string;
     dealUrl: string;
     isValid?: boolean;
-    isAnomaly?: boolean;
-    anomalyScore?: number;
-    anomalyReason?: string;
     sourceCode: SourceCode;
     rawObservationJson?: string;
   }): Offer {
@@ -531,6 +546,41 @@ export const offerRepo = {
         WHERE game_id = ? AND merchant_id = ? AND product_type = ? AND region_type = ?
       `).get(data.gameId, data.merchantId, data.productType, data.regionType) as any;
 
+      // 1. Gather context for 2D pricing engine
+      const gameInfo = prepareStmt(`SELECT base_price_eur, historical_low_eur, release_date FROM games WHERE id = ?`).get(data.gameId) as any;
+      const merchantInfo = prepareStmt(`SELECT name, is_official, trust_score FROM merchants WHERE id = ?`).get(data.merchantId) as any;
+      
+      const otherPricesRows = prepareStmt(`SELECT price_eur FROM offers WHERE game_id = ? AND is_valid = 1 AND merchant_id != ?`).all(data.gameId, data.merchantId) as any[];
+      const marketPrices = otherPricesRows.map(p => Number(p.price_eur));
+
+      let sourceCount = 1;
+      if (existing) {
+        const obsCountRow = prepareStmt(`SELECT COUNT(DISTINCT source_code) as c FROM source_observations WHERE offer_id = ?`).get(existing.id) as any;
+        const alreadyHasThisSource = prepareStmt(`SELECT 1 FROM source_observations WHERE offer_id = ? AND source_code = ?`).get(existing.id, data.sourceCode);
+        sourceCount = (obsCountRow?.c || 0) + (alreadyHasThisSource ? 0 : 1);
+      }
+
+      const lastHistory = prepareStmt(`
+        SELECT price_eur, discount_percent FROM price_history 
+        WHERE game_id = ? AND merchant_id = ? 
+        ORDER BY recorded_at DESC LIMIT 1
+      `).get(data.gameId, data.merchantId) as any;
+
+      const evalInput: PriceEvaluationInput = {
+        currentPriceEur: data.priceEur,
+        originalPriceEur: data.originalPriceEur,
+        basePriceEur: gameInfo?.base_price_eur ? Number(gameInfo.base_price_eur) : undefined,
+        historicalLowEur: gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
+        previousPriceEur: lastHistory?.price_eur ? Number(lastHistory.price_eur) : undefined,
+        marketPricesEur: marketPrices,
+        sourceAgreementCount: Math.max(1, sourceCount),
+        isOfficialMerchant: merchantInfo ? Boolean(merchantInfo.is_official) : true,
+        merchantTrustScore: merchantInfo?.trust_score ? Number(merchantInfo.trust_score) : 1.0,
+        gameReleaseDate: gameInfo?.release_date || undefined
+      };
+
+      const pricingEval = evaluatePriceMovement(evalInput);
+
       if (existing) {
         offerId = existing.id;
         prepareStmt(`
@@ -541,6 +591,11 @@ export const offerRepo = {
               voucher_code = COALESCE(?, voucher_code),
               deal_url = ?,
               is_valid = ?,
+              price_event = ?,
+              risk_level = ?,
+              risk_score = ?,
+              risk_flags = ?,
+              evaluation_confidence = ?,
               is_anomaly = ?,
               anomaly_score = ?,
               anomaly_reason = ?,
@@ -555,9 +610,14 @@ export const offerRepo = {
           data.voucherCode || null,
           data.dealUrl,
           data.isValid !== false ? 1 : 0,
-          data.isAnomaly ? 1 : 0,
-          data.anomalyScore || 0.0,
-          data.anomalyReason || null,
+          pricingEval.event,
+          pricingEval.riskLevel,
+          pricingEval.riskScore,
+          JSON.stringify(pricingEval.riskFlags),
+          pricingEval.confidence,
+          pricingEval.isAnomaly ? 1 : 0,
+          pricingEval.riskScore,
+          pricingEval.summary,
           data.regionConfidence !== undefined ? data.regionConfidence : 1.0,
           now,
           now,
@@ -569,8 +629,9 @@ export const offerRepo = {
           INSERT INTO offers (
             id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
             price_eur, original_price_eur, discount_percent, voucher_code, deal_url,
-            is_best_deal, is_valid, is_anomaly, anomaly_score, anomaly_reason, fetched_at, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+            is_best_deal, is_valid, price_event, risk_level, risk_score, risk_flags, evaluation_confidence,
+            is_anomaly, anomaly_score, anomaly_reason, fetched_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           offerId,
           data.gameId,
@@ -585,13 +646,42 @@ export const offerRepo = {
           data.voucherCode || null,
           data.dealUrl,
           data.isValid !== false ? 1 : 0,
-          data.isAnomaly ? 1 : 0,
-          data.anomalyScore || 0.0,
-          data.anomalyReason || null,
+          pricingEval.event,
+          pricingEval.riskLevel,
+          pricingEval.riskScore,
+          JSON.stringify(pricingEval.riskFlags),
+          pricingEval.confidence,
+          pricingEval.isAnomaly ? 1 : 0,
+          pricingEval.riskScore,
+          pricingEval.summary,
           now,
           now,
           now
         );
+      }
+
+      // Manage genuine anomalies in the anomalies table
+      if (pricingEval.isAnomaly) {
+        const existingAnomaly = prepareStmt(`SELECT id FROM anomalies WHERE offer_id = ? AND is_dismissed = 0`).get(offerId) as any;
+        if (existingAnomaly) {
+          prepareStmt(`
+            UPDATE anomalies 
+            SET score = ?, reason = ?, detected_at = ? 
+            WHERE id = ?
+          `).run(pricingEval.riskScore, pricingEval.summary, now, existingAnomaly.id);
+        } else {
+          prepareStmt(`
+            INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+          `).run(randomUUID(), data.gameId, offerId, pricingEval.riskFlags[0] || 'PRICE_ANOMALY', pricingEval.riskScore, pricingEval.summary, now);
+        }
+      } else {
+        prepareStmt(`DELETE FROM anomalies WHERE offer_id = ? AND is_dismissed = 0`).run(offerId);
+      }
+
+      // If a verified new historical low occurred, update game record
+      if (pricingEval.event === 'NEW_HISTORICAL_LOW') {
+        gameRepo.updateHistoricalLow(data.gameId, data.priceEur, now, data.sourceCode);
       }
 
       // Record / update source observation
@@ -606,12 +696,6 @@ export const offerRepo = {
       `).run(obsId, offerId, data.sourceCode, data.priceEur, now, data.rawObservationJson || null);
 
       // Record price history only if price or discount actually changed
-      const lastHistory = prepareStmt(`
-        SELECT price_eur, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? 
-        ORDER BY recorded_at DESC LIMIT 1
-      `).get(data.gameId, data.merchantId) as any;
-
       if (!lastHistory || lastHistory.price_eur !== data.priceEur || lastHistory.discount_percent !== discount) {
         prepareStmt(`
           INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, recorded_at)
@@ -643,6 +727,11 @@ export const offerRepo = {
       SELECT source_code FROM source_observations WHERE offer_id = ?
     `).all(id) as any[];
 
+    let riskFlags: any[] = [];
+    if (r.risk_flags) {
+      try { riskFlags = JSON.parse(r.risk_flags); } catch {}
+    }
+
     return {
       id: r.id,
       gameId: r.game_id,
@@ -661,11 +750,17 @@ export const offerRepo = {
       dealUrl: r.deal_url,
       isBestDeal: Boolean(r.is_best_deal),
       isValid: Boolean(r.is_valid),
+      priceEvent: r.price_event || 'NONE',
+      riskLevel: r.risk_level || 'SAFE',
+      riskScore: Number(r.risk_score || 0),
+      riskFlags,
+      evaluationConfidence: Number(r.evaluation_confidence || 1.0),
       isAnomaly: Boolean(r.is_anomaly),
-      anomalyScore: Number(r.anomaly_score),
       anomalyReason: r.anomaly_reason || undefined,
       sources: sources.map(s => s.source_code as SourceCode),
-      fetchedAt: r.fetched_at
+      fetchedAt: r.fetched_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
     };
   },
 
@@ -682,6 +777,11 @@ export const offerRepo = {
       const sources = prepareStmt(`
         SELECT source_code FROM source_observations WHERE offer_id = ?
       `).all(r.id) as any[];
+
+      let riskFlags: any[] = [];
+      if (r.risk_flags) {
+        try { riskFlags = JSON.parse(r.risk_flags); } catch {}
+      }
 
       return {
         id: r.id,
@@ -701,11 +801,17 @@ export const offerRepo = {
         dealUrl: r.deal_url,
         isBestDeal: Boolean(r.is_best_deal),
         isValid: Boolean(r.is_valid),
+        priceEvent: r.price_event || 'NONE',
+        riskLevel: r.risk_level || 'SAFE',
+        riskScore: Number(r.risk_score || 0),
+        riskFlags,
+        evaluationConfidence: Number(r.evaluation_confidence || 1.0),
         isAnomaly: Boolean(r.is_anomaly),
-        anomalyScore: Number(r.anomaly_score),
         anomalyReason: r.anomaly_reason || undefined,
         sources: sources.map(s => s.source_code as SourceCode),
-        fetchedAt: r.fetched_at
+        fetchedAt: r.fetched_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
       };
     });
   },
@@ -738,6 +844,7 @@ export const offerRepo = {
     return rows.map(r => ({
       id: r.id,
       gameId: r.game_id,
+      merchantId: r.merchant_id,
       merchantName: r.merchant_name,
       sourceCode: r.source_code as SourceCode,
       priceEur: Number(r.price_eur),
@@ -830,14 +937,14 @@ export const anomalyRepo = {
   list(onlyActive: boolean = true): Anomaly[] {
     const db = getDb();
     const sql = onlyActive 
-      ? `SELECT a.*, g.title as game_title, m.name as merchant_name 
+      ? `SELECT a.*, o.price_eur, g.title as game_title, m.name as merchant_name 
          FROM anomalies a 
          JOIN games g ON a.game_id = g.id
          JOIN offers o ON a.offer_id = o.id
          JOIN merchants m ON o.merchant_id = m.id
          WHERE a.is_dismissed = 0
          ORDER BY a.detected_at DESC`
-      : `SELECT a.*, g.title as game_title, m.name as merchant_name 
+      : `SELECT a.*, o.price_eur, g.title as game_title, m.name as merchant_name 
          FROM anomalies a 
          JOIN games g ON a.game_id = g.id
          JOIN offers o ON a.offer_id = o.id
@@ -851,6 +958,7 @@ export const anomalyRepo = {
       offerId: r.offer_id,
       gameTitle: r.game_title,
       merchantName: r.merchant_name,
+      priceEur: r.price_eur ? Number(r.price_eur) : undefined,
       anomalyType: r.anomaly_type,
       score: Number(r.score),
       reason: r.reason,
@@ -891,7 +999,11 @@ function mapGameRow(r: any): Game {
     bestDiscountPercent: r.best_discount_percent !== null && r.best_discount_percent !== undefined ? Number(r.best_discount_percent) : undefined,
     bestDealUrl: r.best_deal_url || undefined,
     bestOfferId: r.best_offer_id || undefined,
+    bestPriceEvent: r.best_price_event || undefined,
+    bestRiskLevel: r.best_risk_level || undefined,
+    bestEvaluationConfidence: r.best_evaluation_confidence !== null && r.best_evaluation_confidence !== undefined ? Number(r.best_evaluation_confidence) : undefined,
     hasAnomaly: Number(r.anomaly_count || 0) > 0,
+    anomalyCount: Number(r.anomaly_count || 0),
     offersCount: Number(r.offers_count || 0),
     priority: r.priority !== undefined ? Number(r.priority) : undefined,
     dateAddedSteam: r.date_added_steam || undefined,
