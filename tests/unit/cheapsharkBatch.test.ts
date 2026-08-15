@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { cheapsharkAdapter } from '../../src/server/sources/cheapshark.js';
 import { getDb } from '../../src/server/db/index.js';
+import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 
 function resetDatabase() {
   const db = getDb();
@@ -19,8 +20,35 @@ function resetDatabase() {
 }
 
 describe('CheapShark Batch Source Adapter', () => {
+  const originalFetch = global.fetch;
+
   beforeEach(() => {
     resetDatabase();
+    circuitBreakers.recordSuccess('cheapshark');
+    (cheapsharkAdapter as any).storesMap.clear();
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/stores')) {
+        return new Response(JSON.stringify([
+          { storeID: '1', storeName: 'Steam', isActive: 1 },
+          { storeID: '15', storeName: 'Fanatical', isActive: 1 }
+        ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify([
+        {
+          steamAppID: '1091500',
+          storeID: '1',
+          dealID: 'mockDeal123',
+          salePrice: '29.99',
+          normalPrice: '59.99',
+          isOnSale: '1'
+        }
+      ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it('supportsBatch should be true and code should be cheapshark', () => {
@@ -49,6 +77,10 @@ describe('CheapShark Batch Source Adapter', () => {
 
     const results = await cheapsharkAdapter.fetchBatchPrices(games, progressSpy);
     expect(results).toBeInstanceOf(Map);
+    expect(results.has(1091500)).toBe(true);
+    const offers = results.get(1091500)!;
+    expect(offers.length).toBe(1);
+    expect(offers[0].merchantName).toBe('Steam');
     expect(progressCalls).toBeGreaterThan(0);
   });
 });

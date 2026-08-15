@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/Version-1.3.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-106%2F106%20Passed-emerald.svg)](./tests)
+[![Tests](https://img.shields.io/badge/Tests-111%2F111%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -22,8 +22,10 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
 ### 1. Multi-Source Aggregation & Deduplication
 * **Steam Wishlist Ingestion**: Fast paginated batch import using Steam64 ID or Custom Profile URL.
 * **IsThereAnyDeal (ITAD)**: Primary batch aggregator covering 40+ official stores (Steam, Humble, Fanatical, GOG, GMG, Gamesplanet, etc.) with verified historical records.
-* **GG.deals & CheapShark**: Direct official retail and marketplace cross-verification.
-* **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and GG.deals) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
+* **CheapShark**: High-speed public batch API covering 25+ official retailers (Steam, Green Man Gaming, Fanatical, GOG, Epic Games, GameBillet, etc.) without requiring an API key.
+* **AllKeyShop (vaks.php v2 API)**: Structured keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.) with real-time voucher and merchant breakdowns.
+* **GG.deals**: Direct official retail and marketplace cross-verification.
+* **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
 
 ### 2. 2D Pricing Engine & Anomaly Detection

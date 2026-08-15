@@ -66,22 +66,28 @@ This document details the synchronization workflow, queue orchestrator, circuit 
 
 Each source adapter operates with an isolated token-bucket queue:
 
-1. **ITAD Batch Worker**:
-   * Chunks out-of-date games into batches of 100–200 IDs.
-   * Delay: 1000ms between batch requests.
-   * Total requests for 2,000 games: **~10 requests (~10–15 seconds total)**.
+1. **Steam Storefront Worker (Batch API)**:
+   * Chunks wishlist entries into 200 items per request.
+   * Delay: 1000ms.
+   * Ingests baseline MSRP and Steam Store discounts in ~2 seconds.
 
-2. **GG.deals Worker**:
-   * Queries prioritized games (on sale / recently active / unrefreshed).
-   * Delay: 1500ms + random jitter (100–300ms).
-   * Pacing: ~40 games per minute, polite background sync.
+2. **ITAD Batch Worker (Batch API)**:
+   * Chunks out-of-date games into batches of 150 IDs.
+   * Delay: 500ms between batch requests.
+   * Total requests for 2,570 games: **~17 requests (~15 seconds total)**.
 
-3. **CheapShark Worker**:
-   * Delay: 1000ms. Respects `Retry-After` header.
+3. **CheapShark Batch Worker (Batch API)**:
+   * Chunks games into batches of 50–60 Steam AppIDs per `/deals` call.
+   * Delay: 500ms between batch requests.
+   * Total requests for 2,570 games: **~50 requests (~20–25 seconds total)**.
 
-4. **AllKeyShop & GoCDKeys (Fallback Workers)**:
-   * Conservative 3000ms–5000ms delay.
-   * Disabled by default during full catalog sweeps; enabled selectively or on-demand.
+4. **GG.deals Worker (Batch / Selective API)**:
+   * Delay: 1000ms. Refreshes batch catalog in parallel.
+
+5. **AllKeyShop Worker (Smart Priority Scraping)**:
+   * Uses AllKeyShop's structured `vaks.php` v2 JSON API.
+   * Pacing: 2500ms delay for TOP 150 priority games (~6 minutes total).
+   * Fallback Circuit Breaker protects against anti-bot challenges.
 
 ---
 
