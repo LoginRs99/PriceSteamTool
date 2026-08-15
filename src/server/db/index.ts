@@ -1271,14 +1271,14 @@ export const anomalyRepo = {
   list(onlyActive: boolean = true): Anomaly[] {
     const db = getDb();
     const sql = onlyActive 
-      ? `SELECT a.*, o.price_eur, g.title as game_title, m.name as merchant_name 
+      ? `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.affiliate_url_template 
          FROM anomalies a 
          JOIN games g ON a.game_id = g.id
          JOIN offers o ON a.offer_id = o.id
          JOIN merchants m ON o.merchant_id = m.id
          WHERE a.is_dismissed = 0
          ORDER BY a.detected_at DESC`
-      : `SELECT a.*, o.price_eur, g.title as game_title, m.name as merchant_name 
+      : `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.affiliate_url_template 
          FROM anomalies a 
          JOIN games g ON a.game_id = g.id
          JOIN offers o ON a.offer_id = o.id
@@ -1286,19 +1286,28 @@ export const anomalyRepo = {
          ORDER BY a.detected_at DESC`;
 
     const rows = prepareStmt(sql).all() as any[];
-    return rows.map(r => ({
-      id: r.id,
-      gameId: r.game_id,
-      offerId: r.offer_id,
-      gameTitle: r.game_title,
-      merchantName: r.merchant_name,
-      priceEur: r.price_eur ? Number(r.price_eur) : undefined,
-      anomalyType: r.anomaly_type,
-      score: Number(r.score),
-      reason: r.reason,
-      detectedAt: r.detected_at,
-      isDismissed: Boolean(r.is_dismissed)
-    }));
+    return rows.map(r => {
+      let targetUrl = r.deal_url || r.affiliate_url_template;
+      if (!targetUrl && r.steam_app_id) {
+        targetUrl = `https://store.steampowered.com/app/${r.steam_app_id}/`;
+      }
+      return {
+        id: r.id,
+        gameId: r.game_id,
+        gameTitle: r.game_title,
+        steamAppId: r.steam_app_id ? Number(r.steam_app_id) : undefined,
+        offerId: r.offer_id,
+        merchantName: r.merchant_name,
+        priceEur: r.price_eur ? Number(r.price_eur) : undefined,
+        originalPriceEur: r.original_price_eur ? Number(r.original_price_eur) : undefined,
+        dealUrl: targetUrl || undefined,
+        anomalyType: r.anomaly_type,
+        score: Number(r.score),
+        reason: r.reason,
+        detectedAt: r.detected_at,
+        isDismissed: Boolean(r.is_dismissed)
+      };
+    });
   },
 
   dismiss(id: string): void {

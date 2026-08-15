@@ -195,9 +195,12 @@ export interface Anomaly {
   id: string;
   gameId: string;
   gameTitle: string;
+  steamAppId?: number;
   offerId: string;
   merchantName: string;
   priceEur?: number;
+  originalPriceEur?: number;
+  dealUrl?: string;
   anomalyType: string;
   score: number;
   reason: string;

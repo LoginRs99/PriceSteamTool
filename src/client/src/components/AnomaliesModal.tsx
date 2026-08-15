@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Anomaly } from '../types.js';
 import { api } from '../api.js';
-import { X, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 
 interface AnomaliesModalProps {
   onClose: () => void;
@@ -76,26 +76,82 @@ export const AnomaliesModal: React.FC<AnomaliesModalProps> = ({ onClose, onRefre
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: 14
+                    gap: 14,
+                    flexWrap: 'wrap'
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>{a.gameTitle}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      Merchant: <strong>{a.merchantName}</strong> • Score: {(a.score * 100).toFixed(0)}%
+                  <div style={{ flex: '1 1 300px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {a.dealUrl ? (
+                        <a
+                          href={a.dealUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 15,
+                            color: 'var(--text-primary)',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--color-primary)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                        >
+                          {a.gameTitle}
+                          <ExternalLink size={13} style={{ opacity: 0.7 }} />
+                        </a>
+                      ) : (
+                        <div style={{ fontWeight: 700, fontSize: 15 }}>{a.gameTitle}</div>
+                      )}
+
+                      {a.priceEur !== undefined && (
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            padding: '2px 7px',
+                            background: 'rgba(239, 68, 68, 0.2)',
+                            color: '#f87171',
+                            borderRadius: 'var(--radius-sm)'
+                          }}
+                        >
+                          €{a.priceEur.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                      Merchant: <strong style={{ color: 'var(--text-secondary)' }}>{a.merchantName}</strong> • Anomaly Score: {(a.score * 100).toFixed(0)}%
                     </div>
                     <div style={{ fontSize: 13, color: '#f87171', marginTop: 4 }}>
                       {a.reason}
                     </div>
                   </div>
 
-                  <button
-                    className="btn btn-secondary"
-                    style={{ padding: '6px 12px', fontSize: 12, whiteSpace: 'nowrap' }}
-                    onClick={() => handleDismiss(a.id)}
-                  >
-                    Dismiss
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {a.dealUrl && (
+                      <a
+                        href={a.dealUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-primary"
+                        style={{ padding: '6px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      >
+                        <ExternalLink size={13} />
+                        View Deal
+                      </a>
+                    )}
+
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: 12, whiteSpace: 'nowrap' }}
+                      onClick={() => handleDismiss(a.id)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
