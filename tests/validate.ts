@@ -72,6 +72,13 @@ async function runAllValidations() {
   assert(normalizeProductType('Family Share Account').isValid === false, 'Family Share rejected');
   assert(normalizeProductType('Account Transfer').isValid === false, 'Account Transfer rejected');
 
+  assert(normalizeProductType('GOG Key').isValid === false, 'GOG Key rejected');
+  assert(normalizeProductType('Epic Games Store Key').isValid === false, 'Epic Games rejected');
+  assert(normalizeProductType('Ubisoft Connect Key').isValid === false, 'Ubisoft Connect rejected');
+  assert(normalizeProductType('Origin / EA App').isValid === false, 'Origin / EA App rejected');
+  assert(normalizeProductType('Battle.net Key').isValid === false, 'Battle.net rejected');
+  assert(normalizeProductType('DRM-Free').isValid === false, 'DRM-Free rejected');
+
   // ----------------------------------------------------
   // Section 3: Anomaly vs Historical Low
   // ----------------------------------------------------

@@ -47,6 +47,31 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
         expect(res.rejectReason).toContain('Account-based');
       }
     });
+
+    it('strictly rejects non-Steam platforms (GOG, Epic, Origin, Ubisoft, Blizzard, DRM-Free)', () => {
+      const samples = [
+        'GOG Key',
+        'GOG.com DRM-Free',
+        'Epic Games Store Key',
+        'Epic Games',
+        'Origin / EA App Key',
+        'Ubisoft Connect Key',
+        'Uplay Digital Code',
+        'Battle.net Key',
+        'Blizzard Key',
+        'Rockstar Games Launcher Key',
+        'Microsoft Store Key',
+        'Xbox Live Key',
+        'Nintendo Switch Digital Code',
+        'DRM-Free Download'
+      ];
+
+      for (const sample of samples) {
+        const res = normalizeProductType(sample);
+        expect(res.isValid).toBe(false);
+        expect(res.rejectReason).toContain('Non-Steam platform excluded');
+      }
+    });
   });
 
   describe('Region Normalization', () => {

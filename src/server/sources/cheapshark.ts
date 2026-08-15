@@ -89,6 +89,9 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
           const salePriceUsd = parseFloat(d.salePrice || '0');
           const retailPriceUsd = parseFloat(d.normalPrice || '0');
 
+          const isNonSteamStore = ['gog', 'origin', 'uplay', 'epic games', 'blizzard', 'battlenet', 'microsoft store', 'xbox'].some(s => storeName.toLowerCase().includes(s));
+          const productTypeRaw = isNonSteamStore ? `${storeName} (Non-Steam)` : (d.storeID === '1' ? 'Direct Purchase' : 'Steam Key');
+
           const priceEur = convertToEur(salePriceUsd, 'USD');
           const originalPriceEur = retailPriceUsd > 0 ? convertToEur(retailPriceUsd, 'USD') : undefined;
 
@@ -96,7 +99,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
             merchantCode,
             merchantName: storeName,
             isOfficial: true,
-            productTypeRaw: 'STEAM_KEY',
+            productTypeRaw,
             regionRaw: 'GLOBAL',
             priceEur,
             originalPriceEur,
@@ -149,11 +152,14 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
             const priceEur = convertToEur(salePriceUsd, 'USD');
             const originalPriceEur = retailPriceUsd > 0 ? convertToEur(retailPriceUsd, 'USD') : undefined;
 
+            const isNonSteamStore = ['gog', 'origin', 'uplay', 'epic games', 'blizzard', 'battlenet', 'microsoft store', 'xbox'].some(s => storeName.toLowerCase().includes(s));
+            const productTypeRaw = isNonSteamStore ? `${storeName} (Non-Steam)` : (d.storeID === '1' ? 'Direct Purchase' : 'Steam Key');
+
             offers.push({
               merchantCode,
               merchantName: storeName,
               isOfficial: true,
-              productTypeRaw: 'STEAM_KEY',
+              productTypeRaw,
               regionRaw: 'GLOBAL',
               priceEur,
               originalPriceEur,

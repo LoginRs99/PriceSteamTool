@@ -186,15 +186,33 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
         // 2. Record current best deal
         if (rawCurrentPrice !== undefined) {
           const shop = item.current.shop || {};
-          const shopCode = (shop.name || 'Store').toLowerCase().replace(/[^a-z0-9]+/g, '');
+          const shopName = shop.name || 'Store';
+          const shopCode = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '');
           const priceEur = convertToEur(rawCurrentPrice, itemCurrency);
           const originalPriceEur = rawRegularPrice !== undefined ? convertToEur(rawRegularPrice, itemCurrency) : undefined;
           
+          // Check DRM array from ITAD v2
+          const drms = Array.isArray(item.current.drm)
+            ? item.current.drm.map((d: any) => typeof d === 'string' ? d : d?.name || '').filter(Boolean)
+            : [];
+          
+          const isNonSteamShop = ['gog', 'epic games', 'ubisoft', 'ea app', 'origin', 'battle.net', 'blizzard', 'microsoft'].some(s => shopName.toLowerCase().includes(s));
+          const hasSteamDrm = drms.some((d: string) => d.toLowerCase().includes('steam'));
+
+          let productTypeRaw = 'Steam Key';
+          if (drms.length > 0 && !hasSteamDrm) {
+            productTypeRaw = `${drms.join(', ')} (Non-Steam)`;
+          } else if (isNonSteamShop && !hasSteamDrm) {
+            productTypeRaw = `${shopName} (Non-Steam)`;
+          } else if (shopName.toLowerCase().includes('steam store') || shopName.toLowerCase() === 'steam') {
+            productTypeRaw = 'Direct Purchase';
+          }
+
           offers.push({
             merchantCode: shopCode,
-            merchantName: shop.name || 'Store',
+            merchantName: shopName,
             isOfficial: true,
-            productTypeRaw: 'STEAM_KEY',
+            productTypeRaw,
             regionRaw: 'GLOBAL',
             priceEur,
             originalPriceEur,

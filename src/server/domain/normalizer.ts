@@ -27,6 +27,25 @@ const FORBIDDEN_ACCOUNT_PATTERNS = [
   /\bprofile\s*activation\b/i,
 ];
 
+const FORBIDDEN_NON_STEAM_PLATFORMS = [
+  /\bgog\b/i,
+  /\bepic\s*games?\b/i,
+  /\borigin\b/i,
+  /\bea\s*app\b/i,
+  /\belectronic\s*arts\b/i,
+  /\buplay\b/i,
+  /\bubisoft(\s*connect)?\b/i,
+  /\bbattle\.net\b/i,
+  /\bblizzard\b/i,
+  /\brockstar(\s*games|\s*launcher)?\b/i,
+  /\bmicrosoft\s*store\b/i,
+  /\bxbox(\s*live)?\b/i,
+  /\bplaystation\b/i,
+  /\bpsn\b/i,
+  /\bnintendo(\s*switch)?\b/i,
+  /\bdrm[\s-]*free\b/i
+];
+
 // ISO country codes and tokens for foreign regions locked outside EU/HU
 const RESTRICTED_COUNTRY_CODES = new Set([
   'US', 'USA', 'CA', 'CAN', 
@@ -63,10 +82,10 @@ const EU_COUNTRIES = new Set([
 
 /**
  * Validates and classifies product type.
- * Discards any account-based products as per specification.
+ * Discards any account-based products and non-Steam platforms (GOG, Epic, Ubisoft, EA, etc.).
  */
-export function normalizeProductType(rawType: string = ''): NormalizedProduct {
-  const clean = rawType.trim().toLowerCase();
+export function normalizeProductType(rawType: string = '', merchantOrStoreName?: string): NormalizedProduct {
+  const clean = `${rawType} ${merchantOrStoreName || ''}`.trim().toLowerCase();
 
   for (const pattern of FORBIDDEN_ACCOUNT_PATTERNS) {
     if (pattern.test(clean)) {
@@ -78,6 +97,16 @@ export function normalizeProductType(rawType: string = ''): NormalizedProduct {
     }
   }
 
+  for (const pattern of FORBIDDEN_NON_STEAM_PLATFORMS) {
+    if (pattern.test(clean)) {
+      return {
+        productType: 'DIRECT_PURCHASE',
+        isValid: false,
+        rejectReason: `Non-Steam platform excluded (${rawType})`
+      };
+    }
+  }
+
   if (clean.includes('gift') || clean.includes('steam gift')) {
     return {
       productType: 'STEAM_GIFT',
@@ -85,7 +114,7 @@ export function normalizeProductType(rawType: string = ''): NormalizedProduct {
     };
   }
 
-  if (clean.includes('direct') || clean.includes('store') || clean.includes('connect')) {
+  if (clean.includes('direct') || clean.includes('store.steampowered') || clean.includes('steam direct') || clean.includes('connect')) {
     return {
       productType: 'DIRECT_PURCHASE',
       isValid: true

@@ -51,6 +51,22 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN deal_score INTEGER"); } catch {}
     try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level)"); } catch {}
     try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event)"); } catch {}
+
+    // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
+    try {
+      dbInstance.exec(`
+        DELETE FROM offers WHERE merchant_id IN (
+          SELECT id FROM merchants WHERE 
+            LOWER(name) LIKE '%gog%' OR 
+            LOWER(name) LIKE '%epic games%' OR 
+            LOWER(name) LIKE '%origin%' OR 
+            LOWER(name) LIKE '%uplay%' OR 
+            LOWER(name) LIKE '%ubisoft store%' OR 
+            LOWER(name) LIKE '%blizzard%' OR 
+            LOWER(name) LIKE '%battle.net%'
+        );
+      `);
+    } catch {}
   }
   return dbInstance;
 }

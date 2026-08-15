@@ -51,12 +51,15 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
                 const merchantCode = storeName.toLowerCase().replace(/[^a-z0-9]+/g, '');
                 const isOfficial = Boolean(best?.store?.isOfficialStore);
                 const regionName = best?.region?.name || 'GLOBAL';
+                const editionName = matched.edition || matched.name || best?.edition || '';
+                const isNonSteam = ['gog', 'epic', 'origin', 'uplay', 'ubisoft', 'xbox', 'ps5', 'switch'].some(s => editionName.toLowerCase().includes(s) || storeName.toLowerCase().includes(s));
+                const productTypeRaw = isNonSteam ? `${editionName || storeName} (Non-Steam)` : (editionName.toLowerCase().includes('gift') ? 'Steam Gift' : 'Steam Key');
 
                 offers.push({
                   merchantCode,
                   merchantName: storeName,
                   isOfficial,
-                  productTypeRaw: 'STEAM_KEY',
+                  productTypeRaw,
                   regionRaw: regionName,
                   priceEur,
                   voucherCode: best?.bestVoucher?.code || undefined,
