@@ -9,7 +9,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private queue = new PacedSourceQueue('allkeyshop', config.delays.allkeyshop, 500);
 
   public isEnabled(): boolean {
-    return true;
+    // Disabled by default because AllKeyShop VAKS endpoint is unauthenticated/unfiltered
+    return false;
   }
 
   public async fetchPricesForGame(
@@ -19,7 +20,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return this.queue.enqueue(async () => {
       const offers: NormalizedSourceOffer[] = [];
       try {
-        // 1. High-fidelity VAKS v2 JSON API endpoint from AllKeyShop
+        // High-fidelity VAKS v2 JSON API endpoint from AllKeyShop
         const vaksUrl = `https://www.allkeyshop.com/api/v2/vaks.php?action=products&currency=eur&name=${encodeURIComponent(gameTitle)}`;
         const response = await fetch(vaksUrl, {
           headers: {
@@ -38,9 +39,12 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const data: any = await response.json();
           const products = data?.products || data?.games;
           if (Array.isArray(products) && products.length > 0) {
-            // Find closest match for game title
-            const lowerTitle = gameTitle.toLowerCase();
-            const matched = products.find((p: any) => p.name?.toLowerCase().includes(lowerTitle)) || products[0];
+            // Strict match for game title - NEVER fallback blindly to products[0]
+            const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const matched = products.find((p: any) => {
+              const pName = (p.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              return pName.length >= 3 && (pName === cleanTarget || pName.includes(cleanTarget) || cleanTarget.includes(pName));
+            });
 
             if (matched) {
               const best = matched.bestOffer;

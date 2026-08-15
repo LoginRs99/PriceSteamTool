@@ -1,12 +1,8 @@
-import { afterEach, afterAll } from 'vitest';
-import { clearStmtCache } from '../src/server/db/index.js';
-
-afterEach(() => {
-  clearStmtCache();
-});
+import { afterAll } from 'vitest';
+import { closeDb } from '../src/server/db/index.js';
 
 afterAll(() => {
-  clearStmtCache();
+  closeDb();
 });
 
 

@@ -66,7 +66,20 @@ export function getDb(): Database.Database {
             LOWER(name) LIKE '%battle.net%'
         );
 
-        -- Reassign is_best_deal for any games that now lack an active best deal
+        -- Clean up fake AllKeyShop / Borderlands mismatched offers
+        DELETE FROM source_observations WHERE source_code = 'allkeyshop';
+        DELETE FROM offers WHERE id IN (
+          SELECT o.id FROM offers o
+          JOIN games g ON o.game_id = g.id
+          WHERE (LOWER(o.deal_url) LIKE '%borderlands%' AND LOWER(g.title) NOT LIKE '%borderlands%')
+             OR (o.merchant_id IN (SELECT id FROM merchants WHERE LOWER(code) IN ('allkeyshop', 'allkeyshopbest', 'kinguin') AND LOWER(g.title) NOT LIKE '%borderlands%'))
+        );
+
+        -- Delete any orphaned offers
+        DELETE FROM offers WHERE id NOT IN (SELECT DISTINCT offer_id FROM source_observations);
+
+        -- Reset and reassign is_best_deal for all games
+        UPDATE offers SET is_best_deal = 0;
         UPDATE offers SET is_best_deal = 1 WHERE id IN (
           SELECT o.id FROM offers o
           INNER JOIN (
@@ -75,7 +88,6 @@ export function getDb(): Database.Database {
             WHERE is_valid = 1 AND (is_anomaly = 0 AND risk_level != 'HIGH')
             GROUP BY game_id
           ) best ON o.game_id = best.game_id AND o.price_eur = best.min_price
-          WHERE o.game_id NOT IN (SELECT game_id FROM offers WHERE is_best_deal = 1)
         );
       `);
     } catch {}

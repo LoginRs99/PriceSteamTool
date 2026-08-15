@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     pool: 'forks',
     fileParallelism: false,
+    isolate: false,
     setupFiles: ['./tests/setup.ts'],
     env: {
       DB_PATH: ':memory:'

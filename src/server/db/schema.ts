@@ -194,6 +194,6 @@ INSERT OR IGNORE INTO sources (id, code, name, is_enabled, priority, state, crea
 ('src-itad', 'itad', 'IsThereAnyDeal', 1, 2, 'NORMAL', datetime('now'), datetime('now')),
 ('src-ggdeals', 'ggdeals', 'GG.deals', 1, 3, 'NORMAL', datetime('now'), datetime('now')),
 ('src-cheapshark', 'cheapshark', 'CheapShark', 1, 4, 'NORMAL', datetime('now'), datetime('now')),
-('src-allkeyshop', 'allkeyshop', 'AllKeyShop', 1, 5, 'NORMAL', datetime('now'), datetime('now')),
+('src-allkeyshop', 'allkeyshop', 'AllKeyShop', 0, 5, 'NORMAL', datetime('now'), datetime('now')),
 ('src-gocdkeys', 'gocdkeys', 'GoCDKeys', 0, 6, 'NORMAL', datetime('now'), datetime('now'));
 `;
