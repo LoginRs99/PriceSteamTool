@@ -62,11 +62,25 @@ async function bootstrap() {
   // Graceful shutdown
   const handleShutdown = async (signal: string) => {
     app.log.info(`Received ${signal}. Shutting down gracefully...`);
-    stopAutoSyncScheduler();
-    syncOrchestrator.cancelSync();
-    await app.close();
-    closeDb();
-    process.exit(0);
+    
+    // Safety failsafe: guarantee container terminates within 3 seconds even if connections are open
+    const forceExitTimer = setTimeout(() => {
+      console.warn('Graceful shutdown timeout reached (3s). Forcing clean exit.');
+      try { closeDb(); } catch {}
+      process.exit(0);
+    }, 3000);
+    forceExitTimer.unref();
+
+    try {
+      stopAutoSyncScheduler();
+      syncOrchestrator.cancelSync();
+      await app.close();
+      closeDb();
+    } catch (err) {
+      console.error('Error during graceful shutdown:', err);
+    } finally {
+      process.exit(0);
+    }
   };
 
   process.on('SIGINT', () => handleShutdown('SIGINT'));

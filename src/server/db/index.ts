@@ -110,14 +110,6 @@ export function clearStmtCache(): void {
 
 export function closeDb(): void {
   stmtCache.clear();
-  if (dbInstance) {
-    try {
-      if (dbInstance.open) {
-        dbInstance.close();
-      }
-    } catch {}
-    dbInstance = null;
-  }
 }
 
 // ----------------------------------------------------
