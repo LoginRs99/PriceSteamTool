@@ -8,11 +8,11 @@ This document provides a thorough analysis of each game price source, detailing 
 
 | Source | Official API | Auth Required | Batch Support | Rate Limit / Pacing | Region Support | Historical Low | Browser Required | Role |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Steam (Input & Store)** | Undocumented / Web API | None for public wishlists | **Yes (up to 200 items)** | ~1s delay | EU / Global / HU | No (Store current only) | No | **Canonical Input & Baseline** |
+| **Steam (Input & Store)** | Undocumented / Web API | None for public wishlists | **Yes (up to 200 items)** | 1500ms delay | EU / Global / HU | No (Store current only) | No | **Canonical Input & Baseline** |
 | **IsThereAnyDeal (ITAD)** | **Yes (REST v2 / v3)** | Free API Key | **Yes (up to 200 IDs)** | 500ms delay | EU / Global / Multi-country | **Yes** (Built-in `historyLow`) | No | **Primary Source (Official Stores)** |
 | **GG.deals** | **Yes (Developer API / Endpoints)** | Optional / Free Key | **Yes (Batch & per-game)** | 1000ms delay | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Primary / Secondary (Official + Keyshops)** |
 | **CheapShark** | **Yes (Public REST API)** | None (`User-Agent` req.) | **Yes (up to 60 IDs/call)** | 500ms delay | US / EU / Global | **Yes** (`cheapestPriceEver`) | No | **Primary / Secondary (Official Stores)** |
-| **AllKeyShop** | **Yes (vaks.php v2 JSON API)** | None | Smart Priority (TOP 150) | 2500ms delay | EU / Global / Key types | **Yes** (Lowest keyshop/official) | No | **Keyshop Coverage (Eneba, Kinguin, etc.)** |
+| **AllKeyShop** | **Yes (vaks.php v2 JSON API)** | None | Full / Configurable (TOP N) | 2500ms delay | EU / Global / Key types | **Yes** (Lowest keyshop/official) | No | **Keyshop Coverage (Eneba, Kinguin, etc.)** |
 | **GoCDKeys** | No (Unofficial JSON / Web) | None | No (Per-title search) | 4000ms delay | EU / Global | No | Fallback only if blocked | **Fallback (Disabled by Default)** |
 
 ---

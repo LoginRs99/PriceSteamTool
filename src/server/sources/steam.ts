@@ -96,13 +96,28 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       // 1. Primary Strategy: Paginated wishlistdata (gives full metadata and store prices in batch)
       try {
         while (page < maxPages) {
+          if (page > 0) {
+            // Polite pacing between Steam Storefront wishlist pages (1.5s)
+            await new Promise(r => setTimeout(r, Math.max(1500, config.delays.steam)));
+          }
           const url = `https://store.steampowered.com/wishlist/profiles/${steamId64}/wishlistdata/?p=${page}`;
           let data: any = null;
           try {
             data = await safeFetchJson(url);
           } catch (fetchErr: any) {
-            if (page === 0) throw fetchErr;
-            break; // Finished last page
+            if (fetchErr?.status === 429) {
+              // Transient Steam rate limit hit: backoff for 5 seconds and retry page once
+              await new Promise(r => setTimeout(r, 5000));
+              try {
+                data = await safeFetchJson(url);
+              } catch {
+                if (page === 0) throw fetchErr;
+                break;
+              }
+            } else {
+              if (page === 0) throw fetchErr;
+              break; // Finished last page
+            }
           }
 
           if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
