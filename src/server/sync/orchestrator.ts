@@ -308,7 +308,19 @@ export class SyncOrchestrator {
         this.broadcast();
 
         try {
-          const itadBatchResults = await itadAdapter.fetchBatchPrices(gamesToRefresh);
+          const itadBatchResults = await itadAdapter.fetchBatchPrices(
+            gamesToRefresh,
+            (processed, total, action) => {
+              if (this.isCancelled) return;
+              this.progress.sourceProgress.itad.processed = processed;
+              this.progress.sourceProgress.itad.total = total;
+              if (action) {
+                this.progress.currentAction = action;
+              }
+              this.broadcast();
+            }
+          );
+
           for (const [appId, offers] of itadBatchResults.entries()) {
             const game = gamesToRefresh.find(w => w.steamAppId === appId);
             if (!game) continue;
@@ -318,8 +330,9 @@ export class SyncOrchestrator {
               this.progress.sourceProgress.itad.offersFound++;
               totalOffersIngested++;
             }
-            this.progress.sourceProgress.itad.processed++;
           }
+          this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
+          this.broadcast();
         } catch (e: any) {
           logWarn(`ITAD batch sync warning: ${e?.message}`);
         }

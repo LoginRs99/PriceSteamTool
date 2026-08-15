@@ -62,27 +62,68 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
    * Fetches batch overview and prices for multiple games simultaneously (up to 200 per call)
    */
   public async fetchBatchPrices(
-    games: { steamAppId: number; title: string; itadId?: string }[]
+    games: { steamAppId: number; title: string; itadId?: string }[],
+    onProgress?: (processed: number, total: number, action?: string) => void
   ): Promise<Map<number, NormalizedSourceOffer[]>> {
     const resultMap = new Map<number, NormalizedSourceOffer[]>();
     if (!config.itadApiKey || games.length === 0) return resultMap;
 
-    // 1. Separate games with and without known ITAD IDs
     const itadIdToAppId = new Map<string, number>();
     const itadIdsToFetch: string[] = [];
+    const gamesNeedingLookup: { steamAppId: number; title: string }[] = [];
 
+    // 1. Separate games with known ITAD IDs
     for (const g of games) {
-      let resolvedItadId = g.itadId;
-      if (!resolvedItadId) {
-        resolvedItadId = (await this.lookupItadId(g.steamAppId)) || undefined;
-      }
-      if (resolvedItadId) {
-        itadIdToAppId.set(resolvedItadId, g.steamAppId);
-        itadIdsToFetch.push(resolvedItadId);
+      if (g.itadId) {
+        itadIdToAppId.set(g.itadId, g.steamAppId);
+        itadIdsToFetch.push(g.itadId);
+      } else {
+        gamesNeedingLookup.push(g);
       }
     }
 
-    // 2. Chunk in batches of 150 items
+    let processedCount = games.length - gamesNeedingLookup.length;
+    if (onProgress) {
+      onProgress(processedCount, games.length, `ITAD: ${processedCount}/${games.length} IDs cached, resolving ${gamesNeedingLookup.length}...`);
+    }
+
+    // 2. Concurrently resolve missing ITAD IDs (concurrency: 8)
+    if (gamesNeedingLookup.length > 0) {
+      const concurrency = 8;
+      let currentIndex = 0;
+
+      const worker = async () => {
+        while (currentIndex < gamesNeedingLookup.length) {
+          const idx = currentIndex++;
+          if (idx >= gamesNeedingLookup.length) break;
+          const g = gamesNeedingLookup[idx];
+
+          try {
+            const itadId = await this.lookupItadId(g.steamAppId);
+            if (itadId) {
+              itadIdToAppId.set(itadId, g.steamAppId);
+              itadIdsToFetch.push(itadId);
+            }
+          } catch {
+            // Ignore individual lookup errors
+          } finally {
+            processedCount++;
+            if (onProgress && (processedCount % 10 === 0 || processedCount === games.length)) {
+              onProgress(processedCount, games.length, `Resolving ITAD IDs (${processedCount}/${games.length})...`);
+            }
+          }
+        }
+      };
+
+      const workers = Array.from({ length: Math.min(concurrency, gamesNeedingLookup.length) }, () => worker());
+      await Promise.all(workers);
+    }
+
+    if (onProgress) {
+      onProgress(games.length, games.length, `Fetching ITAD price overviews for ${itadIdsToFetch.length} games...`);
+    }
+
+    // 3. Chunk in batches of 150 items for games/overview/v2
     const chunkSize = 150;
     for (let i = 0; i < itadIdsToFetch.length; i += chunkSize) {
       const chunk = itadIdsToFetch.slice(i, i + chunkSize);

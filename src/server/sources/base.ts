@@ -32,7 +32,8 @@ export interface PriceSourceAdapter {
   ): Promise<NormalizedSourceOffer[]>;
 
   fetchBatchPrices?(
-    games: { steamAppId: number; title: string; itadId?: string }[]
+    games: { steamAppId: number; title: string; itadId?: string }[],
+    onProgress?: (processed: number, total: number, action?: string) => void
   ): Promise<Map<number, NormalizedSourceOffer[]>>;
 }
 
