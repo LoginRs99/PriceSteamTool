@@ -6,6 +6,8 @@ import { ggdealsAdapter } from '../src/server/sources/ggdeals.js';
 import { allkeyshopAdapter } from '../src/server/sources/allkeyshop.js';
 import { gocdkeysAdapter } from '../src/server/sources/gocdkeys.js';
 
+import { circuitBreakers } from '../src/server/sync/circuitBreaker.js';
+
 // Default to Cyberpunk 2077 (1091500) or take from CLI args
 const testAppId = process.argv[2] ? parseInt(process.argv[2], 10) : 1091500;
 const testTitle = process.argv[3] || 'Cyberpunk 2077';
@@ -17,6 +19,8 @@ function maskKey(key?: string): string {
 }
 
 async function runLiveSourceDiagnostics() {
+  circuitBreakers.recordSuccess('allkeyshop');
+  circuitBreakers.recordSuccess('gocdkeys');
   console.log('======================================================');
   console.log('🔍 PRICETOOL - LIVE API & SOURCE ADAPTER DIAGNOSTICS');
   console.log('======================================================');

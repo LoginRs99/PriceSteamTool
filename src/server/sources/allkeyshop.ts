@@ -1,6 +1,14 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { config } from '../config/index.js';
 import { type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
+
+interface CatalogGame {
+  id: number;
+  name: string;
+  slug?: string;
+}
 
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
@@ -8,9 +16,124 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly supportsBatch = false;
   private queue = new PacedSourceQueue('allkeyshop', config.delays.allkeyshop, 500);
 
+  private cachedCatalog: CatalogGame[] | null = null;
+  private lastCatalogFetch = 0;
+  private pendingCatalogLoad: Promise<CatalogGame[]> | null = null;
+  private catalogPath = path.join(process.cwd(), 'data', 'allkeyshop_catalog.json');
+
   public isEnabled(): boolean {
-    // Disabled by default because AllKeyShop VAKS endpoint is unauthenticated/unfiltered
-    return false;
+    return true;
+  }
+
+  private async ensureCatalog(): Promise<CatalogGame[]> {
+    const now = Date.now();
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+    // 1. In-memory cache check
+    if (this.cachedCatalog && (now - this.lastCatalogFetch) < ONE_DAY_MS) {
+      return this.cachedCatalog;
+    }
+
+    if (this.pendingCatalogLoad) {
+      return this.pendingCatalogLoad;
+    }
+
+    this.pendingCatalogLoad = (async (): Promise<CatalogGame[]> => {
+      // 2. Check local disk cache
+      try {
+        if (fs.existsSync(this.catalogPath)) {
+          const stats = fs.statSync(this.catalogPath);
+          if ((now - stats.mtimeMs) < ONE_DAY_MS) {
+            const raw = fs.readFileSync(this.catalogPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.games) && parsed.games.length > 0) {
+              this.cachedCatalog = parsed.games;
+              this.lastCatalogFetch = stats.mtimeMs;
+              return parsed.games;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not read cached AllKeyShop catalog from disk:', err);
+      }
+
+      // 3. Download fresh catalog from AllKeyShop
+      try {
+        const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur';
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*'
+          }
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+            this.cachedCatalog = data.games;
+            this.lastCatalogFetch = Date.now();
+            try {
+              const dataDir = path.dirname(this.catalogPath);
+              if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+              }
+              fs.writeFileSync(this.catalogPath, JSON.stringify(data), 'utf8');
+            } catch {}
+            return this.cachedCatalog || [];
+          }
+        }
+      } catch (err: any) {
+        console.warn('Failed to download AllKeyShop catalog:', err.message);
+      }
+
+      return this.cachedCatalog || [];
+    })();
+
+    try {
+      const result = await this.pendingCatalogLoad;
+      return result || [];
+    } finally {
+      this.pendingCatalogLoad = null;
+    }
+  }
+
+  private matchGameInCatalog(catalog: CatalogGame[], gameTitle: string): CatalogGame | null {
+    if (!catalog || catalog.length === 0) return null;
+
+    const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanTarget) return null;
+
+    // 1. Exact cleaned match
+    const exact = catalog.find(g => (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTarget);
+    if (exact) return exact;
+
+    // 2. Base game match (strip standard/deluxe/goty/edition keywords)
+    const baseTarget = cleanTarget
+      .replace(/standardedition/g, '')
+      .replace(/deluxeedition/g, '')
+      .replace(/gameoftheyearedition/g, '')
+      .replace(/gotyedition/g, '')
+      .replace(/goty/g, '')
+      .replace(/edition/g, '');
+
+    if (baseTarget.length >= 4) {
+      const baseMatch = catalog.find(g => {
+        const cleanG = (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanG === baseTarget || cleanG === `${baseTarget}edition`;
+      });
+      if (baseMatch) return baseMatch;
+    }
+
+    // 3. Prefix match if sufficiently distinct
+    if (cleanTarget.length >= 6) {
+      const prefixMatch = catalog.find(g => {
+        const cleanG = (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanG.startsWith(cleanTarget) || (cleanG.length >= 6 && cleanTarget.startsWith(cleanG));
+      });
+      if (prefixMatch) return prefixMatch;
+    }
+
+    return null;
   }
 
   public async fetchPricesForGame(
@@ -20,63 +143,94 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return this.queue.enqueue(async () => {
       const offers: NormalizedSourceOffer[] = [];
       try {
-        // High-fidelity VAKS v2 JSON API endpoint from AllKeyShop
-        const vaksUrl = `https://www.allkeyshop.com/api/v2/vaks.php?action=products&currency=eur&name=${encodeURIComponent(gameTitle)}`;
-        const response = await fetch(vaksUrl, {
+        const catalog = await this.ensureCatalog();
+        const matched = this.matchGameInCatalog(catalog, gameTitle);
+        if (!matched || !matched.id) {
+          return offers;
+        }
+
+        const priceApiUrl = `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`;
+        const res = await fetch(priceApiUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*'
           }
         });
 
-        if (response.status === 403 || response.status === 429) {
-          const err: any = new Error(`AllKeyShop rate limit or challenge (${response.status})`);
-          err.status = response.status;
+        if (res.status === 403 || res.status === 429) {
+          const err: any = new Error(`AllKeyShop rate limit or challenge (${res.status})`);
+          err.status = res.status;
           throw err;
         }
 
-        if (response.ok) {
-          const data: any = await response.json();
-          const products = data?.products || data?.games;
-          if (Array.isArray(products) && products.length > 0) {
-            // Strict match for game title - NEVER fallback blindly to products[0]
-            const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const matched = products.find((p: any) => {
-              const pName = (p.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-              return pName.length >= 3 && (pName === cleanTarget || pName.includes(cleanTarget) || cleanTarget.includes(pName));
+        if (!res.ok) return offers;
+
+        const raw: any = await res.json();
+        const resolveName = (dict: any, id: any) => dict?.[String(id)]?.name ?? '';
+        const officialMerchantIds: number[] = Array.isArray(raw?.officialMerchants) ? raw.officialMerchants : [];
+
+        // Build game slug for direct comparison page link
+        const cleanSlug = (matched.name || gameTitle)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        const defaultDealUrl = `https://www.allkeyshop.com/blog/buy-${encodeURIComponent(cleanSlug)}-cd-key-compare-prices/`;
+
+        const merchantOffers = new Map<string, NormalizedSourceOffer>();
+
+        for (const entry of (raw?.history || [])) {
+          const merchantName = resolveName(raw.merchants, entry.merchant_id);
+          const editionName = resolveName(raw.editions, entry.edition);
+          const regionName = resolveName(raw.regions, entry.region);
+
+          if (!merchantName) continue;
+
+          // Reject non-Steam platforms (Xbox, PlayStation, Switch, GOG, Epic, Origin, Ubisoft, EA App, Windows 10)
+          const isNonSteam = ['xbox', 'ps4', 'ps5', 'switch', 'nintendo', 'gog', 'epic', 'origin', 'uplay', 'ubisoft', 'ea app', 'windows 10'].some(s => 
+            regionName.toLowerCase().includes(s) || editionName.toLowerCase().includes(s) || merchantName.toLowerCase().includes(s)
+          );
+          if (isNonSteam) continue;
+
+          const priceEur = Number(entry.min_discount_price || entry.last_price);
+          if (isNaN(priceEur) || priceEur <= 0) continue;
+
+          const merchantCode = merchantName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+          const isOfficial = officialMerchantIds.includes(Number(entry.merchant_id));
+          const isGift = regionName.toLowerCase().includes('gift') || editionName.toLowerCase().includes('gift');
+          const productTypeRaw = isGift ? 'Steam Gift' : 'Steam Key';
+          const voucherCode = entry.best_discount_code ? String(entry.best_discount_code).trim() : undefined;
+
+          // Regional formatting
+          let regionRaw = 'GLOBAL';
+          if (regionName.toLowerCase().includes('eu') || regionName.toLowerCase().includes('europe')) {
+            regionRaw = 'EU';
+          } else if (regionName.toLowerCase().includes('row')) {
+            regionRaw = 'ROW';
+          }
+
+          const offerKey = `${merchantCode}_${productTypeRaw}`;
+          const existing = merchantOffers.get(offerKey);
+
+          // Keep cheapest offer per merchant
+          if (!existing || existing.priceEur > priceEur) {
+            merchantOffers.set(offerKey, {
+              merchantCode,
+              merchantName,
+              isOfficial,
+              productTypeRaw,
+              regionRaw,
+              priceEur,
+              voucherCode,
+              dealUrl: defaultDealUrl,
+              rawPayload: entry
             });
-
-            if (matched) {
-              const best = matched.bestOffer;
-              const priceEur = best?.price ? Number(best.price) : (matched.offerAggregate?.lowestPrice ? Number(matched.offerAggregate.lowestPrice) : undefined);
-              
-              if (priceEur && priceEur > 0) {
-                const storeName = best?.store?.name || 'AllKeyShop Best';
-                const merchantCode = storeName.toLowerCase().replace(/[^a-z0-9]+/g, '');
-                const isOfficial = Boolean(best?.store?.isOfficialStore);
-                const regionName = best?.region?.name || 'GLOBAL';
-                const editionName = matched.edition || matched.name || best?.edition || '';
-                const isNonSteam = ['gog', 'epic', 'origin', 'uplay', 'ubisoft', 'xbox', 'ps5', 'switch'].some(s => editionName.toLowerCase().includes(s) || storeName.toLowerCase().includes(s));
-                const productTypeRaw = isNonSteam ? `${editionName || storeName} (Non-Steam)` : (editionName.toLowerCase().includes('gift') ? 'Steam Gift' : 'Steam Key');
-
-                offers.push({
-                  merchantCode,
-                  merchantName: storeName,
-                  isOfficial,
-                  productTypeRaw,
-                  regionRaw: regionName,
-                  priceEur,
-                  voucherCode: best?.bestVoucher?.code || undefined,
-                  dealUrl: best?.url || matched.link || 'https://www.allkeyshop.com',
-                  rawPayload: matched
-                });
-              }
-            }
           }
         }
+
+        return Array.from(merchantOffers.values());
       } catch (err: any) {
         if (err?.status === 403 || err?.status === 429) {
-          throw err; // Trigger circuit breaker
+          throw err;
         }
       }
       return offers;
