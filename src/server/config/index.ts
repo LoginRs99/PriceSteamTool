@@ -24,7 +24,7 @@ export const config = {
   
   // Source Pacing Defaults (ms)
   delays: {
-    steam: parseInt(process.env.STEAM_DELAY_MS || '1700', 10),
+    steam: parseInt(process.env.STEAM_DELAY_MS || '2000', 10),
     itad: parseInt(process.env.ITAD_DELAY_MS || '1000', 10),
     ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1500', 10),
     cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '1000', 10),
