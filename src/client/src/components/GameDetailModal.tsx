@@ -15,7 +15,9 @@ import {
   TrendingDown, 
   Activity, 
   Scale, 
-  Calendar 
+  Calendar,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface GameDetailModalProps {
@@ -31,6 +33,16 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
     intelligence?: PriceIntelligenceResponse;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopySteamUrl = async () => {
+    if (!data?.game.steamAppId) return;
+    try {
+      await navigator.clipboard.writeText(`https://store.steampowered.com/app/${data.game.steamAppId}/`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -112,14 +124,27 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
         <div className="modal-header">
           <div>
             <h2 id="game-detail-title" style={{ fontSize: 20, fontWeight: 800 }}>{game.title}</h2>
-            <a 
-              href={`https://store.steampowered.com/app/${game.steamAppId}/`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', marginTop: 4 }}
-            >
-              Steam Store (AppID: {game.steamAppId}) <ExternalLink size={12} />
-            </a>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+              <a 
+                href={`https://store.steampowered.com/app/${game.steamAppId}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+              >
+                Steam Store (AppID: {game.steamAppId}) <ExternalLink size={12} />
+              </a>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '2px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                onClick={handleCopySteamUrl}
+                title="Copy Steam Store URL to clipboard"
+              >
+                {copied ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
+                <span>{copied ? 'Copied URL!' : 'Copy Link'}</span>
+              </button>
+            </div>
           </div>
           <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
             <X size={18} />

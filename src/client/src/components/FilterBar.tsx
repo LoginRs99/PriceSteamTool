@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { WishlistFilterOptions, ViewMode } from '../types.js';
-import { Search, Flame, Sparkles, ShieldCheck, Tag, LayoutGrid, List, Table as TableIcon } from 'lucide-react';
+import { Search, Flame, Sparkles, ShieldCheck, Tag, LayoutGrid, List, Table as TableIcon, X, RotateCcw } from 'lucide-react';
 
 interface FilterBarProps {
   filters: WishlistFilterOptions;
@@ -17,6 +17,26 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onViewModeChange,
   onFilterChange,
 }) => {
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is currently typing in an input, textarea or select
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+        return;
+      }
+
+      if (e.key === '/' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const currentPill = filters.hasAnomaly 
     ? 'anomaly'
     : filters.majorDealsOnly
@@ -36,6 +56,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     : filters.merchantType === 'official' || (filters.merchantType as any) === 'official_only'
     ? 'official'
     : 'all';
+
+  const isFiltered = currentPill !== 'all' || Boolean(filters.search);
 
   const setPill = (pill: string) => {
     switch (pill) {
@@ -162,13 +184,30 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <div className="search-box">
           <Search size={18} className="search-icon" aria-hidden="true" />
           <input
+            ref={searchInputRef}
             type="text"
-            placeholder="Search games by title..."
+            placeholder="Search games by title... (press /)"
             value={filters.search || ''}
             onChange={(e) => onFilterChange({ search: e.target.value, page: 1 })}
             className="search-input"
             aria-label="Search wishlist games by title"
           />
+          {filters.search ? (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => {
+                onFilterChange({ search: '', page: 1 });
+                searchInputRef.current?.focus();
+              }}
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          ) : (
+            <span className="search-shortcut-badge" title="Press / to search">/</span>
+          )}
         </div>
 
         <div className="filter-dropdowns">
@@ -236,7 +275,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Filter Quick Pills */}
       <div className="filter-pills-row">
         <button
-          className={`pill-btn ${currentPill === 'all' ? 'active' : ''}`}
+          className={`pill-btn ${currentPill === 'all' && !filters.search ? 'active' : ''}`}
           onClick={() => setPill('all')}
         >
           All Paid Games ({totalGames})
@@ -309,6 +348,27 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             onClick={() => setPill('all')}
           >
             ⚠️ High Risk Anomaly Active (Click to clear)
+          </button>
+        )}
+
+        {isFiltered && (
+          <button
+            type="button"
+            className="pill-btn"
+            style={{ 
+              marginLeft: 'auto', 
+              background: 'rgba(255, 255, 255, 0.06)', 
+              color: 'var(--text-muted)',
+              borderStyle: 'dashed'
+            }}
+            onClick={() => {
+              setPill('all');
+              onFilterChange({ search: '', page: 1 });
+            }}
+            title="Reset all filters and search"
+          >
+            <RotateCcw size={12} />
+            <span>Reset filters</span>
           </button>
         )}
       </div>

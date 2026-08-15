@@ -27,6 +27,9 @@ import { SyncModal } from './components/SyncModal.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUp,
   Gamepad2, 
   PlusCircle, 
   Sparkles, 
@@ -57,6 +60,7 @@ export const App: React.FC = () => {
   const [totalGames, setTotalGames] = useState(0);
   const [freeGames, setFreeGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Stats and Best Deals
   const [stats, setStats] = useState<WishlistStatistics | null>(null);
@@ -72,13 +76,30 @@ export const App: React.FC = () => {
   const [showAnomaliesModal, setShowAnomaliesModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
-  // Filters for Paid Wishlist
-  const [filters, setFilters] = useState<WishlistFilterOptions>({
-    sort: 'priority',
-    page: 1,
-    limit: 50,
-    isFreeOnly: false
+  // Filters for Paid Wishlist with localStorage persistence for sort and limit
+  const [filters, setFilters] = useState<WishlistFilterOptions>(() => {
+    const savedSort = localStorage.getItem('pricetool_sort') as any;
+    const savedLimit = parseInt(localStorage.getItem('pricetool_limit') || '50', 10);
+    return {
+      sort: savedSort || 'priority',
+      page: 1,
+      limit: !isNaN(savedLimit) && savedLimit > 0 ? savedLimit : 50,
+      isFreeOnly: false
+    };
   });
+
+  // Track window scroll for scroll-to-top button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 350);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Load profiles
   const loadProfiles = useCallback(async () => {
@@ -184,6 +205,12 @@ export const App: React.FC = () => {
 
   const handleFilterChange = (newFilters: Partial<WishlistFilterOptions>) => {
     const updated = { ...filters, ...newFilters };
+    if (newFilters.sort) {
+      localStorage.setItem('pricetool_sort', newFilters.sort);
+    }
+    if (newFilters.limit) {
+      localStorage.setItem('pricetool_limit', String(newFilters.limit));
+    }
     setFilters(updated);
     loadGames(updated);
   };
@@ -344,10 +371,24 @@ export const App: React.FC = () => {
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
                     <div className="pagination">
+                      {totalPages > 2 && (
+                        <button
+                          className="btn btn-secondary"
+                          disabled={currentPage <= 1}
+                          onClick={() => handleFilterChange({ page: 1 })}
+                          title="First Page"
+                          aria-label="First Page"
+                        >
+                          <ChevronsLeft size={16} />
+                        </button>
+                      )}
+
                       <button
                         className="btn btn-secondary"
                         disabled={currentPage <= 1}
                         onClick={() => handleFilterChange({ page: currentPage - 1 })}
+                        title="Previous Page"
+                        aria-label="Previous Page"
                       >
                         <ChevronLeft size={16} />
                         <span>Previous</span>
@@ -361,10 +402,24 @@ export const App: React.FC = () => {
                         className="btn btn-secondary"
                         disabled={currentPage >= totalPages}
                         onClick={() => handleFilterChange({ page: currentPage + 1 })}
+                        title="Next Page"
+                        aria-label="Next Page"
                       >
                         <span>Next</span>
                         <ChevronRight size={16} />
                       </button>
+
+                      {totalPages > 2 && (
+                        <button
+                          className="btn btn-secondary"
+                          disabled={currentPage >= totalPages}
+                          onClick={() => handleFilterChange({ page: totalPages })}
+                          title="Last Page"
+                          aria-label="Last Page"
+                        >
+                          <ChevronsRight size={16} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </>
@@ -500,6 +555,19 @@ export const App: React.FC = () => {
           onStartSync={handleExecuteSync}
           isSyncing={syncProgress?.status === 'RUNNING'}
         />
+      )}
+
+      {/* Floating Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          className="scroll-to-top-btn"
+          onClick={scrollToTop}
+          title="Scroll back to top"
+          aria-label="Scroll back to top"
+        >
+          <ArrowUp size={16} />
+          <span>Top</span>
+        </button>
       )}
     </div>
   );

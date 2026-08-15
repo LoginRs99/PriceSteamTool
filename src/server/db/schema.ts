@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS games (
 CREATE INDEX IF NOT EXISTS idx_games_steam_app_id ON games(steam_app_id);
 CREATE INDEX IF NOT EXISTS idx_games_itad_id ON games(itad_id);
 CREATE INDEX IF NOT EXISTS idx_games_title ON games(title);
+CREATE INDEX IF NOT EXISTS idx_games_free_dlc ON games(is_free, is_dlc);
 
 -- 3. Wishlist Entries Table
 CREATE TABLE IF NOT EXISTS wishlist_entries (
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS wishlist_entries (
 
 CREATE INDEX IF NOT EXISTS idx_wishlist_profile_game ON wishlist_entries(profile_id, game_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_priority ON wishlist_entries(priority);
+CREATE INDEX IF NOT EXISTS idx_wishlist_active_priority ON wishlist_entries(is_active, profile_id, priority);
 
 -- 4. Merchants Table
 CREATE TABLE IF NOT EXISTS merchants (
