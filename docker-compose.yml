@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  pricetool:
+    image: ghcr.io/loginrs99/pricesteamtool:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pricetool
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - DATA_DIR=/data
+      - STEAM_API_KEY=${STEAM_API_KEY:-}
+      - ITAD_API_KEY=${ITAD_API_KEY:-}
+      - GGDEALS_API_KEY=${GGDEALS_API_KEY:-}
+      - CACHE_TTL_HOURS=${CACHE_TTL_HOURS:-6}
+      - ITAD_DELAY_MS=${ITAD_DELAY_MS:-1000}
+      - GGDEALS_DELAY_MS=${GGDEALS_DELAY_MS:-1500}
+      - CHEAPSHARK_DELAY_MS=${CHEAPSHARK_DELAY_MS:-1000}
+      - ALLKEYSHOP_DELAY_MS=${ALLKEYSHOP_DELAY_MS:-4000}
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
