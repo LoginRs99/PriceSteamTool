@@ -1664,16 +1664,16 @@ export const anomalyRepo = {
     const sql = onlyActive 
       ? `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.affiliate_url_template 
          FROM anomalies a 
-         JOIN games g ON a.game_id = g.id
-         JOIN offers o ON a.offer_id = o.id
-         JOIN merchants m ON o.merchant_id = m.id
+         LEFT JOIN games g ON a.game_id = g.id
+         LEFT JOIN offers o ON a.offer_id = o.id
+         LEFT JOIN merchants m ON o.merchant_id = m.id
          WHERE a.is_dismissed = 0
          ORDER BY a.detected_at DESC`
       : `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.affiliate_url_template 
          FROM anomalies a 
-         JOIN games g ON a.game_id = g.id
-         JOIN offers o ON a.offer_id = o.id
-         JOIN merchants m ON o.merchant_id = m.id
+         LEFT JOIN games g ON a.game_id = g.id
+         LEFT JOIN offers o ON a.offer_id = o.id
+         LEFT JOIN merchants m ON o.merchant_id = m.id
          ORDER BY a.detected_at DESC`;
 
     const rows = prepareStmt(sql).all() as any[];
@@ -1685,17 +1685,17 @@ export const anomalyRepo = {
       return {
         id: r.id,
         gameId: r.game_id,
-        gameTitle: r.game_title,
+        gameTitle: r.game_title || 'Unknown Game',
         steamAppId: r.steam_app_id ? Number(r.steam_app_id) : undefined,
         offerId: r.offer_id,
-        merchantName: r.merchant_name,
-        priceEur: r.price_eur ? Number(r.price_eur) : undefined,
-        originalPriceEur: r.original_price_eur ? Number(r.original_price_eur) : undefined,
+        merchantName: r.merchant_name || 'Unknown Store',
+        priceEur: r.price_eur !== null && r.price_eur !== undefined ? Number(r.price_eur) : undefined,
+        originalPriceEur: r.original_price_eur !== null && r.original_price_eur !== undefined ? Number(r.original_price_eur) : undefined,
         dealUrl: targetUrl || undefined,
-        anomalyType: r.anomaly_type,
-        score: Number(r.score),
-        reason: r.reason,
-        detectedAt: r.detected_at,
+        anomalyType: r.anomaly_type || 'PRICE_GLITCH',
+        score: Number(r.score || 0),
+        reason: r.reason || 'Flagged price anomaly',
+        detectedAt: r.detected_at || new Date().toISOString(),
         isDismissed: Boolean(r.is_dismissed)
       };
     });

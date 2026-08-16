@@ -12,7 +12,9 @@ import {
   X, 
   RotateCcw, 
   SlidersHorizontal,
-  Sliders
+  DollarSign,
+  TrendingDown,
+  Check
 } from 'lucide-react';
 
 interface FilterBarProps {
@@ -50,41 +52,40 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const currentPill = filters.hasAnomaly 
-    ? 'anomaly'
-    : filters.buyOnly
-    ? 'buy_recommendations'
-    : filters.sort === 'best_value' && (filters.minDealScore === 70)
-    ? 'best_deals'
-    : filters.minDealScore === 85
-    ? 'exceptional'
-    : (filters.minConfidence || 0) >= 80
-    ? 'high_conf'
-    : filters.allTimeLowOnly
-    ? 'atl'
-    : filters.sort === 'biggest_savings'
-    ? 'savings'
-    : filters.trustedOnly
-    ? 'trusted'
-    : filters.underPrice === 5
-    ? 'under_5'
-    : filters.underPrice === 10
-    ? 'under_10'
-    : filters.underPrice === 20
-    ? 'under_20'
-    : filters.saleOnly
-    ? 'sale'
-    : filters.merchantType === 'official' || (filters.merchantType as any) === 'official_only'
-    ? 'official'
-    : 'all';
+  // Determine active preset pill
+  const getActivePill = () => {
+    if (filters.hasAnomaly) return 'anomaly';
+    if (filters.buyOnly) return 'buy_recommendations';
+    if (filters.minDealScore === 85) return 'exceptional';
+    if (filters.minDealScore === 70 && filters.saleOnly) return 'best_deals';
+    if (filters.allTimeLowOnly) return 'atl';
+    if (filters.underPrice === 5 || filters.maxPrice === 5) return 'under_5';
+    if (filters.underPrice === 10 || filters.maxPrice === 10) return 'under_10';
+    if (filters.underPrice === 20 || filters.maxPrice === 20) return 'under_20';
+    if (filters.merchantType === 'official') return 'official';
+    if (filters.saleOnly) return 'sale';
+    return 'all';
+  };
 
-  const isFiltered = currentPill !== 'all' || 
-    Boolean(filters.search) || 
-    Boolean(filters.buyOnly) ||
-    Boolean(filters.minDealScore) || 
-    Boolean(filters.minConfidence) || 
-    Boolean(filters.hideAnomalies) || 
-    Boolean(filters.hideProvisional);
+  const currentPill = getActivePill();
+
+  // Calculate active filter count for badge
+  let activeFilterCount = 0;
+  if (filters.search) activeFilterCount++;
+  if (filters.buyOnly) activeFilterCount++;
+  if (filters.saleOnly) activeFilterCount++;
+  if (filters.allTimeLowOnly) activeFilterCount++;
+  if (filters.majorDealsOnly) activeFilterCount++;
+  if (filters.trustedOnly) activeFilterCount++;
+  if (filters.minDealScore && filters.minDealScore > 0) activeFilterCount++;
+  if (filters.minPrice !== undefined && filters.minPrice > 0) activeFilterCount++;
+  if (filters.maxPrice !== undefined && filters.maxPrice > 0) activeFilterCount++;
+  if (filters.underPrice !== undefined && filters.underPrice > 0) activeFilterCount++;
+  if (filters.merchantType && filters.merchantType !== 'all') activeFilterCount++;
+  if (filters.hideAnomalies) activeFilterCount++;
+  if (filters.hideProvisional) activeFilterCount++;
+
+  const isFiltered = activeFilterCount > 0 || (filters.sort && filters.sort !== 'best_value');
 
   const resetAllFilters = () => {
     onFilterChange({
@@ -98,9 +99,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       minPrice: undefined,
       maxPrice: undefined,
       minDealScore: undefined,
-      minConfidence: undefined,
       hideAnomalies: false,
       hideProvisional: false,
+      buyOnly: false,
       merchantType: 'all',
       hasAnomaly: false,
       page: 1
@@ -120,7 +121,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           minPrice: undefined,
           maxPrice: undefined,
           minDealScore: undefined,
-          minConfidence: undefined,
           hideAnomalies: false,
           hideProvisional: false,
           buyOnly: false,
@@ -139,7 +139,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           trustedOnly: false,
           underPrice: undefined,
           minDealScore: 70,
-          minConfidence: 35,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -149,7 +148,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         onFilterChange({
           sort: 'best_value',
           minDealScore: 70,
-          minConfidence: 40,
           saleOnly: true,
           majorDealsOnly: false,
           allTimeLowOnly: false,
@@ -164,22 +162,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         onFilterChange({
           sort: 'deal_score_desc',
           minDealScore: 85,
-          minConfidence: 40,
           saleOnly: true,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
-        });
-        break;
-      case 'high_conf':
-        onFilterChange({
-          sort: 'confidence_desc',
-          minConfidence: 80,
-          saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
@@ -198,22 +181,19 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           trustedOnly: false,
           underPrice: undefined,
           minDealScore: undefined,
-          minConfidence: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
         });
         break;
-      case 'savings':
+      case 'sale':
         onFilterChange({
-          sort: 'biggest_savings',
           saleOnly: true,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: undefined,
           minDealScore: undefined,
-          minConfidence: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -228,7 +208,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           underPrice: 5,
           maxPrice: 5,
           minDealScore: undefined,
-          minConfidence: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -243,7 +222,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           underPrice: 10,
           maxPrice: 10,
           minDealScore: undefined,
-          minConfidence: undefined,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'under_20':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: 20,
+          maxPrice: 20,
+          minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -257,7 +249,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           trustedOnly: false,
           underPrice: undefined,
           minDealScore: undefined,
-          minConfidence: undefined,
           merchantType: 'official',
           hasAnomaly: false,
           page: 1
@@ -268,14 +259,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   return (
     <div className="filter-bar-container">
-      {/* Top Search & Controls Row */}
+      {/* Top Search & Primary Controls */}
       <div className="filter-controls-row">
         <div className="search-box">
           <Search size={18} className="search-icon" aria-hidden="true" />
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search games by title... (press /)"
+            placeholder="Search wishlist games... (press /)"
             value={filters.search || ''}
             onChange={(e) => onFilterChange({ search: e.target.value, page: 1 })}
             className="search-input"
@@ -307,12 +298,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             onChange={(e) => onFilterChange({ sort: e.target.value as any, page: 1 })}
             aria-label="Sort wishlist games"
           >
-            <option value="best_value">🎯 Sort: Best Value (Score + Confidence)</option>
+            <option value="best_value">🎯 Sort: Best Value Deal Score</option>
             <option value="deal_score_desc">★ Highest Deal Score (Pure Price)</option>
-            <option value="confidence_desc">🛡️ Highest Confidence (Data Depth)</option>
-            <option value="near_atl">🔥 Closest to All-Time Low</option>
-            <option value="biggest_savings">💶 Biggest € Drop vs Typical</option>
-            <option value="price_drops">🏷️ Discount % (Highest first)</option>
+            <option value="near_atl">🔥 All-Time Low First</option>
+            <option value="biggest_savings">💶 Biggest € Savings</option>
+            <option value="price_drops">🏷️ Highest Discount %</option>
             <option value="price_asc">Price: Lowest first</option>
             <option value="price_desc">Price: Highest first</option>
             <option value="priority">Steam Wishlist Priority</option>
@@ -324,11 +314,28 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             type="button"
             className={`btn btn-sm ${showAdvanced ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setShowAdvanced(!showAdvanced)}
-            title="Fine-tune filters (Deal Score slider, Confidence threshold, etc.)"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            title="Fine-tune filters (Deal Score slider, Price limits, Stores)"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}
           >
             <SlidersHorizontal size={14} />
             <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span style={{
+                background: 'var(--accent-primary)',
+                color: '#042f2e',
+                borderRadius: '50%',
+                width: 18,
+                height: 18,
+                fontSize: 11,
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: 2
+              }}>
+                {activeFilterCount}
+              </span>
+            )}
           </button>
 
           {/* Page Size Selector */}
@@ -378,12 +385,35 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
       {/* Advanced Filter Settings Drawer */}
       {showAdvanced && (
-        <div className="advanced-filters-panel" style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: 8, marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center', border: '1px solid var(--border-color)' }}>
-          {/* Min Deal Score */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 }}>
-            <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              Min Deal Score: <strong>{filters.minDealScore || 0} / 100</strong>
-            </label>
+        <div className="advanced-filters-panel" style={{
+          background: 'var(--bg-surface-elevated)',
+          padding: '16px 20px',
+          borderRadius: 'var(--radius-md)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 20,
+          alignItems: 'flex-start',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
+        }}>
+          {/* Min Deal Score Slider */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Minimum Deal Score
+              </label>
+              <span style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: (filters.minDealScore || 0) >= 85 ? '#8b5cf6' : (filters.minDealScore || 0) >= 70 ? '#10b981' : 'var(--text-primary)',
+                background: 'var(--bg-surface)',
+                padding: '2px 8px',
+                borderRadius: 10,
+                border: '1px solid var(--border-subtle)'
+              }}>
+                {filters.minDealScore ? `${filters.minDealScore} / 100` : 'Any Score'}
+              </span>
+            </div>
             <input 
               type="range" 
               min="0" 
@@ -391,29 +421,72 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               step="5"
               value={filters.minDealScore || 0}
               onChange={(e) => onFilterChange({ minDealScore: parseInt(e.target.value, 10) || undefined, page: 1 })}
-              style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+              style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: '100%' }}
             />
           </div>
 
-          {/* Min Confidence */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 }}>
-            <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              Min Confidence: <strong>{filters.minConfidence || 0}%</strong>
+          {/* Price Range Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Price Range (€ EUR)
             </label>
-            <input 
-              type="range" 
-              min="0" 
-              max="90" 
-              step="10"
-              value={filters.minConfidence || 0}
-              onChange={(e) => onFilterChange({ minConfidence: parseInt(e.target.value, 10) || undefined, page: 1 })}
-              style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="number"
+                placeholder="Min €"
+                min="0"
+                value={filters.minPrice ?? ''}
+                onChange={(e) => onFilterChange({ minPrice: e.target.value ? parseFloat(e.target.value) : undefined, page: 1 })}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: 13
+                }}
+              />
+              <span style={{ color: 'var(--text-muted)' }}>–</span>
+              <input
+                type="number"
+                placeholder="Max €"
+                min="0"
+                value={filters.maxPrice ?? ''}
+                onChange={(e) => onFilterChange({ maxPrice: e.target.value ? parseFloat(e.target.value) : undefined, page: 1 })}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: 13
+                }}
+              />
+            </div>
           </div>
 
-          {/* Checkbox Toggles */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '0.82rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          {/* Store Type Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Store Verification
+            </label>
+            <select
+              className="select-input"
+              style={{ padding: '7px 12px', fontSize: 13 }}
+              value={filters.merchantType || 'all'}
+              onChange={(e) => onFilterChange({ merchantType: e.target.value as any, page: 1 })}
+            >
+              <option value="all">All Stores (Official & Authorized Keyshops)</option>
+              <option value="official">Official Stores Only (Steam, Humble, etc.)</option>
+              <option value="keyshop">Authorized Keyshops Only</option>
+            </select>
+          </div>
+
+          {/* Clean Toggles */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input 
                 type="checkbox"
                 checked={Boolean(filters.hideAnomalies)}
@@ -422,20 +495,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               <span>Hide High-Risk Anomalies</span>
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input 
                 type="checkbox"
-                checked={Boolean(filters.hideProvisional)}
-                onChange={(e) => onFilterChange({ hideProvisional: e.target.checked, page: 1 })}
+                checked={Boolean(filters.majorDealsOnly)}
+                onChange={(e) => onFilterChange({ majorDealsOnly: e.target.checked, page: 1 })}
               />
-              <span>Hide Provisional Deals (Sparse Data)</span>
+              <span>Major Price Drops Only</span>
             </label>
           </div>
         </div>
       )}
 
       {/* Filter Quick Pills */}
-      <div className="filter-pills-row" style={{ marginTop: 10 }}>
+      <div className="filter-pills-row">
         <button
           className={`pill-btn ${currentPill === 'all' && !isFiltered ? 'active' : ''}`}
           onClick={() => setPill('all')}
@@ -459,7 +532,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           onClick={() => setPill('best_deals')}
         >
           <Sparkles size={13} />
-          <span>Best Deals (70+)</span>
+          <span>Great Deals (70+)</span>
         </button>
 
         <button
@@ -467,14 +540,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           onClick={() => setPill('exceptional')}
         >
           🔥 Exceptional (85+)
-        </button>
-
-        <button
-          className={`pill-btn ${currentPill === 'high_conf' ? 'active' : ''}`}
-          onClick={() => setPill('high_conf')}
-        >
-          <ShieldCheck size={13} />
-          <span>High Confidence (80%+)</span>
         </button>
 
         <button
@@ -486,10 +551,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </button>
 
         <button
-          className={`pill-btn ${currentPill === 'savings' ? 'active' : ''}`}
-          onClick={() => setPill('savings')}
+          className={`pill-btn ${currentPill === 'sale' ? 'active' : ''}`}
+          onClick={() => setPill('sale')}
         >
-          💶 € Savings vs Typical
+          <Tag size={13} />
+          <span>On Sale</span>
         </button>
 
         <button
@@ -507,10 +573,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </button>
 
         <button
+          className={`pill-btn ${currentPill === 'under_20' ? 'active' : ''}`}
+          onClick={() => setPill('under_20')}
+        >
+          Under €20
+        </button>
+
+        <button
           className={`pill-btn ${currentPill === 'official' ? 'active' : ''}`}
           onClick={() => setPill('official')}
         >
-          Official Stores
+          <ShieldCheck size={13} />
+          <span>Official Stores</span>
         </button>
 
         {isFiltered && (
@@ -531,6 +605,80 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </button>
         )}
       </div>
+
+      {/* Active Filter Badges */}
+      {isFiltered && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingTop: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
+            Active:
+          </span>
+
+          {filters.search && (
+            <span className="filter-active-tag">
+              Search: "{filters.search}"
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ search: '', page: 1 })} />
+            </span>
+          )}
+
+          {filters.minDealScore !== undefined && filters.minDealScore > 0 && (
+            <span className="filter-active-tag">
+              Score ≥ {filters.minDealScore}
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minDealScore: undefined, page: 1 })} />
+            </span>
+          )}
+
+          {filters.minPrice !== undefined && filters.minPrice > 0 && (
+            <span className="filter-active-tag">
+              Min: €{filters.minPrice}
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minPrice: undefined, page: 1 })} />
+            </span>
+          )}
+
+          {filters.maxPrice !== undefined && filters.maxPrice > 0 && (
+            <span className="filter-active-tag">
+              Max: €{filters.maxPrice}
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ maxPrice: undefined, underPrice: undefined, page: 1 })} />
+            </span>
+          )}
+
+          {filters.merchantType === 'official' && (
+            <span className="filter-active-tag">
+              Official Stores Only
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ merchantType: 'all', page: 1 })} />
+            </span>
+          )}
+
+          {filters.allTimeLowOnly && (
+            <span className="filter-active-tag">
+              All-Time Low Only
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ allTimeLowOnly: false, page: 1 })} />
+            </span>
+          )}
+
+          {filters.saleOnly && (
+            <span className="filter-active-tag">
+              On Sale Only
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ saleOnly: false, page: 1 })} />
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={resetAllFilters}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary)',
+              fontSize: 12,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              padding: '2px 4px'
+            }}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
     </div>
   );
 };

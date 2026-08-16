@@ -136,8 +136,14 @@ export const api = {
 
   // Anomalies
   async getAnomalies(): Promise<Anomaly[]> {
-    const res = await fetch(`${API_BASE}/anomalies`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/anomalies`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   },
 
   async dismissAnomaly(id: string): Promise<void> {

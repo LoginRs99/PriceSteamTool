@@ -467,7 +467,7 @@ export const App: React.FC = () => {
                     <span>Top Ranked Deals (Best Value)</span>
                   </h2>
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-                    Ranked by balanced Deal Score and Data Confidence for high-quality, verified savings.
+                    Ranked by verified Deal Score algorithms for maximum savings.
                   </p>
                 </div>
 

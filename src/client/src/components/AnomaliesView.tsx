@@ -10,14 +10,18 @@ interface AnomaliesViewProps {
 export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchAnomalies = async () => {
     try {
       setLoading(true);
+      setError(null);
       const list = await api.getAnomalies();
-      setAnomalies(list);
-    } catch (e) {
+      setAnomalies(Array.isArray(list) ? list : []);
+    } catch (e: any) {
       console.error('Failed to fetch anomalies:', e);
+      setError('Failed to load anomalies. Please try again.');
+      setAnomalies([]);
     } finally {
       setLoading(false);
     }
@@ -28,10 +32,14 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
   }, []);
 
   const handleDismiss = async (id: string) => {
-    await api.dismissAnomaly(id);
-    await fetchAnomalies();
-    if (onRefresh) {
-      onRefresh();
+    try {
+      await api.dismissAnomaly(id);
+      await fetchAnomalies();
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (e) {
+      console.error('Failed to dismiss anomaly:', e);
     }
   };
 
@@ -67,7 +75,24 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-          <p>Loading anomalies...</p>
+          <p>Loading price anomalies...</p>
+        </div>
+      ) : error ? (
+        <div style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '40px 20px',
+          textAlign: 'center',
+          color: 'var(--text-muted)'
+        }}>
+          <AlertTriangle size={36} color="#ef4444" style={{ margin: '0 auto 12px auto' }} />
+          <h3 style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', marginBottom: 6 }}>{error}</h3>
+          <p style={{ fontSize: 13, marginBottom: 16 }}>Unable to connect to the anomaly service.</p>
+          <button className="btn btn-secondary" onClick={fetchAnomalies} style={{ margin: '0 auto' }}>
+            <RefreshCw size={14} />
+            <span>Try Again</span>
+          </button>
         </div>
       ) : anomalies.length === 0 ? (
         <div style={{
@@ -84,95 +109,98 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {anomalies.map(a => (
-            <div
-              key={a.id}
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: 'var(--radius-md)',
-                padding: '18px 20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 16,
-                flexWrap: 'wrap'
-              }}
-            >
-              <div style={{ flex: '1 1 320px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  {a.dealUrl ? (
+          {anomalies.map(a => {
+            const scorePct = typeof a.score === 'number' ? Math.round(a.score * 100) : 0;
+            const price = typeof a.priceEur === 'number' ? `€${a.priceEur.toFixed(2)}` : null;
+
+            return (
+              <div
+                key={a.id}
+                style={{
+                  background: 'var(--bg-surface)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 16,
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ flex: '1 1 320px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {a.dealUrl ? (
+                      <a
+                        href={a.dealUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 16,
+                          color: 'var(--text-primary)',
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        {a.gameTitle || 'Unknown Game'}
+                        <ExternalLink size={14} style={{ opacity: 0.7 }} />
+                      </a>
+                    ) : (
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{a.gameTitle || 'Unknown Game'}</div>
+                    )}
+
+                    {price && (
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          color: '#f87171',
+                          borderRadius: 'var(--radius-sm)'
+                        }}
+                      >
+                        {price}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Merchant: <strong style={{ color: 'var(--text-secondary)' }}>{a.merchantName || 'Store'}</strong> • Anomaly Severity: {scorePct}%
+                  </div>
+                  <div style={{ fontSize: 13, color: '#f87171', marginTop: 6, fontWeight: 500 }}>
+                    {a.reason || 'Flagged price anomaly'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  {a.dealUrl && (
                     <a
                       href={a.dealUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 16,
-                        color: 'var(--text-primary)',
-                        textDecoration: 'none',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--color-primary)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                      className="btn btn-primary"
+                      style={{ padding: '8px 16px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                     >
-                      {a.gameTitle}
-                      <ExternalLink size={14} style={{ opacity: 0.7 }} />
+                      <ExternalLink size={14} />
+                      View Deal
                     </a>
-                  ) : (
-                    <div style={{ fontWeight: 700, fontSize: 16 }}>{a.gameTitle}</div>
                   )}
 
-                  {a.priceEur !== undefined && (
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 800,
-                        padding: '3px 8px',
-                        background: 'rgba(239, 68, 68, 0.2)',
-                        color: '#f87171',
-                        borderRadius: 'var(--radius-sm)'
-                      }}
-                    >
-                      €{a.priceEur.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
-                  Merchant: <strong style={{ color: 'var(--text-secondary)' }}>{a.merchantName}</strong> • Anomaly Score: {(a.score * 100).toFixed(0)}%
-                </div>
-                <div style={{ fontSize: 13, color: '#f87171', marginTop: 6, fontWeight: 500 }}>
-                  {a.reason}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                {a.dealUrl && (
-                  <a
-                    href={a.dealUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-primary"
-                    style={{ padding: '8px 16px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' }}
+                    onClick={() => handleDismiss(a.id)}
                   >
-                    <ExternalLink size={14} />
-                    View Deal
-                  </a>
-                )}
-
-                <button
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' }}
-                  onClick={() => handleDismiss(a.id)}
-                >
-                  Dismiss
-                </button>
+                    Dismiss
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

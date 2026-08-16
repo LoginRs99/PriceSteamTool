@@ -382,6 +382,29 @@ body {
   border-color: rgba(16, 185, 129, 0.4);
 }
 
+.filter-active-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.tag-remove-icon {
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.tag-remove-icon:hover {
+  color: #ef4444;
+}
+
 /* Games Grid */
 .games-grid {
   display: grid;
