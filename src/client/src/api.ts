@@ -142,5 +142,51 @@ export const api = {
 
   async dismissAnomaly(id: string): Promise<void> {
     await fetch(`${API_BASE}/anomalies/${id}/dismiss`, { method: 'POST' });
+  },
+
+  // Discord Notifications
+  async getDiscordSettings(): Promise<{
+    webhookUrl: string;
+    isEnabled: boolean;
+    minDealScore: number;
+    notifyAtlOnly: boolean;
+    notifyFreeGames: boolean;
+    cooldownHours: number;
+  }> {
+    const res = await fetch(`${API_BASE}/settings/discord`);
+    return res.json();
+  },
+
+  async saveDiscordSettings(settings: {
+    webhookUrl?: string;
+    isEnabled?: boolean;
+    minDealScore?: number;
+    notifyAtlOnly?: boolean;
+    notifyFreeGames?: boolean;
+    cooldownHours?: number;
+  }): Promise<any> {
+    const res = await fetch(`${API_BASE}/settings/discord`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to save Discord settings');
+    }
+    return res.json();
+  },
+
+  async testDiscordWebhook(webhookUrl?: string): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${API_BASE}/settings/discord/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Discord webhook test failed');
+    }
+    return res.json();
   }
 };

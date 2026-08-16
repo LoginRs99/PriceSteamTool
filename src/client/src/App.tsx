@@ -24,6 +24,7 @@ import { ProfileModal } from './components/ProfileModal.js';
 import { SourcesModal } from './components/SourcesModal.js';
 import { AnomaliesModal } from './components/AnomaliesModal.js';
 import { SyncModal } from './components/SyncModal.js';
+import { DiscordModal } from './components/DiscordModal.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
   const [showProfilesModal, setShowProfilesModal] = useState(false);
   const [showSourcesModal, setShowSourcesModal] = useState(false);
   const [showAnomaliesModal, setShowAnomaliesModal] = useState(false);
+  const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Filters for Paid Wishlist with localStorage persistence for sort and limit
@@ -244,6 +246,7 @@ export const App: React.FC = () => {
         onOpenProfiles={() => setShowProfilesModal(true)}
         onOpenSources={() => setShowSourcesModal(true)}
         onOpenAnomalies={() => setShowAnomaliesModal(true)}
+        onOpenDiscord={() => setShowDiscordModal(true)}
         onTriggerSync={handleTriggerSync}
       />
 
@@ -554,6 +557,13 @@ export const App: React.FC = () => {
           onClose={() => setShowSyncModal(false)}
           onStartSync={handleExecuteSync}
           isSyncing={syncProgress?.status === 'RUNNING'}
+        />
+      )}
+
+      {showDiscordModal && (
+        <DiscordModal
+          isOpen={showDiscordModal}
+          onClose={() => setShowDiscordModal(false)}
         />
       )}
 

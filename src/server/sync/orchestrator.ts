@@ -22,6 +22,7 @@ import {
 } from '../domain/normalizer.js';
 import { evaluateOfferAnomaly } from '../domain/anomaly.js';
 import { circuitBreakers } from './circuitBreaker.js';
+import { sendDealNotifications } from '../domain/discordNotifier.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
 import type { 
   SyncProgressUpdate, 
@@ -473,6 +474,14 @@ export class SyncOrchestrator {
       this.broadcast();
 
       this.generateSummary(profileName, steamId, trigger, 'COMPLETED', duration, totalWishlistCount, staleQueriedCount, cacheHitRatio, totalOffersIngested, selectedSources);
+
+      // Trigger Discord notifications for exceptional/great wishlist deals
+      try {
+        const bestDeals = gameRepo.getBestDeals(profileId, 50);
+        await sendDealNotifications(bestDeals, trigger);
+      } catch (notifyErr: any) {
+        logWarn(`[Discord] Could not dispatch deal alerts: ${notifyErr.message}`);
+      }
 
     } catch (err: any) {
       const duration = Math.round((Date.now() - this.startTime) / 1000);

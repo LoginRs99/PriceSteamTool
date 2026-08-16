@@ -1,0 +1,229 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { 
+  getDiscordSettings, 
+  saveDiscordSettings, 
+  sendTestNotification, 
+  sendDealNotifications 
+} from '../../src/server/domain/discordNotifier.js';
+import { settingsRepo, notificationsRepo, offerRepo, gameRepo } from '../../src/server/db/index.js';
+import type { Game } from '../../src/shared/types.js';
+
+describe('Discord Notifier Service', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should save and retrieve Discord settings from database', () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/12345/abcdef',
+      isEnabled: true,
+      minDealScore: 80,
+      notifyAtlOnly: true,
+      notifyFreeGames: true,
+      cooldownHours: 48
+    });
+
+    const settings = getDiscordSettings();
+    expect(settings.webhookUrl).toBe('https://discord.com/api/webhooks/12345/abcdef');
+    expect(settings.isEnabled).toBe(true);
+    expect(settings.minDealScore).toBe(80);
+    expect(settings.notifyAtlOnly).toBe(true);
+    expect(settings.notifyFreeGames).toBe(true);
+    expect(settings.cooldownHours).toBe(48);
+  });
+
+  it('should handle test notification with mocked fetch', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    const result = await sendTestNotification('https://discord.com/api/webhooks/test/123');
+    expect(result.success).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const callArgs = fetchSpy.mock.calls[0];
+    expect(callArgs[0]).toBe('https://discord.com/api/webhooks/test/123');
+    const body = JSON.parse(callArgs[1]?.body as string);
+    expect(body.username).toBe('PriceSteamTool');
+    expect(body.embeds[0].title).toContain('PriceSteamTool');
+  });
+
+  it('should filter deals by minimum Deal Score and notify only qualifying games', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 75,
+      notifyAtlOnly: false,
+      notifyFreeGames: true,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    const game1: Game = {
+      id: 'game-qualifying-1',
+      steamAppId: 1001,
+      title: 'Super Deal Game',
+      slug: 'super-deal-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: false,
+      offersCount: 1,
+      bestPriceEur: 9.99,
+      basePriceEur: 49.99,
+      bestDiscountPercent: 80,
+      bestDealScore: 88,
+      bestDealTier: 'Exceptional',
+      bestMerchantName: 'Steam Store',
+      bestMerchantIsOfficial: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const game2: Game = {
+      id: 'game-low-score',
+      steamAppId: 1002,
+      title: 'Mediocre Deal Game',
+      slug: 'mediocre-deal-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: false,
+      offersCount: 1,
+      bestPriceEur: 39.99,
+      basePriceEur: 49.99,
+      bestDiscountPercent: 20,
+      bestDealScore: 45, // Below 75 threshold!
+      bestDealTier: 'Fair',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    gameRepo.upsert({ steamAppId: 1001, title: 'Super Deal Game', slug: 'super-deal-game' });
+    gameRepo.upsert({ steamAppId: 1002, title: 'Mediocre Deal Game', slug: 'mediocre-deal-game' });
+
+    const inserted1 = gameRepo.getBySteamAppId(1001)!;
+    const inserted2 = gameRepo.getBySteamAppId(1002)!;
+    game1.id = inserted1.id;
+    game2.id = inserted2.id;
+
+    const mockDeals: Game[] = [game1, game2];
+
+    const { sentCount } = await sendDealNotifications(mockDeals, 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(sentPayload.embeds[0].title).toBe('Super Deal Game');
+    expect(sentPayload.embeds[0].description).toContain('Exceptional Deal Detected');
+  });
+
+  it('should respect All-Time Low (ATL) filter when enabled', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 70,
+      notifyAtlOnly: true, // Only ATL deals!
+      notifyFreeGames: false,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 2001, title: 'ATL Game', slug: 'atl-game' });
+    gameRepo.upsert({ steamAppId: 2002, title: 'Non-ATL Good Deal', slug: 'non-atl-game' });
+
+    const insertedAtl = gameRepo.getBySteamAppId(2001)!;
+    const insertedNonAtl = gameRepo.getBySteamAppId(2002)!;
+
+    const mockDeals: Game[] = [
+      {
+        id: insertedAtl.id,
+        steamAppId: 2001,
+        title: 'ATL Game',
+        slug: 'atl-game',
+        isDlc: false,
+        isFree: false,
+        hasAnomaly: false,
+        offersCount: 1,
+        bestPriceEur: 12.99,
+        basePriceEur: 59.99,
+        bestDiscountPercent: 78,
+        bestDealScore: 82,
+        bestPriceEvent: 'NEW_HISTORICAL_LOW',
+        historicalLowEur: 12.99,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: insertedNonAtl.id,
+        steamAppId: 2002,
+        title: 'Non-ATL Good Deal',
+        slug: 'non-atl-game',
+        isDlc: false,
+        isFree: false,
+        hasAnomaly: false,
+        offersCount: 1,
+        bestPriceEur: 24.99,
+        basePriceEur: 59.99,
+        bestDiscountPercent: 58,
+        bestDealScore: 78, // High score, but not ATL!
+        bestPriceEvent: 'NONE',
+        historicalLowEur: 14.99,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+
+    const { sentCount } = await sendDealNotifications(mockDeals, 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(sentPayload.embeds[0].title).toBe('ATL Game');
+  });
+
+  it('should notify 100% free games when notifyFreeGames is enabled', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 85,
+      notifyAtlOnly: true,
+      notifyFreeGames: true, // Free games enabled
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 3001, title: 'Free Giveaway Game', slug: 'free-giveaway-game' });
+    const insertedFree = gameRepo.getBySteamAppId(3001)!;
+
+    const freeGame: Game = {
+      id: insertedFree.id,
+      steamAppId: 3001,
+      title: 'Free Giveaway Game',
+      slug: 'free-giveaway-game',
+      isDlc: false,
+      isFree: true,
+      hasAnomaly: false,
+      offersCount: 1,
+      bestPriceEur: 0,
+      basePriceEur: 29.99,
+      bestDiscountPercent: 100,
+      bestDealScore: 30, // Low Deal Score score because base formula doesn't apply to free promotions
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([freeGame], 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(sentPayload.embeds[0].title).toBe('Free Giveaway Game');
+    expect(sentPayload.embeds[0].description).toContain('100% Free Game Promotion');
+  });
+});

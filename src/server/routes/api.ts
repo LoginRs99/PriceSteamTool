@@ -283,4 +283,50 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     anomalyRepo.dismiss(id);
     return { success: true };
   });
+
+  // ----------------------------------------------------
+  // Discord Notification Settings API
+  // ----------------------------------------------------
+  fastify.get('/api/settings/discord', async () => {
+    const { getDiscordSettings } = await import('../domain/discordNotifier.js');
+    return getDiscordSettings();
+  });
+
+  fastify.post('/api/settings/discord', async (request, reply) => {
+    const schema = z.object({
+      webhookUrl: z.string().optional(),
+      isEnabled: z.boolean().optional(),
+      minDealScore: z.number().min(0).max(100).optional(),
+      notifyAtlOnly: z.boolean().optional(),
+      notifyFreeGames: z.boolean().optional(),
+      cooldownHours: z.number().min(1).max(168).optional()
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.message });
+    }
+
+    const { saveDiscordSettings } = await import('../domain/discordNotifier.js');
+    const updated = saveDiscordSettings(parsed.data);
+    return updated;
+  });
+
+  fastify.post('/api/settings/discord/test', async (request, reply) => {
+    const schema = z.object({
+      webhookUrl: z.string().optional()
+    }).optional();
+
+    const parsed = schema.safeParse(request.body);
+    const webhookUrlOverride = parsed.success ? parsed.data?.webhookUrl : undefined;
+
+    const { sendTestNotification } = await import('../domain/discordNotifier.js');
+    const result = await sendTestNotification(webhookUrlOverride);
+
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error || 'Failed to send test notification.' });
+    }
+
+    return { success: true, message: 'Test message sent to Discord successfully!' };
+  });
 };

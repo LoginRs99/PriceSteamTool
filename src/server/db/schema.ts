@@ -194,6 +194,25 @@ CREATE TABLE IF NOT EXISTS anomalies (
 
 CREATE INDEX IF NOT EXISTS idx_anomalies_game ON anomalies(game_id);
 CREATE INDEX IF NOT EXISTS idx_anomalies_dismissed ON anomalies(is_dismissed);
+
+-- 11. Application Settings Table
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- 12. Notifications Log Table (for rate limiting and alert deduplication)
+CREATE TABLE IF NOT EXISTS notifications_log (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL DEFAULT 'discord',
+  price_eur REAL NOT NULL,
+  deal_score INTEGER NOT NULL,
+  sent_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_log_game ON notifications_log(game_id, sent_at);
 `;
 
 export const SEED_SOURCES_SQL = `

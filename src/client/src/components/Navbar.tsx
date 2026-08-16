@@ -9,6 +9,7 @@ interface NavbarProps {
   onOpenProfiles: () => void;
   onOpenSources: () => void;
   onOpenAnomalies: () => void;
+  onOpenDiscord: () => void;
   onTriggerSync: () => void;
 }
 
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenProfiles,
   onOpenSources,
   onOpenAnomalies,
+  onOpenDiscord,
   onTriggerSync,
 }) => {
   const isSyncing = syncProgress?.status === 'RUNNING';
@@ -45,6 +47,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{anomalyCount} {anomalyCount === 1 ? 'Anomaly' : 'Anomalies'}</span>
           </button>
         )}
+
+        {/* Discord Webhook Deal Alerts */}
+        <button className="btn btn-outline" onClick={onOpenDiscord} title="Discord Webhook Deal Alerts">
+          <span style={{ color: '#5865F2' }}>🔔</span>
+          <span>Discord</span>
+        </button>
 
         {/* Source Health & Diagnostics */}
         <button className="btn btn-outline" onClick={onOpenSources} title="Source Adapter Health">
