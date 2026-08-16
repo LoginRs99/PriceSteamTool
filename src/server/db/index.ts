@@ -105,6 +105,134 @@ export function getDb(): Database.Database {
   return dbInstance;
 }
 
+/**
+ * One-time backfill of Deal Score v2 stats for existing games in database
+ */
+export function backfillDealScoreStats(): void {
+  try {
+    const db = getDb();
+    const uncalculatedGames = prepareStmt(`
+      SELECT g.id, g.steam_app_id, g.title, g.slug, g.base_price_eur, g.historical_low_eur, g.historical_low_date, g.historical_low_source, g.is_dlc, g.is_free, g.created_at, g.updated_at
+      FROM games g
+      WHERE g.deal_score_stats_updated_at IS NULL
+    `).all() as any[];
+
+    if (uncalculatedGames.length === 0) return;
+
+    const updateStmt = prepareStmt(`
+      UPDATE games SET
+        typical_sale_median_eur = ?,
+        typical_sale_q1_eur = ?,
+        typical_sale_q3_eur = ?,
+        typical_sale_sample_count = ?,
+        typical_sale_low_confidence = ?,
+        low_90d_eur = ?,
+        low_1y_eur = ?,
+        deal_score_stats_updated_at = ?
+      WHERE id = ?
+    `);
+
+    const histStmt = prepareStmt(`
+      SELECT * FROM price_history WHERE game_id = ? ORDER BY recorded_at DESC
+    `);
+
+    const bestOfferStmt = prepareStmt(`
+      SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official
+      FROM offers o
+      JOIN merchants m ON o.merchant_id = m.id
+      WHERE o.game_id = ? AND o.is_best_deal = 1
+      LIMIT 1
+    `);
+
+    const nowIso = new Date().toISOString();
+    const backfillTx = db.transaction(() => {
+      for (const g of uncalculatedGames) {
+        const rawHist = histStmt.all(g.id) as any[];
+        const history: PriceHistoryEntry[] = rawHist.map(h => ({
+          id: h.id,
+          gameId: h.game_id,
+          merchantId: h.merchant_id,
+          merchantName: '',
+          isOfficial: true,
+          sourceCode: h.source_code as SourceCode,
+          priceEur: Number(h.price_eur),
+          discountPercent: Number(h.discount_percent || 0),
+          priceEvent: h.price_event || 'NONE',
+          dealScore: h.deal_score ? Number(h.deal_score) : undefined,
+          recordedAt: h.recorded_at
+        }));
+
+        const bestRow = bestOfferStmt.get(g.id) as any;
+        let currentBestOffer: Offer | undefined;
+        if (bestRow) {
+          currentBestOffer = {
+            id: bestRow.id,
+            gameId: bestRow.game_id,
+            merchantId: bestRow.merchant_id,
+            merchantName: bestRow.merchant_name,
+            merchantCode: bestRow.merchant_code,
+            isOfficial: Boolean(bestRow.is_official),
+            productType: bestRow.product_type,
+            regionType: bestRow.region_type,
+            regionConfidence: Number(bestRow.region_confidence || 1.0),
+            priceEur: Number(bestRow.price_eur),
+            discountPercent: Number(bestRow.discount_percent),
+            dealUrl: bestRow.deal_url,
+            isBestDeal: true,
+            isValid: Boolean(bestRow.is_valid),
+            priceEvent: bestRow.price_event || 'NONE',
+            riskLevel: bestRow.risk_level || 'SAFE',
+            riskScore: Number(bestRow.risk_score || 0),
+            riskFlags: [],
+            evaluationConfidence: Number(bestRow.evaluation_confidence || 1.0),
+            isAnomaly: Boolean(bestRow.is_anomaly),
+            sources: [],
+            sourceAgreementCount: 1,
+            fetchedAt: bestRow.fetched_at || nowIso,
+            lastObservedAt: bestRow.last_observed_at || nowIso,
+            createdAt: bestRow.created_at || nowIso,
+            updatedAt: bestRow.updated_at || nowIso
+          };
+        }
+
+        const basePrice = g.base_price_eur ? Number(g.base_price_eur) : undefined;
+        const typicalSale = calculateTypicalSalePrice(basePrice, history);
+        const mappedGame: Game = {
+          id: g.id,
+          steamAppId: Number(g.steam_app_id),
+          title: g.title,
+          slug: g.slug,
+          basePriceEur: basePrice,
+          historicalLowEur: g.historical_low_eur ? Number(g.historical_low_eur) : undefined,
+          historicalLowDate: g.historical_low_date || undefined,
+          historicalLowSource: g.historical_low_source || undefined,
+          isDlc: Boolean(g.is_dlc),
+          isFree: Boolean(g.is_free),
+          hasAnomaly: false,
+          offersCount: 1,
+          createdAt: g.created_at,
+          updatedAt: g.updated_at
+        };
+
+        const periodLows = calculatePeriodLows(mappedGame, history, currentBestOffer);
+
+        updateStmt.run(
+          typicalSale.medianPriceEur,
+          typicalSale.q1PriceEur ?? null,
+          typicalSale.q3PriceEur ?? null,
+          typicalSale.sampleCount,
+          typicalSale.isLowConfidence ? 1 : 0,
+          periodLows.low90d.priceEur,
+          periodLows.low1y.priceEur,
+          nowIso,
+          g.id
+        );
+      }
+    });
+    backfillTx();
+  } catch {}
+}
+
 export function prepareStmt(sql: string): Database.Statement {
   let stmt = stmtCache.get(sql);
   if (!stmt) {

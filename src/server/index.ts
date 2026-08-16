@@ -6,7 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { config } from './config/index.js';
 import { apiRoutes } from './routes/api.js';
-import { getDb, closeDb } from './db/index.js';
+import { getDb, closeDb, backfillDealScoreStats } from './db/index.js';
 import { syncOrchestrator } from './sync/orchestrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,8 +25,9 @@ export async function createApp(): Promise<FastifyInstance> {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   });
 
-  // Initialize SQLite database schema
+  // Initialize SQLite database schema and backfill stats
   getDb();
+  backfillDealScoreStats();
 
   // Register API Routes
   await fastify.register(apiRoutes);
