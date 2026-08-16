@@ -1,14 +1,12 @@
 import React from 'react';
 import type { Profile, SyncProgressUpdate } from '../types.js';
-import { RefreshCw, User, Activity, AlertTriangle } from 'lucide-react';
+import { RefreshCw, User, Activity } from 'lucide-react';
 
 interface NavbarProps {
   activeProfile: Profile | null;
   syncProgress: SyncProgressUpdate | null;
-  anomalyCount: number;
   onOpenProfiles: () => void;
   onOpenSources: () => void;
-  onOpenAnomalies: () => void;
   onOpenDiscord: () => void;
   onTriggerSync: () => void;
 }
@@ -16,10 +14,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeProfile,
   syncProgress,
-  anomalyCount,
   onOpenProfiles,
   onOpenSources,
-  onOpenAnomalies,
   onOpenDiscord,
   onTriggerSync,
 }) => {
@@ -36,18 +32,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="nav-actions">
-        {/* Anomaly Indicator */}
-        {anomalyCount > 0 && (
-          <button 
-            className="btn btn-outline" 
-            style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#f87171' }}
-            onClick={onOpenAnomalies}
-          >
-            <AlertTriangle size={16} />
-            <span>{anomalyCount} {anomalyCount === 1 ? 'Anomaly' : 'Anomalies'}</span>
-          </button>
-        )}
-
         {/* Discord Webhook Deal Alerts */}
         <button className="btn btn-outline" onClick={onOpenDiscord} title="Discord Webhook Deal Alerts">
           <span style={{ color: '#5865F2' }}>🔔</span>

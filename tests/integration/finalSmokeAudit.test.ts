@@ -265,4 +265,61 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
       }
     });
   });
+
+  // ----------------------------------------------------
+  // Audit 5: Regression Guard for Single User-Facing Confidence
+  // ----------------------------------------------------
+  describe('5. Confidence Cleanup & API Response Shape Guard', () => {
+    it('guarantees bestEvaluationConfidence is absent from game response shape', () => {
+      const profile = profileRepo.create('ConfidenceAuditUser', '76561198000000003');
+      const game = gameRepo.upsert({
+        steamAppId: 999001,
+        title: 'Single Confidence Audit Game',
+        slug: 'single-confidence-audit-game',
+        basePriceEur: 49.99
+      });
+
+      gameRepo.syncWishlistEntries(profile.id, [
+        { steamAppId: 999001, title: 'Single Confidence Audit Game', priority: 1 }
+      ]);
+
+      const merchant = merchantRepo.getOrCreate('steam', 'Steam Store', true);
+      offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchant.id,
+        productType: 'DIRECT_PURCHASE',
+        regionType: 'GLOBAL',
+        priceEur: 24.99,
+        originalPriceEur: 49.99,
+        dealUrl: 'https://store.steampowered.com/app/999001/',
+        sourceCode: 'steam'
+      });
+
+      const wishlistRes = gameRepo.getWishlistGames(profile.id, { page: 1, limit: 10 });
+      expect(wishlistRes.games.length).toBe(1);
+      const returnedGame = wishlistRes.games[0] as any;
+
+      // User-facing confidence MUST be present
+      expect(returnedGame.bestConfidenceScore).toBeDefined();
+      expect(typeof returnedGame.bestConfidenceScore).toBe('number');
+      expect(returnedGame.bestConfidenceTier).toBeDefined();
+
+      // Dead internal evaluation confidence MUST be absent from wire payload
+      expect(returnedGame.bestEvaluationConfidence).toBeUndefined();
+      expect('bestEvaluationConfidence' in returnedGame).toBe(false);
+
+      const byIdGame = gameRepo.getById(game.id) as any;
+      expect(byIdGame.bestConfidenceScore).toBeDefined();
+      expect(byIdGame.bestEvaluationConfidence).toBeUndefined();
+      expect('bestEvaluationConfidence' in byIdGame).toBe(false);
+
+      const bestDeals = gameRepo.getBestDeals(profile.id, 10);
+      if (bestDeals.length > 0) {
+        const topGame = bestDeals[0] as any;
+        expect(topGame.bestConfidenceScore).toBeDefined();
+        expect(topGame.bestEvaluationConfidence).toBeUndefined();
+        expect('bestEvaluationConfidence' in topGame).toBe(false);
+      }
+    });
+  });
 });

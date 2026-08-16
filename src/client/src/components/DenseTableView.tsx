@@ -108,13 +108,13 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
                   )}
                 </td>
 
-                {/* 6. Deal Score & Confidence */}
+                {/* 6. Deal Score */}
                 <td className="cell-score">
                   {hasBestDeal && dealScore > 0 && !isHighRisk ? (
                     <span 
                       className="score-chip-sm"
                       style={{ background: tierColor, cursor: 'pointer' }}
-                      title={`Deal Score: ${dealScore}/100 • ${confidence}% Confidence`}
+                      title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
                       onClick={(e) => {
                         if (onExplain) {
                           e.stopPropagation();
@@ -122,7 +122,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
                         }
                       }}
                     >
-                      {dealScore} • {isProvisional ? 'Prov' : `${confidence}%`}
+                      {dealScore} • {dealTier}
                     </span>
                   ) : (
                     <span className="text-dim">—</span>

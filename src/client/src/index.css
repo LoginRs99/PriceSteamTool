@@ -1223,6 +1223,12 @@ body {
   border-color: rgba(245, 158, 11, 0.3);
 }
 
+.safety-tab-badge {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 /* ==================================================== */
 /* View Mode Switcher Button Group                      */
 /* ==================================================== */

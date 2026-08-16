@@ -16,7 +16,6 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
         const isFree = game.isFree || game.bestPriceEur === 0;
         const dealScore = game.bestDealScore ?? 0;
         const dealTier = game.bestDealTier || 'Fair';
-        const confidence = game.bestConfidenceScore ?? 50;
         const isProvisional = Boolean(game.bestIsProvisional);
 
         const tierColor = 
@@ -79,13 +78,13 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
               </div>
             </div>
 
-            {/* Middle: Store & Deal Score + Confidence */}
+            {/* Middle: Store & Deal Score */}
             <div className="compact-mid">
               {hasBestDeal && dealScore > 0 && !isHighRisk && (
                 <span 
                   className="compact-score-pill"
                   style={{ background: tierColor, cursor: 'pointer' }}
-                  title={`Deal Score: ${dealScore}/100 • ${dealTier} (${confidence}% Confidence)`}
+                  title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
                   onClick={(e) => {
                     if (onExplain) {
                       e.stopPropagation();
@@ -93,7 +92,7 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                     }
                   }}
                 >
-                  {dealScore} • {dealTier} {isProvisional ? '(Prov)' : `(${confidence}%)`}
+                  {dealScore} • {dealTier}
                 </span>
               )}
 

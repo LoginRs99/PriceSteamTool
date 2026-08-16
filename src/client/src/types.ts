@@ -127,7 +127,6 @@ export interface Game {
   bestDealUrl?: string;
   bestPriceEvent?: PriceEventType;
   bestRiskLevel?: PriceRiskLevel;
-  bestEvaluationConfidence?: number;
   bestDealScore?: number;
   bestDealTier?: DealScoreTier;
   bestConfidenceScore?: number;
@@ -165,7 +164,6 @@ export interface Offer {
   productType: ProductType;
   regionType: RegionType;
   regionCode?: string;
-  regionConfidence?: number;
   priceEur: number;
   originalPriceEur?: number;
   rawPrice?: number;
@@ -181,7 +179,6 @@ export interface Offer {
   riskLevel: PriceRiskLevel;
   riskScore?: number;
   riskFlags?: PriceRiskFlag[];
-  evaluationConfidence?: number;
   isAnomaly: boolean;
   anomalyReason?: string;
   dealScore?: number;
@@ -300,7 +297,7 @@ export interface SyncStatusResponse {
 }
 
 export type ViewMode = 'grid' | 'list' | 'table';
-export type MainTab = 'wishlist' | 'free' | 'deals';
+export type MainTab = 'wishlist' | 'free' | 'deals' | 'safety';
 
 export interface WishlistFilterOptions {
   search?: string;

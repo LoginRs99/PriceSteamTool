@@ -12,8 +12,6 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
 
   const score = game.bestDealScore ?? 0;
   const tier = game.bestDealTier || 'Fair';
-  const confidence = game.bestConfidenceScore ?? 50;
-  const confTier = game.bestConfidenceTier || 'Medium';
   const isProvisional = Boolean(game.bestIsProvisional);
 
   const tierColor = 
@@ -21,11 +19,6 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
     tier === 'Great' ? '#10b981' : 
     tier === 'Good' ? '#06b6d4' :
     tier === 'Fair' ? '#3b82f6' : '#64748b';
-
-  const confColor = 
-    confTier === 'High' ? '#10b981' :
-    confTier === 'Medium' ? '#3b82f6' :
-    confTier === 'Moderate' ? '#f59e0b' : '#ef4444';
 
   const currentPrice = game.bestPriceEur ?? 0;
   const medianPrice = game.typicalSaleMedianEur ?? game.basePriceEur ?? currentPrice;
@@ -42,7 +35,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <HelpCircle size={22} color={tierColor} />
             <div>
-              <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Deal Score & Confidence Breakdown</h2>
+              <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Deal Score Breakdown</h2>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{game.title}</span>
             </div>
           </div>
@@ -52,32 +45,18 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
         </div>
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Top Score & Confidence Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, borderLeft: `4px solid ${tierColor}` }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                Deal Score (Price Quality)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: tierColor }}>{score}</span>
-                <span style={{ fontSize: '1rem', fontWeight: 600, color: tierColor }}>/ 100</span>
-              </div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: 4 }}>
-                Tier: <span style={{ color: tierColor }}>{tier}</span>
-                {isProvisional && <span style={{ marginLeft: 6, color: '#f59e0b', fontSize: '0.75rem' }}>(Provisional)</span>}
-              </div>
+          {/* Top Deal Score Card */}
+          <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, borderLeft: `4px solid ${tierColor}` }}>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              Deal Score (Price Quality)
             </div>
-
-            <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, borderLeft: `4px solid ${confColor}` }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                Data Confidence
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: confColor }}>{confidence}%</span>
-              </div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: 4 }}>
-                Reliability: <span style={{ color: confColor }}>{confTier}</span>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: '2rem', fontWeight: 800, color: tierColor }}>{score}</span>
+              <span style={{ fontSize: '1rem', fontWeight: 600, color: tierColor }}>/ 100</span>
+            </div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: 4 }}>
+              Tier: <span style={{ color: tierColor }}>{tier}</span>
+              {isProvisional && <span style={{ marginLeft: 6, color: '#f59e0b', fontSize: '0.75rem' }}>(Provisional)</span>}
             </div>
           </div>
 
@@ -119,30 +98,6 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
                 <span style={{ fontWeight: 600 }}>
                   €{atl.toFixed(2)} {atlDist === 0 ? '★ (Matches Record ATL)' : `(+€${atlDist.toFixed(2)})`}
                 </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Confidence Factor Pillars */}
-          <div>
-            <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
-              Confidence Factor Pillars
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.82rem' }}>
-              <div style={{ background: 'var(--bg-secondary)', padding: '8px 12px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Database size={14} color="var(--accent-primary)" />
-                <div>
-                  <div style={{ color: 'var(--text-secondary)' }}>Sample Depth</div>
-                  <div style={{ fontWeight: 600 }}>{sampleCount} observation(s)</div>
-                </div>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', padding: '8px 12px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ShieldCheck size={14} color="var(--accent-primary)" />
-                <div>
-                  <div style={{ color: 'var(--text-secondary)' }}>Store Consensus</div>
-                  <div style={{ fontWeight: 600 }}>{game.offersCount} active offers</div>
-                </div>
               </div>
             </div>
           </div>

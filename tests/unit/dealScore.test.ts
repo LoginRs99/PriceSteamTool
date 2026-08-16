@@ -156,6 +156,10 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
 
       expect(res.confidence).toBeGreaterThanOrEqual(80);
       expect(res.tier).toBe('High');
+      expect(res.factors.sample).toBe(1.0);
+      expect(res.factors.coverage).toBe(1.0);
+      expect(res.factors.sources).toBe(1.0);
+      expect(res.factors.freshness).toBe(1.0);
     });
 
     it('rates sparse first-day observation as Low Confidence (<40%)', () => {
@@ -170,6 +174,89 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
 
       expect(res.confidence).toBeLessThan(40);
       expect(res.tier).toBe('Low');
+      expect(res.factors.coverage).toBe(0.40);
+      expect(res.factors.sources).toBe(0.85);
+    });
+
+    it('accurately discounts stale observations (> 7 days stale)', () => {
+      const now = new Date();
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 3600 * 1000);
+      const twoHundredDaysAgo = new Date(now.getTime() - 200 * 24 * 3600 * 1000);
+
+      const freshRes = calculateDataConfidence({
+        sampleCount: 16,
+        firstObservedAt: twoHundredDaysAgo.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 2,
+        isOfficialSource: true
+      });
+      expect(freshRes.confidence).toBe(100);
+
+      const staleRes = calculateDataConfidence({
+        sampleCount: 16,
+        firstObservedAt: twoHundredDaysAgo.toISOString(),
+        lastObservedAt: tenDaysAgo.toISOString(),
+        sourceCount: 2,
+        isOfficialSource: true
+      });
+      // Freshness factor drops from 1.0 to 0.55
+      expect(staleRes.factors.freshness).toBe(0.55);
+      expect(staleRes.confidence).toBe(55);
+      expect(staleRes.tier).toBe('Moderate');
+    });
+
+    it('applies coverage scaling based on tracking duration (14d, 60d, 180d)', () => {
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 3600 * 1000);
+      const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 3600 * 1000);
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 3600 * 1000);
+
+      const res3d = calculateDataConfidence({
+        sampleCount: 16,
+        firstObservedAt: threeDaysAgo.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 2
+      });
+      expect(res3d.factors.coverage).toBe(0.45);
+
+      const res20d = calculateDataConfidence({
+        sampleCount: 16,
+        firstObservedAt: twentyDaysAgo.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 2
+      });
+      expect(res20d.factors.coverage).toBe(0.65);
+
+      const res90d = calculateDataConfidence({
+        sampleCount: 16,
+        firstObservedAt: ninetyDaysAgo.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 2
+      });
+      expect(res90d.factors.coverage).toBe(0.85);
+    });
+
+    it('passes firstObservedAt, lastObservedAt, and sourceCount cleanly through calculateDealScore', () => {
+      const now = new Date();
+      const yearAgo = new Date(now.getTime() - 365 * 24 * 3600 * 1000);
+
+      const result = calculateDealScore({
+        priceEur: 19.99,
+        basePriceEur: 59.99,
+        typicalSaleMedianEur: 39.99,
+        allTimeLowEur: 19.99,
+        sampleCount: 25,
+        firstObservedAt: yearAgo.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 3,
+        isOfficialSource: true
+      });
+
+      expect(result.confidenceScore).toBe(100);
+      expect(result.confidenceTier).toBe('High');
+      expect(result.explanation?.confidenceFactors.coverage).toBe(1.0);
+      expect(result.explanation?.confidenceFactors.freshness).toBe(1.0);
+      expect(result.explanation?.confidenceFactors.sources).toBe(1.0);
     });
   });
 

@@ -16,10 +16,9 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isFree = game.isFree || game.bestPriceEur === 0;
   
-  // Deal Score and Confidence
+  // Deal Score
   const dealScore = game.bestDealScore ?? 0;
   const dealTier = game.bestDealTier || 'Fair';
-  const confidence = game.bestConfidenceScore ?? 50;
   const isProvisional = Boolean(game.bestIsProvisional);
 
   const tierColor = 
@@ -57,12 +56,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           </div>
         )}
 
-        {/* Top-Right: Unified Deal Score & Confidence Pill */}
+        {/* Top-Right: Unified Deal Score Pill */}
         {hasBestDeal && dealScore > 0 && !isHighRisk && (
           <div 
             className="deal-score-badge"
             style={{ background: tierColor }}
-            title={`Deal Score: ${dealScore}/100 • ${dealTier} (${confidence}% Confidence)${isProvisional ? ' [Provisional - Limited History]' : ''}`}
+            title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
             onClick={(e) => {
               if (onExplain) {
                 e.stopPropagation();
@@ -72,7 +71,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           >
             <span className="deal-score-num">{dealScore}</span>
             <span className="deal-score-tier-label">
-              {dealTier} {isProvisional ? '• Prov' : `• ${confidence}%`}
+              {dealTier}
             </span>
           </div>
         )}

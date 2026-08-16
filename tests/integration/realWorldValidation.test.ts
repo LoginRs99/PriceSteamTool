@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { 
   profileRepo, 
   gameRepo, 
   merchantRepo, 
   offerRepo, 
-  getDb 
+  getDb,
+  closeDb
 } from '../../src/server/db/index.js';
 import { normalizeProductType, normalizeRegion } from '../../src/server/domain/normalizer.js';
 import { evaluateOfferAnomaly } from '../../src/server/domain/anomaly.js';
@@ -32,6 +33,10 @@ function resetDatabase() {
 describe('Real-World Validation — Complete Integration Suite', () => {
   beforeEach(() => {
     resetDatabase();
+  });
+
+  afterAll(() => {
+    closeDb();
   });
 
   // ----------------------------------------------------

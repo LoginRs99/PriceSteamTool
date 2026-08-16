@@ -81,10 +81,11 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
 }
 
 /**
+ * Internal only — feeds risk scoring & event classification. NOT the user-facing "Confidence" shown in the UI; see dealScore.ts:calculateDataConfidence for that.
  * Calculates data confidence (0.10 - 1.00) based on source redundancy, market peer depth, and freshness.
  * Stale observations lower confidence, but do NOT artificially inflate price risk.
  */
-export function calculateConfidence(
+export function calculateRiskEvidenceConfidence(
   input: PriceEvaluationInput,
   flags: Set<PriceRiskFlag>
 ): number {
@@ -262,7 +263,7 @@ export function evaluatePriceMovement(input: PriceEvaluationInput): PriceEvaluat
   const flags = new Set<PriceRiskFlag>();
 
   // 1. Calculate Confidence (data richness and freshness)
-  const confidence = calculateConfidence(input, flags);
+  const confidence = calculateRiskEvidenceConfidence(input, flags);
 
   // 2. Calculate Risk
   const { riskScore, riskLevel } = calculatePriceRisk(input, flags);

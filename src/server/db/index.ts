@@ -62,6 +62,8 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_low_confidence INTEGER"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_90d_eur REAL"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_1y_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN price_tracking_first_observed_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN best_offer_source_count INTEGER"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
 
     // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
@@ -116,7 +118,9 @@ export function backfillDealScoreStats(): void {
     const uncalculatedGames = prepareStmt(`
       SELECT g.id, g.steam_app_id, g.title, g.slug, g.base_price_eur, g.historical_low_eur, g.historical_low_date, g.historical_low_source, g.is_dlc, g.is_free, g.created_at, g.updated_at
       FROM games g
-      WHERE g.deal_score_stats_updated_at IS NULL
+      WHERE g.deal_score_stats_updated_at IS NULL 
+         OR g.price_tracking_first_observed_at IS NULL 
+         OR g.best_offer_source_count IS NULL
     `).all() as any[];
 
     if (uncalculatedGames.length === 0) return;
@@ -130,6 +134,8 @@ export function backfillDealScoreStats(): void {
         typical_sale_low_confidence = ?,
         low_90d_eur = ?,
         low_1y_eur = ?,
+        price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
+        best_offer_source_count = COALESCE(best_offer_source_count, ?),
         deal_score_stats_updated_at = ?
       WHERE id = ?
     `);
@@ -144,6 +150,10 @@ export function backfillDealScoreStats(): void {
       JOIN merchants m ON o.merchant_id = m.id
       WHERE o.game_id = ? AND o.is_best_deal = 1
       LIMIT 1
+    `);
+
+    const sourceCountStmt = prepareStmt(`
+      SELECT COUNT(DISTINCT source_code) as cnt FROM source_observations WHERE offer_id = ?
     `);
 
     const nowIso = new Date().toISOString();
@@ -166,7 +176,11 @@ export function backfillDealScoreStats(): void {
 
         const bestRow = bestOfferStmt.get(g.id) as any;
         let currentBestOffer: Offer | undefined;
+        let sourceCount = 1;
         if (bestRow) {
+          const sc = (sourceCountStmt.get(bestRow.id) as any)?.cnt;
+          if (sc && sc > 0) sourceCount = Number(sc);
+
           currentBestOffer = {
             id: bestRow.id,
             gameId: bestRow.game_id,
@@ -189,7 +203,7 @@ export function backfillDealScoreStats(): void {
             evaluationConfidence: Number(bestRow.evaluation_confidence || 1.0),
             isAnomaly: Boolean(bestRow.is_anomaly),
             sources: [],
-            sourceAgreementCount: 1,
+            sourceAgreementCount: sourceCount,
             fetchedAt: bestRow.fetched_at || nowIso,
             lastObservedAt: bestRow.last_observed_at || nowIso,
             createdAt: bestRow.created_at || nowIso,
@@ -218,6 +232,10 @@ export function backfillDealScoreStats(): void {
 
         const periodLows = calculatePeriodLows(mappedGame, history, currentBestOffer);
 
+        const firstObserved = rawHist.length > 0
+          ? rawHist[rawHist.length - 1].recorded_at
+          : (bestRow?.created_at || g.created_at || nowIso);
+
         updateStmt.run(
           typicalSale.medianPriceEur,
           typicalSale.q1PriceEur ?? null,
@@ -226,6 +244,8 @@ export function backfillDealScoreStats(): void {
           typicalSale.isLowConfidence ? 1 : 0,
           periodLows.low90d.priceEur,
           periodLows.low1y.priceEur,
+          firstObserved,
+          sourceCount,
           nowIso,
           g.id
         );
@@ -482,7 +502,7 @@ export const gameRepo = {
         bo.deal_url as best_deal_url,
         bo.price_event as best_price_event,
         bo.risk_level as best_risk_level,
-        bo.evaluation_confidence as best_evaluation_confidence,
+        bo.last_observed_at as best_last_observed_at,
         m.name as best_merchant_name,
         m.code as best_merchant_code,
         m.is_official as best_merchant_is_official,
@@ -561,7 +581,7 @@ export const gameRepo = {
         bo.deal_url as best_deal_url,
         bo.price_event as best_price_event,
         bo.risk_level as best_risk_level,
-        bo.evaluation_confidence as best_evaluation_confidence,
+        bo.last_observed_at as best_last_observed_at,
         m.name as best_merchant_name,
         m.code as best_merchant_code,
         m.is_official as best_merchant_is_official,
@@ -687,7 +707,7 @@ export const gameRepo = {
       bo.deal_url as best_deal_url,
       bo.price_event as best_price_event,
       bo.risk_level as best_risk_level,
-      bo.evaluation_confidence as best_evaluation_confidence,
+      bo.last_observed_at as best_last_observed_at,
       m.name as best_merchant_name,
       m.code as best_merchant_code,
       m.is_official as best_merchant_is_official,
@@ -1276,6 +1296,8 @@ export const offerRepo = {
             typical_sale_low_confidence = ?,
             low_90d_eur = ?,
             low_1y_eur = ?,
+            price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
+            best_offer_source_count = ?,
             deal_score_stats_updated_at = ?
           WHERE id = ?
         `).run(
@@ -1286,6 +1308,8 @@ export const offerRepo = {
           typicalSale.isLowConfidence ? 1 : 0,
           periodLows.low90d.priceEur,
           periodLows.low1y.priceEur,
+          now,
+          Math.max(1, sourceCount),
           now,
           data.gameId
         );
@@ -1762,6 +1786,11 @@ function mapGameRow(r: any): Game {
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
       sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
+      firstObservedAt: r.price_tracking_first_observed_at || undefined,
+      lastObservedAt: r.best_last_observed_at || r.last_observed_at || undefined,
+      sourceCount: r.best_offer_source_count !== null && r.best_offer_source_count !== undefined
+        ? Number(r.best_offer_source_count)
+        : undefined,
       isOfficialSource: isOfficial
     });
 
@@ -1828,7 +1857,6 @@ function mapGameRow(r: any): Game {
     bestOfferId: r.best_offer_id || undefined,
     bestPriceEvent: r.best_price_event || undefined,
     bestRiskLevel: r.best_risk_level || undefined,
-    bestEvaluationConfidence: r.best_evaluation_confidence !== null && r.best_evaluation_confidence !== undefined ? Number(r.best_evaluation_confidence) : undefined,
     bestDealScore,
     bestDealTier,
     bestConfidenceScore,

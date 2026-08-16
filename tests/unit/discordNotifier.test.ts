@@ -315,4 +315,69 @@ describe('Discord Notifier Service', () => {
     const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
     expect(sentPayload.embeds[0].description).toContain('Provisional Deal Alert');
   });
+
+  it('should filter out games whose data confidence is below the minConfidence threshold', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 70,
+      minConfidence: 60, // Require Medium or higher confidence (>=60%)
+      notifyAtlOnly: false,
+      notifyFreeGames: false,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 6001, title: 'Low Conf Game', slug: 'low-conf' });
+    gameRepo.upsert({ steamAppId: 6002, title: 'High Conf Game', slug: 'high-conf' });
+
+    const insertedLow = gameRepo.getBySteamAppId(6001)!;
+    const insertedHigh = gameRepo.getBySteamAppId(6002)!;
+
+    const lowConfGame: Game = {
+      id: insertedLow.id,
+      steamAppId: 6001,
+      title: 'Low Conf Game',
+      slug: 'low-conf',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: false,
+      bestDealScore: 85,
+      bestDealTier: 'Exceptional',
+      bestConfidenceScore: 35, // Low (35 < 60)
+      bestConfidenceTier: 'Low',
+      offersCount: 1,
+      bestPriceEur: 9.99,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const highConfGame: Game = {
+      id: insertedHigh.id,
+      steamAppId: 6002,
+      title: 'High Conf Game',
+      slug: 'high-conf',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: false,
+      bestDealScore: 85,
+      bestDealTier: 'Exceptional',
+      bestConfidenceScore: 85, // High (85 >= 60)
+      bestConfidenceTier: 'High',
+      offersCount: 1,
+      bestPriceEur: 9.99,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([lowConfGame, highConfGame], 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(sentPayload.embeds[0].title).toBe('High Conf Game');
+  });
 });

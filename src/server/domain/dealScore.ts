@@ -221,7 +221,9 @@ export function calculateRarityBonus(
 }
 
 /**
- * Multi-Factor Data Confidence Calculation (0 - 100%)
+ * User-facing Multi-Factor Data Confidence Calculation (0 - 100%).
+ * This is the primary user-facing Confidence shown throughout the UI and Discord alerts.
+ * (For internal pricing risk/anomaly evidence confidence, see pricingEngine.ts:calculateRiskEvidenceConfidence).
  */
 export function calculateDataConfidence(input: {
   sampleCount: number;

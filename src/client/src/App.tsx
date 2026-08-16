@@ -22,7 +22,7 @@ import { FreeGamesView } from './components/FreeGamesView.js';
 import { GameDetailModal } from './components/GameDetailModal.js';
 import { ProfileModal } from './components/ProfileModal.js';
 import { SourcesModal } from './components/SourcesModal.js';
-import { AnomaliesModal } from './components/AnomaliesModal.js';
+import { AnomaliesView } from './components/AnomaliesView.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
 import { ScoreExplainModal } from './components/ScoreExplainModal.js';
@@ -39,7 +39,8 @@ import {
   Gift, 
   LayoutGrid, 
   List, 
-  Table as TableIcon 
+  Table as TableIcon,
+  AlertTriangle
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -76,7 +77,6 @@ export const App: React.FC = () => {
   const [explainGame, setExplainGame] = useState<Game | null>(null);
   const [showProfilesModal, setShowProfilesModal] = useState(false);
   const [showSourcesModal, setShowSourcesModal] = useState(false);
-  const [showAnomaliesModal, setShowAnomaliesModal] = useState(false);
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
@@ -244,10 +244,8 @@ export const App: React.FC = () => {
       <Navbar
         activeProfile={activeProfile}
         syncProgress={syncProgress}
-        anomalyCount={anomalies.length}
         onOpenProfiles={() => setShowProfilesModal(true)}
         onOpenSources={() => setShowSourcesModal(true)}
-        onOpenAnomalies={() => setShowAnomaliesModal(true)}
         onOpenDiscord={() => setShowDiscordModal(true)}
         onTriggerSync={handleTriggerSync}
       />
@@ -303,6 +301,20 @@ export const App: React.FC = () => {
               <Sparkles size={16} color="#f59e0b" />
               <span>Top Best Deals</span>
               <span className="tab-count-badge deals-tab-badge">{topDeals.length}</span>
+            </button>
+
+            <button
+              className={`main-tab-btn ${mainTab === 'safety' ? 'active' : ''}`}
+              onClick={() => {
+                setMainTab('safety');
+                loadAnomalies();
+              }}
+            >
+              <AlertTriangle size={16} color={anomalies.length > 0 ? '#f87171' : '#f59e0b'} />
+              <span>Data Safety</span>
+              <span className={`tab-count-badge ${anomalies.length > 0 ? 'safety-tab-badge' : ''}`}>
+                {anomalies.length}
+              </span>
             </button>
           </div>
 
@@ -519,6 +531,18 @@ export const App: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* TAB 4: DATA SAFETY (ANOMALIES) VIEW */}
+          {mainTab === 'safety' && (
+            <AnomaliesView
+              onRefresh={() => {
+                loadAnomalies();
+                loadGames();
+                loadFreeGames();
+                loadStatsAndDeals();
+              }}
+            />
+          )}
         </>
       )}
 
@@ -553,18 +577,6 @@ export const App: React.FC = () => {
 
       {showSourcesModal && (
         <SourcesModal onClose={() => setShowSourcesModal(false)} />
-      )}
-
-      {showAnomaliesModal && (
-        <AnomaliesModal
-          onClose={() => setShowAnomaliesModal(false)}
-          onRefresh={() => {
-            loadAnomalies();
-            loadGames();
-            loadFreeGames();
-            loadStatsAndDeals();
-          }}
-        />
       )}
 
       {showSyncModal && (

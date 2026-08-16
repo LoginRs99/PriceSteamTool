@@ -105,7 +105,7 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             <div className="best-deals-title">
               <Trophy size={18} color="#f59e0b" />
               <span>Best Value Deals Right Now</span>
-              <span className="deal-score-pill">Ranked by Balanced Deal Score + Data Confidence</span>
+              <span className="deal-score-pill">Ranked by Balanced Deal Score</span>
             </div>
           </div>
 
@@ -113,7 +113,6 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             {topDeals.slice(0, 4).map((game) => {
               const score = game.bestDealScore ?? 0;
               const tier = game.bestDealTier || 'Fair';
-              const confidence = game.bestConfidenceScore ?? 50;
               const isProvisional = Boolean(game.bestIsProvisional);
 
               const tierColor = 
@@ -142,9 +141,9 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                     <span 
                       className="spotlight-score-badge"
                       style={{ background: tierColor }}
-                      title={`Deal Score: ${score}/100 • ${confidence}% Confidence`}
+                      title={`Deal Score: ${score}/100 • ${tier}`}
                     >
-                      ★ {score} {isProvisional ? '• Prov' : `• ${confidence}%`}
+                      ★ {score} • {tier}
                     </span>
                   </div>
 

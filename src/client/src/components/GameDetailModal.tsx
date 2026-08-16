@@ -180,10 +180,6 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                 <span style={{ fontSize: 14, fontWeight: 700, color: adviceColor }}>
                   {advice.headline}
                 </span>
-
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-                  ({advice.confidence.toLowerCase()} confidence)
-                </span>
               </div>
 
               <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc', margin: '6px 0' }}>
@@ -497,9 +493,6 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                                   {s}
                                 </span>
                               ))}
-                              <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 2 }} title="Data Confidence">
-                                ({offer.confidenceScore !== undefined ? offer.confidenceScore : offer.evaluationConfidence !== undefined ? Math.round(offer.evaluationConfidence * 100) : 50}% conf)
-                              </span>
                             </div>
                           </td>
                           <td>
