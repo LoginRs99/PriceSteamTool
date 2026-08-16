@@ -232,9 +232,19 @@ export class SyncOrchestrator {
 
       // Step 3: Check TTL Cache
       const allWishlistGames = gameRepo.getAllWishlistGameIds(profileId);
+      
+      // Auto-Heal: if any games have placeholder "App 123456" titles, force refresh their metadata
       let gamesToRefresh = forceRefresh 
         ? allWishlistGames 
         : gameRepo.getStaleWishlistGameIds(profileId, config.cacheTtlHours);
+
+      // Always include games with placeholder titles in gamesToRefresh so they get healed
+      const placeholderAppIds = new Set(allWishlistGames.filter(g => g.title.startsWith('App ')).map(g => g.steamAppId));
+      for (const g of allWishlistGames) {
+        if (placeholderAppIds.has(g.steamAppId) && !gamesToRefresh.some(r => r.steamAppId === g.steamAppId)) {
+          gamesToRefresh.push(g);
+        }
+      }
 
       staleQueriedCount = gamesToRefresh.length;
       const cachedCount = allWishlistGames.length - staleQueriedCount;
@@ -267,6 +277,20 @@ export class SyncOrchestrator {
           this.progress.currentAction = `Steam storefront: [${i + 1}/${gamesToRefresh.length}] ${g.title}`;
 
           try {
+            const details = await steamAdapter.fetchAppDetails(g.steamAppId);
+            if (details && details.title && !details.title.startsWith('App ')) {
+              gameRepo.updateMetadata(g.steamAppId, {
+                title: details.title,
+                headerImage: details.headerImage,
+                capsuleImage: details.capsuleImage,
+                releaseDate: details.releaseDate,
+                isDlc: details.isDlc,
+                isFree: details.isFree,
+                basePriceEur: details.basePriceEur
+              });
+              g.title = details.title;
+            }
+
             const steamOffers = await steamAdapter.fetchPricesForGame(g.steamAppId);
             for (const offer of steamOffers) {
               this.ingestOffer(g.id, 'steam', offer);
@@ -326,6 +350,11 @@ export class SyncOrchestrator {
             for (const [appId, offers] of csBatchResults.entries()) {
               const game = gamesToRefresh.find(w => w.steamAppId === appId);
               if (!game) continue;
+              const csTitle = (offers[0]?.rawPayload as any)?.title;
+              if (csTitle && typeof csTitle === 'string' && csTitle.trim() && game.title.startsWith('App ')) {
+                gameRepo.updateMetadata(appId, { title: csTitle.trim() });
+                game.title = csTitle.trim();
+              }
               for (const offer of offers) {
                 this.ingestOffer(game.id, 'cheapshark', offer);
                 this.progress.sourceProgress.cheapshark.offersFound++;

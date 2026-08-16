@@ -38,6 +38,14 @@ export interface SteamAppDetails {
   discountPercent: number;
 }
 
+const STEAM_STORE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/javascript, */*; q=0.01',
+  'Accept-Language': 'en-US,en;q=0.9,hu;q=0.8',
+  'Cookie': 'birthtime=283993201; mature_content=1; wants_mature_content=1; lastagecheckage=1-0-1990;',
+  'Referer': 'https://store.steampowered.com/'
+};
+
 export class SteamSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'steam' as const;
   public readonly name = 'Steam Storefront';
@@ -49,7 +57,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   }
 
   /**
-   * Resolves steam ID (either already a 64-bit ID or custom vanity URL)
+   * Resolves steam ID (either already a 64-bit ID or custom vanity URL / profile link)
    */
   public async resolveSteamId64(input: string): Promise<{ steamId64: string; avatarUrl?: string; personaName?: string }> {
     const clean = input.trim();
@@ -68,16 +76,40 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       vanitySlug = idMatch[1];
     }
 
-    if (config.steamApiKey) {
+    const apiKey = config.steamApiKey;
+    if (apiKey) {
       try {
-        const url = `https://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key=${config.steamApiKey}&vanityurl=${encodeURIComponent(vanitySlug)}`;
+        const url = `https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/?key=${apiKey}&vanityurl=${encodeURIComponent(vanitySlug)}`;
         const res: any = await safeFetchJson(url);
         if (res?.response?.success === 1 && res.response.steamid) {
           return { steamId64: res.response.steamid };
         }
-      } catch (e) {
-        // Fall back to public profile resolution
+      } catch {
+        // Fall back to direct XML profile fetch
       }
+    }
+
+    try {
+      const xmlUrl = `https://steamcommunity.com/id/${encodeURIComponent(vanitySlug)}/?xml=1`;
+      const response = await fetch(xmlUrl, {
+        headers: { 'User-Agent': STEAM_STORE_HEADERS['User-Agent'] }
+      });
+      if (response.ok) {
+        const text = await response.text();
+        const steamIdMatch = text.match(/<steamID64>(\d+)<\/steamID64>/);
+        const personaMatch = text.match(/<steamID><!\[CDATA\[(.*?)\]\]><\/steamID>/);
+        const avatarMatch = text.match(/<avatarMedium><!\[CDATA\[(.*?)\]\]><\/avatarMedium>/);
+
+        if (steamIdMatch && steamIdMatch[1]) {
+          return {
+            steamId64: steamIdMatch[1],
+            personaName: personaMatch ? personaMatch[1] : undefined,
+            avatarUrl: avatarMatch ? avatarMatch[1] : undefined
+          };
+        }
+      }
+    } catch {
+      // Fallback
     }
 
     return { steamId64: vanitySlug };
@@ -93,6 +125,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       let page = 0;
       const maxPages = 60; // Safety cap (up to ~6,000 games)
 
+      const targetPath = /^\d+$/.test(steamId64) ? `profiles/${steamId64}` : `id/${steamId64}`;
+
       // 1. Primary Strategy: Paginated wishlistdata (gives full metadata and store prices in batch)
       try {
         while (page < maxPages) {
@@ -100,16 +134,16 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             // Polite pacing between Steam Storefront wishlist pages (1.5s)
             await new Promise(r => setTimeout(r, Math.max(1500, config.delays.steam)));
           }
-          const url = `https://store.steampowered.com/wishlist/profiles/${steamId64}/wishlistdata/?p=${page}`;
+          const url = `https://store.steampowered.com/wishlist/${targetPath}/wishlistdata/?p=${page}`;
           let data: any = null;
           try {
-            data = await safeFetchJson(url);
+            data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
           } catch (fetchErr: any) {
             if (fetchErr?.status === 429) {
               // Transient Steam rate limit hit: backoff for 5 seconds and retry page once
               await new Promise(r => setTimeout(r, 5000));
               try {
-                data = await safeFetchJson(url);
+                data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
               } catch {
                 if (page === 0) throw fetchErr;
                 break;
@@ -241,7 +275,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   public async fetchAppDetails(steamAppId: number): Promise<SteamAppDetails | null> {
     return this.queue.enqueue(async () => {
       const url = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&cc=${config.preferredCountry.toLowerCase()}&filters=basic,price_overview`;
-      const data: any = await safeFetchJson(url);
+      const data: any = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
 
       const entry = data?.[String(steamAppId)];
       if (!entry?.success || !entry?.data) return null;

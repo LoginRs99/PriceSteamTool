@@ -531,6 +531,50 @@ export const gameRepo = {
     return this.getById(r.id);
   },
 
+  updateMetadata(steamAppId: number, details: {
+    title?: string;
+    headerImage?: string;
+    capsuleImage?: string;
+    releaseDate?: string;
+    isDlc?: boolean;
+    isFree?: boolean;
+    basePriceEur?: number;
+    itadId?: string;
+  }): void {
+    const validTitle = details.title && !details.title.startsWith('App ') ? details.title : null;
+    const slug = validTitle 
+      ? validTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') 
+      : null;
+    prepareStmt(`
+      UPDATE games SET
+        title = COALESCE(?, title),
+        slug = COALESCE(?, slug),
+        header_image = COALESCE(?, header_image),
+        capsule_image = COALESCE(?, capsule_image),
+        release_date = COALESCE(?, release_date),
+        is_dlc = CASE WHEN ? IS NOT NULL THEN ? ELSE is_dlc END,
+        is_free = CASE WHEN ? IS NOT NULL THEN ? ELSE is_free END,
+        base_price_eur = COALESCE(?, base_price_eur),
+        itad_id = COALESCE(?, itad_id),
+        updated_at = ?
+      WHERE steam_app_id = ?
+    `).run(
+      validTitle,
+      slug,
+      details.headerImage || null,
+      details.capsuleImage || null,
+      details.releaseDate || null,
+      details.isDlc !== undefined ? (details.isDlc ? 1 : 0) : null,
+      details.isDlc !== undefined ? (details.isDlc ? 1 : 0) : null,
+      details.isFree !== undefined ? (details.isFree ? 1 : 0) : null,
+      details.isFree !== undefined ? (details.isFree ? 1 : 0) : null,
+      details.basePriceEur !== undefined ? details.basePriceEur : null,
+      details.itadId || null,
+      new Date().toISOString(),
+      steamAppId
+    );
+  },
+
   updateItadId(steamAppId: number, itadId: string): void {
     prepareStmt(`UPDATE games SET itad_id = ?, updated_at = datetime('now') WHERE steam_app_id = ?`).run(itadId, steamAppId);
   },
