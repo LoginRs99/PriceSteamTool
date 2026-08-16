@@ -188,5 +188,18 @@ export const api = {
       throw new Error(err.error || 'Discord webhook test failed');
     }
     return res.json();
+  },
+
+  async setTargetPrice(gameId: string, targetPriceEur: number | null): Promise<{ success: boolean; gameId: string; targetPriceEur: number | null }> {
+    const res = await fetch(`${API_BASE}/wishlist/${gameId}/target-price`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetPriceEur })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update target price');
+    }
+    return res.json();
   }
 };

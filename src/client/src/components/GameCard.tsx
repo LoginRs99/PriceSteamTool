@@ -120,6 +120,34 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
             {game.actionSignal.badgeLabel}
           </div>
         )}
+
+        {/* Target Price Indicator */}
+        {game.targetPriceEur !== undefined && (
+          <div
+            className="target-price-indicator-badge"
+            style={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8,
+              background: 'rgba(15, 23, 42, 0.88)',
+              backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              color: '#38bdf8',
+              padding: '2px 6px',
+              borderRadius: 6,
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              zIndex: 2
+            }}
+            title={`Target Price Alert set at €${game.targetPriceEur.toFixed(2)}`}
+          >
+            <span>🎯</span>
+            <span>€{game.targetPriceEur.toFixed(2)}</span>
+          </div>
+        )}
       </div>
 
       {/* Card Content */}

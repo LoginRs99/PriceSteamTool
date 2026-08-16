@@ -380,4 +380,89 @@ describe('Discord Notifier Service', () => {
     const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
     expect(sentPayload.embeds[0].title).toBe('High Conf Game');
   });
+
+  it('should dispatch alert when targetPriceEur is met regardless of low Deal Score or low Confidence', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 80, // Very strict Deal Score threshold
+      minConfidence: 75, // Very strict confidence threshold
+      notifyAtlOnly: true, // Strict ATL requirement
+      notifyFreeGames: false,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 7001, title: 'Target Hit Game', slug: 'target-hit-game' });
+    const inserted = gameRepo.getBySteamAppId(7001)!;
+
+    const targetGame: Game = {
+      id: inserted.id,
+      steamAppId: 7001,
+      title: 'Target Hit Game',
+      slug: 'target-hit-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: false,
+      bestRiskLevel: 'SAFE',
+      bestDealScore: 40, // Low Deal Score (40 < 80)
+      bestConfidenceScore: 30, // Low Confidence (30 < 75)
+      bestPriceEvent: 'NONE', // Not an ATL deal!
+      targetPriceEur: 15.00, // Explicit target price
+      bestPriceEur: 14.50, // Price satisfies target price (€14.50 <= €15.00)
+      offersCount: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([targetGame], 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(sentPayload.embeds[0].title).toBe('Target Hit Game');
+    expect(sentPayload.embeds[0].description).toContain('Target Price Reached');
+  });
+
+  it('should still suppress target price deals if the offer has an anomaly or high risk', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 50,
+      minConfidence: 30,
+      notifyAtlOnly: false,
+      notifyFreeGames: false,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 7002, title: 'Glitch Target Game', slug: 'glitch-target-game' });
+    const inserted = gameRepo.getBySteamAppId(7002)!;
+
+    const glitchTargetGame: Game = {
+      id: inserted.id,
+      steamAppId: 7002,
+      title: 'Glitch Target Game',
+      slug: 'glitch-target-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: true, // Pricing anomaly detected!
+      bestRiskLevel: 'HIGH',
+      targetPriceEur: 10.00,
+      bestPriceEur: 0.99, // Unbelievably cheap, but suppressed due to anomaly
+      offersCount: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([glitchTargetGame], 'TEST');
+    expect(sentCount).toBe(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

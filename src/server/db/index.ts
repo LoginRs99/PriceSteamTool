@@ -65,6 +65,7 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN price_tracking_first_observed_at TEXT"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN best_offer_source_count INTEGER"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE wishlist_entries ADD COLUMN target_price_eur REAL"); } catch {}
 
     // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
     try {
@@ -494,6 +495,7 @@ export const gameRepo = {
   getById(id: string): Game | null {
     const r = prepareStmt(`
       SELECT g.*, 
+        (SELECT target_price_eur FROM wishlist_entries WHERE game_id = g.id AND is_active = 1 LIMIT 1) as target_price_eur,
         bo.id as best_offer_id,
         bo.price_eur as best_price_eur,
         bo.discount_percent as best_discount_percent,
@@ -518,6 +520,15 @@ export const gameRepo = {
 
     if (!r) return null;
     return mapGameRow(r);
+  },
+
+  setTargetPrice(profileId: string, gameId: string, targetPriceEur: number | null): boolean {
+    const info = prepareStmt(`
+      UPDATE wishlist_entries 
+      SET target_price_eur = ? 
+      WHERE profile_id = ? AND game_id = ?
+    `).run(targetPriceEur !== null && targetPriceEur !== undefined ? Number(targetPriceEur) : null, profileId, gameId);
+    return info.changes > 0;
   },
 
   getBySteamAppId(steamAppId: number): Game | null {
@@ -573,6 +584,7 @@ export const gameRepo = {
       SELECT g.*, 
         w.priority,
         w.date_added_steam,
+        w.target_price_eur,
         bo.id as best_offer_id,
         bo.price_eur as best_price_eur,
         bo.discount_percent as best_discount_percent,
@@ -699,6 +711,7 @@ export const gameRepo = {
       g.*, 
       w.priority,
       w.date_added_steam,
+      w.target_price_eur,
       bo.id as best_offer_id,
       bo.price_eur as best_price_eur,
       bo.discount_percent as best_discount_percent,
@@ -1873,6 +1886,7 @@ function mapGameRow(r: any): Game {
     offersCount: Number(r.offers_count || 0),
     priority: r.priority !== undefined ? Number(r.priority) : undefined,
     dateAddedSteam: r.date_added_steam || undefined,
+    targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined ? Number(r.target_price_eur) : undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };

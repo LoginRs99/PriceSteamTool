@@ -144,6 +144,7 @@ export interface Game {
   // Wishlist metadata
   priority?: number;
   dateAddedSteam?: string;
+  targetPriceEur?: number;
   
   hasAnomaly: boolean;
   anomalyCount?: number;

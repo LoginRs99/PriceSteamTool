@@ -162,6 +162,25 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return { deals };
   });
 
+  fastify.post('/api/wishlist/:gameId/target-price', async (request, reply) => {
+    const activeProfile = profileRepo.getActive();
+    if (!activeProfile) {
+      return reply.status(400).send({ error: 'No active profile found' });
+    }
+    const { gameId } = request.params as { gameId: string };
+    const body = request.body as { targetPriceEur?: number | null } | undefined;
+    const targetPrice = body?.targetPriceEur !== undefined && body?.targetPriceEur !== null
+      ? Math.max(0, Number(body.targetPriceEur))
+      : null;
+
+    const success = gameRepo.setTargetPrice(activeProfile.id, gameId, targetPrice);
+    return {
+      success,
+      gameId,
+      targetPriceEur: targetPrice
+    };
+  });
+
   fastify.get('/api/games/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const game = gameRepo.getById(id);

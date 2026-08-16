@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS wishlist_entries (
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   priority INTEGER NOT NULL DEFAULT 0,
   date_added_steam TEXT,
+  target_price_eur REAL,
   is_active INTEGER NOT NULL DEFAULT 1,
   last_synced_at TEXT NOT NULL,
   UNIQUE(profile_id, game_id)

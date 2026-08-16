@@ -179,17 +179,23 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       continue;
     }
 
-    // 1. Free Game Promotion Check
+    // 1. Target Price Hit Check
+    const hasTargetHit = game.targetPriceEur !== undefined && game.targetPriceEur !== null
+      && bestPrice <= game.targetPriceEur + 0.05;
+
+    // 2. Free Game Promotion Check
     let isQualifyingFreeGame = false;
     if (isFree && settings.notifyFreeGames && bestPrice === 0) {
       isQualifyingFreeGame = true;
     }
 
-    // 2. Deal Score, Confidence & ATL Filter Check
+    // 3. Deal Score, Confidence & ATL Filter Check
     const confScore = game.bestConfidenceScore ?? 50;
     let isQualifyingDeal = false;
 
-    if (!isFree && dealScore >= settings.minDealScore && confScore >= settings.minConfidence) {
+    if (hasTargetHit) {
+      isQualifyingDeal = true;
+    } else if (!isFree && dealScore >= settings.minDealScore && confScore >= settings.minConfidence) {
       if (settings.notifyAtlOnly) {
         // Provisional deals cannot claim verified ATL status
         if (!game.bestIsProvisional) {
@@ -209,16 +215,16 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       continue;
     }
 
-    // 3. Cooldown & Deduplication Check
+    // 4. Cooldown & Deduplication Check
     if (notificationsRepo.hasRecentNotification(game.id, settings.cooldownHours, bestPrice)) {
       continue;
     }
 
-    // 4. Fetch Best Offer details (for voucher code, merchant, etc.)
+    // 5. Fetch Best Offer details (for voucher code, merchant, etc.)
     const offers = offerRepo.getOffersForGame(game.id);
     const bestOffer = offers.find(o => o.isBestDeal && o.isValid) || offers[0];
 
-    // 5. Construct Rich Embed
+    // 6. Construct Rich Embed
     const steamUrl = `https://store.steampowered.com/app/${game.steamAppId}`;
     const dealUrl = bestOffer?.dealUrl || game.bestDealUrl || steamUrl;
     const merchantName = bestOffer?.merchantName || game.bestMerchantName || 'Steam Store';
@@ -229,7 +235,10 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     let embedColor = 0x3498DB; // Default Blue
     let headline = '🏷️ **New Sale Price on Your Wishlist**';
 
-    if (isQualifyingFreeGame) {
+    if (hasTargetHit) {
+      embedColor = 0x00BFFF; // Deep Sky Blue / Target Cyan
+      headline = `🎯 **Target Price Reached! (Target: €${game.targetPriceEur!.toFixed(2)})**`;
+    } else if (isQualifyingFreeGame) {
       embedColor = 0x9B59B6; // Purple
       headline = '🎁 **100% Free Game Promotion!**';
     } else if (game.bestIsProvisional) {
@@ -263,6 +272,14 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       fields.push({
         name: '🏆 Deal Score',
         value: `**${dealScore} / 100** • ${game.bestDealTier || 'Good'}${provTag}\n*(${confScore}% ${confLabel})*`,
+        inline: true
+      });
+    }
+
+    if (hasTargetHit) {
+      fields.push({
+        name: '🎯 Target Price Alert',
+        value: `Target: **€${game.targetPriceEur!.toFixed(2)}** • Hit: **€${bestPrice.toFixed(2)}**`,
         inline: true
       });
     }
