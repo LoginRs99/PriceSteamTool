@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS games (
   historical_low_eur REAL,
   historical_low_date TEXT,
   historical_low_source TEXT,
+  typical_sale_median_eur REAL,
+  typical_sale_q1_eur REAL,
+  typical_sale_q3_eur REAL,
+  typical_sale_sample_count INTEGER,
+  typical_sale_low_confidence INTEGER,
+  low_90d_eur REAL,
+  low_1y_eur REAL,
+  deal_score_stats_updated_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

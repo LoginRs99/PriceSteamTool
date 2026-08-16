@@ -13,6 +13,7 @@ import type {
   PriceIntelligenceResponse,
   PriceEventType
 } from '../../shared/types.js';
+import { calculateDealScore } from './dealScore.js';
 
 export interface PriceIntelligenceInput {
   game: Game;
@@ -731,6 +732,20 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     }
   }
 
+  const freshDealCalc = calculateDealScore({
+    priceEur: currentPrice,
+    basePriceEur: game.basePriceEur,
+    typicalSaleMedianEur: typicalSale.medianPriceEur,
+    typicalSaleQ1Eur: typicalSale.q1PriceEur,
+    typicalSaleQ3Eur: typicalSale.q3PriceEur,
+    isLowSample: typicalSale.isLowConfidence || typicalSale.medianPriceEur === null,
+    low90dEur: periodLows.low90d.priceEur,
+    low1yEur: periodLows.low1y.priceEur,
+    allTimeLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
+    isAnomaly: bestOffer?.isAnomaly ?? false,
+    riskLevel: bestOffer?.riskLevel ?? 'SAFE'
+  });
+
   return {
     gameId: game.id,
     currentPrice: {
@@ -739,8 +754,8 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
       discountPercent: bestOffer?.discountPercent ?? game.bestDiscountPercent ?? 0,
       merchantName: bestOffer?.merchantName || 'Steam',
       isOfficial: bestOffer?.isOfficial ?? true,
-      dealScore: bestOffer?.dealScore ?? game.bestDealScore,
-      dealTier: bestOffer?.dealTier ?? game.bestDealTier
+      dealScore: bestOffer?.dealScore ?? game.bestDealScore ?? freshDealCalc.score,
+      dealTier: bestOffer?.dealTier ?? game.bestDealTier ?? freshDealCalc.tier
     },
     periodLows,
     typicalSale,

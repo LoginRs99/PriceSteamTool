@@ -176,7 +176,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
     expect(evalRes.riskLevel).toBe('SAFE');
     expect(evalRes.isAnomaly).toBe(false);
 
-    // Without previous low context (pure extreme drop): score is 71 (Great)
+    // Without previous low / typical sale context (pure MSRP fallback): score is 25 (Fallback Cap)
     const dealWithoutAtl = calculateDealScore({
       priceEur: 4.49,
       basePriceEur: 29.99,
@@ -188,40 +188,27 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       evaluationConfidence: evalRes.confidence
     });
 
-    expect(dealWithoutAtl.score).toBe(71);
-    expect(dealWithoutAtl.tier).toBe('Great');
+    expect(dealWithoutAtl.score).toBe(25);
+    expect(dealWithoutAtl.isLowSample).toBe(true);
 
-    // With confirmed ATL context & 2 sources: score is 83 (Great)
+    // With confirmed ATL & typical sale history: score reaches Exceptional (85+)
     const dealWithAtl = calculateDealScore({
       priceEur: 4.49,
       basePriceEur: 29.99,
+      typicalSaleMedianEur: 14.99,
+      typicalSaleQ1Eur: 12.99,
+      typicalSaleQ3Eur: 17.99,
       discountPercent: 85,
       priceEvent: 'AT_HISTORICAL_LOW',
-      historicalLowEur: 4.49,
+      allTimeLowEur: 4.49,
       isOfficialMerchant: true,
       sourceAgreementCount: 2,
       riskLevel: evalRes.riskLevel,
       evaluationConfidence: evalRes.confidence
     });
 
-    expect(dealWithAtl.score).toBe(83);
-    expect(dealWithAtl.tier).toBe('Great');
-
-    // With 3 sources consensus: score reaches Exceptional (85+)
-    const dealWith3Sources = calculateDealScore({
-      priceEur: 4.49,
-      basePriceEur: 29.99,
-      discountPercent: 85,
-      priceEvent: 'AT_HISTORICAL_LOW',
-      historicalLowEur: 4.49,
-      isOfficialMerchant: true,
-      sourceAgreementCount: 3,
-      riskLevel: evalRes.riskLevel,
-      evaluationConfidence: 0.95
-    });
-
-    expect(dealWith3Sources.score).toBeGreaterThanOrEqual(85);
-    expect(dealWith3Sources.tier).toBe('Exceptional');
+    expect(dealWithAtl.score).toBeGreaterThanOrEqual(85);
+    expect(dealWithAtl.tier).toBe('Exceptional');
   });
 
   it('4. Sub-Euro unverified outlier glitch is suppressed (capped at 35, WAIT decision)', () => {

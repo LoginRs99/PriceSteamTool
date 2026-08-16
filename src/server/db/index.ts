@@ -4,7 +4,7 @@ import { config } from '../config/index.js';
 import { SCHEMA_SQL, SEED_SOURCES_SQL } from './schema.js';
 import { evaluatePriceMovement, type PriceEvaluationInput } from '../domain/pricingEngine.js';
 import { calculateDealScore } from '../domain/dealScore.js';
-import { generatePriceIntelligence } from '../domain/priceIntelligence.js';
+import { generatePriceIntelligence, calculateTypicalSalePrice, calculatePeriodLows } from '../domain/priceIntelligence.js';
 import type { 
   Profile, 
   Game, 
@@ -51,6 +51,16 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN deal_score INTEGER"); } catch {}
     try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level)"); } catch {}
     try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event)"); } catch {}
+
+    // Deal Score v2 cached statistical columns on games
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_median_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_q1_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_q3_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_sample_count INTEGER"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_low_confidence INTEGER"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_90d_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_1y_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
 
     // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
     try {
@@ -205,6 +215,9 @@ export const gameRepo = {
     isDlc?: boolean;
     isFree?: boolean;
     basePriceEur?: number;
+    historicalLowEur?: number;
+    historicalLowDate?: string;
+    historicalLowSource?: string;
     itadId?: string;
   }): Game {
     const now = new Date().toISOString();
@@ -221,6 +234,9 @@ export const gameRepo = {
             is_dlc = COALESCE(?, is_dlc),
             is_free = COALESCE(?, is_free),
             base_price_eur = COALESCE(?, base_price_eur),
+            historical_low_eur = COALESCE(?, historical_low_eur),
+            historical_low_date = COALESCE(?, historical_low_date),
+            historical_low_source = COALESCE(?, historical_low_source),
             itad_id = COALESCE(?, itad_id),
             updated_at = ?
         WHERE id = ?
@@ -232,6 +248,9 @@ export const gameRepo = {
         game.isDlc !== undefined ? (game.isDlc ? 1 : 0) : null,
         game.isFree !== undefined ? (game.isFree ? 1 : 0) : null,
         game.basePriceEur !== undefined ? game.basePriceEur : null,
+        game.historicalLowEur !== undefined ? game.historicalLowEur : null,
+        game.historicalLowDate || null,
+        game.historicalLowSource || null,
         game.itadId || null,
         now,
         existing.id
@@ -249,9 +268,9 @@ export const gameRepo = {
         isDlc: game.isDlc !== undefined ? game.isDlc : Boolean(existing.is_dlc),
         isFree: game.isFree !== undefined ? game.isFree : Boolean(existing.is_free),
         basePriceEur: game.basePriceEur !== undefined ? game.basePriceEur : (existing.base_price_eur ? Number(existing.base_price_eur) : undefined),
-        historicalLowEur: existing.historical_low_eur ? Number(existing.historical_low_eur) : undefined,
-        historicalLowDate: existing.historical_low_date || undefined,
-        historicalLowSource: existing.historical_low_source || undefined,
+        historicalLowEur: game.historicalLowEur !== undefined ? game.historicalLowEur : (existing.historical_low_eur ? Number(existing.historical_low_eur) : undefined),
+        historicalLowDate: game.historicalLowDate || existing.historical_low_date || undefined,
+        historicalLowSource: game.historicalLowSource || existing.historical_low_source || undefined,
         hasAnomaly: false,
         offersCount: 0,
         createdAt: existing.created_at,
@@ -261,8 +280,8 @@ export const gameRepo = {
 
     const id = randomUUID();
     prepareStmt(`
-      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, historical_low_eur, historical_low_date, historical_low_source, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       game.steamAppId,
@@ -275,6 +294,9 @@ export const gameRepo = {
       game.isDlc ? 1 : 0,
       game.isFree ? 1 : 0,
       game.basePriceEur || null,
+      game.historicalLowEur || null,
+      game.historicalLowDate || null,
+      game.historicalLowSource || null,
       now,
       now
     );
@@ -980,20 +1002,125 @@ export const offerRepo = {
         Number(lastHistory.discount_percent || 0) !== discount;
 
       if (hasPriceChanged) {
-        const dealCalc = calculateDealScore({
+        // Fetch raw history to compute typical sale price and period lows
+        const rawHistory = prepareStmt(`
+          SELECT * FROM price_history WHERE game_id = ? ORDER BY recorded_at DESC
+        `).all(data.gameId) as any[];
+
+        const history: PriceHistoryEntry[] = rawHistory.map(h => ({
+          id: h.id,
+          gameId: h.game_id,
+          merchantId: h.merchant_id,
+          merchantName: '',
+          merchantCode: '',
+          isOfficial: true,
+          sourceCode: h.source_code as SourceCode,
+          priceEur: Number(h.price_eur),
+          discountPercent: Number(h.discount_percent || 0),
+          priceEvent: h.price_event || 'NONE',
+          dealScore: h.deal_score ? Number(h.deal_score) : undefined,
+          recordedAt: h.recorded_at
+        }));
+
+        const currentObservation: PriceHistoryEntry = {
+          id: 'temp',
+          gameId: data.gameId,
+          merchantId: data.merchantId,
+          merchantName: merchantInfo?.name || '',
+          isOfficial: Boolean(merchantInfo?.is_official),
+          sourceCode: data.sourceCode,
           priceEur: data.priceEur,
-          basePriceEur: gameInfo?.base_price_eur ? Number(gameInfo.base_price_eur) : undefined,
-          originalPriceEur: data.originalPriceEur,
           discountPercent: discount,
           priceEvent: pricingEval.event,
-          historicalLowEur: gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
-          isOfficialMerchant: Boolean(merchantInfo?.is_official),
-          merchantTrustScore: merchantInfo?.trust_score ? Number(merchantInfo.trust_score) : 1.0,
-          sourceAgreementCount: 1,
+          recordedAt: now
+        };
+
+        const fullHistory = [currentObservation, ...history];
+        const basePrice = gameInfo?.base_price_eur ? Number(gameInfo.base_price_eur) : undefined;
+        const typicalSale = calculateTypicalSalePrice(basePrice, fullHistory);
+
+        const mappedGame: Game = {
+          id: gameInfo.id,
+          steamAppId: Number(gameInfo.steam_app_id),
+          title: gameInfo.title,
+          slug: gameInfo.slug,
+          basePriceEur: basePrice,
+          historicalLowEur: gameInfo.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
+          historicalLowDate: gameInfo.historical_low_date || undefined,
+          historicalLowSource: gameInfo.historical_low_source || undefined,
+          isDlc: Boolean(gameInfo.is_dlc),
+          isFree: Boolean(gameInfo.is_free),
+          hasAnomaly: false,
+          offersCount: 1,
+          createdAt: gameInfo.created_at,
+          updatedAt: gameInfo.updated_at
+        };
+
+        const periodLows = calculatePeriodLows(mappedGame, fullHistory, {
+          id: offerId,
+          gameId: data.gameId,
+          merchantId: data.merchantId,
+          merchantName: merchantInfo?.name || '',
+          merchantCode: merchantInfo?.code || '',
+          isOfficial: Boolean(merchantInfo?.is_official),
+          productType: (data.productType as any) || 'DIRECT_PURCHASE',
+          regionType: (data.regionType as any) || 'GLOBAL',
+          regionConfidence: data.regionConfidence ?? 1.0,
+          priceEur: data.priceEur,
+          discountPercent: discount,
+          dealUrl: data.dealUrl,
+          isBestDeal: true,
+          isValid: true,
+          priceEvent: pricingEval.event,
           riskLevel: pricingEval.riskLevel,
           riskScore: pricingEval.riskScore,
+          riskFlags: pricingEval.riskFlags,
           evaluationConfidence: pricingEval.confidence,
-          isAnomaly: pricingEval.isAnomaly
+          isAnomaly: pricingEval.isAnomaly,
+          sources: [data.sourceCode],
+          sourceAgreementCount: 1,
+          fetchedAt: now,
+          lastObservedAt: now,
+          createdAt: now,
+          updatedAt: now
+        });
+
+        // Cache the statistical metrics on the games table
+        prepareStmt(`
+          UPDATE games SET
+            typical_sale_median_eur = ?,
+            typical_sale_q1_eur = ?,
+            typical_sale_q3_eur = ?,
+            typical_sale_sample_count = ?,
+            typical_sale_low_confidence = ?,
+            low_90d_eur = ?,
+            low_1y_eur = ?,
+            deal_score_stats_updated_at = ?
+          WHERE id = ?
+        `).run(
+          typicalSale.medianPriceEur,
+          typicalSale.q1PriceEur ?? null,
+          typicalSale.q3PriceEur ?? null,
+          typicalSale.sampleCount,
+          typicalSale.isLowConfidence ? 1 : 0,
+          periodLows.low90d.priceEur,
+          periodLows.low1y.priceEur,
+          now,
+          data.gameId
+        );
+
+        const dealCalc = calculateDealScore({
+          priceEur: data.priceEur,
+          basePriceEur: basePrice,
+          typicalSaleMedianEur: typicalSale.medianPriceEur,
+          typicalSaleQ1Eur: typicalSale.q1PriceEur,
+          typicalSaleQ3Eur: typicalSale.q3PriceEur,
+          isLowSample: typicalSale.isLowConfidence || typicalSale.medianPriceEur === null,
+          low90dEur: periodLows.low90d.priceEur,
+          low1yEur: periodLows.low1y.priceEur,
+          allTimeLowEur: periodLows.allTimeLow.priceEur || (gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined),
+          isAnomaly: pricingEval.isAnomaly,
+          riskLevel: pricingEval.riskLevel
         });
 
         prepareStmt(`
@@ -1014,9 +1141,12 @@ export const offerRepo = {
 
   getById(id: string): Offer | null {
     const r = prepareStmt(`
-      SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score
+      SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score,
+             g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
+             g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
+      LEFT JOIN games g ON o.game_id = g.id
       WHERE o.id = ?
     `).get(id) as any;
 
@@ -1032,19 +1162,18 @@ export const offerRepo = {
     }
 
     const isOfficial = Boolean(r.is_official);
-    const merchantTrust = r.trust_score !== null && r.trust_score !== undefined ? Number(r.trust_score) : 1.0;
     const dealCalc = calculateDealScore({
       priceEur: Number(r.price_eur),
-      originalPriceEur: r.original_price_eur ? Number(r.original_price_eur) : undefined,
-      discountPercent: Number(r.discount_percent),
-      priceEvent: r.price_event || 'NONE',
-      isOfficialMerchant: isOfficial,
-      merchantTrustScore: merchantTrust,
-      sourceAgreementCount: sources.length,
-      riskLevel: r.risk_level || 'SAFE',
-      riskScore: Number(r.risk_score || 0),
-      evaluationConfidence: Number(r.evaluation_confidence || 1.0),
-      isAnomaly: Boolean(r.is_anomaly)
+      basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
+      typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
+      typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
+      typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
+      isLowSample: Boolean(r.typical_sale_low_confidence),
+      low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
+      low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
+      allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      isAnomaly: Boolean(r.is_anomaly),
+      riskLevel: r.risk_level || 'SAFE'
     });
 
     return {
@@ -1088,9 +1217,12 @@ export const offerRepo = {
 
   getOffersForGame(gameId: string): Offer[] {
     const rows = prepareStmt(`
-      SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score
+      SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score,
+             g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
+             g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
+      LEFT JOIN games g ON o.game_id = g.id
       WHERE o.game_id = ?
       ORDER BY o.is_valid DESC, o.price_eur ASC
     `).all(gameId) as any[];
@@ -1106,19 +1238,18 @@ export const offerRepo = {
       }
 
       const isOfficial = Boolean(r.is_official);
-      const merchantTrust = r.trust_score !== null && r.trust_score !== undefined ? Number(r.trust_score) : 1.0;
       const dealCalc = calculateDealScore({
         priceEur: Number(r.price_eur),
-        originalPriceEur: r.original_price_eur ? Number(r.original_price_eur) : undefined,
-        discountPercent: Number(r.discount_percent),
-        priceEvent: r.price_event || 'NONE',
-        isOfficialMerchant: isOfficial,
-        merchantTrustScore: merchantTrust,
-        sourceAgreementCount: sources.length,
-        riskLevel: r.risk_level || 'SAFE',
-        riskScore: Number(r.risk_score || 0),
-        evaluationConfidence: Number(r.evaluation_confidence || 1.0),
-        isAnomaly: Boolean(r.is_anomaly)
+        basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
+        typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
+        typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
+        typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
+        isLowSample: Boolean(r.typical_sale_low_confidence),
+        low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
+        low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
+        allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+        isAnomaly: Boolean(r.is_anomaly),
+        riskLevel: r.risk_level || 'SAFE'
       });
 
       return {
@@ -1346,15 +1477,15 @@ function mapGameRow(r: any): Game {
     const dealResult = calculateDealScore({
       priceEur: Number(r.best_price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
-      discountPercent: r.best_discount_percent !== null && r.best_discount_percent !== undefined ? Number(r.best_discount_percent) : undefined,
-      priceEvent: r.best_price_event,
-      historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
-      isOfficialMerchant: isOfficial,
-      merchantTrustScore: r.best_merchant_trust_score !== undefined && r.best_merchant_trust_score !== null ? Number(r.best_merchant_trust_score) : 1.0,
-      sourceAgreementCount: r.best_source_agreement_count ? Number(r.best_source_agreement_count) : 1,
-      riskLevel: r.best_risk_level || 'SAFE',
-      evaluationConfidence: r.best_evaluation_confidence !== null && r.best_evaluation_confidence !== undefined ? Number(r.best_evaluation_confidence) : 1.0,
-      isAnomaly: Number(r.anomaly_count || 0) > 0 || r.best_risk_level === 'HIGH'
+      typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
+      typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
+      typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
+      isLowSample: Boolean(r.typical_sale_low_confidence),
+      low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
+      low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
+      allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      isAnomaly: Number(r.anomaly_count || 0) > 0 || r.best_risk_level === 'HIGH',
+      riskLevel: r.best_risk_level || 'SAFE'
     });
     bestDealScore = dealResult.score;
     bestDealTier = dealResult.tier;

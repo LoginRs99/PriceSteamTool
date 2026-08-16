@@ -148,12 +148,23 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
     const g1 = gameRepo.upsert({
       steamAppId: 1091500,
       title: 'Cyberpunk 2077',
-      basePriceEur: 59.99
+      basePriceEur: 59.99,
+      historicalLowEur: 29.99
     });
-    gameRepo.updateHistoricalLow(g1.id, 29.99, '2025-01-01', 'steam');
+    // Add realistic historical sale baseline for Cyberpunk 2077
+    offerRepo.upsertOffer({
+      gameId: g1.id,
+      merchantId: steamMerchant.id,
+      productType: 'DIRECT_PURCHASE',
+      regionType: 'GLOBAL',
+      priceEur: 29.99,
+      originalPriceEur: 59.99,
+      sourceCode: 'steam',
+      dealUrl: 'https://store.steampowered.com/app/1091500'
+    });
     gameRepo.syncWishlistEntries(profile.id, [{ steamAppId: 1091500, title: 'Cyberpunk 2077', priority: 1 }]);
     
-    // Verified across 2 sources
+    // Now a massive new ATL at €14.99 verified across 2 sources
     offerRepo.upsertOffer({
       gameId: g1.id,
       merchantId: steamMerchant.id,
