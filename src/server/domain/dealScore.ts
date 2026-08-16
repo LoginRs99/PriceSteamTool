@@ -43,6 +43,7 @@ export interface DealScoreInput {
   // Legacy compatibility fields (preserved for type safety)
   isLowSample?: boolean;
   isConfirmedAtl?: boolean;
+  isSingleSourceLow?: boolean;
   originalPriceEur?: number;
   discountPercent?: number;
   priceEvent?: PriceEventType;
@@ -217,7 +218,11 @@ export function calculateRarityBonus(
 ): number {
   const atl = low1yEur ?? allTimeLowEur;
   const result = calculateRecordBonus(priceEur, null, atl);
-  return Math.round(result.recordBonus);
+  let bonus = result.recordBonus;
+  if (isConfirmedAtl === false) {
+    bonus = bonus * 0.5;
+  }
+  return Math.round(bonus);
 }
 
 /**
@@ -305,12 +310,17 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     input.typicalSaleQ3Eur
   );
 
-  // 2. Stage 2: Record Bonus (0 - 25)
-  const { recordBonus, atlDistanceEur } = calculateRecordBonus(
+  // 2. Stage 2: Record Bonus (0 - 35)
+  let { recordBonus, atlDistanceEur } = calculateRecordBonus(
     priceEur,
     median,
     atl
   );
+
+  // If ATL is unconfirmed (single-source keyshop outlier without corroboration), halve the record bonus
+  if (input.isConfirmedAtl === false || input.isSingleSourceLow === true) {
+    recordBonus = Number((recordBonus * 0.5).toFixed(2));
+  }
 
   // 3. Stage 3: Sum & Clamp
   let rawScore = baseScore + recordBonus;

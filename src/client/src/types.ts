@@ -358,6 +358,7 @@ export interface PeriodLowEntry {
   isOfficial?: boolean;
   observationCount: number;
   isExactPeriodData: boolean;
+  isSingleSourceLow?: boolean;
 }
 
 export interface TypicalSalePrice {

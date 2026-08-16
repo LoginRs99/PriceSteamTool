@@ -100,14 +100,50 @@ export function calculatePeriodLows(
       }
     }
 
+    // Check if best (lowest) price is single-source unofficial (keyshop) without corroboration
+    let isSingleSourceLow = false;
+    if (best.isOfficial === false) {
+      const minP = best.price * 0.85;
+      const maxP = best.price * 1.15;
+      const corroborations = candidatePrices.filter(c => 
+        c !== best && 
+        c.price >= minP && 
+        c.price <= maxP && 
+        (c.merchant !== best.merchant || c.isOfficial === true)
+      );
+      if (corroborations.length === 0) {
+        isSingleSourceLow = true;
+      }
+    }
+
     return {
       priceEur: Number(best.price.toFixed(2)),
       merchantName: best.merchant,
       recordedAt: best.date,
       isOfficial: best.isOfficial,
       observationCount: obsCount,
-      isExactPeriodData: true
+      isExactPeriodData: true,
+      isSingleSourceLow: isSingleSourceLow ? true : undefined
     };
+  };
+
+  // Helper to check if source is a known keyshop/marketplace aggregator
+  const isKeyshopSourceStr = (source?: string): boolean => {
+    if (!source) return false;
+    const s = source.toLowerCase();
+    return (
+      s.includes('allkeyshop') ||
+      s.includes('kinguin') ||
+      s.includes('g2a') ||
+      s.includes('eneba') ||
+      s.includes('gamivo') ||
+      s.includes('cdkeys') ||
+      s.includes('keyshop') ||
+      s.includes('marketplace') ||
+      s.includes('k4g') ||
+      s.includes('driffle') ||
+      s.includes('instant-gaming')
+    );
   };
 
   // Confirmed ATL calculation
@@ -136,6 +172,20 @@ export function calculatePeriodLows(
     } else {
       confirmedAtlEur = game.basePriceEur || 0;
       isConfirmed = false;
+    }
+  } else {
+    // If ATL source points to an unverified keyshop/grey-market aggregator, check for historical corroboration
+    if (isKeyshopSourceStr(atlSource)) {
+      const minP = confirmedAtlEur * 0.85;
+      const maxP = confirmedAtlEur * 1.15;
+      const corroboratingHistory = trustedHistory.filter(h =>
+        h.priceEur >= minP &&
+        h.priceEur <= maxP &&
+        (h.isOfficial === true || h.merchantName !== atlSource)
+      );
+      if (corroboratingHistory.length === 0) {
+        isConfirmed = false;
+      }
     }
   }
 
@@ -733,6 +783,8 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     }
   }
 
+  const isSingleSourceLow = Boolean(periodLows.low1y.isSingleSourceLow ?? periodLows.low90d.isSingleSourceLow ?? periodLows.low30d.isSingleSourceLow ?? periodLows.low7d.isSingleSourceLow);
+
   const freshDealCalc = calculateDealScore({
     priceEur: currentPrice,
     basePriceEur: game.basePriceEur,
@@ -743,7 +795,9 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     low90dEur: periodLows.low90d.priceEur,
     low1yEur: periodLows.low1y.priceEur,
     allTimeLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
-    historicalLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur
+    historicalLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
+    isConfirmedAtl: periodLows.allTimeLow.isConfirmed,
+    isSingleSourceLow
   });
 
   const actionSignal = generateActionSignal({

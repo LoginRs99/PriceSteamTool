@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     globals: true,
     pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: true
+      }
+    },
     fileParallelism: false,
     isolate: false,
     env: {

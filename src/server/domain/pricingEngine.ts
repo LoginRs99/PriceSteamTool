@@ -160,29 +160,29 @@ export function calculatePriceRisk(
   const msrp = basePriceEur || originalPriceEur || 0;
   let rawSeverity = 0.0;
 
-  // 1. Sub-euro premium glitch check (e.g. €0.49 on €60 title)
-  if (msrp >= 29.99 && currentPriceEur < 1.00) {
+  // 1. Sub-euro / extreme ratio drop glitch check (<€1.00 or <5% of MSRP)
+  if (currentPriceEur < 1.00 || (msrp > 0 && currentPriceEur < msrp * 0.05)) {
     rawSeverity = Math.max(rawSeverity, 0.85);
     flags.add('SUB_EURO_PREMIUM_GLITCH');
   }
 
-  // 2. Severe market median divergence
+  // 2. Severe market median divergence (MSRP-independent, median >= €1.00)
   const validPeers = marketPricesEur.filter(p => p > 0);
   if (validPeers.length >= 2) {
     const sorted = [...validPeers].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
-    if (median >= 10.0 && currentPriceEur < median * 0.25) {
+    if (median >= 1.00 && currentPriceEur < median * 0.25) {
       rawSeverity = Math.max(rawSeverity, 0.70);
       flags.add('EXTREME_MEDIAN_OUTLIER');
-    } else if (median >= 10.0 && currentPriceEur < median * 0.40) {
+    } else if (median >= 1.00 && currentPriceEur < median * 0.40) {
       rawSeverity = Math.max(rawSeverity, 0.40);
       flags.add('SOURCE_DISAGREEMENT');
     }
   }
 
-  // 3. Historical Low Discrepancy
-  if (historicalLowEur && historicalLowEur >= 20.0 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
+  // 3. Historical Low Discrepancy (historicalLowEur >= €2.00)
+  if (historicalLowEur && historicalLowEur >= 2.00 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
     rawSeverity = Math.max(rawSeverity, 0.50);
     flags.add('HISTORICAL_LOW_DISCREPANCY');
   }

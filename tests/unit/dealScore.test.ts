@@ -639,5 +639,40 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
       });
       expect(resLow.score).toBe(0);
     });
+
+    it('Edge 11: Unconfirmed ATL (isConfirmedAtl: false) halves rarity bonus', () => {
+      const resConfirmed = calculateDealScore({
+        priceEur: 15.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 15.00,
+        isConfirmedAtl: true,
+        sampleCount: 20
+      });
+
+      const resUnconfirmed = calculateDealScore({
+        priceEur: 15.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 15.00,
+        isConfirmedAtl: false,
+        sampleCount: 20
+      });
+
+      expect(resConfirmed.rarityBonus).toBe(20.0);
+      expect(resUnconfirmed.rarityBonus).toBe(10.0);
+      expect(resConfirmed.score).toBeGreaterThan(resUnconfirmed.score);
+    });
+
+    it('Edge 12: Single-source keyshop low (isSingleSourceLow: true) halves rarity bonus', () => {
+      const resSingleSource = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 15.00,
+        isSingleSourceLow: true,
+        sampleCount: 20
+      });
+
+      // At 10€ vs 15€ ATL, full recordBonus would be 35.0 -> halved to 17.5
+      expect(resSingleSource.rarityBonus).toBe(17.5);
+    });
   });
 });

@@ -335,4 +335,63 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.confidence).toBeLessThanOrEqual(1.0);
     }
   });
+
+  // -------------------------------------------------------------
+  // Phase 1: Ratio-Based Anomaly & Budget/Mid-Tier (€5-15) Tests
+  // -------------------------------------------------------------
+
+  it('24. Budget game (€9.75 MSRP) with extreme ratio drop (Zero Hour case: €0.30, 3% of MSRP)', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.30,
+      basePriceEur: 9.75,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [3.40, 4.50, 8.00]
+    });
+
+    expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
+    expect(res.riskFlags).toContain('EXTREME_MEDIAN_OUTLIER');
+    expect(res.riskLevel).toBe('HIGH');
+    expect(res.isAnomaly).toBe(true);
+  });
+
+  it('25. Mid-tier game (€12.00 MSRP) with extreme ratio drop < 5% of MSRP (€0.50)', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.50,
+      basePriceEur: 12.00,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [6.00, 8.00, 10.00]
+    });
+
+    expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
+    expect(res.riskLevel).toBe('HIGH');
+  });
+
+  it('26. Gatekeeper case: Low median (€3.40) with severe outlier (€0.60, < 25% of median)', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.60,
+      basePriceEur: 12.50,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [3.20, 3.40, 4.00]
+    });
+
+    expect(res.riskFlags).toContain('EXTREME_MEDIAN_OUTLIER');
+    expect(res.riskLevel).toBe('HIGH');
+    expect(res.isAnomaly).toBe(true);
+  });
+
+  it('27. Historical low discrepancy on budget title (historicalLow = €3.50, price = €0.50)', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.50,
+      basePriceEur: 10.00,
+      historicalLowEur: 3.50,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [3.00, 3.50]
+    });
+
+    expect(res.riskFlags).toContain('HISTORICAL_LOW_DISCREPANCY');
+  });
 });
