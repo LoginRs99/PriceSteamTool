@@ -17,12 +17,12 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
             <th style={{ width: 45 }}>#</th>
             <th>Title</th>
             <th style={{ width: 90 }}>MSRP</th>
-            <th style={{ width: 100 }}>Best Deal</th>
-            <th style={{ width: 75 }}>Discount</th>
-            <th style={{ width: 120 }}>Deal Score</th>
-            <th style={{ width: 130 }}>Best Store</th>
-            <th style={{ width: 90 }}>ATL</th>
-            <th style={{ width: 80, textAlign: 'right' }}>Action</th>
+            <th style={{ width: 105 }}>Best Deal</th>
+            <th style={{ width: 85 }}>Discount</th>
+            <th style={{ width: 130 }}>Deal Score</th>
+            <th style={{ width: 160 }}>Best Store</th>
+            <th style={{ width: 100 }}>ATL</th>
+            <th style={{ width: 90, textAlign: 'right' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -31,7 +31,6 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
             const isFree = game.isFree || game.bestPriceEur === 0;
             const dealScore = game.bestDealScore ?? 0;
             const dealTier = game.bestDealTier || 'Fair';
-            const confidence = game.bestConfidenceScore ?? 50;
             const isProvisional = Boolean(game.bestIsProvisional);
 
             const tierColor = 
