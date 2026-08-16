@@ -418,6 +418,9 @@ export class SyncOrchestrator {
         }
         this.broadcast();
 
+        const chunkSize = config.allkeyshopChunkSize;
+        const pauseMs = config.allkeyshopChunkPauseMs;
+
         for (let i = 0; i < prioritizedGames.length; i++) {
           if (this.isCancelled) return;
           const g = prioritizedGames[i];
@@ -443,6 +446,21 @@ export class SyncOrchestrator {
 
           if (i % 5 === 0 || i === prioritizedGames.length - 1) {
             this.broadcast();
+          }
+
+          // Anti-ban Cooldown Break: every `chunkSize` games (if more games remain)
+          const isChunkEnd = (i + 1) % chunkSize === 0 && (i + 1) < prioritizedGames.length;
+          if (isChunkEnd && !this.isCancelled) {
+            const pauseSeconds = Math.round(pauseMs / 1000);
+            logInfo(`[Keyshops] Completed chunk of ${chunkSize} games (${i + 1}/${prioritizedGames.length}). Taking a ${pauseSeconds}s anti-ban cooldown break.`);
+            
+            // Countdown loop with cancel checking every second
+            for (let sec = pauseSeconds; sec > 0; sec--) {
+              if (this.isCancelled) return;
+              this.progress.currentAction = `[AllKeyShop] Firewall-protection cooldown break (${sec}s) [${i + 1}/${prioritizedGames.length}]...`;
+              this.broadcast();
+              await new Promise(r => setTimeout(r, 1000));
+            }
           }
         }
       }

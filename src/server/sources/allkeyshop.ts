@@ -10,11 +10,24 @@ interface CatalogGame {
   slug?: string;
 }
 
+const ALLKEYSHOP_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9,hu;q=0.8',
+  'Sec-CH-UA': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+  'Sec-CH-UA-Mobile': '?0',
+  'Sec-CH-UA-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'Referer': 'https://www.allkeyshop.com/blog/'
+};
+
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
   public readonly name = 'AllKeyShop';
   public readonly supportsBatch = false;
-  private queue = new PacedSourceQueue('allkeyshop', config.delays.allkeyshop, 500);
+  private queue = new PacedSourceQueue('allkeyshop', config.delays.allkeyshop, config.allkeyshopJitterMs);
 
   private cachedCatalog: CatalogGame[] | null = null;
   private lastCatalogFetch = 0;
@@ -57,14 +70,12 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         console.warn('Could not read cached AllKeyShop catalog from disk:', err);
       }
 
-      // 3. Download fresh catalog from AllKeyShop
+      // 3. Download fresh catalog from AllKeyShop with 10s timeout
       try {
         const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur';
         const res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*'
-          }
+          headers: ALLKEYSHOP_HEADERS,
+          signal: AbortSignal.timeout(10000)
         });
 
         if (res.ok) {
@@ -151,10 +162,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
         const priceApiUrl = `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`;
         const res = await fetch(priceApiUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*'
-          }
+          headers: ALLKEYSHOP_HEADERS,
+          signal: AbortSignal.timeout(8000)
         });
 
         if (res.status === 403 || res.status === 429) {
@@ -229,6 +238,11 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
         return Array.from(merchantOffers.values());
       } catch (err: any) {
+        if (err?.name === 'TimeoutError' || err?.message?.includes('timeout') || err?.message?.includes('aborted')) {
+          const timeoutErr: any = new Error('AllKeyShop request timed out (firewall packet drop)');
+          timeoutErr.status = 429;
+          throw timeoutErr;
+        }
         if (err?.status === 403 || err?.status === 429) {
           throw err;
         }
