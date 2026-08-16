@@ -28,6 +28,22 @@ import type {
 let dbInstance: Database.Database | null = null;
 const stmtCache = new Map<string, Database.Statement>();
 
+export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
+  -- Reset and reassign is_best_deal for all games using canonical priority (safe lowest > anomaly fallback)
+  UPDATE offers SET is_best_deal = 0;
+  WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY game_id 
+      ORDER BY 
+        CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
+        price_eur ASC
+    ) as rn
+    FROM offers
+    WHERE is_valid = 1
+  )
+  UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
+`;
+
 export function getDb(): Database.Database {
   if (!dbInstance || !dbInstance.open) {
     dbInstance = new Database(config.dbPath);
@@ -91,21 +107,8 @@ export function getDb(): Database.Database {
 
         -- Delete any orphaned offers
         DELETE FROM offers WHERE id NOT IN (SELECT DISTINCT offer_id FROM source_observations);
-
-        -- Reset and reassign is_best_deal for all games using canonical priority (safe lowest > anomaly fallback)
-        UPDATE offers SET is_best_deal = 0;
-        WITH ranked AS (
-          SELECT id, ROW_NUMBER() OVER (
-            PARTITION BY game_id 
-            ORDER BY 
-              CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
-              price_eur ASC
-          ) as rn
-          FROM offers
-          WHERE is_valid = 1
-        )
-        UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
       `);
+      dbInstance.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
     } catch {}
 
     // Diagnostic: audit anomalies table content at startup to inspect stale records
@@ -1574,20 +1577,7 @@ export const offerRepo = {
   },
 
   recomputeAllBestDeals(): void {
-    prepareStmt(`UPDATE offers SET is_best_deal = 0`).run();
-    prepareStmt(`
-      WITH ranked AS (
-        SELECT id, ROW_NUMBER() OVER (
-          PARTITION BY game_id 
-          ORDER BY 
-            CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
-            price_eur ASC
-        ) as rn
-        FROM offers
-        WHERE is_valid = 1
-      )
-      UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1)
-    `).run();
+    getDb().exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
   },
 
   getPriceHistory(gameId: string, limit: number = 100): PriceHistoryEntry[] {
