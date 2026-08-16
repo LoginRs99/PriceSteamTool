@@ -1,16 +1,18 @@
 import type { PriceEventType, PriceRiskLevel, DealScoreTier, ConfidenceTier } from '../../shared/types.js';
 
 // ============================================================================
-// Deal Score v2.2 — Tunable Constants (§0, §1, §2, §3)
+// Deal Score v2.3 — Tunable Constants (§0, §1, §2, §3)
 // ============================================================================
 export const LOGISTIC_STEEPNESS = 1.2;             // Sharp separation around the median
-export const BASE_SCORE_CEILING = 75;              // Headroom for base median-relative score (0 - 75)
-export const RECORD_BONUS_MAX = 25;                // Max bonus for reaching/breaking historical low (0 - 25)
+export const BASE_SCORE_CEILING = 65;              // Headroom for base median-relative score (0 - 65)
+export const RECORD_BONUS_MAX = 35;                // Max bonus for breaking historical low (0 - 35)
+export const RECORD_BONUS_AT_ATL = 20;             // Base record bonus for matching existing ATL (0 - 20)
+export const UNDERCUT_FULL_DEPTH_RATIO = 0.20;     // 20% undercut below old ATL earns full extra undercut bonus (+15)
 export const IQR_TO_SIGMA = 1.349;                 // Standard normal IQR-to-sigma conversion
 export const MIN_SCALE_PCT_OF_MEDIAN = 0.08;       // 8% floor for zero/low-volatility games
 export const ABSOLUTE_MIN_SCALE_EUR = 0.30;        // 0.30 € absolute floor for sub-euro/cheap games
 export const NO_HISTORY_FALLBACK_CAP = 25;         // Max score when zero historical data exists
-export const ATL_FULL_DEPTH_RATIO = 0.35;          // ATL depth below median that earns 100% of record bonus
+export const ATL_FULL_DEPTH_RATIO = 0.35;          // ATL depth below median that earns 100% of base record bonus
 export const DATA_SUFFICIENCY_MIN_SAMPLES = 3;     // Min historical observations to establish full distribution
 export const PROVISIONAL_SCORE_CAP = 65;           // Max score when N = 1 or 2 (prevents false Exceptional on sparse data)
 
@@ -100,8 +102,8 @@ export function getConfidenceTier(confidence: number): ConfidenceTier {
 }
 
 /**
- * Stage 1: Median-anchored, Volatility-normalized Base Score (0 - 75)
- * Symmetrical logistic curve: z = 0 -> 37.5 (dead-center Fair)
+ * Stage 1: Median-anchored, Volatility-normalized Base Score (0 - 65)
+ * Symmetrical logistic curve: z = 0 -> 32.5 (dead-center Fair)
  */
 export function calculateBaseScore(
   priceEur: number,
@@ -131,7 +133,7 @@ export function calculateBaseScore(
   const z = (medianPriceEur - priceEur) / effectiveSigma;
   const zScore = Number(z.toFixed(3));
 
-  // Symmetrical Logistic Curve: z=0 -> 37.5
+  // Symmetrical Logistic Curve: z=0 -> 32.5 (Base Score Ceiling = 65)
   const baseScore = BASE_SCORE_CEILING / (1 + Math.exp(-LOGISTIC_STEEPNESS * z));
 
   return {
@@ -142,8 +144,8 @@ export function calculateBaseScore(
 }
 
 /**
- * Stage 2: Continuous Relative Record Bonus (0 - 25)
- * Scaled by ATL depth below median to prevent shallow 1-cent drops from over-inflating scores.
+ * Stage 2: Continuous Relative Record Bonus (0 - 35)
+ * Scaled by ATL depth below median & progressive bonus for deeper undercuts below old ATL.
  */
 export function calculateRecordBonus(
   priceEur: number,
@@ -159,18 +161,32 @@ export function calculateRecordBonus(
 
   // 1. Calculate ATL depth below median: how significant is this ATL?
   const atlDepthRatio = median > 0 ? Math.max(0, (median - atl) / median) : 0;
-  // If ATL is very shallow (< 1% below median), max bonus is appropriately tiny
-  const maxBonusForDepth = RECORD_BONUS_MAX * Math.min(1.0, atlDepthRatio / ATL_FULL_DEPTH_RATIO);
+  // If ATL is very shallow (< 1% below median), base bonus is appropriately scaled
+  const maxBaseBonusForDepth = RECORD_BONUS_AT_ATL * Math.min(1.0, atlDepthRatio / ATL_FULL_DEPTH_RATIO);
 
-  // 2. Exact match or new undercut: award full depth-scaled bonus
-  if (priceEur <= atl) {
+  // 2. Case A: Price is strictly below ATL (New Record / Undercutting previous ATL)
+  if (priceEur < atl) {
+    const baseBonus = maxBaseBonusForDepth;
+    const undercutRatio = atl > 0 ? (atl - priceEur) / atl : 0;
+    const maxExtra = (RECORD_BONUS_MAX - RECORD_BONUS_AT_ATL) * Math.min(1.0, atlDepthRatio / ATL_FULL_DEPTH_RATIO);
+    const extraUndercutBonus = maxExtra * Math.min(1.0, undercutRatio / UNDERCUT_FULL_DEPTH_RATIO);
+    
+    const recordBonus = baseBonus + extraUndercutBonus;
     return {
-      recordBonus: Number(maxBonusForDepth.toFixed(2)),
+      recordBonus: Number(recordBonus.toFixed(2)),
       atlDistanceEur: Number((priceEur - atl).toFixed(2))
     };
   }
 
-  // 3. Approaching ATL from above: smooth quadratic decay to 0 at median
+  // 3. Case B: Price exactly matches ATL (Reaching existing record)
+  if (priceEur === atl) {
+    return {
+      recordBonus: Number(maxBaseBonusForDepth.toFixed(2)),
+      atlDistanceEur: 0
+    };
+  }
+
+  // 4. Case C: Approaching ATL from above: smooth quadratic decay to 0 at median
   const span = Math.max(0.30, median - atl);
   const normalizedDistance = (priceEur - atl) / span;
 
@@ -182,7 +198,7 @@ export function calculateRecordBonus(
   }
 
   const proximityRatio = Math.max(0, 1 - normalizedDistance);
-  const recordBonus = maxBonusForDepth * Math.pow(proximityRatio, 2);
+  const recordBonus = maxBaseBonusForDepth * Math.pow(proximityRatio, 2);
 
   return {
     recordBonus: Number(recordBonus.toFixed(2)),

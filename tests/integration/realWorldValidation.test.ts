@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { 
   profileRepo, 
   gameRepo, 
   merchantRepo, 
   offerRepo, 
-  getDb, 
-  closeDb 
+  getDb 
 } from '../../src/server/db/index.js';
 import { normalizeProductType, normalizeRegion } from '../../src/server/domain/normalizer.js';
 import { evaluateOfferAnomaly } from '../../src/server/domain/anomaly.js';
