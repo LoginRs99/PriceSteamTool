@@ -105,6 +105,16 @@ export function getDb(): Database.Database {
         );
       `);
     } catch {}
+
+    // Diagnostic: audit anomalies table content at startup to inspect stale records
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        const rawAnomalies = dbInstance.prepare(`SELECT id, game_id, offer_id, anomaly_type, score, detected_at, is_dismissed FROM anomalies`).all();
+        if (rawAnomalies.length > 0) {
+          console.log(`[Data Safety] Startup anomalies table audit (${rawAnomalies.length} entries):`, JSON.stringify(rawAnomalies));
+        }
+      } catch {}
+    }
   }
   return dbInstance;
 }
@@ -1202,23 +1212,12 @@ export const offerRepo = {
         );
       }
 
-      // Manage genuine anomalies in the anomalies table
-      if (pricingEval.isAnomaly) {
-        const existingAnomaly = prepareStmt(`SELECT id FROM anomalies WHERE offer_id = ? AND is_dismissed = 0`).get(offerId) as any;
-        if (existingAnomaly) {
-          prepareStmt(`
-            UPDATE anomalies 
-            SET score = ?, reason = ?, detected_at = ? 
-            WHERE id = ?
-          `).run(pricingEval.riskScore, pricingEval.summary, now, existingAnomaly.id);
-        } else {
-          prepareStmt(`
-            INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-          `).run(randomUUID(), data.gameId, offerId, pricingEval.riskFlags[0] || 'PRICE_ANOMALY', pricingEval.riskScore, pricingEval.summary, now);
-        }
-      } else {
-        prepareStmt(`DELETE FROM anomalies WHERE offer_id = ? AND is_dismissed = 0`).run(offerId);
+      // Manage genuine anomalies & HIGH risk detections in the anomalies table (Data Safety audit trail)
+      if (pricingEval.isAnomaly || pricingEval.riskLevel === 'HIGH') {
+        const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
+          ? pricingEval.riskFlags[0]
+          : 'PRICE_ANOMALY';
+        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
       }
 
       // If a verified new historical low occurred, update game record
@@ -1689,12 +1688,25 @@ export const sourceRepo = {
 // ----------------------------------------------------
 export const anomalyRepo = {
   record(gameId: string, offerId: string, type: Anomaly['anomalyType'], score: number, reason: string): void {
-    const id = randomUUID();
     const now = new Date().toISOString();
-    prepareStmt(`
-      INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-    `).run(id, gameId, offerId, type, score, reason, now);
+    const existing = prepareStmt(`
+      SELECT id FROM anomalies 
+      WHERE game_id = ? AND offer_id = ? AND is_dismissed = 0
+    `).get(gameId, offerId) as any;
+
+    if (existing) {
+      prepareStmt(`
+        UPDATE anomalies 
+        SET score = ?, reason = ?, anomaly_type = ?, detected_at = ? 
+        WHERE id = ?
+      `).run(score, reason, type, now, existing.id);
+    } else {
+      const id = randomUUID();
+      prepareStmt(`
+        INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+      `).run(id, gameId, offerId, type, score, reason, now);
+    }
   },
 
   list(onlyActive: boolean = true): Anomaly[] {
