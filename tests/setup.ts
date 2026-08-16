@@ -1,8 +1,4 @@
-import { afterAll } from 'vitest';
-import { clearStmtCache } from '../src/server/db/index.js';
+// Vitest setup configuration
 
-afterAll(() => {
-  clearStmtCache();
-});
 
 

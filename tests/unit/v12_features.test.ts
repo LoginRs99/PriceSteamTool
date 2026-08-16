@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { 
   getDb, 
   closeDb,
+  prepareStmt,
   profileRepo, 
   gameRepo, 
   offerRepo, 
@@ -149,19 +150,19 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
       steamAppId: 1091500,
       title: 'Cyberpunk 2077',
       basePriceEur: 59.99,
-      historicalLowEur: 29.99
+      historicalLowEur: 29.99,
+      historicalLowSource: 'steam'
     });
-    // Add realistic historical sale baseline for Cyberpunk 2077
-    offerRepo.upsertOffer({
-      gameId: g1.id,
-      merchantId: steamMerchant.id,
-      productType: 'DIRECT_PURCHASE',
-      regionType: 'GLOBAL',
-      priceEur: 29.99,
-      originalPriceEur: 59.99,
-      sourceCode: 'steam',
-      dealUrl: 'https://store.steampowered.com/app/1091500'
-    });
+    // Add realistic historical sale baseline for Cyberpunk 2077 (3 past seasonal sales at 29.99)
+    prepareStmt(`INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      'hist-cp-1', g1.id, steamMerchant.id, 'steam', 29.99, 50, '2025-06-01T00:00:00Z'
+    );
+    prepareStmt(`INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      'hist-cp-2', g1.id, steamMerchant.id, 'steam', 29.99, 50, '2025-09-01T00:00:00Z'
+    );
+    prepareStmt(`INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      'hist-cp-3', g1.id, steamMerchant.id, 'steam', 29.99, 50, '2025-11-01T00:00:00Z'
+    );
     gameRepo.syncWishlistEntries(profile.id, [{ steamAppId: 1091500, title: 'Cyberpunk 2077', priority: 1 }]);
     
     // Now a massive new ATL at €14.99 verified across 2 sources

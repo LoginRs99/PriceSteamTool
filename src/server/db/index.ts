@@ -1296,10 +1296,12 @@ export const offerRepo = {
       typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
       typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-      isLowSample: Boolean(r.typical_sale_low_confidence),
+      isLowSample: Boolean(r.typical_sale_low_confidence || r.typical_sale_median_eur === null || r.typical_sale_median_eur === undefined),
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
       isAnomaly: Boolean(r.is_anomaly),
       riskLevel: r.risk_level || 'SAFE'
     });
@@ -1372,10 +1374,12 @@ export const offerRepo = {
         typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
         typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
         typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-        isLowSample: Boolean(r.typical_sale_low_confidence),
+        isLowSample: Boolean(r.typical_sale_low_confidence || r.typical_sale_median_eur === null || r.typical_sale_median_eur === undefined),
         low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
         low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
         allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+        historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+        isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
         isAnomaly: Boolean(r.is_anomaly),
         riskLevel: r.risk_level || 'SAFE'
       });
@@ -1608,10 +1612,12 @@ function mapGameRow(r: any): Game {
       typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
       typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-      isLowSample: Boolean(r.typical_sale_low_confidence),
+      isLowSample: Boolean(r.typical_sale_low_confidence || r.typical_sale_median_eur === null || r.typical_sale_median_eur === undefined),
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
       isAnomaly: Number(r.anomaly_count || 0) > 0 || r.best_risk_level === 'HIGH',
       riskLevel: r.best_risk_level || 'SAFE'
     });

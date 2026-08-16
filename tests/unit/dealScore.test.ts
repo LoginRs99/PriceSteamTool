@@ -205,7 +205,32 @@ describe('Deal Score v2 Calculator', () => {
   });
 
   // ----------------------------------------------------
-  // 5. Tier Classifications
+  // 5. Unreleased & Low-Sample Games Guard
+  // ----------------------------------------------------
+  describe('Low-Sample & Unreleased Game Guards', () => {
+    it('prevents newly listed games with 0 history from masquerading as 100 Exceptional deals (e.g. 007 First Light)', () => {
+      // 007 First Light: MSRP €64.39, keyshop pre-order at €46.68 (27.5% discount, 0 historical sales)
+      const res = calculateDealScore({
+        priceEur: 46.68,
+        basePriceEur: 64.39,
+        typicalSaleMedianEur: null,
+        isLowSample: true,
+        allTimeLowEur: 46.68, // raw observed min is not a confirmed ATL
+        isConfirmedAtl: false,
+        riskLevel: 'SAFE',
+        isAnomaly: false
+      });
+
+      // Must be capped at fallback formula (~8 points) and categorized as Weak
+      expect(res.score).toBeLessThanOrEqual(25);
+      expect(res.tier).toBe('Weak');
+      expect(res.rarityBonus).toBe(0);
+      expect(res.isLowSample).toBe(true);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 6. Tier Classifications
   // ----------------------------------------------------
   describe('Deal Score Tiers', () => {
     it('maps scores to intuitive qualitative tiers', () => {

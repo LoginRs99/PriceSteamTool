@@ -23,6 +23,7 @@ export interface DealScoreInput {
   typicalSaleQ1Eur?: number;
   typicalSaleQ3Eur?: number;
   isLowSample?: boolean;
+  isConfirmedAtl?: boolean;
   low90dEur?: number | null;
   low1yEur?: number | null;
   allTimeLowEur?: number;
@@ -81,9 +82,14 @@ export function calculateBaseScore(
   medianPriceEur: number | null | undefined,
   q1PriceEur?: number,
   q3PriceEur?: number,
-  basePriceEur?: number
+  basePriceEur?: number,
+  isLowSample?: boolean
 ): { baseScore: number; zScore?: number; isLowSample: boolean } {
-  if (medianPriceEur !== null && medianPriceEur !== undefined && medianPriceEur > 0) {
+  const lowSample = isLowSample !== undefined
+    ? isLowSample
+    : Boolean(medianPriceEur === null || medianPriceEur === undefined || medianPriceEur <= 0);
+
+  if (!lowSample && medianPriceEur && medianPriceEur > 0) {
     const iqr = (q1PriceEur !== undefined && q3PriceEur !== undefined)
       ? Math.max(0, q3PriceEur - q1PriceEur)
       : 0;
@@ -104,7 +110,7 @@ export function calculateBaseScore(
     };
   }
 
-  // Fallback when there's no sale-price history yet (median === null)
+  // Fallback when there's no sale-price history yet (median === null or low confidence sample)
   const discountPct = basePriceEur && basePriceEur > 0 && priceEur < basePriceEur
     ? ((basePriceEur - priceEur) / basePriceEur) * 100
     : 0;
@@ -125,8 +131,16 @@ export function calculateRarityBonus(
   priceEur: number,
   allTimeLowEur?: number,
   low90dEur?: number | null,
-  low1yEur?: number | null
+  low1yEur?: number | null,
+  isLowSample?: boolean,
+  isConfirmedAtl?: boolean
 ): number {
+  // If the game has low sample data and no verified historical low from external tracker,
+  // we do NOT give a full rarity bonus on freshly inserted first observations.
+  if (isLowSample && !isConfirmedAtl) {
+    return 0;
+  }
+
   const EPS = PRICE_MATCH_EPSILON_EUR;
   const atl = allTimeLowEur ?? 0;
 
@@ -158,6 +172,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   const priceEur = input.priceEur;
   const median = input.typicalSaleMedianEur;
   const atl = input.allTimeLowEur ?? input.historicalLowEur;
+  const isConfirmedAtl = Boolean(input.isConfirmedAtl || (input.historicalLowEur && input.historicalLowEur > 0));
 
   // 1. Stage 1: Base Score
   const { baseScore, zScore, isLowSample } = calculateBaseScore(
@@ -165,7 +180,8 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     median,
     input.typicalSaleQ1Eur,
     input.typicalSaleQ3Eur,
-    input.basePriceEur ?? input.originalPriceEur
+    input.basePriceEur ?? input.originalPriceEur,
+    input.isLowSample
   );
 
   // 2. Stage 2: Rarity Bonus
@@ -173,12 +189,19 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     priceEur,
     atl,
     input.low90dEur,
-    input.low1yEur
+    input.low1yEur,
+    isLowSample,
+    isConfirmedAtl
   );
 
   // 3. Stage 3: Combine
   const rawBeforeClamp = baseScore + rarityBonus;
   let score = Math.round(Math.max(0, Math.min(100, rawBeforeClamp)));
+
+  // If low sample data and not a confirmed ATL from external tracker, strictly cap fallback
+  if (isLowSample && !isConfirmedAtl) {
+    score = Math.min(score, NO_HISTORY_FALLBACK_CAP);
+  }
 
   // 4. Safety Guard (§6): HIGH risk or anomaly is capped at 35
   if (input.isAnomaly === true || input.riskLevel === 'HIGH') {
@@ -192,7 +215,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     tier,
     baseScore: Number(baseScore.toFixed(2)),
     rarityBonus,
-    isLowSample: Boolean(isLowSample || input.isLowSample),
+    isLowSample,
     zScore,
     components: {
       subtotal: score,
