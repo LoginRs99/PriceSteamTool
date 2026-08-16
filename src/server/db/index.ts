@@ -1698,16 +1698,15 @@ export const anomalyRepo = {
   },
 
   list(onlyActive: boolean = true): Anomaly[] {
-    const db = getDb();
     const sql = onlyActive 
-      ? `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.affiliate_url_template 
+      ? `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
          FROM anomalies a 
          LEFT JOIN games g ON a.game_id = g.id
          LEFT JOIN offers o ON a.offer_id = o.id
          LEFT JOIN merchants m ON o.merchant_id = m.id
          WHERE a.is_dismissed = 0
          ORDER BY a.detected_at DESC`
-      : `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.affiliate_url_template 
+      : `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
          FROM anomalies a 
          LEFT JOIN games g ON a.game_id = g.id
          LEFT JOIN offers o ON a.offer_id = o.id
@@ -1716,7 +1715,7 @@ export const anomalyRepo = {
 
     const rows = prepareStmt(sql).all() as any[];
     return rows.map(r => {
-      let targetUrl = r.deal_url || r.affiliate_url_template;
+      let targetUrl = r.deal_url || r.merchant_default_url;
       if (!targetUrl && r.steam_app_id) {
         targetUrl = `https://store.steampowered.com/app/${r.steam_app_id}/`;
       }
