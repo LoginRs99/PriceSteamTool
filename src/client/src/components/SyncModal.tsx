@@ -16,8 +16,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
     itad: true,
     ggdeals: true,
     cheapshark: true,
-    allkeyshop: true,
-    gocdkeys: false
+    allkeyshop: true
   });
   const [forceRefresh, setForceRefresh] = useState(false);
   const [loading, setLoading] = useState(true);

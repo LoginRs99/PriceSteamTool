@@ -79,7 +79,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const query = request.query as any;
     const filterOptions: WishlistFilterOptions = {
       search: query.search || undefined,
-      sort: query.sort || 'priority',
+      sort: query.sort || 'best_value',
       saleOnly: query.saleOnly === 'true' || query.saleOnly === true,
       majorDealsOnly: query.majorDealsOnly === 'true' || query.majorDealsOnly === true,
       allTimeLowOnly: query.allTimeLowOnly === 'true' || query.allTimeLowOnly === true || query.historicalLowOnly === 'true' || query.historicalLowOnly === true,
@@ -88,6 +88,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       underPrice: query.underPrice ? parseFloat(query.underPrice) : undefined,
       minPrice: query.minPrice ? parseFloat(query.minPrice) : undefined,
       maxPrice: query.maxPrice ? parseFloat(query.maxPrice) : undefined,
+      minDealScore: query.minDealScore ? parseInt(query.minDealScore, 10) : undefined,
+      minConfidence: query.minConfidence ? parseInt(query.minConfidence, 10) : undefined,
+      hideAnomalies: query.hideAnomalies === 'true' || query.hideAnomalies === true,
+      hideProvisional: query.hideProvisional === 'true' || query.hideProvisional === true,
+      buyOnly: query.buyOnly === 'true' || query.buyOnly === true,
       merchantType: query.merchantType || 'all',
       hasAnomaly: query.hasAnomaly === 'true' || query.hasAnomaly === true,
       page: query.page ? parseInt(query.page, 10) : 1,
@@ -194,7 +199,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     const schema = z.object({
       forceRefresh: z.boolean().optional(),
-      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'gocdkeys'])).optional()
+      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop'])).optional()
     }).optional();
 
     const parsed = schema.safeParse(request.body);
@@ -216,6 +221,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.get('/api/sync/status', async () => {
     return syncOrchestrator.getProgress();
+  });
+
+  fastify.get('/api/sync/overview', async () => {
+    return syncOrchestrator.getSyncStatus();
   });
 
   // Server-Sent Events (SSE) for Real-Time Sync Updates
@@ -297,6 +306,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       webhookUrl: z.string().optional(),
       isEnabled: z.boolean().optional(),
       minDealScore: z.number().min(0).max(100).optional(),
+      minConfidence: z.number().min(0).max(100).optional(),
       notifyAtlOnly: z.boolean().optional(),
       notifyFreeGames: z.boolean().optional(),
       cooldownHours: z.number().min(1).max(168).optional()

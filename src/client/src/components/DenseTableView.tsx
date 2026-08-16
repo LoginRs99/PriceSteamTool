@@ -1,13 +1,14 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame, Sparkles, AlertTriangle, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Flame, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 interface DenseTableViewProps {
   games: Game[];
   onGameClick: (game: Game) => void;
+  onExplain?: (game: Game) => void;
 }
 
-export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameClick }) => {
+export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameClick, onExplain }) => {
   return (
     <div className="dense-table-wrapper">
       <table className="dense-table">
@@ -18,7 +19,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
             <th style={{ width: 90 }}>MSRP</th>
             <th style={{ width: 100 }}>Best Deal</th>
             <th style={{ width: 75 }}>Discount</th>
-            <th style={{ width: 110 }}>Deal Score</th>
+            <th style={{ width: 120 }}>Deal Score</th>
             <th style={{ width: 130 }}>Best Store</th>
             <th style={{ width: 90 }}>ATL</th>
             <th style={{ width: 80, textAlign: 'right' }}>Action</th>
@@ -30,14 +31,16 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
             const isFree = game.isFree || game.bestPriceEur === 0;
             const dealScore = game.bestDealScore ?? 0;
             const dealTier = game.bestDealTier || 'Fair';
+            const confidence = game.bestConfidenceScore ?? 50;
+            const isProvisional = Boolean(game.bestIsProvisional);
 
             const tierColor = 
               dealTier === 'Exceptional' ? '#8b5cf6' : 
               dealTier === 'Great' ? '#10b981' : 
+              dealTier === 'Good' ? '#06b6d4' :
               dealTier === 'Fair' ? '#3b82f6' : '#64748b';
 
             const isConfirmedATL = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW';
-            const isMajorDrop = game.bestPriceEvent === 'MAJOR_DROP' || game.bestPriceEvent === 'EXTREME_DROP';
             const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
 
             return (
@@ -56,11 +59,22 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
                   <div className="table-title-wrap">
                     <span className="table-game-title">{game.title}</span>
                     <div className="table-flags">
-                      {isConfirmedATL && !isHighRisk && (
-                        <span className="mini-flag atl-mini" title="All-Time Low"><Flame size={10} /> ATL</span>
+                      {game.actionSignal && !isHighRisk && (
+                        <span 
+                          className="mini-flag" 
+                          style={{ 
+                            background: `${game.actionSignal.badgeColor}22`, 
+                            color: game.actionSignal.badgeColor,
+                            border: `1px solid ${game.actionSignal.badgeColor}55`,
+                            fontWeight: 700
+                          }}
+                          title={`${game.actionSignal.badgeLabel}: ${game.actionSignal.primaryReason}`}
+                        >
+                          {game.actionSignal.badgeLabel}
+                        </span>
                       )}
-                      {isMajorDrop && !isConfirmedATL && !isHighRisk && (
-                        <span className="mini-flag major-mini" title="Major Discount"><Sparkles size={10} /> Major</span>
+                      {isConfirmedATL && !isHighRisk && !isProvisional && (
+                        <span className="mini-flag atl-mini" title="All-Time Low"><Flame size={10} /> ATL</span>
                       )}
                       {isHighRisk && (
                         <span className="mini-flag risk-mini" title="High Risk Suppressed"><AlertTriangle size={10} /> Risk</span>
@@ -94,14 +108,21 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameCli
                   )}
                 </td>
 
-                {/* 6. Deal Score */}
+                {/* 6. Deal Score & Confidence */}
                 <td className="cell-score">
                   {hasBestDeal && dealScore > 0 && !isHighRisk ? (
                     <span 
                       className="score-chip-sm"
-                      style={{ background: tierColor }}
+                      style={{ background: tierColor, cursor: 'pointer' }}
+                      title={`Deal Score: ${dealScore}/100 • ${confidence}% Confidence`}
+                      onClick={(e) => {
+                        if (onExplain) {
+                          e.stopPropagation();
+                          onExplain(game);
+                        }
+                      }}
                     >
-                      {dealScore} • {dealTier}
+                      {dealScore} • {isProvisional ? 'Prov' : `${confidence}%`}
                     </span>
                   ) : (
                     <span className="text-dim">—</span>

@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { 
   getDiscordSettings, 
   saveDiscordSettings, 
   sendTestNotification, 
   sendDealNotifications 
 } from '../../src/server/domain/discordNotifier.js';
-import { settingsRepo, notificationsRepo, offerRepo, gameRepo } from '../../src/server/db/index.js';
+import { settingsRepo, notificationsRepo, offerRepo, gameRepo, closeDb } from '../../src/server/db/index.js';
 import type { Game } from '../../src/shared/types.js';
 
 describe('Discord Notifier Service', () => {
@@ -225,5 +225,94 @@ describe('Discord Notifier Service', () => {
     const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
     expect(sentPayload.embeds[0].title).toBe('Free Giveaway Game');
     expect(sentPayload.embeds[0].description).toContain('100% Free Game Promotion');
+  });
+
+  it('should suppress high-risk anomaly deals from triggering Discord notifications', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 70,
+      minConfidence: 40,
+      notifyAtlOnly: false,
+      notifyFreeGames: true,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 4001, title: 'Glitch Price Game', slug: 'glitch-price-game' });
+    const inserted = gameRepo.getBySteamAppId(4001)!;
+
+    const anomalyGame: Game = {
+      id: inserted.id,
+      steamAppId: 4001,
+      title: 'Glitch Price Game',
+      slug: 'glitch-price-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: true, // Marked as anomaly!
+      bestRiskLevel: 'HIGH',
+      offersCount: 1,
+      bestPriceEur: 0.50,
+      basePriceEur: 59.99,
+      bestDiscountPercent: 99,
+      bestDealScore: 98,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([anomalyGame], 'TEST');
+    expect(sentCount).toBe(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('should format provisional deals cleanly without claiming verified ATL status', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 60,
+      minConfidence: 20,
+      notifyAtlOnly: false,
+      notifyFreeGames: false,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 5001, title: 'Provisional Game', slug: 'provisional-game' });
+    const inserted = gameRepo.getBySteamAppId(5001)!;
+
+    const provGame: Game = {
+      id: inserted.id,
+      steamAppId: 5001,
+      title: 'Provisional Game',
+      slug: 'provisional-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: false,
+      bestIsProvisional: true,
+      bestConfidenceScore: 35,
+      bestConfidenceTier: 'Low',
+      offersCount: 1,
+      bestPriceEur: 14.99,
+      basePriceEur: 29.99,
+      bestDiscountPercent: 50,
+      bestDealScore: 65,
+      bestDealTier: 'Good',
+      historicalLowEur: 14.99,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([provGame], 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const sentPayload = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(sentPayload.embeds[0].description).toContain('Provisional Deal Alert');
   });
 });

@@ -497,8 +497,8 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                                   {s}
                                 </span>
                               ))}
-                              <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 2 }} title="Evaluation Confidence">
-                                ({(offer.evaluationConfidence * 100).toFixed(0)}% conf)
+                              <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 2 }} title="Data Confidence">
+                                ({offer.confidenceScore !== undefined ? offer.confidenceScore : offer.evaluationConfidence !== undefined ? Math.round(offer.evaluationConfidence * 100) : 50}% conf)
                               </span>
                             </div>
                           </td>

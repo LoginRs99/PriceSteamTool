@@ -29,13 +29,13 @@ describe('Circuit Breaker State Machine — State Transitions', () => {
 
   it('transitions to PAUSED after 4 consecutive network failures', () => {
     const cb = new CircuitBreakerRegistry();
-    cb.recordFailure('gocdkeys', 'Connection timed out');
-    cb.recordFailure('gocdkeys', 'Connection timed out');
-    expect(cb.getState('gocdkeys')).toBe('BACKOFF');
+    cb.recordFailure('steam', 'Connection timed out');
+    cb.recordFailure('steam', 'Connection timed out');
+    expect(cb.getState('steam')).toBe('BACKOFF');
 
-    cb.recordFailure('gocdkeys', 'Connection timed out');
-    cb.recordFailure('gocdkeys', 'Connection timed out');
-    expect(cb.getState('gocdkeys')).toBe('PAUSED');
+    cb.recordFailure('steam', 'Connection timed out');
+    cb.recordFailure('steam', 'Connection timed out');
+    expect(cb.getState('steam')).toBe('PAUSED');
   });
 
   it('resets to NORMAL upon success', () => {

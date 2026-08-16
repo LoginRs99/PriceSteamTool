@@ -1,13 +1,14 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame, Sparkles, AlertTriangle, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Flame, AlertTriangle, ShieldCheck, ExternalLink } from 'lucide-react';
 
 interface CompactListViewProps {
   games: Game[];
   onGameClick: (game: Game) => void;
+  onExplain?: (game: Game) => void;
 }
 
-export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameClick }) => {
+export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameClick, onExplain }) => {
   return (
     <div className="compact-list-container">
       {games.map(game => {
@@ -15,14 +16,16 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
         const isFree = game.isFree || game.bestPriceEur === 0;
         const dealScore = game.bestDealScore ?? 0;
         const dealTier = game.bestDealTier || 'Fair';
+        const confidence = game.bestConfidenceScore ?? 50;
+        const isProvisional = Boolean(game.bestIsProvisional);
 
         const tierColor = 
           dealTier === 'Exceptional' ? '#8b5cf6' : 
           dealTier === 'Great' ? '#10b981' : 
+          dealTier === 'Good' ? '#06b6d4' :
           dealTier === 'Fair' ? '#3b82f6' : '#64748b';
 
         const isConfirmedATL = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW';
-        const isMajorDrop = game.bestPriceEvent === 'MAJOR_DROP' || game.bestPriceEvent === 'EXTREME_DROP';
         const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
 
         const imageUrl = game.capsuleImage || 
@@ -52,11 +55,22 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
               <div className="compact-title-wrap">
                 <span className="compact-title" title={game.title}>{game.title}</span>
                 <div className="compact-tags">
-                  {isConfirmedATL && !isHighRisk && (
-                    <span className="tag-pill tag-atl"><Flame size={10} /> ATL</span>
+                  {game.actionSignal && !isHighRisk && (
+                    <span 
+                      className="tag-pill"
+                      style={{ 
+                        background: `${game.actionSignal.badgeColor}22`, 
+                        color: game.actionSignal.badgeColor,
+                        border: `1px solid ${game.actionSignal.badgeColor}55`,
+                        fontWeight: 700
+                      }}
+                      title={`${game.actionSignal.badgeLabel}: ${game.actionSignal.primaryReason}`}
+                    >
+                      {game.actionSignal.badgeLabel}
+                    </span>
                   )}
-                  {isMajorDrop && !isConfirmedATL && !isHighRisk && (
-                    <span className="tag-pill tag-major"><Sparkles size={10} /> Major Drop</span>
+                  {isConfirmedATL && !isHighRisk && !isProvisional && (
+                    <span className="tag-pill tag-atl"><Flame size={10} /> ATL</span>
                   )}
                   {isHighRisk && (
                     <span className="tag-pill tag-risk"><AlertTriangle size={10} /> High Risk</span>
@@ -65,15 +79,21 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
               </div>
             </div>
 
-            {/* Middle: Store & Deal Score */}
+            {/* Middle: Store & Deal Score + Confidence */}
             <div className="compact-mid">
               {hasBestDeal && dealScore > 0 && !isHighRisk && (
                 <span 
                   className="compact-score-pill"
-                  style={{ background: tierColor }}
-                  title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
+                  style={{ background: tierColor, cursor: 'pointer' }}
+                  title={`Deal Score: ${dealScore}/100 • ${dealTier} (${confidence}% Confidence)`}
+                  onClick={(e) => {
+                    if (onExplain) {
+                      e.stopPropagation();
+                      onExplain(game);
+                    }
+                  }}
                 >
-                  {dealScore} • {dealTier}
+                  {dealScore} • {dealTier} {isProvisional ? '(Prov)' : `(${confidence}%)`}
                 </span>
               )}
 

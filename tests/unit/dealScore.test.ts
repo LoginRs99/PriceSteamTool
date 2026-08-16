@@ -2,246 +2,554 @@ import { describe, it, expect } from 'vitest';
 import { 
   calculateDealScore, 
   calculateBaseScore,
-  calculateRarityBonus,
+  calculateRecordBonus,
+  calculateDataConfidence,
   getDealScoreTier,
+  getConfidenceTier,
   LOGISTIC_STEEPNESS,
   BASE_SCORE_CEILING,
-  PRICE_MATCH_EPSILON_EUR,
-  ATL_BONUS,
-  LOW90D_BONUS,
-  LOW1Y_BONUS,
-  ATL_PROXIMITY_TAIL_MAX,
-  NO_HISTORY_FALLBACK_CAP
+  RECORD_BONUS_MAX,
+  MIN_SCALE_PCT_OF_MEDIAN,
+  ABSOLUTE_MIN_SCALE_EUR,
+  NO_HISTORY_FALLBACK_CAP,
+  DATA_SUFFICIENCY_MIN_SAMPLES,
+  PROVISIONAL_SCORE_CAP
 } from '../../src/server/domain/dealScore.js';
 
-describe('Deal Score v2 Calculator', () => {
+describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
   // ----------------------------------------------------
   // 1. Stage 1: Base Score (Median & Volatility Normalization)
   // ----------------------------------------------------
-  describe('Stage 1: Base Score', () => {
-    it('evaluates exact median price to dead center ~35 base score', () => {
-      // When price matches typical sale median, z = 0 -> 70 / (1 + exp(0)) = 35
+  describe('Stage 1: Base Score & Adaptive Sigma Floor', () => {
+    it('evaluates exact median price to dead center 37.5 base score', () => {
+      // When price matches typical sale median, z = 0 -> 75 / (1 + exp(0)) = 37.5
       const res = calculateBaseScore(25.00, 25.00, 20.00, 30.00);
       expect(res.zScore).toBe(0);
-      expect(Math.round(res.baseScore)).toBe(35);
-      expect(res.isLowSample).toBe(false);
+      expect(res.baseScore).toBe(37.5);
     });
 
-    it('evaluates full-IQR case with realistic price volatility', () => {
-      // Median 25, Q1 20, Q3 30 -> IQR = 10, scale = 10 / 1.349 ≈ 7.413
-      // Price 15 -> z = (25 - 15) / 7.413 = 1.349 -> baseScore = 70 / (1 + exp(-1.1 * 1.349)) ≈ 57.06
-      const res = calculateBaseScore(15.00, 25.00, 20.00, 30.00);
-      expect(res.zScore).toBeGreaterThan(1.3);
-      expect(res.baseScore).toBeGreaterThan(55);
-      expect(res.baseScore).toBeLessThan(65);
+    it('evaluates scale floor consistently across price bands for 0-IQR games', () => {
+      // €0.99 with 10c drop -> sigma_eff = max(0, 0.0792, 0.30) = 0.30 -> z = 0.10 / 0.30 = 0.333
+      const res099 = calculateBaseScore(0.89, 0.99, undefined, undefined);
+      expect(res099.effectiveSigma).toBe(0.30);
+      expect(res099.zScore).toBe(0.333);
+      expect(res099.baseScore).toBeGreaterThan(40);
+      expect(res099.baseScore).toBeLessThan(50);
+
+      // €19.99 with 2.00€ drop (10%) -> sigma_eff = 19.99 * 0.08 = 1.599 -> z = 2.00 / 1.599 = 1.251
+      const res1999 = calculateBaseScore(17.99, 19.99, undefined, undefined);
+      expect(res1999.effectiveSigma).toBeCloseTo(1.599, 2);
+      expect(res1999.zScore).toBeCloseTo(1.251, 2);
+      expect(res1999.baseScore).toBeGreaterThan(60);
+      expect(res1999.baseScore).toBeLessThan(65);
+
+      // €59.99 with 6.00€ drop (10%) -> sigma_eff = 59.99 * 0.08 = 4.799 -> z = 6.00 / 4.799 = 1.250
+      const res5999 = calculateBaseScore(53.99, 59.99, undefined, undefined);
+      expect(res5999.effectiveSigma).toBeCloseTo(4.799, 2);
+      expect(res5999.zScore).toBeCloseTo(1.250, 2);
+      expect(res5999.baseScore).toBeCloseTo(res1999.baseScore, 0); // Scale invariance for identical relative moves
     });
 
-    it('evaluates median-only case (no Q1/Q3) using the 3% scale floor', () => {
-      // Median 25, no Q1/Q3 -> scale = 25 * 0.03 = 0.75
-      // Price 24 -> z = (25 - 24) / 0.75 = 1.333
-      const res = calculateBaseScore(24.00, 25.00, undefined, undefined);
-      expect(res.zScore).toBeCloseTo(1.333, 2);
-      expect(res.baseScore).toBeGreaterThan(55);
-    });
+    it('computes realistic logistic S-curve for z from -3 to +3', () => {
+      const median = 20;
+      const sigma = 5;
+      const q1 = median - (sigma * 1.349) / 2;
+      const q3 = median + (sigma * 1.349) / 2;
 
-    it('falls back to capped MSRP discount when median is null (no history)', () => {
-      // Base price €60, Price €30 (50% discount) -> min(25, 50 * 0.3) = 15
-      const res = calculateBaseScore(30.00, null, undefined, undefined, 60.00);
-      expect(res.baseScore).toBe(15);
-      expect(res.isLowSample).toBe(true);
-      expect(res.zScore).toBeUndefined();
-
-      // Base price €60, Price €6 (90% discount) -> min(25, 90 * 0.3) = capped at 25
-      const resDeep = calculateBaseScore(6.00, null, undefined, undefined, 60.00);
-      expect(resDeep.baseScore).toBe(NO_HISTORY_FALLBACK_CAP);
-      expect(resDeep.isLowSample).toBe(true);
-    });
-
-    it('returns 0 base score when price is above MSRP and no history exists', () => {
-      const res = calculateBaseScore(70.00, null, undefined, undefined, 60.00);
-      expect(res.baseScore).toBe(0);
-      expect(res.isLowSample).toBe(true);
-    });
-  });
-
-  // ----------------------------------------------------
-  // 2. Stage 2: Single-Ladder Rarity Bonus
-  // ----------------------------------------------------
-  describe('Stage 2: Single-Ladder Rarity Bonus', () => {
-    const atl = 19.00;
-    const low90d = 22.00;
-    const low1y = 24.00;
-
-    it('awards 30 points for matching or undercutting confirmed ATL', () => {
-      expect(calculateRarityBonus(18.00, atl, low90d, low1y)).toBe(ATL_BONUS);
-      expect(calculateRarityBonus(19.00, atl, low90d, low1y)).toBe(ATL_BONUS);
-    });
-
-    it('awards ATL bonus within the +0.05 EUR epsilon tolerance', () => {
-      // 19.00 + 0.05 = 19.05 qualifies for ATL
-      expect(calculateRarityBonus(19.05, atl, low90d, low1y)).toBe(ATL_BONUS);
-      // 19.06 exceeds ATL tolerance -> falls to next tier
-      expect(calculateRarityBonus(19.06, atl, low90d, low1y)).toBe(LOW90D_BONUS);
-    });
-
-    it('awards 18 points for matching 90-day low (when ATL is not reached)', () => {
-      expect(calculateRarityBonus(22.00, atl, low90d, low1y)).toBe(LOW90D_BONUS);
-      expect(calculateRarityBonus(22.05, atl, low90d, low1y)).toBe(LOW90D_BONUS);
-    });
-
-    it('awards 10 points for matching 1-year low (when 90d low is not reached)', () => {
-      expect(calculateRarityBonus(23.50, atl, low90d, low1y)).toBe(LOW1Y_BONUS);
-      expect(calculateRarityBonus(24.05, atl, low90d, low1y)).toBe(LOW1Y_BONUS);
-    });
-
-    it('awards continuous proximity tail when price is above 1y low but close to ATL', () => {
-      // ATL = 19, Price = 25 -> proximity = 1 - (25 - 19) / (19 * 0.5) = 1 - 6 / 9.5 ≈ 0.368
-      // tail = round(8 * 0.368) = 3
-      const bonus = calculateRarityBonus(25.00, atl, null, null);
-      expect(bonus).toBe(3);
-    });
-
-    it('returns 0 rarity bonus when far above ATL', () => {
-      // Price = 40, ATL = 19 -> (40 - 19) / 9.5 > 1 -> proximity = 0
-      expect(calculateRarityBonus(40.00, atl, null, null)).toBe(0);
+      // z = 0 (price = 20) -> 37.5
+      expect(calculateBaseScore(20, median, q1, q3).baseScore).toBe(37.5);
+      // z = +1 (price = 15) -> ~57.6
+      expect(calculateBaseScore(15, median, q1, q3).baseScore).toBeCloseTo(57.6, 0);
+      // z = +2 (price = 10) -> ~68.8
+      expect(calculateBaseScore(10, median, q1, q3).baseScore).toBeCloseTo(68.8, 0);
+      // z = -1 (price = 25) -> ~17.4
+      expect(calculateBaseScore(25, median, q1, q3).baseScore).toBeCloseTo(17.4, 0);
+      // z = -3 (price = 35) -> ~2.0
+      expect(calculateBaseScore(35, median, q1, q3).baseScore).toBeLessThan(5);
     });
   });
 
   // ----------------------------------------------------
-  // 3. Safety Guard (§6)
+  // 2. Stage 2: Continuous Relative Record Bonus
   // ----------------------------------------------------
-  describe('Safety Guard: HIGH risk & Anomaly Cap (35)', () => {
-    it('caps an exceptional score to 35 if riskLevel is HIGH', () => {
-      const res = calculateDealScore({
-        priceEur: 19.00,
-        basePriceEur: 60.00,
-        typicalSaleMedianEur: 25.00,
-        typicalSaleQ1Eur: 22.47,
-        typicalSaleQ3Eur: 27.53,
-        allTimeLowEur: 19.00,
-        riskLevel: 'HIGH'
-      });
-      expect(res.score).toBe(35);
-      expect(res.tier).toBe('Weak');
+  describe('Stage 2: Continuous Record Bonus', () => {
+    const median = 25.00;
+    const atl = 15.00;
+
+    it('awards depth-scaled points for exact match or undercut of ATL', () => {
+      // ATL depth: (25 - 15) / 25 = 0.40 >= 0.35 -> earns full 25.0 points
+      expect(calculateRecordBonus(15.00, median, atl).recordBonus).toBe(25.0);
+      expect(calculateRecordBonus(10.00, median, atl).recordBonus).toBe(25.0);
     });
 
-    it('caps an exceptional score to 35 if isAnomaly is true', () => {
-      const res = calculateDealScore({
-        priceEur: 19.00,
-        basePriceEur: 60.00,
-        typicalSaleMedianEur: 25.00,
-        typicalSaleQ1Eur: 22.47,
-        typicalSaleQ3Eur: 27.53,
-        allTimeLowEur: 19.00,
-        riskLevel: 'SAFE',
-        isAnomaly: true
-      });
-      expect(res.score).toBe(35);
-      expect(res.tier).toBe('Weak');
+    it('is strictly continuous at ATL ± 1 cent without cliff jumps', () => {
+      const bonusExact = calculateRecordBonus(15.00, median, atl).recordBonus;
+      const bonusPlus1Cent = calculateRecordBonus(15.01, median, atl).recordBonus;
+      
+      expect(bonusExact).toBe(25.0);
+      expect(bonusPlus1Cent).toBeCloseTo(24.95, 1);
+      // Difference between ATL and ATL + 1c is less than 0.10 point
+      expect(Math.abs(bonusExact - bonusPlus1Cent)).toBeLessThan(0.10);
     });
 
-    it('does not affect a safe, non-anomalous offer', () => {
+    it('smoothly decays to 0.0 as price reaches median', () => {
+      expect(calculateRecordBonus(25.00, median, atl).recordBonus).toBe(0.0);
+      expect(calculateRecordBonus(30.00, median, atl).recordBonus).toBe(0.0);
+    });
+
+    it('handles edge case where median <= ATL without division by zero', () => {
+      const res = calculateRecordBonus(10.00, 10.00, 10.00);
+      expect(res.recordBonus).toBe(0);
+      const resAbove = calculateRecordBonus(10.50, 10.00, 10.00);
+      expect(resAbove.recordBonus).toBe(0);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 3. Data Sufficiency Guard & Confidence Model
+  // ----------------------------------------------------
+  describe('Data Sufficiency Guard & Confidence Engine', () => {
+    it('applies provisional cap (65) when sample count is very sparse (N = 1 or 2)', () => {
+      // Base 50€, 1 observation at 40€, price 25€, ATL 25€
       const res = calculateDealScore({
-        priceEur: 19.00,
-        basePriceEur: 60.00,
-        typicalSaleMedianEur: 25.00,
-        typicalSaleQ1Eur: 22.47,
-        typicalSaleQ3Eur: 27.53,
-        allTimeLowEur: 19.00,
-        riskLevel: 'SAFE',
-        isAnomaly: false
+        priceEur: 25.00,
+        basePriceEur: 50.00,
+        typicalSaleMedianEur: 40.00,
+        allTimeLowEur: 25.00,
+        sampleCount: 2 // N = 2
       });
-      expect(res.score).toBeGreaterThanOrEqual(85);
+
+      // Raw score would be 100, but Data Sufficiency Guard caps it at 65 (Good)
+      expect(res.score).toBe(PROVISIONAL_SCORE_CAP);
+      expect(res.tier).toBe('Good');
+      expect(res.isProvisional).toBe(true);
+      expect(res.confidenceScore).toBeLessThan(40);
+      expect(res.confidenceTier).toBe('Low');
+    });
+
+    it('unblocks full score range once N >= 3 historical observations exist', () => {
+      const res = calculateDealScore({
+        priceEur: 25.00,
+        basePriceEur: 50.00,
+        typicalSaleMedianEur: 40.00,
+        allTimeLowEur: 25.00,
+        sampleCount: 3 // N = 3
+      });
+
+      expect(res.score).toBe(100);
       expect(res.tier).toBe('Exceptional');
+      expect(res.isProvisional).toBe(false);
+    });
+
+    it('rates comprehensive long-term multi-source data as High Confidence (>80%)', () => {
+      const now = new Date();
+      const halfYearAgo = new Date(now.getTime() - 200 * 24 * 3600 * 1000);
+
+      const res = calculateDataConfidence({
+        sampleCount: 20,
+        firstObservedAt: halfYearAgo.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 3,
+        isOfficialSource: true
+      });
+
+      expect(res.confidence).toBeGreaterThanOrEqual(80);
+      expect(res.tier).toBe('High');
+    });
+
+    it('rates sparse first-day observation as Low Confidence (<40%)', () => {
+      const now = new Date();
+      const res = calculateDataConfidence({
+        sampleCount: 1,
+        firstObservedAt: now.toISOString(),
+        lastObservedAt: now.toISOString(),
+        sourceCount: 1,
+        isOfficialSource: true
+      });
+
+      expect(res.confidence).toBeLessThan(40);
+      expect(res.tier).toBe('Low');
     });
   });
 
   // ----------------------------------------------------
-  // 4. Worked-Example Validations from Specification §7
+  // 4. Benchmark: 20 Synthetic Price History Test Cases
   // ----------------------------------------------------
-  describe('Worked Examples from Specification §7', () => {
-    // Game: MSRP €60, Median €25, 90d Low €22, ATL €19.
-    // scale ≈ €3.75 (e.g. Q1 ≈ 22.47, Q3 ≈ 27.53 -> IQR ≈ 5.06 -> scale = 5.06 / 1.349 ≈ 3.75)
-    const baseGame = {
-      basePriceEur: 60.00,
-      typicalSaleMedianEur: 25.00,
-      typicalSaleQ1Eur: 22.47,
-      typicalSaleQ3Eur: 27.53,
-      low90dEur: 22.00,
-      low1yEur: 24.00,
-      allTimeLowEur: 19.00,
-      riskLevel: 'SAFE' as const,
-      isAnomaly: false
-    };
-
-    it('Case 1: €30 (above typical sale median €25) -> Weak deal (~13)', () => {
+  describe('20 Synthetic Benchmark Suite', () => {
+    it('Case 1: Stable price, rare discount (Factorio/RimWorld scenario)', () => {
       const res = calculateDealScore({
-        ...baseGame,
-        priceEur: 30.00
+        priceEur: 27.00,
+        basePriceEur: 30.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 27.00,
+        sampleCount: 10
       });
-      expect(res.score).toBeGreaterThanOrEqual(10);
-      expect(res.score).toBeLessThanOrEqual(16);
+      expect(res.tier).toBe('Good');
+      expect(res.score).toBeGreaterThanOrEqual(55);
+      expect(res.score).toBeLessThanOrEqual(70);
+    });
+
+    it('Case 2: Frequent discount 1 cent below normal ATL (AC Odyssey scenario)', () => {
+      const res = calculateDealScore({
+        priceEur: 11.98,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 12.00,
+        allTimeLowEur: 11.99,
+        sampleCount: 30
+      });
+      expect(res.tier).toBe('Fair');
+      expect(res.score).toBeLessThan(50);
+    });
+
+    it('Case 3: Full retail price (No discount)', () => {
+      const res = calculateDealScore({
+        priceEur: 20.00,
+        basePriceEur: 20.00,
+        typicalSaleMedianEur: 10.00,
+        allTimeLowEur: 5.00,
+        sampleCount: 25
+      });
       expect(res.tier).toBe('Weak');
+      expect(res.score).toBeLessThan(10);
     });
 
-    it('Case 2: €22 (matches 90-day low, well below median) -> Great / Fair border (~67-68)', () => {
+    it('Case 4: Permanent MSRP cut with rolling window', () => {
       const res = calculateDealScore({
-        ...baseGame,
-        priceEur: 22.00
+        priceEur: 10.00,
+        basePriceEur: 20.00,
+        typicalSaleMedianEur: 10.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 12
       });
-      expect(res.score).toBeGreaterThanOrEqual(65);
-      expect(res.score).toBeLessThanOrEqual(72);
+      expect(res.tier).toBe('Fair');
+      expect(res.score).toBeGreaterThanOrEqual(35);
+      expect(res.score).toBeLessThanOrEqual(48);
     });
 
-    it('Case 3: €19 (matches All-Time Low) -> Exceptional deal (~90)', () => {
+    it('Case 5: Progressively declining price', () => {
       const res = calculateDealScore({
-        ...baseGame,
-        priceEur: 19.00
+        priceEur: 10.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 15.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 15
       });
-      expect(res.score).toBeGreaterThanOrEqual(85);
-      expect(res.score).toBeLessThanOrEqual(95);
+      expect(['Great', 'Exceptional']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(75);
+    });
+
+    it('Case 6: Historical price glitch / single outlier', () => {
+      const res = calculateDealScore({
+        priceEur: 12.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 20.00,
+        typicalSaleQ1Eur: 18.00,
+        typicalSaleQ3Eur: 22.00,
+        low1yEur: 12.00,
+        allTimeLowEur: 1.99,
+        sampleCount: 20
+      });
       expect(res.tier).toBe('Exceptional');
+      expect(res.score).toBeGreaterThanOrEqual(85);
     });
-  });
 
-  // ----------------------------------------------------
-  // 5. Unreleased & Low-Sample Games Guard
-  // ----------------------------------------------------
-  describe('Low-Sample & Unreleased Game Guards', () => {
-    it('prevents newly listed games with 0 history from masquerading as 100 Exceptional deals (e.g. 007 First Light)', () => {
-      // 007 First Light: MSRP €64.39, keyshop pre-order at €46.68 (27.5% discount, 0 historical sales)
+    it('Case 7: 0-IQR Indie discount (Always 4.99€, now 4.49€)', () => {
       const res = calculateDealScore({
-        priceEur: 46.68,
-        basePriceEur: 64.39,
+        priceEur: 4.49,
+        basePriceEur: 9.99,
+        typicalSaleMedianEur: 4.99,
+        allTimeLowEur: 4.49,
+        sampleCount: 15
+      });
+      expect(res.tier).toBe('Good');
+      expect(res.score).toBeGreaterThanOrEqual(55);
+      expect(res.score).toBeLessThanOrEqual(70);
+    });
+
+    it('Case 8: Low sample count with deep discount (Provisional Guard Active)', () => {
+      const res = calculateDealScore({
+        priceEur: 25.00,
+        basePriceEur: 50.00,
+        typicalSaleMedianEur: 40.00,
+        allTimeLowEur: 25.00,
+        sampleCount: 2
+      });
+      // Correctly protected by Data Sufficiency Guard: Capped at Good (65), Low Confidence
+      expect(res.score).toBe(65);
+      expect(res.tier).toBe('Good');
+      expect(res.isProvisional).toBe(true);
+      expect(res.confidenceScore).toBeLessThan(40);
+    });
+
+    it('Case 9: Brand new release with 10% launch discount', () => {
+      const res = calculateDealScore({
+        priceEur: 54.00,
+        basePriceEur: 60.00,
         typicalSaleMedianEur: null,
-        isLowSample: true,
-        allTimeLowEur: 46.68, // raw observed min is not a confirmed ATL
-        isConfirmedAtl: false,
-        riskLevel: 'SAFE',
-        isAnomaly: false
+        sampleCount: 1
       });
-
-      // Must be capped at fallback formula (~8 points) and categorized as Weak
-      expect(res.score).toBeLessThanOrEqual(25);
       expect(res.tier).toBe('Weak');
-      expect(res.rarityBonus).toBe(0);
-      expect(res.isLowSample).toBe(true);
+      expect(res.score).toBeLessThanOrEqual(15);
+    });
+
+    it('Case 10: 10-year veteran game with routine low (Witcher 3)', () => {
+      const res = calculateDealScore({
+        priceEur: 5.99,
+        basePriceEur: 29.99,
+        typicalSaleMedianEur: 5.99,
+        allTimeLowEur: 4.99,
+        sampleCount: 80
+      });
+      expect(res.tier).toBe('Fair');
+      expect(res.score).toBeGreaterThanOrEqual(35);
+      expect(res.score).toBeLessThan(50);
+    });
+
+    it('Case 11: Frequent -80% sale at exact median', () => {
+      const res = calculateDealScore({
+        priceEur: 9.99,
+        basePriceEur: 49.99,
+        typicalSaleMedianEur: 9.99,
+        allTimeLowEur: 8.99,
+        sampleCount: 40
+      });
+      expect(res.score).toBeCloseTo(38, 0);
+      expect(res.tier).toBe('Fair');
+    });
+
+    it('Case 12: Rare -50% sale on game that is almost never discounted', () => {
+      const res = calculateDealScore({
+        priceEur: 30.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 54.00,
+        typicalSaleQ1Eur: 50.00,
+        typicalSaleQ3Eur: 58.00,
+        allTimeLowEur: 30.00,
+        sampleCount: 12
+      });
+      expect(res.tier).toBe('Exceptional');
+      expect(res.score).toBeGreaterThanOrEqual(85);
+    });
+
+    it('Case 13: Current price matches median exactly', () => {
+      const res = calculateDealScore({
+        priceEur: 15.00,
+        typicalSaleMedianEur: 15.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 20
+      });
+      expect(res.score).toBeCloseTo(38, 0);
+      expect(res.tier).toBe('Fair');
+    });
+
+    it('Case 14: Current price slightly below typical sale', () => {
+      const res = calculateDealScore({
+        priceEur: 17.50,
+        typicalSaleMedianEur: 20.00,
+        typicalSaleQ1Eur: 19.00,
+        typicalSaleQ3Eur: 22.00,
+        allTimeLowEur: 15.00,
+        sampleCount: 25
+      });
+      expect(res.tier).toBe('Good');
+      expect(res.score).toBeGreaterThanOrEqual(55);
+      expect(res.score).toBeLessThan(70);
+    });
+
+    it('Case 15: Major new All-Time Low record', () => {
+      const res = calculateDealScore({
+        priceEur: 12.00,
+        typicalSaleMedianEur: 30.00,
+        typicalSaleQ1Eur: 25.00,
+        typicalSaleQ3Eur: 35.00,
+        allTimeLowEur: 20.00,
+        sampleCount: 30
+      });
+      expect(res.tier).toBe('Exceptional');
+      expect(res.score).toBeGreaterThanOrEqual(92);
+    });
+
+    it('Case 16: Current price far above typical sale', () => {
+      const res = calculateDealScore({
+        priceEur: 35.00,
+        basePriceEur: 50.00,
+        typicalSaleMedianEur: 25.00,
+        allTimeLowEur: 15.00,
+        sampleCount: 20
+      });
+      expect(res.tier).toBe('Weak');
+      expect(res.score).toBeLessThan(25);
+    });
+
+    it('Case 17: Fake discount after price hike', () => {
+      const res = calculateDealScore({
+        priceEur: 35.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 25.00,
+        allTimeLowEur: 18.00,
+        sampleCount: 15
+      });
+      expect(res.tier).toBe('Weak');
+      expect(res.score).toBeLessThan(35);
+    });
+
+    it('Case 18: Seasonal Summer Sale peak low', () => {
+      const res = calculateDealScore({
+        priceEur: 14.99,
+        typicalSaleMedianEur: 24.99,
+        typicalSaleQ1Eur: 20.00,
+        typicalSaleQ3Eur: 27.00,
+        allTimeLowEur: 14.99,
+        sampleCount: 20
+      });
+      expect(['Great', 'Exceptional']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('Case 19: Minor keyshop voucher shift (20.00 -> 19.40€)', () => {
+      const res = calculateDealScore({
+        priceEur: 19.40,
+        typicalSaleMedianEur: 20.00,
+        allTimeLowEur: 18.00,
+        sampleCount: 25
+      });
+      expect(res.tier).toBe('Fair');
+      expect(res.score).toBeLessThan(55);
+    });
+
+    it('Case 20: Highly volatile price range (5€ to 40€, now 8€)', () => {
+      const res = calculateDealScore({
+        priceEur: 8.00,
+        typicalSaleMedianEur: 20.00,
+        typicalSaleQ1Eur: 12.00,
+        typicalSaleQ3Eur: 30.00,
+        allTimeLowEur: 5.00,
+        sampleCount: 30
+      });
+      expect(res.tier).toBe('Great');
+      expect(res.score).toBeGreaterThanOrEqual(70);
     });
   });
 
   // ----------------------------------------------------
-  // 6. Tier Classifications
+  // 5. Extra 10 Edge Cases
   // ----------------------------------------------------
-  describe('Deal Score Tiers', () => {
-    it('maps scores to intuitive qualitative tiers', () => {
-      expect(getDealScoreTier(100)).toBe('Exceptional');
-      expect(getDealScoreTier(85)).toBe('Exceptional');
-      expect(getDealScoreTier(84)).toBe('Great');
-      expect(getDealScoreTier(70)).toBe('Great');
-      expect(getDealScoreTier(69)).toBe('Fair');
-      expect(getDealScoreTier(40)).toBe('Fair');
-      expect(getDealScoreTier(39)).toBe('Weak');
-      expect(getDealScoreTier(0)).toBe('Weak');
+  describe('Extra 10 Edge Cases', () => {
+    it('Edge 1: Price exactly equals ATL', () => {
+      const res = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 20.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 15
+      });
+      expect(res.rarityBonus).toBe(25.0);
+      expect(res.score).toBeGreaterThan(80);
+    });
+
+    it('Edge 2: Price is 0.01€ above ATL', () => {
+      const res = calculateDealScore({
+        priceEur: 10.01,
+        typicalSaleMedianEur: 20.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 15
+      });
+      expect(res.rarityBonus).toBeCloseTo(24.95, 1);
+    });
+
+    it('Edge 3: Price is 0.01€ below ATL', () => {
+      const res = calculateDealScore({
+        priceEur: 9.99,
+        typicalSaleMedianEur: 20.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 15
+      });
+      expect(res.rarityBonus).toBe(25.0);
+    });
+
+    it('Edge 4: Median equals ATL (all sales at same price)', () => {
+      const res = calculateDealScore({
+        priceEur: 5.00,
+        typicalSaleMedianEur: 5.00,
+        allTimeLowEur: 5.00,
+        sampleCount: 10
+      });
+      expect(res.score).toBeCloseTo(38, 0);
+      expect(res.tier).toBe('Fair');
+    });
+
+    it('Edge 5: No ATL available (null/undefined)', () => {
+      const res = calculateDealScore({
+        priceEur: 12.00,
+        typicalSaleMedianEur: 20.00,
+        allTimeLowEur: null,
+        sampleCount: 10
+      });
+      expect(res.rarityBonus).toBe(0);
+      expect(res.baseScore).toBeGreaterThan(60);
+      expect(res.score).toBe(Math.round(res.baseScore));
+    });
+
+    it('Edge 6: No MSRP available', () => {
+      const res = calculateDealScore({
+        priceEur: 15.00,
+        basePriceEur: undefined,
+        typicalSaleMedianEur: 25.00,
+        allTimeLowEur: 15.00,
+        sampleCount: 10
+      });
+      expect(res.score).toBeGreaterThan(70);
+    });
+
+    it('Edge 7: Sub-euro median (< 1.00€)', () => {
+      const res = calculateDealScore({
+        priceEur: 0.49,
+        typicalSaleMedianEur: 0.99,
+        allTimeLowEur: 0.49,
+        sampleCount: 10
+      });
+      expect(res.tier).toBe('Exceptional');
+      expect(res.score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('Edge 8: Pure price calculation separates risk from math', () => {
+      // Mathematical Deal Score evaluates price, caller checks riskLevel / isAnomaly
+      const res = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 10.00,
+        isAnomaly: true,
+        riskLevel: 'HIGH',
+        sampleCount: 30
+      });
+      expect(res.score).toBeGreaterThan(90); // Mathematical price is exceptional
+    });
+
+    it('Edge 9: Negative or zero price handled cleanly by math', () => {
+      const resZero = calculateDealScore({
+        priceEur: 0,
+        typicalSaleMedianEur: 20.00,
+        allTimeLowEur: 0,
+        sampleCount: 10
+      });
+      expect(resZero.score).toBe(100);
+    });
+
+    it('Edge 10: Score never exceeds 100 or drops below 0', () => {
+      const resHigh = calculateDealScore({
+        priceEur: 1.00,
+        typicalSaleMedianEur: 100.00,
+        allTimeLowEur: 1.00,
+        sampleCount: 50
+      });
+      expect(resHigh.score).toBe(100);
+
+      const resLow = calculateDealScore({
+        priceEur: 200.00,
+        typicalSaleMedianEur: 10.00,
+        allTimeLowEur: 5.00,
+        sampleCount: 50
+      });
+      expect(resLow.score).toBe(0);
     });
   });
 });

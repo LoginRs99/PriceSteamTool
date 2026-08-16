@@ -14,6 +14,7 @@ import type {
   PriceEventType
 } from '../../shared/types.js';
 import { calculateDealScore } from './dealScore.js';
+import { generateActionSignal } from './actionSignal.js';
 
 export interface PriceIntelligenceInput {
   game: Game;
@@ -742,8 +743,23 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     low90dEur: periodLows.low90d.priceEur,
     low1yEur: periodLows.low1y.priceEur,
     allTimeLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
+    historicalLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur
+  });
+
+  const actionSignal = generateActionSignal({
+    dealScore: bestOffer?.dealScore ?? game.bestDealScore ?? freshDealCalc.score,
+    confidenceScore: game.bestConfidenceScore ?? (freshDealCalc.confidenceScore ?? 50),
+    isProvisional: Boolean(game.bestIsProvisional ?? freshDealCalc.isProvisional),
     isAnomaly: bestOffer?.isAnomaly ?? false,
-    riskLevel: bestOffer?.riskLevel ?? 'SAFE'
+    currentPriceEur: currentPrice,
+    basePriceEur: game.basePriceEur,
+    typicalSaleMedianEur: typicalSale.medianPriceEur || undefined,
+    typicalSaleQ1Eur: typicalSale.q1PriceEur,
+    typicalSaleQ3Eur: typicalSale.q3PriceEur,
+    typicalSaleSampleCount: typicalSale.sampleCount,
+    historicalLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
+    low90dEur: periodLows.low90d.priceEur || undefined,
+    history
   });
 
   return {
@@ -763,6 +779,7 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     frequency,
     volatility,
     advice,
+    actionSignal,
     historicalContextSummary: summaryParts.join(' '),
     chartData
   };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Send, CheckCircle2, AlertCircle, X, ExternalLink, ShieldCheck, Flame, Gift, Clock } from 'lucide-react';
+import { Bell, Send, CheckCircle2, AlertCircle, X, ShieldCheck, Flame, Gift, Clock, Database } from 'lucide-react';
 import { api } from '../api.js';
 
 interface DiscordModalProps {
@@ -11,6 +11,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
   const [webhookUrl, setWebhookUrl] = useState('');
   const [isEnabled, setIsEnabled] = useState(true);
   const [minDealScore, setMinDealScore] = useState(75);
+  const [minConfidence, setMinConfidence] = useState(40);
   const [notifyAtlOnly, setNotifyAtlOnly] = useState(false);
   const [notifyFreeGames, setNotifyFreeGames] = useState(true);
   const [cooldownHours, setCooldownHours] = useState(24);
@@ -37,6 +38,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
       setWebhookUrl(data.webhookUrl || '');
       setIsEnabled(data.isEnabled);
       setMinDealScore(data.minDealScore ?? 75);
+      setMinConfidence((data as any).minConfidence ?? 40);
       setNotifyAtlOnly(data.notifyAtlOnly ?? false);
       setNotifyFreeGames(data.notifyFreeGames ?? true);
       setCooldownHours(data.cooldownHours ?? 24);
@@ -56,10 +58,11 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
         webhookUrl: webhookUrl.trim(),
         isEnabled,
         minDealScore,
+        minConfidence,
         notifyAtlOnly,
         notifyFreeGames,
         cooldownHours
-      });
+      } as any);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -100,7 +103,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
             </div>
             <div>
               <h3>Discord Deal Alerts</h3>
-              <p className="modal-subtitle">Instant notifications for top wishlist bargains & free games</p>
+              <p className="modal-subtitle">Instant notifications for verified wishlist bargains & free games</p>
             </div>
           </div>
           <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
@@ -188,10 +191,10 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
             <div className="form-label-row">
               <label className="form-label" htmlFor="discord-min-deal-score">
                 <Flame size={15} className="text-warning inline-icon" />
-                Minimum Deal Score Threshold: <strong className="text-accent">{minDealScore} / 100</strong>
+                Minimum Deal Score: <strong className="text-accent">{minDealScore} / 100</strong>
               </label>
               <span className={`deal-tier-pill tier-${minDealScore >= 85 ? 'exceptional' : minDealScore >= 70 ? 'great' : 'fair'}`}>
-                {minDealScore >= 85 ? 'Exceptional Only' : minDealScore >= 70 ? 'Great & Exceptional (Recommended)' : 'Fair & Above'}
+                {minDealScore >= 85 ? 'Exceptional Only (85+)' : minDealScore >= 70 ? 'Great & Exceptional (70+)' : 'Fair+'}
               </span>
             </div>
             <input
@@ -211,6 +214,34 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
             </div>
           </div>
 
+          {/* Minimum Data Confidence Slider */}
+          <div className="form-group">
+            <div className="form-label-row">
+              <label className="form-label" htmlFor="discord-min-conf">
+                <Database size={15} className="text-accent inline-icon" />
+                Minimum Data Confidence: <strong className="text-accent">{minConfidence}%</strong>
+              </label>
+              <span className="deal-tier-pill" style={{ background: minConfidence >= 80 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)', color: minConfidence >= 80 ? '#10b981' : '#3b82f6' }}>
+                {minConfidence >= 80 ? 'High Confidence only' : minConfidence >= 40 ? 'Moderate & High (Recommended)' : 'Any'}
+              </span>
+            </div>
+            <input
+              id="discord-min-conf"
+              type="range"
+              min="20"
+              max="90"
+              step="10"
+              className="range-slider"
+              value={minConfidence}
+              onChange={e => setMinConfidence(parseInt(e.target.value, 10))}
+            />
+            <div className="range-ticks">
+              <span onClick={() => setMinConfidence(40)} className={minConfidence === 40 ? 'active' : ''}>40% (Moderate)</span>
+              <span onClick={() => setMinConfidence(60)} className={minConfidence === 60 ? 'active' : ''}>60% (Medium)</span>
+              <span onClick={() => setMinConfidence(80)} className={minConfidence === 80 ? 'active' : ''}>80% (High only)</span>
+            </div>
+          </div>
+
           {/* Filter Options */}
           <div className="setting-checkbox-group">
             <label className="checkbox-row">
@@ -219,12 +250,12 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
                 checked={notifyAtlOnly}
                 onChange={e => setNotifyAtlOnly(e.target.checked)}
               />
-              <div className="checkbox-text">
+              <div className="checkbox-content">
                 <div className="checkbox-title">
-                  <ShieldCheck size={15} className="text-success inline-icon" />
-                  All-Time Low (ATL) Deals Only
+                  <Flame size={14} color="#f59e0b" />
+                  <span>Notify for All-Time Low (ATL) only</span>
                 </div>
-                <div className="checkbox-desc">Only send notifications when the game matches or breaks its all-time lowest recorded price</div>
+                <div className="checkbox-desc">Only send alerts when an offer matches or beats the historical all-time low price</div>
               </div>
             </label>
 
@@ -234,44 +265,42 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
                 checked={notifyFreeGames}
                 onChange={e => setNotifyFreeGames(e.target.checked)}
               />
-              <div className="checkbox-text">
+              <div className="checkbox-content">
                 <div className="checkbox-title">
-                  <Gift size={15} className="text-purple inline-icon" />
-                  100% Free Game Promotions
+                  <Gift size={14} color="#a855f7" />
+                  <span>100% Free Game Promotions</span>
                 </div>
-                <div className="checkbox-desc">Always send an alert whenever any wishlist game becomes temporarily free (0.00 €)</div>
+                <div className="checkbox-desc">Always send an instant alert if a game on your wishlist becomes free (100% off)</div>
               </div>
             </label>
           </div>
 
-          {/* Anti-Spam Cooldown */}
+          {/* Cooldown Settings */}
           <div className="form-group">
             <label className="form-label" htmlFor="discord-cooldown">
               <Clock size={15} className="inline-icon" />
-              Notification Cooldown per Game
+              Anti-Spam Cooldown Window
             </label>
             <select
               id="discord-cooldown"
-              className="form-select"
+              className="select-input"
               value={cooldownHours}
               onChange={e => setCooldownHours(parseInt(e.target.value, 10))}
             >
-              <option value="12">12 hours (Faster repeated updates)</option>
-              <option value="24">24 hours (Recommended - standard daily pacing)</option>
-              <option value="48">48 hours (Quiet - at most every 2 days)</option>
-              <option value="168">7 days (Weekly deal alerts only)</option>
+              <option value="6">6 hours between repeated alerts for same game</option>
+              <option value="12">12 hours between repeated alerts</option>
+              <option value="24">24 hours (Recommended: once a day)</option>
+              <option value="48">48 hours</option>
+              <option value="72">72 hours</option>
             </select>
-            <p className="form-help-text">
-              Prevents pinging Discord repeatedly for the same game unless the price drops further.
-            </p>
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Close
+            <button type="button" className="btn btn-outline" onClick={onClose}>
+              Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Settings'}
+              {loading ? <span className="spinner-small"></span> : 'Save Settings'}
             </button>
           </div>
         </form>

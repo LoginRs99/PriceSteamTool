@@ -92,20 +92,20 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                 : '100% Verified'}
             </div>
             <div className="stat-footer">
-              {stats.gamesWithHighRiskOffers > 0 ? 'High-risk offers suppressed' : 'All prices safe & consensus-checked'}
+              {stats.gamesWithHighRiskOffers > 0 ? 'High-risk offers suppressed' : 'All prices consensus-checked'}
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. Best Deals Spotlight (Ordered by Deal Score) */}
+      {/* 2. Best Deals Spotlight (Ordered by Best Value Score) */}
       {topDeals.length > 0 && (
         <div className="best-deals-section">
           <div className="best-deals-header">
             <div className="best-deals-title">
               <Trophy size={18} color="#f59e0b" />
-              <span>Best Deals Right Now</span>
-              <span className="deal-score-pill">Ranked by Computed Deal Score (0–100)</span>
+              <span>Best Value Deals Right Now</span>
+              <span className="deal-score-pill">Ranked by Balanced Deal Score + Data Confidence</span>
             </div>
           </div>
 
@@ -113,9 +113,13 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             {topDeals.slice(0, 4).map((game) => {
               const score = game.bestDealScore ?? 0;
               const tier = game.bestDealTier || 'Fair';
+              const confidence = game.bestConfidenceScore ?? 50;
+              const isProvisional = Boolean(game.bestIsProvisional);
+
               const tierColor = 
                 tier === 'Exceptional' ? '#8b5cf6' : 
                 tier === 'Great' ? '#10b981' : 
+                tier === 'Good' ? '#06b6d4' :
                 tier === 'Fair' ? '#3b82f6' : '#64748b';
 
               return (
@@ -138,9 +142,9 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                     <span 
                       className="spotlight-score-badge"
                       style={{ background: tierColor }}
-                      title={`Deal Score: ${score}/100 (${tier})`}
+                      title={`Deal Score: ${score}/100 • ${confidence}% Confidence`}
                     >
-                      ★ {score}
+                      ★ {score} {isProvisional ? '• Prov' : `• ${confidence}%`}
                     </span>
                   </div>
 

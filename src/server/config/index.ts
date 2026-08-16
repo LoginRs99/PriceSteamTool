@@ -28,8 +28,7 @@ export const config = {
     itad: parseInt(process.env.ITAD_DELAY_MS || '500', 10),
     ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1000', 10),
     cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '500', 10),
-    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '3500', 10),
-    gocdkeys: parseInt(process.env.GOCDKEYS_DELAY_MS || '4000', 10),
+    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '3500', 10)
   },
 
   // Stealth & Anti-Ban Batching for Keyshop scrapers

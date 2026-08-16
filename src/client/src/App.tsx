@@ -25,6 +25,7 @@ import { SourcesModal } from './components/SourcesModal.js';
 import { AnomaliesModal } from './components/AnomaliesModal.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
+import { ScoreExplainModal } from './components/ScoreExplainModal.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -72,6 +73,7 @@ export const App: React.FC = () => {
 
   // Modals
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [explainGame, setExplainGame] = useState<Game | null>(null);
   const [showProfilesModal, setShowProfilesModal] = useState(false);
   const [showSourcesModal, setShowSourcesModal] = useState(false);
   const [showAnomaliesModal, setShowAnomaliesModal] = useState(false);
@@ -83,7 +85,7 @@ export const App: React.FC = () => {
     const savedSort = localStorage.getItem('pricetool_sort') as any;
     const savedLimit = parseInt(localStorage.getItem('pricetool_limit') || '50', 10);
     return {
-      sort: savedSort || 'priority',
+      sort: savedSort || 'best_value',
       page: 1,
       limit: !isNaN(savedLimit) && savedLimit > 0 ? savedLimit : 50,
       isFreeOnly: false
@@ -352,6 +354,7 @@ export const App: React.FC = () => {
                           key={game.id}
                           game={game}
                           onClick={() => setSelectedGameId(game.id)}
+                          onExplain={(g) => setExplainGame(g)}
                         />
                       ))}
                     </div>
@@ -361,6 +364,7 @@ export const App: React.FC = () => {
                     <CompactListView
                       games={games}
                       onGameClick={(game) => setSelectedGameId(game.id)}
+                      onExplain={(g) => setExplainGame(g)}
                     />
                   )}
 
@@ -368,6 +372,7 @@ export const App: React.FC = () => {
                     <DenseTableView
                       games={games}
                       onGameClick={(game) => setSelectedGameId(game.id)}
+                      onExplain={(g) => setExplainGame(g)}
                     />
                   )}
 
@@ -447,10 +452,10 @@ export const App: React.FC = () => {
                 <div>
                   <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Flame size={20} color="#f59e0b" />
-                    <span>Top Ranked Deals (By Deal Score)</span>
+                    <span>Top Ranked Deals (Best Value)</span>
                   </h2>
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-                    Ranked by the multi-pillar Deal Score (Discount depth, All-Time Low history, Merchant Trust, and Risk safety guard).
+                    Ranked by balanced Deal Score and Data Confidence for high-quality, verified savings.
                   </p>
                 </div>
 
@@ -495,6 +500,7 @@ export const App: React.FC = () => {
                       key={game.id}
                       game={game}
                       onClick={() => setSelectedGameId(game.id)}
+                      onExplain={(g) => setExplainGame(g)}
                     />
                   ))}
                 </div>
@@ -502,11 +508,13 @@ export const App: React.FC = () => {
                 <CompactListView
                   games={topDeals}
                   onGameClick={(game) => setSelectedGameId(game.id)}
+                  onExplain={(g) => setExplainGame(g)}
                 />
               ) : (
                 <DenseTableView
                   games={topDeals}
                   onGameClick={(game) => setSelectedGameId(game.id)}
+                  onExplain={(g) => setExplainGame(g)}
                 />
               )}
             </div>
@@ -519,6 +527,13 @@ export const App: React.FC = () => {
         <GameDetailModal
           gameId={selectedGameId}
           onClose={() => setSelectedGameId(null)}
+        />
+      )}
+
+      {explainGame && (
+        <ScoreExplainModal
+          game={explainGame}
+          onClose={() => setExplainGame(null)}
         />
       )}
 

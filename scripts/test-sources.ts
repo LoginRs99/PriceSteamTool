@@ -4,7 +4,6 @@ import { itadAdapter } from '../src/server/sources/itad.js';
 import { cheapsharkAdapter } from '../src/server/sources/cheapshark.js';
 import { ggdealsAdapter } from '../src/server/sources/ggdeals.js';
 import { allkeyshopAdapter } from '../src/server/sources/allkeyshop.js';
-import { gocdkeysAdapter } from '../src/server/sources/gocdkeys.js';
 
 import { circuitBreakers } from '../src/server/sync/circuitBreaker.js';
 
@@ -20,7 +19,6 @@ function maskKey(key?: string): string {
 
 async function runLiveSourceDiagnostics() {
   circuitBreakers.recordSuccess('allkeyshop');
-  circuitBreakers.recordSuccess('gocdkeys');
   console.log('======================================================');
   console.log('🔍 PRICETOOL - LIVE API & SOURCE ADAPTER DIAGNOSTICS');
   console.log('======================================================');
@@ -98,7 +96,7 @@ async function runLiveSourceDiagnostics() {
   }
 
   // 5. AllKeyShop
-  console.log('\n--- [5/6] Testing AllKeyShop Adapter ---');
+  console.log('\n--- [5/5] Testing AllKeyShop Adapter ---');
   try {
     const aksOffers = await allkeyshopAdapter.fetchPricesForGame(testAppId, testTitle);
     console.log(`ℹ️ AllKeyShop returned ${aksOffers.length} deals:`);
@@ -107,18 +105,6 @@ async function runLiveSourceDiagnostics() {
     }
   } catch (err: any) {
     console.log(`ℹ️ AllKeyShop note: ${err.message}`);
-  }
-
-  // 6. GoCDKeys
-  console.log('\n--- [6/6] Testing GoCDKeys Adapter ---');
-  try {
-    const gcdkOffers = await gocdkeysAdapter.fetchPricesForGame(testAppId, testTitle);
-    console.log(`ℹ️ GoCDKeys returned ${gcdkOffers.length} deals:`);
-    for (const off of gcdkOffers) {
-      console.log(`   - ${off.merchantName} €${off.priceEur.toFixed(2)}`);
-    }
-  } catch (err: any) {
-    console.log(`ℹ️ GoCDKeys note: ${err.message}`);
   }
 
   console.log('\n======================================================');

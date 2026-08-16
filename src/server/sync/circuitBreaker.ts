@@ -145,6 +145,16 @@ export class CircuitBreakerRegistry {
   public getState(source: SourceCode): CircuitState {
     return this.getOrCreate(source).state;
   }
+
+  public getAllStates(): Record<SourceCode, CircuitState> {
+    this.initFromDb();
+    const result: Partial<Record<SourceCode, CircuitState>> = {};
+    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop'];
+    for (const s of sources) {
+      result[s] = this.getState(s);
+    }
+    return result as Record<SourceCode, CircuitState>;
+  }
 }
 
 export const circuitBreakers = new CircuitBreakerRegistry();

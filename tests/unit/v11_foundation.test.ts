@@ -13,6 +13,8 @@ function resetDatabase() {
   const db = getDb();
   db.exec(`
     PRAGMA foreign_keys = OFF;
+    DELETE FROM notifications_log;
+    DELETE FROM sync_runs;
     DELETE FROM source_observations;
     DELETE FROM price_history;
     DELETE FROM anomalies;

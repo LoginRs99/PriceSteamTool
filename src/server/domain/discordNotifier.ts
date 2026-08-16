@@ -6,6 +6,7 @@ export interface DiscordSettings {
   webhookUrl: string;
   isEnabled: boolean;
   minDealScore: number;
+  minConfidence: number;
   notifyAtlOnly: boolean;
   notifyFreeGames: boolean;
   cooldownHours: number;
@@ -24,6 +25,11 @@ export function getDiscordSettings(): DiscordSettings {
   const minDealScore = minScoreFromDb !== undefined 
     ? parseInt(minScoreFromDb, 10) 
     : parseInt(process.env.DISCORD_MIN_DEAL_SCORE || '75', 10);
+
+  const minConfFromDb = settingsRepo.get('discord_min_confidence');
+  const minConfidence = minConfFromDb !== undefined 
+    ? parseInt(minConfFromDb, 10) 
+    : parseInt(process.env.DISCORD_MIN_CONFIDENCE || '40', 10);
 
   const atlOnlyFromDb = settingsRepo.get('discord_notify_atl_only');
   const notifyAtlOnly = atlOnlyFromDb !== undefined 
@@ -44,6 +50,7 @@ export function getDiscordSettings(): DiscordSettings {
     webhookUrl,
     isEnabled,
     minDealScore: isNaN(minDealScore) ? 75 : Math.max(0, Math.min(100, minDealScore)),
+    minConfidence: isNaN(minConfidence) ? 40 : Math.max(0, Math.min(100, minConfidence)),
     notifyAtlOnly,
     notifyFreeGames,
     cooldownHours: isNaN(cooldownHours) ? 24 : Math.max(1, cooldownHours)
@@ -59,6 +66,9 @@ export function saveDiscordSettings(settings: Partial<DiscordSettings>): Discord
   }
   if (settings.minDealScore !== undefined) {
     settingsRepo.set('discord_min_deal_score', String(settings.minDealScore));
+  }
+  if (settings.minConfidence !== undefined) {
+    settingsRepo.set('discord_min_confidence', String(settings.minConfidence));
   }
   if (settings.notifyAtlOnly !== undefined) {
     settingsRepo.set('discord_notify_atl_only', settings.notifyAtlOnly ? 'true' : 'false');
@@ -164,21 +174,31 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
 
     if (bestPrice === undefined || bestPrice === null) continue;
 
+    // 0. High Risk & Anomaly Exclusion Guard
+    if (game.hasAnomaly || game.bestRiskLevel === 'HIGH') {
+      continue;
+    }
+
     // 1. Free Game Promotion Check
     let isQualifyingFreeGame = false;
     if (isFree && settings.notifyFreeGames && bestPrice === 0) {
       isQualifyingFreeGame = true;
     }
 
-    // 2. Deal Score & ATL Filter Check
+    // 2. Deal Score, Confidence & ATL Filter Check
+    const confScore = game.bestConfidenceScore ?? 50;
     let isQualifyingDeal = false;
-    if (!isFree && dealScore >= settings.minDealScore) {
+
+    if (!isFree && dealScore >= settings.minDealScore && confScore >= settings.minConfidence) {
       if (settings.notifyAtlOnly) {
-        const isAtl = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || 
-                      game.bestPriceEvent === 'AT_HISTORICAL_LOW' || 
-                      (game.historicalLowEur && bestPrice <= game.historicalLowEur + 0.05);
-        if (isAtl) {
-          isQualifyingDeal = true;
+        // Provisional deals cannot claim verified ATL status
+        if (!game.bestIsProvisional) {
+          const isAtl = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || 
+                        game.bestPriceEvent === 'AT_HISTORICAL_LOW' || 
+                        (game.historicalLowEur && bestPrice <= game.historicalLowEur + 0.05);
+          if (isAtl) {
+            isQualifyingDeal = true;
+          }
         }
       } else {
         isQualifyingDeal = true;
@@ -212,6 +232,9 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     if (isQualifyingFreeGame) {
       embedColor = 0x9B59B6; // Purple
       headline = '🎁 **100% Free Game Promotion!**';
+    } else if (game.bestIsProvisional) {
+      embedColor = 0xF1C40F; // Gold/Yellow
+      headline = '⚡ **Provisional Deal Alert (Limited History)**';
     } else if (dealScore >= 85) {
       embedColor = 0xFF4500; // Flame Orange
       headline = '🔥 **Exceptional Deal Detected!**';
@@ -234,9 +257,12 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
         value: `**€${bestPrice.toFixed(2)}** ${basePrice ? `~~€${basePrice.toFixed(2)}~~` : ''} ${discountPct > 0 ? `(-${discountPct}%)` : ''}`,
         inline: true
       });
+      
+      const confLabel = game.bestConfidenceTier ? `${game.bestConfidenceTier} Conf` : `${confScore}% Conf`;
+      const provTag = game.bestIsProvisional ? ' *(Provisional)*' : '';
       fields.push({
         name: '🏆 Deal Score',
-        value: `**${dealScore} / 100** • ${game.bestDealTier || 'Good'}`,
+        value: `**${dealScore} / 100** • ${game.bestDealTier || 'Good'}${provTag}\n*(${confScore}% ${confLabel})*`,
         inline: true
       });
     }
@@ -255,7 +281,15 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       });
     }
 
-    if (game.historicalLowEur) {
+    if (game.bestSavingVsMedianEur && game.bestSavingVsMedianEur > 0 && game.typicalSaleMedianEur) {
+      fields.push({
+        name: '📊 Typical Sale Comparison',
+        value: `**€${game.bestSavingVsMedianEur.toFixed(2)} cheaper** than median sale (€${game.typicalSaleMedianEur.toFixed(2)})`,
+        inline: true
+      });
+    }
+
+    if (game.historicalLowEur && !game.bestIsProvisional) {
       const isNewAtl = bestPrice <= game.historicalLowEur + 0.05;
       fields.push({
         name: '📉 All-Time Low',
@@ -306,7 +340,9 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       }
 
       // Respect Discord Webhook rate limit (max 5 requests per 2 seconds)
-      await new Promise(r => setTimeout(r, 400));
+      if (process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') {
+        await new Promise(r => setTimeout(r, 400));
+      }
     } catch (e: any) {
       logError(`[Discord] Error sending alert for "${game.title}": ${e.message}`);
     }

@@ -22,8 +22,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
     itad: 'ITAD',
     ggdeals: 'GG.deals',
     cheapshark: 'CheapShark',
-    allkeyshop: 'AllKeyShop',
-    gocdkeys: 'GoCDKeys'
+    allkeyshop: 'AllKeyShop'
   };
 
   return (
@@ -76,13 +75,13 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
       <div className="source-badges-row">
         {(Object.keys(progress.sourceProgress) as SourceCode[]).map(code => {
           const s = progress.sourceProgress[code];
-          if (s.total === 0 && s.processed === 0 && s.offersFound === 0) return null;
+          if (!s || (s.total === 0 && s.processed === 0 && s.offersFound === 0)) return null;
 
           const stateClass = s.state.toLowerCase();
 
           return (
             <div key={code} className={`source-badge ${stateClass}`}>
-              <span style={{ fontWeight: 700 }}>{sourceLabels[code]}:</span>
+              <span style={{ fontWeight: 700 }}>{sourceLabels[code] || code}:</span>
               <span>{s.processed}/{s.total || progress.totalGames}</span>
               {s.offersFound > 0 && (
                 <span style={{ color: 'var(--accent-primary)', marginLeft: 4 }}>

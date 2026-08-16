@@ -4,6 +4,7 @@ import { config } from '../config/index.js';
 import { SCHEMA_SQL, SEED_SOURCES_SQL } from './schema.js';
 import { evaluatePriceMovement, type PriceEvaluationInput } from '../domain/pricingEngine.js';
 import { calculateDealScore } from '../domain/dealScore.js';
+import { generateActionSignal } from '../domain/actionSignal.js';
 import { generatePriceIntelligence, calculateTypicalSalePrice, calculatePeriodLows } from '../domain/priceIntelligence.js';
 import type { 
   Profile, 
@@ -20,6 +21,7 @@ import type {
   PriceEventType,
   PriceRiskLevel,
   DealScoreTier,
+  ConfidenceTier,
   PriceIntelligenceResponse
 } from '../../shared/types.js';
 
@@ -248,6 +250,12 @@ export function clearStmtCache(): void {
 
 export function closeDb(): void {
   stmtCache.clear();
+  if (dbInstance && dbInstance.open) {
+    try {
+      dbInstance.close();
+    } catch {}
+    dbInstance = null;
+  }
 }
 
 // ----------------------------------------------------
@@ -286,6 +294,21 @@ export const profileRepo = {
       customUrl: row.custom_url || undefined,
       avatarUrl: row.avatar_url || undefined,
       isActive: true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  },
+
+  getById(id: string): Profile | null {
+    const row = prepareStmt(`SELECT * FROM profiles WHERE id = ?`).get(id) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      steamId: row.steam_id,
+      customUrl: row.custom_url || undefined,
+      avatarUrl: row.avatar_url || undefined,
+      isActive: Boolean(row.is_active),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -674,57 +697,87 @@ export const gameRepo = {
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count
     `;
 
-    // If sorting by deal_score_desc (computed in TypeScript)
-    if (options.sort === 'deal_score_desc') {
-      const allRowsSql = `
-        SELECT ${selectFields}
-        FROM wishlist_entries w
-        JOIN games g ON w.game_id = g.id
-        LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
-        LEFT JOIN merchants m ON bo.merchant_id = m.id
-        ${whereSql}
-      `;
-      const allRows = prepareStmt(allRowsSql).all(...params) as any[];
-      const allGames = allRows.map(mapGameRow);
-
-      allGames.sort((a, b) => {
-        const scoreA = a.bestDealScore ?? -1;
-        const scoreB = b.bestDealScore ?? -1;
-        if (scoreB !== scoreA) return scoreB - scoreA;
-        return (a.priority ?? 999999) - (b.priority ?? 999999);
-      });
-
-      return {
-        games: allGames.slice(offset, offset + limit),
-        total: allGames.length
-      };
-    }
-
-    const countSql = `
-      SELECT COUNT(*) as total 
-      FROM wishlist_entries w
-      JOIN games g ON w.game_id = g.id
-      LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
-      LEFT JOIN merchants m ON bo.merchant_id = m.id
-      ${whereSql}
-    `;
-    const countRow = prepareStmt(countSql).get(...params) as any;
-
-    const selectSql = `
+    // Always fetch candidates and apply computed filters & sorting in memory for high precision
+    const allRowsSql = `
       SELECT ${selectFields}
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
       LEFT JOIN merchants m ON bo.merchant_id = m.id
       ${whereSql}
-      ${orderSql}
-      LIMIT ? OFFSET ?
     `;
-    const rows = prepareStmt(selectSql).all(...params, limit, offset) as any[];
+    const allRows = prepareStmt(allRowsSql).all(...params) as any[];
+    let allGames = allRows.map(mapGameRow);
+
+    // Apply Computed Filters
+    if (options.minDealScore !== undefined && options.minDealScore > 0) {
+      allGames = allGames.filter(g => (g.bestDealScore ?? 0) >= options.minDealScore!);
+    }
+    if (options.minConfidence !== undefined && options.minConfidence > 0) {
+      allGames = allGames.filter(g => (g.bestConfidenceScore ?? 0) >= options.minConfidence!);
+    }
+    if (options.hideAnomalies) {
+      allGames = allGames.filter(g => !g.hasAnomaly && g.bestRiskLevel !== 'HIGH');
+    }
+    if (options.hideProvisional) {
+      allGames = allGames.filter(g => !g.bestIsProvisional);
+    }
+    if (options.buyOnly) {
+      allGames = allGames.filter(g => g.actionSignal?.decision === 'STRONG_BUY' || g.actionSignal?.decision === 'BUY');
+    }
+    if (options.actionDecision && options.actionDecision.length > 0) {
+      allGames = allGames.filter(g => g.actionSignal && options.actionDecision!.includes(g.actionSignal.decision));
+    }
+
+    // Apply Multi-Strategy Discovery Rankings
+    allGames.sort((a, b) => {
+      if (options.sort === 'best_value') {
+        const valA = a.valueRankingScore ?? 0;
+        const valB = b.valueRankingScore ?? 0;
+        if (valB !== valA) return valB - valA;
+      } else if (options.sort === 'deal_score_desc') {
+        const scoreA = a.bestDealScore ?? -1;
+        const scoreB = b.bestDealScore ?? -1;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+      } else if (options.sort === 'confidence_desc') {
+        const confA = a.bestConfidenceScore ?? 0;
+        const confB = b.bestConfidenceScore ?? 0;
+        if (confB !== confA) return confB - confA;
+      } else if (options.sort === 'near_atl') {
+        const distA = a.bestAtlDistanceEur !== undefined ? a.bestAtlDistanceEur : 9999;
+        const distB = b.bestAtlDistanceEur !== undefined ? b.bestAtlDistanceEur : 9999;
+        if (distA !== distB) return distA - distB;
+      } else if (options.sort === 'biggest_savings') {
+        const savA = a.bestSavingVsMedianEur ?? 0;
+        const savB = b.bestSavingVsMedianEur ?? 0;
+        if (savB !== savA) return savB - savA;
+      } else if (options.sort === 'price_drops' || options.sort === 'discount_desc') {
+        const discA = a.bestDiscountPercent ?? 0;
+        const discB = b.bestDiscountPercent ?? 0;
+        if (discB !== discA) return discB - discA;
+      } else if (options.sort === 'price_asc') {
+        const pA = a.bestPriceEur ?? 999999;
+        const pB = b.bestPriceEur ?? 999999;
+        if (pA !== pB) return pA - pB;
+      } else if (options.sort === 'price_desc') {
+        const pA = a.bestPriceEur ?? -1;
+        const pB = b.bestPriceEur ?? -1;
+        if (pB !== pA) return pB - pA;
+      } else if (options.sort === 'title_asc') {
+        return a.title.localeCompare(b.title);
+      } else if (options.sort === 'historical_low') {
+        const distA = a.bestAtlDistanceEur !== undefined ? a.bestAtlDistanceEur : 9999;
+        const distB = b.bestAtlDistanceEur !== undefined ? b.bestAtlDistanceEur : 9999;
+        if (distA !== distB) return distA - distB;
+      }
+
+      // Secondary sort tiebreaker: Steam wishlist priority, then title
+      return (a.priority ?? 999999) - (b.priority ?? 999999) || a.title.localeCompare(b.title);
+    });
 
     return {
-      games: rows.map(mapGameRow),
-      total: Number(countRow?.total || 0)
+      games: allGames.slice(offset, offset + limit),
+      total: allGames.length
     };
   },
 
@@ -1336,6 +1389,9 @@ export const offerRepo = {
       anomalyReason: r.anomaly_reason || undefined,
       dealScore: dealCalc.score,
       dealTier: dealCalc.tier,
+      confidenceScore: dealCalc.confidenceScore,
+      confidenceTier: dealCalc.confidenceTier,
+      isProvisional: dealCalc.isProvisional,
       sources: sources.map(s => s.source_code as SourceCode),
       sourceAgreementCount: sources.length,
       fetchedAt: r.fetched_at,
@@ -1487,6 +1543,25 @@ export const sourceRepo = {
       lastError: r.last_error || undefined,
       cooldownUntil: r.cooldown_until || undefined
     }));
+  },
+
+  getByCode(code: SourceCode): SourceStatus | null {
+    const r = prepareStmt(`SELECT * FROM sources WHERE code = ?`).get(code) as any;
+    if (!r) return null;
+    return {
+      code: r.code as SourceCode,
+      name: r.name,
+      isEnabled: Boolean(r.is_enabled),
+      priority: Number(r.priority),
+      state: r.state as CircuitState,
+      requestCount: Number(r.request_count),
+      successCount: Number(r.success_count),
+      failureCount: Number(r.failure_count),
+      rateLimitCount: Number(r.rate_limit_count),
+      lastSuccessAt: r.last_success_at || undefined,
+      lastError: r.last_error || undefined,
+      cooldownUntil: r.cooldown_until || undefined
+    };
   },
 
   updateCircuitState(code: SourceCode, state: CircuitState, cooldownUntil?: string): void {
@@ -1660,6 +1735,14 @@ export const notificationsRepo = {
 function mapGameRow(r: any): Game {
   let bestDealScore: number | undefined;
   let bestDealTier: DealScoreTier | undefined;
+  let bestConfidenceScore: number | undefined;
+  let bestConfidenceTier: ConfidenceTier | undefined;
+  let bestIsProvisional: boolean | undefined;
+  let bestZScore: number | undefined;
+  let bestEffectiveSigma: number | undefined;
+  let bestSavingVsMedianEur: number | undefined;
+  let bestAtlDistanceEur: number | undefined;
+  let valueRankingScore: number | undefined;
 
   if (r.best_price_eur !== null && r.best_price_eur !== undefined) {
     const isOfficial = r.best_merchant_is_official !== undefined && r.best_merchant_is_official !== null
@@ -1678,11 +1761,39 @@ function mapGameRow(r: any): Game {
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
-      isAnomaly: Number(r.anomaly_count || 0) > 0 || r.best_risk_level === 'HIGH',
-      riskLevel: r.best_risk_level || 'SAFE'
+      sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
+      isOfficialSource: isOfficial
     });
+
     bestDealScore = dealResult.score;
     bestDealTier = dealResult.tier;
+    bestConfidenceScore = dealResult.confidenceScore;
+    bestConfidenceTier = dealResult.confidenceTier;
+    bestIsProvisional = dealResult.isProvisional;
+    bestZScore = dealResult.zScore;
+    bestEffectiveSigma = dealResult.explanation?.effectiveSigma;
+    bestSavingVsMedianEur = dealResult.explanation?.medianSavingEur;
+    bestAtlDistanceEur = dealResult.explanation?.atlDistanceEur;
+    // Value Ranking Score for discovery: monotonic combination of deal score and confidence
+    valueRankingScore = Number((dealResult.score * (0.65 + 0.35 * (dealResult.confidenceScore / 100))).toFixed(1));
+  }
+
+  let actionSignal: any = undefined;
+  if (r.best_price_eur !== null && r.best_price_eur !== undefined && bestDealScore !== undefined) {
+    actionSignal = generateActionSignal({
+      dealScore: bestDealScore,
+      confidenceScore: bestConfidenceScore ?? 50,
+      isProvisional: Boolean(bestIsProvisional),
+      isAnomaly: Boolean(r.anomaly_count && Number(r.anomaly_count) > 0),
+      currentPriceEur: Number(r.best_price_eur),
+      basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
+      typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : undefined,
+      typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
+      typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
+      typicalSaleSampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
+      historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : undefined
+    });
   }
 
   return {
@@ -1700,6 +1811,12 @@ function mapGameRow(r: any): Game {
     historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
     historicalLowDate: r.historical_low_date || undefined,
     historicalLowSource: r.historical_low_source || undefined,
+    typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : undefined,
+    typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
+    typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
+    typicalSaleSampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
+    low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : undefined,
+    low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : undefined,
     bestPriceEur: r.best_price_eur !== null && r.best_price_eur !== undefined ? Number(r.best_price_eur) : undefined,
     bestMerchantName: r.best_merchant_name || undefined,
     bestMerchantCode: r.best_merchant_code || undefined,
@@ -1714,6 +1831,15 @@ function mapGameRow(r: any): Game {
     bestEvaluationConfidence: r.best_evaluation_confidence !== null && r.best_evaluation_confidence !== undefined ? Number(r.best_evaluation_confidence) : undefined,
     bestDealScore,
     bestDealTier,
+    bestConfidenceScore,
+    bestConfidenceTier,
+    bestIsProvisional,
+    bestZScore,
+    bestEffectiveSigma,
+    bestSavingVsMedianEur,
+    bestAtlDistanceEur,
+    valueRankingScore,
+    actionSignal,
     hasAnomaly: Number(r.anomaly_count || 0) > 0,
     anomalyCount: Number(r.anomaly_count || 0),
     offersCount: Number(r.offers_count || 0),
