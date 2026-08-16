@@ -81,8 +81,7 @@ export function getDb(): Database.Database {
             LOWER(name) LIKE '%battle.net%'
         );
 
-        -- Clean up fake AllKeyShop / Borderlands mismatched offers
-        DELETE FROM source_observations WHERE source_code = 'allkeyshop';
+        -- Clean up fake Borderlands mismatched offers if any
         DELETE FROM offers WHERE id IN (
           SELECT o.id FROM offers o
           JOIN games g ON o.game_id = g.id
@@ -257,12 +256,7 @@ export function backfillDealScoreStats(): void {
 }
 
 export function prepareStmt(sql: string): Database.Statement {
-  let stmt = stmtCache.get(sql);
-  if (!stmt) {
-    stmt = getDb().prepare(sql);
-    stmtCache.set(sql, stmt);
-  }
-  return stmt;
+  return getDb().prepare(sql);
 }
 
 export function clearStmtCache(): void {

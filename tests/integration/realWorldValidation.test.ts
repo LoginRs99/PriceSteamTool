@@ -36,7 +36,7 @@ describe('Real-World Validation — Complete Integration Suite', () => {
   });
 
   afterAll(() => {
-    closeDb();
+    resetDatabase();
   });
 
   // ----------------------------------------------------

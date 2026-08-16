@@ -113,6 +113,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
     const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!cleanTarget) return null;
+    const targetNumbers = cleanTarget.match(/\d+/g)?.join('') || '';
 
     // 1. Exact cleaned match
     const exact = catalog.find(g => (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTarget);
@@ -130,21 +131,32 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     if (baseTarget.length >= 4) {
       const baseMatch = catalog.find(g => {
         const cleanG = (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        return cleanG === baseTarget || cleanG === `${baseTarget}edition`;
+        if (cleanNumbers(cleanG) !== targetNumbers) return false;
+        return cleanG === baseTarget || cleanG === `${baseTarget}edition` || cleanG === `${baseTarget}deluxe`;
       });
       if (baseMatch) return baseMatch;
     }
 
-    // 3. Prefix match if sufficiently distinct
+    // 3. Strict prefix match (only allow edition suffixes and ensure numbers match strictly)
     if (cleanTarget.length >= 6) {
       const prefixMatch = catalog.find(g => {
         const cleanG = (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        return cleanG.startsWith(cleanTarget) || (cleanG.length >= 6 && cleanTarget.startsWith(cleanG));
+        // Require numeric equality so sequel "Game 2" never matches "Game 3" or "Game 1"
+        if (cleanNumbers(cleanG) !== targetNumbers) return false;
+        if (cleanG.startsWith(cleanTarget)) {
+          const suffix = cleanG.slice(cleanTarget.length);
+          return /^(edition|deluxe|standard|goty|remastered|vr|director|cut)*$/.test(suffix);
+        }
+        return false;
       });
       if (prefixMatch) return prefixMatch;
     }
 
     return null;
+
+    function cleanNumbers(str: string): string {
+      return str.match(/\d+/g)?.join('') || '';
+    }
   }
 
   public async fetchPricesForGame(

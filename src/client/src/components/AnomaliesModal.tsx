@@ -123,7 +123,7 @@ export const AnomaliesModal: React.FC<AnomaliesModalProps> = ({ onClose, onRefre
                     </div>
 
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Merchant: <strong style={{ color: 'var(--text-secondary)' }}>{a.merchantName}</strong> • Anomaly Score: {(a.score * 100).toFixed(0)}%
+                      Merchant: <strong style={{ color: 'var(--text-secondary)' }}>{a.merchantName}</strong> • Anomaly Score: {a.score !== undefined ? `${(a.score * 100).toFixed(0)}%` : '—'}
                     </div>
                     <div style={{ fontSize: 13, color: '#f87171', marginTop: 4 }}>
                       {a.reason}

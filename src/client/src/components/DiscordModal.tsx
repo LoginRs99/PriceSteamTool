@@ -214,32 +214,25 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
             </div>
           </div>
 
-          {/* Minimum Data Confidence Slider */}
+          {/* Price History Verification Level */}
           <div className="form-group">
-            <div className="form-label-row">
-              <label className="form-label" htmlFor="discord-min-conf">
-                <Database size={15} className="text-accent inline-icon" />
-                Minimum Data Confidence: <strong className="text-accent">{minConfidence}%</strong>
-              </label>
-              <span className="deal-tier-pill" style={{ background: minConfidence >= 80 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)', color: minConfidence >= 80 ? '#10b981' : '#3b82f6' }}>
-                {minConfidence >= 80 ? 'High Confidence only' : minConfidence >= 40 ? 'Moderate & High (Recommended)' : 'Any'}
-              </span>
-            </div>
-            <input
+            <label className="form-label" htmlFor="discord-min-conf">
+              <ShieldCheck size={15} className="text-accent inline-icon" />
+              Historical Verification Level
+            </label>
+            <select
               id="discord-min-conf"
-              type="range"
-              min="20"
-              max="90"
-              step="10"
-              className="range-slider"
-              value={minConfidence}
+              className="select-input"
+              value={minConfidence >= 75 ? 75 : minConfidence >= 40 ? 40 : 20}
               onChange={e => setMinConfidence(parseInt(e.target.value, 10))}
-            />
-            <div className="range-ticks">
-              <span onClick={() => setMinConfidence(40)} className={minConfidence === 40 ? 'active' : ''}>40% (Moderate)</span>
-              <span onClick={() => setMinConfidence(60)} className={minConfidence === 60 ? 'active' : ''}>60% (Medium)</span>
-              <span onClick={() => setMinConfidence(80)} className={minConfidence === 80 ? 'active' : ''}>80% (High only)</span>
-            </div>
+            >
+              <option value="40">Standard (Recommended) — Requires verified price history</option>
+              <option value="75">Strict — Extensive multi-source historical confirmation only</option>
+              <option value="20">Permissive — Include newly tracked & provisional deals</option>
+            </select>
+            <p className="form-help-text">
+              Filters out false-alarm discounts on newly added games until adequate historical sale patterns are recorded.
+            </p>
           </div>
 
           {/* Filter Options */}

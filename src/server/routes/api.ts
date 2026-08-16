@@ -248,6 +248,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   // Server-Sent Events (SSE) for Real-Time Sync Updates
   fastify.get('/api/sync/events', async (request, reply) => {
+    reply.hijack();
     reply.raw.setHeader('Content-Type', 'text/event-stream');
     reply.raw.setHeader('Cache-Control', 'no-cache');
     reply.raw.setHeader('Connection', 'keep-alive');
@@ -255,7 +256,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     reply.raw.flushHeaders();
 
     const unsubscribe = syncOrchestrator.subscribe((data) => {
-      reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (!reply.raw.writableEnded && !reply.raw.destroyed) {
+        try {
+          reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+        } catch {}
+      }
     });
 
     request.raw.on('close', () => {
