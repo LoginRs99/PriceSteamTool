@@ -49,18 +49,27 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           }}
         />
 
-        {/* Top-Left: Discount Badge */}
-        {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
-          <div className="discount-badge">
-            -{game.bestDiscountPercent}%
-          </div>
-        )}
+        {/* Top-Left Badges: Discount & ATL */}
+        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
+          {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
+            <div className="discount-badge" style={{ position: 'static' }}>
+              -{game.bestDiscountPercent}%
+            </div>
+          )}
+
+          {!isHighRisk && isConfirmedATL && !isProvisional && (
+            <div className="price-event-pill atl-pill" style={{ position: 'static' }}>
+              <Flame size={11} />
+              <span>ATL</span>
+            </div>
+          )}
+        </div>
 
         {/* Top-Right: Unified Deal Score Pill */}
         {hasBestDeal && dealScore > 0 && !isHighRisk && (
           <div 
             className="deal-score-badge"
-            style={{ background: tierColor }}
+            style={{ background: tierColor, zIndex: 3 }}
             title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
             onClick={(e) => {
               if (onExplain) {
@@ -78,21 +87,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
 
         {/* High Risk Warning Pill */}
         {isHighRisk && (
-          <div className="anomaly-tag" title="High risk pricing anomaly suppressed">
+          <div className="anomaly-tag" style={{ zIndex: 3 }} title="High risk pricing anomaly suppressed">
             <AlertTriangle size={12} />
             <span>High Risk</span>
           </div>
         )}
 
-        {/* Record ATL Pill */}
-        {!isHighRisk && isConfirmedATL && !isProvisional && (
-          <div className="price-event-pill atl-pill">
-            <Flame size={11} />
-            <span>ATL</span>
-          </div>
-        )}
-
-        {/* Action Signal Pill */}
+        {/* Bottom-Left: Action Signal Pill (Must Buy, Buy, Wait, etc.) */}
         {game.actionSignal && !isHighRisk && (
           <div 
             className="action-signal-pill" 
@@ -100,24 +101,24 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
               position: 'absolute', 
               bottom: 8, 
               left: 8, 
-              background: 'rgba(15, 23, 42, 0.88)',
-              backdropFilter: 'blur(6px)',
-              border: `1px solid ${game.actionSignal.badgeColor}55`,
+              background: 'rgba(15, 23, 42, 0.92)',
+              backdropFilter: 'blur(8px)',
+              border: `1px solid ${game.actionSignal.badgeColor}88`,
               color: game.actionSignal.badgeColor,
-              padding: '3px 8px',
+              padding: '4px 9px',
               borderRadius: 6,
-              fontSize: '0.72rem',
-              fontWeight: 700,
+              fontSize: '0.74rem',
+              fontWeight: 800,
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              zIndex: 2,
-              boxShadow: '0 2px 6px rgba(0,0,0,0.4)'
+              gap: 5,
+              zIndex: 3,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.6)'
             }}
             title={`${game.actionSignal.badgeLabel}: ${game.actionSignal.primaryReason}`}
           >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: game.actionSignal.badgeColor }} />
-            {game.actionSignal.badgeLabel}
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: game.actionSignal.badgeColor, boxShadow: `0 0 6px ${game.actionSignal.badgeColor}` }} />
+            <span>{game.actionSignal.badgeLabel}</span>
           </div>
         )}
 
