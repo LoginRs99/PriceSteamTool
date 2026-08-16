@@ -165,5 +165,77 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
     expect(anomalyRepo.list(false).length).toBe(1);
     expect(anomalyRepo.list(false)[0].isDismissed).toBe(true);
   });
+
+  it('selects cheapest anomalous offer as fallback best deal when all offers are anomalous, and prioritizes safe offers when available', () => {
+    resetDb();
+
+    const game = gameRepo.upsert({
+      steamAppId: 99999,
+      title: 'Only Glitch Offers Game',
+      basePriceEur: 59.99
+    });
+    const shady1 = merchantRepo.getOrCreate('shady1', 'Shady Store 1', false);
+    const shady2 = merchantRepo.getOrCreate('shady2', 'Shady Store 2', false);
+    const official = merchantRepo.getOrCreate('steam', 'Steam Official', true);
+
+    // Ingest two anomalous sub-euro glitch offers (no safe offers yet)
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: shady2.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.80,
+      dealUrl: 'https://shady2.com/deal',
+      isValid: true,
+      sourceCode: 'ggdeals'
+    });
+
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: shady1.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.40,
+      dealUrl: 'https://shady1.com/deal',
+      isValid: true,
+      sourceCode: 'allkeyshop'
+    });
+
+    // 1. Check per-game selection: the cheaper anomalous offer (€0.40) must be best deal as fallback
+    let offers = offerRepo.getOffersForGame(game.id);
+    expect(offers.length).toBe(2);
+    const offer40 = offers.find(o => o.priceEur === 0.40);
+    const offer80 = offers.find(o => o.priceEur === 0.80);
+    expect(offer40?.isBestDeal).toBe(true);
+    expect(offer80?.isBestDeal).toBe(false);
+
+    // 2. Check batch/startup selection: recomputeAllBestDeals must produce the exact same outcome
+    offerRepo.recomputeAllBestDeals();
+    offers = offerRepo.getOffersForGame(game.id);
+    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(true);
+
+    // 3. Ingest a safe official offer (€29.99)
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: official.id,
+      productType: 'DIRECT_PURCHASE',
+      regionType: 'GLOBAL',
+      priceEur: 29.99,
+      dealUrl: 'https://store.steampowered.com/app/99999',
+      isValid: true,
+      sourceCode: 'steam'
+    });
+
+    // Safe offer must immediately take precedence over cheaper anomalous offers
+    offers = offerRepo.getOffersForGame(game.id);
+    expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(true);
+    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(false);
+
+    // Recomputing all deals must preserve safe precedence
+    offerRepo.recomputeAllBestDeals();
+    offers = offerRepo.getOffersForGame(game.id);
+    expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(true);
+    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(false);
+  });
 });
 

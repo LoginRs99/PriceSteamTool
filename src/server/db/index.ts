@@ -92,17 +92,19 @@ export function getDb(): Database.Database {
         -- Delete any orphaned offers
         DELETE FROM offers WHERE id NOT IN (SELECT DISTINCT offer_id FROM source_observations);
 
-        -- Reset and reassign is_best_deal for all games
+        -- Reset and reassign is_best_deal for all games using canonical priority (safe lowest > anomaly fallback)
         UPDATE offers SET is_best_deal = 0;
-        UPDATE offers SET is_best_deal = 1 WHERE id IN (
-          SELECT o.id FROM offers o
-          INNER JOIN (
-            SELECT game_id, MIN(price_eur) as min_price
-            FROM offers
-            WHERE is_valid = 1 AND (is_anomaly = 0 AND risk_level != 'HIGH')
-            GROUP BY game_id
-          ) best ON o.game_id = best.game_id AND o.price_eur = best.min_price
-        );
+        WITH ranked AS (
+          SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY game_id 
+            ORDER BY 
+              CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
+              price_eur ASC
+          ) as rn
+          FROM offers
+          WHERE is_valid = 1
+        )
+        UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
       `);
     } catch {}
 
@@ -1569,6 +1571,23 @@ export const offerRepo = {
     if (best) {
       prepareStmt(`UPDATE offers SET is_best_deal = 1 WHERE id = ?`).run(best.id);
     }
+  },
+
+  recomputeAllBestDeals(): void {
+    prepareStmt(`UPDATE offers SET is_best_deal = 0`).run();
+    prepareStmt(`
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY game_id 
+          ORDER BY 
+            CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
+            price_eur ASC
+        ) as rn
+        FROM offers
+        WHERE is_valid = 1
+      )
+      UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1)
+    `).run();
   },
 
   getPriceHistory(gameId: string, limit: number = 100): PriceHistoryEntry[] {
