@@ -57,7 +57,8 @@ describe('Anomaly Detection Engine — Comprehensive Audit Suite', () => {
   });
 });
 
-import { gameRepo, merchantRepo, offerRepo, anomalyRepo, getDb } from '../../src/server/db/index.js';
+import { randomUUID } from 'node:crypto';
+import { gameRepo, merchantRepo, offerRepo, anomalyRepo, getDb, prepareStmt } from '../../src/server/db/index.js';
 
 describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
   function resetDb() {
@@ -236,6 +237,73 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
     offers = offerRepo.getOffersForGame(game.id);
     expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(true);
     expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(false);
+  });
+
+  it('correctly persists atl_is_confirmed=0 for keyshop ATL and halves rarity bonus in mapGameRow', () => {
+    resetDb();
+
+    // Game with uncorroborated AllKeyShop historical low
+    const keyshopGame = gameRepo.upsert({
+      steamAppId: 55555,
+      title: 'Keyshop ATL Game',
+      basePriceEur: 59.99
+    });
+    gameRepo.updateHistoricalLow(keyshopGame.id, 9.99, '2025-01-01T00:00:00Z', 'AllKeyShop');
+
+    // Game with confirmed Steam historical low
+    const confirmedGame = gameRepo.upsert({
+      steamAppId: 66666,
+      title: 'Confirmed ATL Game',
+      basePriceEur: 59.99
+    });
+    gameRepo.updateHistoricalLow(confirmedGame.id, 9.99, '2025-01-01T00:00:00Z', 'Steam Store');
+
+    const steamMerchant = merchantRepo.getOrCreate('steam', 'Steam Store', true);
+    const keyshopMerchant = merchantRepo.getOrCreate('allkeyshop', 'AllKeyShop', false);
+
+    // Add sufficient history so typical sale median is established and provisional cap is lifted
+    for (let i = 1; i <= 8; i++) {
+      prepareStmt(`
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, price_event, recorded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', ?))
+      `).run(randomUUID(), keyshopGame.id, steamMerchant.id, 'steam', 24.99, 58, 'SALE', `-${i * 5} days`);
+      prepareStmt(`
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, price_event, recorded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', ?))
+      `).run(randomUUID(), confirmedGame.id, steamMerchant.id, 'steam', 24.99, 58, 'SALE', `-${i * 5} days`);
+    }
+
+    // Ingest uncorroborated keyshop deal on keyshopGame vs confirmed deal on confirmedGame
+    offerRepo.upsertOffer({
+      gameId: keyshopGame.id,
+      merchantId: keyshopMerchant.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 9.99,
+      dealUrl: 'https://allkeyshop.com/deal/55555',
+      isValid: true,
+      sourceCode: 'allkeyshop'
+    });
+
+    offerRepo.upsertOffer({
+      gameId: confirmedGame.id,
+      merchantId: steamMerchant.id,
+      productType: 'DIRECT_PURCHASE',
+      regionType: 'GLOBAL',
+      priceEur: 9.99,
+      dealUrl: 'https://store.steampowered.com/app/66666',
+      isValid: true,
+      sourceCode: 'steam'
+    });
+
+    const gKeyshop = gameRepo.getById(keyshopGame.id)!;
+    const gConfirmed = gameRepo.getById(confirmedGame.id)!;
+
+    expect(gKeyshop.atlIsConfirmed).toBe(false);
+    expect(gConfirmed.atlIsConfirmed).toBe(true);
+
+    // Confirmed game must have higher Deal Score due to full ATL rarity bonus vs halved for unconfirmed
+    expect(gConfirmed.bestDealScore!).toBeGreaterThan(gKeyshop.bestDealScore!);
   });
 });
 

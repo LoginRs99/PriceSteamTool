@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS games (
   typical_sale_low_confidence INTEGER,
   low_90d_eur REAL,
   low_1y_eur REAL,
+  atl_is_confirmed INTEGER DEFAULT 1,
+  atl_is_single_source_low INTEGER DEFAULT 0,
   price_tracking_first_observed_at TEXT,
   best_offer_source_count INTEGER,
   deal_score_stats_updated_at TEXT,

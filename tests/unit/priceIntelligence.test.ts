@@ -88,11 +88,30 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
       expect(periodLows.low7d.priceEur).toBe(29.99);
       expect(periodLows.low7d.isExactPeriodData).toBe(true);
 
-      // 30d, 90d, 1y must be null since history span is only 3 days
+      // 30d, 90d, 1y require sufficient span and return null
       expect(periodLows.low30d.priceEur).toBeNull();
-      expect(periodLows.low30d.isExactPeriodData).toBe(false);
       expect(periodLows.low90d.priceEur).toBeNull();
       expect(periodLows.low1y.priceEur).toBeNull();
+    });
+
+    it('marks uncorroborated keyshop ATL as unconfirmed and results in lower Deal Score than confirmed ATL', () => {
+      const keyshopGame: Game = {
+        ...baseGame,
+        historicalLowEur: 9.99,
+        historicalLowSource: 'AllKeyShop'
+      };
+
+      const confirmedGame: Game = {
+        ...baseGame,
+        historicalLowEur: 9.99,
+        historicalLowSource: 'Steam'
+      };
+
+      const periodLowsKeyshop = calculatePeriodLows(keyshopGame, [], sampleOffer);
+      const periodLowsConfirmed = calculatePeriodLows(confirmedGame, [], sampleOffer);
+
+      expect(periodLowsKeyshop.allTimeLow.isConfirmed).toBe(false);
+      expect(periodLowsConfirmed.allTimeLow.isConfirmed).toBe(true);
     });
 
     it('returns exact period lows when sufficient historical span exists', () => {

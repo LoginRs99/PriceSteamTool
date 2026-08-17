@@ -113,6 +113,8 @@ export interface Game {
   typicalSaleSampleCount?: number;
   low90dEur?: number;
   low1yEur?: number;
+  atlIsConfirmed?: boolean;
+  atlIsSingleSourceLow?: boolean;
   
   // Best Offer computed fields
   bestOfferId?: string;

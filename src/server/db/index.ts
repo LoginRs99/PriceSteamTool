@@ -78,6 +78,8 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_low_confidence INTEGER"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_90d_eur REAL"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_1y_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN atl_is_confirmed INTEGER DEFAULT 1"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN atl_is_single_source_low INTEGER DEFAULT 0"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN price_tracking_first_observed_at TEXT"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN best_offer_source_count INTEGER"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
@@ -149,6 +151,8 @@ export function backfillDealScoreStats(): void {
         typical_sale_low_confidence = ?,
         low_90d_eur = ?,
         low_1y_eur = ?,
+        atl_is_confirmed = ?,
+        atl_is_single_source_low = ?,
         price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
         best_offer_source_count = COALESCE(best_offer_source_count, ?),
         deal_score_stats_updated_at = ?
@@ -246,6 +250,8 @@ export function backfillDealScoreStats(): void {
         };
 
         const periodLows = calculatePeriodLows(mappedGame, history, currentBestOffer);
+        const atlConfirmed = periodLows.allTimeLow.isConfirmed ? 1 : 0;
+        const atlSingleSource = (periodLows.allTimeLow.isConfirmed === false || Boolean(periodLows.low90d.isSingleSourceLow)) ? 1 : 0;
 
         const firstObserved = rawHist.length > 0
           ? rawHist[rawHist.length - 1].recorded_at
@@ -259,6 +265,8 @@ export function backfillDealScoreStats(): void {
           typicalSale.isLowConfidence ? 1 : 0,
           periodLows.low90d.priceEur,
           periodLows.low1y.priceEur,
+          atlConfirmed,
+          atlSingleSource,
           firstObserved,
           sourceCount,
           nowIso,
@@ -271,6 +279,9 @@ export function backfillDealScoreStats(): void {
 }
 
 export function prepareStmt(sql: string): Database.Statement {
+  if (process.env.NODE_ENV === 'test') {
+    return getDb().prepare(sql);
+  }
   let stmt = stmtCache.get(sql);
   if (!stmt) {
     stmt = getDb().prepare(sql);
@@ -1096,7 +1107,7 @@ export const offerRepo = {
       `).get(data.gameId, data.merchantId, data.productType, data.regionType) as any;
 
       // 1. Gather context for 2D pricing engine
-      const gameInfo = prepareStmt(`SELECT base_price_eur, historical_low_eur, release_date FROM games WHERE id = ?`).get(data.gameId) as any;
+      const gameInfo = prepareStmt(`SELECT * FROM games WHERE id = ?`).get(data.gameId) as any;
       const merchantInfo = prepareStmt(`SELECT name, is_official, trust_score FROM merchants WHERE id = ?`).get(data.merchantId) as any;
       
       const otherPricesRows = prepareStmt(`SELECT price_eur FROM offers WHERE game_id = ? AND is_valid = 1 AND merchant_id != ?`).all(data.gameId, data.merchantId) as any[];
@@ -1346,6 +1357,9 @@ export const offerRepo = {
           updatedAt: now
         });
 
+        const atlConfirmed = periodLows.allTimeLow.isConfirmed ? 1 : 0;
+        const atlSingleSource = (periodLows.allTimeLow.isConfirmed === false || Boolean(periodLows.low90d.isSingleSourceLow)) ? 1 : 0;
+
         // Cache the statistical metrics on the games table
         prepareStmt(`
           UPDATE games SET
@@ -1356,6 +1370,8 @@ export const offerRepo = {
             typical_sale_low_confidence = ?,
             low_90d_eur = ?,
             low_1y_eur = ?,
+            atl_is_confirmed = ?,
+            atl_is_single_source_low = ?,
             price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
             best_offer_source_count = ?,
             deal_score_stats_updated_at = ?
@@ -1368,6 +1384,8 @@ export const offerRepo = {
           typicalSale.isLowConfidence ? 1 : 0,
           periodLows.low90d.priceEur,
           periodLows.low1y.priceEur,
+          atlConfirmed,
+          atlSingleSource,
           now,
           Math.max(1, sourceCount),
           now,
@@ -1384,6 +1402,9 @@ export const offerRepo = {
           low90dEur: periodLows.low90d.priceEur,
           low1yEur: periodLows.low1y.priceEur,
           allTimeLowEur: periodLows.allTimeLow.priceEur || (gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined),
+          historicalLowEur: periodLows.allTimeLow.priceEur || (gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined),
+          isConfirmedAtl: periodLows.allTimeLow.isConfirmed,
+          isSingleSourceLow: Boolean(periodLows.allTimeLow.isConfirmed === false || periodLows.low90d.isSingleSourceLow),
           isAnomaly: pricingEval.isAnomaly,
           riskLevel: pricingEval.riskLevel
         });
@@ -1408,7 +1429,8 @@ export const offerRepo = {
     const r = prepareStmt(`
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score,
              g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
-             g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur
+             g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur,
+             g.atl_is_confirmed, g.atl_is_single_source_low
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
       LEFT JOIN games g ON o.game_id = g.id
@@ -1427,6 +1449,13 @@ export const offerRepo = {
     }
 
     const isOfficial = Boolean(r.is_official);
+    const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
+      ? Boolean(r.atl_is_confirmed)
+      : true;
+    const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
+      ? Boolean(r.atl_is_single_source_low)
+      : false;
+
     const dealCalc = calculateDealScore({
       priceEur: Number(r.price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -1438,7 +1467,8 @@ export const offerRepo = {
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
-      isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
+      isConfirmedAtl,
+      isSingleSourceLow,
       isAnomaly: Boolean(r.is_anomaly),
       riskLevel: r.risk_level || 'SAFE'
     });
@@ -1489,7 +1519,8 @@ export const offerRepo = {
     const rows = prepareStmt(`
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score,
              g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
-             g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur
+             g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur,
+             g.atl_is_confirmed, g.atl_is_single_source_low
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
       LEFT JOIN games g ON o.game_id = g.id
@@ -1508,6 +1539,13 @@ export const offerRepo = {
       }
 
       const isOfficial = Boolean(r.is_official);
+      const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
+        ? Boolean(r.atl_is_confirmed)
+        : true;
+      const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
+        ? Boolean(r.atl_is_single_source_low)
+        : false;
+
       const dealCalc = calculateDealScore({
         priceEur: Number(r.price_eur),
         basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -1519,7 +1557,8 @@ export const offerRepo = {
         low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
         allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
         historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
-        isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
+        isConfirmedAtl,
+        isSingleSourceLow,
         isAnomaly: Boolean(r.is_anomaly),
         riskLevel: r.risk_level || 'SAFE'
       });
@@ -1849,6 +1888,13 @@ function mapGameRow(r: any): Game {
       ? Boolean(r.best_merchant_is_official)
       : true;
 
+    const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
+      ? Boolean(r.atl_is_confirmed)
+      : true;
+    const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
+      ? Boolean(r.atl_is_single_source_low)
+      : false;
+
     const dealResult = calculateDealScore({
       priceEur: Number(r.best_price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -1860,7 +1906,8 @@ function mapGameRow(r: any): Game {
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
-      isConfirmedAtl: Boolean(r.historical_low_source || (r.historical_low_eur && Number(r.historical_low_eur) > 0)),
+      isConfirmedAtl,
+      isSingleSourceLow,
       sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
       firstObservedAt: r.price_tracking_first_observed_at || undefined,
       lastObservedAt: r.best_last_observed_at || r.last_observed_at || undefined,
@@ -1922,6 +1969,8 @@ function mapGameRow(r: any): Game {
     typicalSaleSampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
     low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : undefined,
     low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : undefined,
+    atlIsConfirmed: r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined ? Boolean(r.atl_is_confirmed) : undefined,
+    atlIsSingleSourceLow: r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined ? Boolean(r.atl_is_single_source_low) : undefined,
     bestPriceEur: r.best_price_eur !== null && r.best_price_eur !== undefined ? Number(r.best_price_eur) : undefined,
     bestMerchantName: r.best_merchant_name || undefined,
     bestMerchantCode: r.best_merchant_code || undefined,
