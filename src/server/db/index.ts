@@ -83,6 +83,10 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN price_tracking_first_observed_at TEXT"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN best_offer_source_count INTEGER"); } catch {}
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_last_checked_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_check_interval_hours INTEGER DEFAULT 24"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_unchanged_streak INTEGER DEFAULT 0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_last_price_eur REAL"); } catch {}
     try { dbInstance.exec("ALTER TABLE wishlist_entries ADD COLUMN target_price_eur REAL"); } catch {}
 
     // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
@@ -616,6 +620,24 @@ export const gameRepo = {
           updated_at = datetime('now')
       WHERE id = ? AND (historical_low_eur IS NULL OR ? < historical_low_eur)
     `).run(priceEur, date, source, gameId, priceEur);
+  },
+
+  updateAllkeyshopCheckState(
+    gameId: string,
+    lastCheckedAt: string,
+    lastPriceEur: number | null,
+    intervalHours: number,
+    streak: number
+  ): void {
+    prepareStmt(`
+      UPDATE games 
+      SET allkeyshop_last_checked_at = ?,
+          allkeyshop_last_price_eur = ?,
+          allkeyshop_check_interval_hours = ?,
+          allkeyshop_unchanged_streak = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(lastCheckedAt, lastPriceEur, intervalHours, streak, gameId);
   },
 
   getWishlistStatistics(profileId: string): WishlistStatistics {
@@ -1996,6 +2018,10 @@ function mapGameRow(r: any): Game {
     priority: r.priority !== undefined ? Number(r.priority) : undefined,
     dateAddedSteam: r.date_added_steam || undefined,
     targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined ? Number(r.target_price_eur) : undefined,
+    allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
+    allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined ? Number(r.allkeyshop_check_interval_hours) : undefined,
+    allkeyshopUnchangedStreak: r.allkeyshop_unchanged_streak !== null && r.allkeyshop_unchanged_streak !== undefined ? Number(r.allkeyshop_unchanged_streak) : undefined,
+    allkeyshopLastPriceEur: r.allkeyshop_last_price_eur !== null && r.allkeyshop_last_price_eur !== undefined ? Number(r.allkeyshop_last_price_eur) : undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };

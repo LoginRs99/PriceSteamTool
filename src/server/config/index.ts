@@ -28,13 +28,13 @@ export const config = {
     itad: parseInt(process.env.ITAD_DELAY_MS || '500', 10),
     ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1000', 10),
     cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '500', 10),
-    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '4000', 10)
+    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '7000', 10)
   },
 
   // Stealth & Anti-Ban Batching for Keyshop scrapers
-  allkeyshopJitterMs: parseInt(process.env.ALLKEYSHOP_JITTER_MS || '2000', 10),
+  allkeyshopJitterMs: parseInt(process.env.ALLKEYSHOP_JITTER_MS || '4000', 10),
   allkeyshopChunkSize: parseInt(process.env.ALLKEYSHOP_CHUNK_SIZE || '30', 10),
-  allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || '60000', 10),
+  allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || '100000', 10),
 
   // Cache & Periodic Auto-Sync settings
   cacheTtlHours: parseInt(process.env.CACHE_TTL_HOURS || '6', 10),

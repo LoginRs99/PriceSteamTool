@@ -149,6 +149,12 @@ export interface Game {
   dateAddedSteam?: string;
   targetPriceEur?: number;
   
+  // AllKeyShop Adaptive Pacing State
+  allkeyshopLastCheckedAt?: string;
+  allkeyshopCheckIntervalHours?: number;
+  allkeyshopUnchangedStreak?: number;
+  allkeyshopLastPriceEur?: number;
+  
   hasAnomaly: boolean;
   anomalyCount?: number;
   offersCount: number;

@@ -19,6 +19,7 @@ import { itadAdapter } from '../sources/itad.js';
 import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
 import { allkeyshopAdapter } from '../sources/allkeyshop.js';
+import { computeNextInterval, isAllkeyshopDue } from '../domain/allkeyshopScheduling.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
 
@@ -449,12 +450,16 @@ export class SyncOrchestrator {
       return;
     }
 
+    const dueGames = games.filter(g => isAllkeyshopDue(g));
     const maxGames = config.allkeyshopMaxGames;
-    const prioritizedGames = (maxGames > 0 && maxGames < games.length) 
-      ? games.slice(0, maxGames) 
-      : games;
+    const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
+      ? dueGames.slice(0, maxGames) 
+      : dueGames;
 
-    if (prioritizedGames.length === 0) return;
+    if (prioritizedGames.length === 0) {
+      logInfo('[Enrichment] AllKeyShop background worker: no games currently due for refresh.');
+      return;
+    }
 
     this.enrichmentStatus = {
       isRunning: true,
@@ -464,7 +469,7 @@ export class SyncOrchestrator {
       currentGameTitle: undefined
     };
 
-    logInfo(`[Enrichment] Starting background Keyshop worker for ${prioritizedGames.length} games.`);
+    logInfo(`[Enrichment] Starting background Keyshop worker for ${prioritizedGames.length} due games (out of ${games.length} total).`);
     const chunkSize = config.allkeyshopChunkSize;
     const pauseMs = config.allkeyshopChunkPauseMs;
 
@@ -475,15 +480,44 @@ export class SyncOrchestrator {
         this.enrichmentStatus.processed = i + 1;
         this.enrichmentStatus.currentGameTitle = g.title;
 
+        let lowestPriceEur: number | null = null;
         try {
           const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title);
           for (const offer of offers) {
             this.ingestOffer(g.id, 'allkeyshop', offer);
             this.enrichmentStatus.offersFound++;
+            if (offer.priceEur > 0 && (lowestPriceEur === null || offer.priceEur < lowestPriceEur)) {
+              lowestPriceEur = offer.priceEur;
+            }
           }
         } catch {
           // Ignore individual keyshop scraping errors
         }
+
+        // Adaptive interval recomputation after each check
+        const prevPrice = g.allkeyshopLastPriceEur !== undefined && g.allkeyshopLastPriceEur !== null
+          ? Number(g.allkeyshopLastPriceEur)
+          : null;
+        const streak = g.allkeyshopUnchangedStreak ?? 0;
+        const prevInterval = g.allkeyshopCheckIntervalHours ?? 24;
+        const hasActiveTargetPrice = g.targetPriceEur !== undefined && g.targetPriceEur !== null;
+
+        const nextSchedule = computeNextInterval(
+          prevPrice,
+          lowestPriceEur,
+          streak,
+          prevInterval,
+          hasActiveTargetPrice
+        );
+
+        const nowIso = new Date().toISOString();
+        gameRepo.updateAllkeyshopCheckState(
+          g.id,
+          nowIso,
+          lowestPriceEur,
+          nextSchedule.intervalHours,
+          nextSchedule.streak
+        );
 
         // Anti-ban Cooldown Break: every `chunkSize` games
         const isChunkEnd = (i + 1) % chunkSize === 0 && (i + 1) < prioritizedGames.length;

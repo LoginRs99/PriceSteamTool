@@ -10,18 +10,38 @@ interface CatalogGame {
   slug?: string;
 }
 
-const ALLKEYSHOP_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9,hu;q=0.8',
-  'Sec-CH-UA': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-  'Sec-CH-UA-Mobile': '?0',
-  'Sec-CH-UA-Platform': '"Windows"',
-  'Sec-Fetch-Dest': 'empty',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Site': 'same-origin',
-  'Referer': 'https://www.allkeyshop.com/blog/'
-};
+const ALLKEYSHOP_USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:127.0) Gecko/20100101 Firefox/127.0',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'
+];
+
+export function getRandomAllkeyshopUserAgent(): string {
+  const idx = Math.floor(Math.random() * ALLKEYSHOP_USER_AGENTS.length);
+  return ALLKEYSHOP_USER_AGENTS[idx];
+}
+
+export function getAllkeyshopHeaders(): Record<string, string> {
+  const ua = getRandomAllkeyshopUserAgent();
+  const isMac = ua.includes('Macintosh');
+  const platform = isMac ? '"macOS"' : '"Windows"';
+
+  return {
+    'User-Agent': ua,
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9,hu;q=0.8',
+    'Sec-CH-UA': '"Chromium";v="126", "Not/A)Brand";v="8"',
+    'Sec-CH-UA-Mobile': '?0',
+    'Sec-CH-UA-Platform': platform,
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
+    'Referer': 'https://www.allkeyshop.com/blog/'
+  };
+}
 
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
@@ -74,7 +94,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       try {
         const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur';
         const res = await fetch(url, {
-          headers: ALLKEYSHOP_HEADERS,
+          headers: getAllkeyshopHeaders(),
           signal: AbortSignal.timeout(10000)
         });
 
@@ -174,7 +194,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
         const priceApiUrl = `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`;
         const res = await fetch(priceApiUrl, {
-          headers: ALLKEYSHOP_HEADERS,
+          headers: getAllkeyshopHeaders(),
           signal: AbortSignal.timeout(8000)
         });
 
