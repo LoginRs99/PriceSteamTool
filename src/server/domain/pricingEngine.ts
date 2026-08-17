@@ -166,17 +166,27 @@ export function calculatePriceRisk(
     flags.add('SUB_EURO_PREMIUM_GLITCH');
   }
 
-  // 2. Severe market median divergence (MSRP-independent, median >= €1.00)
+  // 2. Lone bottom outlier check (primary driver of HIGH risk for live market bottom outlier)
+  const allLiveOffers = [currentPriceEur, ...marketPricesEur.filter(p => p > 0)].sort((a, b) => a - b);
+  if (allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
+    const secondCheapest = allLiveOffers[1];
+    if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
+      rawSeverity = Math.max(rawSeverity, 0.75);
+      flags.add('LONE_BOTTOM_OUTLIER');
+    }
+  }
+
+  // 3. Market median divergence (capped at 0.35 so it cannot reach HIGH risk on its own)
   const validPeers = marketPricesEur.filter(p => p > 0);
   if (validPeers.length >= 2) {
     const sorted = [...validPeers].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
     if (median >= 1.00 && currentPriceEur < median * 0.25) {
-      rawSeverity = Math.max(rawSeverity, 0.70);
+      rawSeverity = Math.max(rawSeverity, 0.35);
       flags.add('EXTREME_MEDIAN_OUTLIER');
     } else if (median >= 1.00 && currentPriceEur < median * 0.40) {
-      rawSeverity = Math.max(rawSeverity, 0.40);
+      rawSeverity = Math.max(rawSeverity, 0.35);
       flags.add('SOURCE_DISAGREEMENT');
     }
   }

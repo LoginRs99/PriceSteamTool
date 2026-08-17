@@ -279,9 +279,6 @@ export function backfillDealScoreStats(): void {
 }
 
 export function prepareStmt(sql: string): Database.Statement {
-  if (process.env.NODE_ENV === 'test') {
-    return getDb().prepare(sql);
-  }
   let stmt = stmtCache.get(sql);
   if (!stmt) {
     stmt = getDb().prepare(sql);

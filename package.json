@@ -12,7 +12,7 @@
     "build": "npm run build:client && npm run build:server",
     "typecheck": "tsc --noEmit",
     "start": "node dist/server/index.js",
-    "test": "vitest run --pool=forks",
+    "test": "vitest run --pool=threads --poolOptions.threads.singleThread=true",
     "test:sources": "tsx scripts/test-sources.ts"
   },
   "dependencies": {

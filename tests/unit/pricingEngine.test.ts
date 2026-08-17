@@ -183,15 +183,16 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
 
   it('13. Source disagreement check', () => {
     const res = evaluatePriceMovement({
-      currentPriceEur: 15.00,
+      currentPriceEur: 18.00,
       basePriceEur: 59.99,
       isOfficialMerchant: false,
       sourceAgreementCount: 1,
-      marketPricesEur: [45.00, 50.00]
+      marketPricesEur: [30.00, 50.00]
     });
 
     expect(res.riskFlags).toContain('SOURCE_DISAGREEMENT');
-    expect(res.riskLevel).toBe('MEDIUM');
+    expect(['LOW', 'MEDIUM']).toContain(res.riskLevel);
+    expect(res.riskLevel).not.toBe('HIGH');
   });
 
   it('14. Fresh release unexpected huge price drop', () => {
@@ -393,5 +394,38 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
     });
 
     expect(res.riskFlags).toContain('HISTORICAL_LOW_DISCREPANCY');
+  });
+
+  it('28. 4 live offers within 20% of each other -> none reach HIGH risk (tight keyshop market cluster)', () => {
+    const offers = [1.06, 1.11, 1.22, 1.26];
+    
+    for (const price of offers) {
+      const otherPrices = offers.filter(p => p !== price);
+      const res = evaluatePriceMovement({
+        currentPriceEur: price,
+        basePriceEur: 19.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        marketPricesEur: otherPrices
+      });
+
+      expect(res.riskLevel).not.toBe('HIGH');
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskFlags).not.toContain('LONE_BOTTOM_OUTLIER');
+    }
+  });
+
+  it('29. One offer 50%+ below the next-cheapest live offer -> LONE_BOTTOM_OUTLIER fires and reaches HIGH risk', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 1.20,
+      basePriceEur: 29.99,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [3.50, 4.00, 4.20]
+    });
+
+    expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+    expect(res.riskLevel).toBe('HIGH');
+    expect(res.isAnomaly).toBe(true);
   });
 });

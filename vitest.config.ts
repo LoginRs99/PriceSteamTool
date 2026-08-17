@@ -3,7 +3,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: true,
-    pool: 'forks',
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: true
+      }
+    },
     fileParallelism: false,
     isolate: false,
     env: {

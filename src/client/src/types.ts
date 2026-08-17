@@ -32,6 +32,7 @@ export type PriceRiskFlag =
   | 'MISSING_MSRP_ANCHOR'          // No verified MSRP baseline available
   | 'SUB_EURO_PREMIUM_GLITCH'
   | 'EXTREME_MEDIAN_OUTLIER'
+  | 'LONE_BOTTOM_OUTLIER'
   | 'HISTORICAL_LOW_DISCREPANCY';
 
 export interface PriceEvaluation {
