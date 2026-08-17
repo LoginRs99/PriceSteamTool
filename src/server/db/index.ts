@@ -271,7 +271,12 @@ export function backfillDealScoreStats(): void {
 }
 
 export function prepareStmt(sql: string): Database.Statement {
-  return getDb().prepare(sql);
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = getDb().prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
 }
 
 export function clearStmtCache(): void {

@@ -4,6 +4,49 @@ import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { gameRepo } from '../db/index.js';
 import { convertToEur } from '../domain/normalizer.js';
 
+export const KNOWN_STEAM_KEY_SHOPS = [
+  'humble', 'fanatical', 'green man gaming', 'greenmangaming', 'gamebillet',
+  'indiegala', 'wingamestore', 'gamersgate', 'gamesplanet', 'dlgamer',
+  'joybuggy', 'dreamgame', '2game', 'voidu', 'planet_cool', 'noctre',
+  'macgamestore', 'gamesload', 'yuplay', 'gameship', 'buka', 'nuuvem'
+];
+
+export const KNOWN_NON_STEAM_SHOPS = [
+  'epic', 'gog', 'ubisoft', 'ea app', 'origin', 'battle.net', 'blizzard',
+  'microsoft', 'xbox', 'rockstar', 'itch.io', 'playstation', 'nintendo'
+];
+
+export function parseItadProductAndOfficial(shopName: string = '', drms: string[] = []): { productTypeRaw: string; isOfficial: boolean } {
+  const sLower = (shopName || '').toLowerCase();
+  const isDirectSteam = sLower.includes('steam store') || sLower === 'steam';
+  const hasSteamDrm = drms.some((d: string) => d.toLowerCase().includes('steam'));
+  const isKnownSteamShop = KNOWN_STEAM_KEY_SHOPS.some(k => sLower.includes(k));
+  const isKnownNonSteamShop = KNOWN_NON_STEAM_SHOPS.some(k => sLower.includes(k));
+
+  if (isDirectSteam) {
+    return { productTypeRaw: 'Direct Purchase', isOfficial: true };
+  }
+
+  if (hasSteamDrm) {
+    return { productTypeRaw: 'Steam Key', isOfficial: true };
+  }
+
+  if (drms.length > 0 && !hasSteamDrm) {
+    return { productTypeRaw: `${drms.join(', ')} (Non-Steam)`, isOfficial: false };
+  }
+
+  if (isKnownNonSteamShop) {
+    return { productTypeRaw: `${shopName} (Non-Steam)`, isOfficial: false };
+  }
+
+  if (isKnownSteamShop) {
+    return { productTypeRaw: 'Steam Key', isOfficial: true };
+  }
+
+  // Unverified/unknown shop without explicit Steam DRM
+  return { productTypeRaw: 'Unknown/Non-Steam', isOfficial: false };
+}
+
 export class ItadSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'itad' as const;
   public readonly name = 'IsThereAnyDeal';
@@ -190,28 +233,17 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
           const shopCode = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '');
           const priceEur = convertToEur(rawCurrentPrice, itemCurrency);
           const originalPriceEur = rawRegularPrice !== undefined ? convertToEur(rawRegularPrice, itemCurrency) : undefined;
-          
           // Check DRM array from ITAD v2
           const drms = Array.isArray(item.current.drm)
             ? item.current.drm.map((d: any) => typeof d === 'string' ? d : d?.name || '').filter(Boolean)
             : [];
           
-          const isNonSteamShop = ['gog', 'epic games', 'ubisoft', 'ea app', 'origin', 'battle.net', 'blizzard', 'microsoft'].some(s => shopName.toLowerCase().includes(s));
-          const hasSteamDrm = drms.some((d: string) => d.toLowerCase().includes('steam'));
-
-          let productTypeRaw = 'Steam Key';
-          if (drms.length > 0 && !hasSteamDrm) {
-            productTypeRaw = `${drms.join(', ')} (Non-Steam)`;
-          } else if (isNonSteamShop && !hasSteamDrm) {
-            productTypeRaw = `${shopName} (Non-Steam)`;
-          } else if (shopName.toLowerCase().includes('steam store') || shopName.toLowerCase() === 'steam') {
-            productTypeRaw = 'Direct Purchase';
-          }
+          const { productTypeRaw, isOfficial } = parseItadProductAndOfficial(shopName, drms);
 
           offers.push({
             merchantCode: shopCode,
             merchantName: shopName,
-            isOfficial: true,
+            isOfficial,
             productTypeRaw,
             regionRaw: 'GLOBAL',
             priceEur,

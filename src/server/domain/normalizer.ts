@@ -29,7 +29,7 @@ const FORBIDDEN_ACCOUNT_PATTERNS = [
 
 const FORBIDDEN_NON_STEAM_PLATFORMS = [
   /\bgog\b/i,
-  /\bepic\s*games?\b/i,
+  /\bepic(\s*games?|\s*game\s*store)?\b/i,
   /\borigin\b/i,
   /\bea\s*app\b/i,
   /\belectronic\s*arts\b/i,
@@ -43,7 +43,8 @@ const FORBIDDEN_NON_STEAM_PLATFORMS = [
   /\bplaystation\b/i,
   /\bpsn\b/i,
   /\bnintendo(\s*switch)?\b/i,
-  /\bdrm[\s-]*free\b/i
+  /\bdrm[\s-]*free\b/i,
+  /\bnon-steam\b/i
 ];
 
 // ISO country codes and tokens for foreign regions locked outside EU/HU

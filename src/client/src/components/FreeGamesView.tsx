@@ -159,6 +159,7 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
                     alt={game.title} 
                     className="compact-thumb"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                   <div className="compact-title-wrap">
                     <span className="compact-title">{game.title}</span>
@@ -205,6 +206,7 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
                     alt={game.title} 
                     className="game-card-image"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                   <div className="free-badge" style={{ position: 'absolute', top: 8, left: 8 }}>
                     FREE

@@ -119,6 +119,11 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  // Monotonic request counters to guard against out-of-order race conditions
+  const gamesRequestCounter = useRef<number>(0);
+  const freeGamesRequestCounter = useRef<number>(0);
+  const anomaliesRequestCounter = useRef<number>(0);
+
   // Load stats and top deals
   const loadStatsAndDeals = useCallback(async () => {
     try {
@@ -133,40 +138,57 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Load wishlist games
+  // Load wishlist games with out-of-order response protection
   const loadGames = useCallback(async (opts: WishlistFilterOptions = filters) => {
+    const requestId = ++gamesRequestCounter.current;
     setLoading(true);
     try {
       const res = await api.getWishlistGames({ ...opts, isFreeOnly: false });
-      setGames(res.games);
-      setTotalGames(res.total);
-      if (res.activeProfile) {
-        setActiveProfile(res.activeProfile);
+      if (requestId === gamesRequestCounter.current) {
+        setGames(res.games);
+        setTotalGames(res.total);
+        if (res.activeProfile) {
+          setActiveProfile(res.activeProfile);
+        }
       }
     } catch (e) {
-      console.error('Failed to load wishlist games:', e);
+      if (requestId === gamesRequestCounter.current) {
+        console.error('Failed to load wishlist games:', e);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === gamesRequestCounter.current) {
+        setLoading(false);
+      }
     }
   }, [filters]);
 
-  // Load free games
+  // Load free games with race condition guard
   const loadFreeGames = useCallback(async () => {
+    const requestId = ++freeGamesRequestCounter.current;
     try {
       const res = await api.getWishlistGames({ isFreeOnly: true, limit: 500 });
-      setFreeGames(res.games);
+      if (requestId === freeGamesRequestCounter.current) {
+        setFreeGames(res.games);
+      }
     } catch (e) {
-      console.error('Failed to load free games:', e);
+      if (requestId === freeGamesRequestCounter.current) {
+        console.error('Failed to load free games:', e);
+      }
     }
   }, []);
 
-  // Load anomalies
+  // Load anomalies with race condition guard
   const loadAnomalies = useCallback(async () => {
+    const requestId = ++anomaliesRequestCounter.current;
     try {
       const list = await api.getAnomalies();
-      setAnomalies(list);
+      if (requestId === anomaliesRequestCounter.current) {
+        setAnomalies(list);
+      }
     } catch (e) {
-      console.error('Failed to load anomalies:', e);
+      if (requestId === anomaliesRequestCounter.current) {
+        console.error('Failed to load anomalies:', e);
+      }
     }
   }, []);
 
