@@ -26,14 +26,14 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       expect(check3.intervalHours).toBe(96);
       expect(check3.streak).toBe(2);
 
-      // Check 4: Same price €15.00 observed again
+      // Check 4: Same price €15.00 observed again -> reaches ceiling (168h / 7 days)
       const check4 = computeNextInterval(15.00, 15.00, check3.streak, check3.intervalHours, false);
-      expect(check4.intervalHours).toBe(192);
+      expect(check4.intervalHours).toBe(CEILING_HOURS); // 168
       expect(check4.streak).toBe(3);
 
-      // Check 5: Reaching ceiling (max 336h / 14 days)
+      // Check 5: Stays at ceiling (max 168h / 7 days)
       const check5 = computeNextInterval(15.00, 15.00, check4.streak, check4.intervalHours, false);
-      expect(check5.intervalHours).toBe(CEILING_HOURS); // 336
+      expect(check5.intervalHours).toBe(CEILING_HOURS); // 168
       expect(check5.streak).toBe(4);
     });
 

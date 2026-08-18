@@ -81,22 +81,9 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
       title: 'Cyberpunk 2077',
       basePriceEur: 59.99
     });
-    const steamMerchant = merchantRepo.getOrCreate('steam', 'Steam Store', true);
     const keyshopMerchant = merchantRepo.getOrCreate('unknown_keyshop', 'Shady Keys', false);
 
-    // Baseline official offer
-    offerRepo.upsertOffer({
-      gameId: game.id,
-      merchantId: steamMerchant.id,
-      productType: 'DIRECT_PURCHASE',
-      regionType: 'GLOBAL',
-      priceEur: 59.99,
-      dealUrl: 'https://store.steampowered.com/app/1091500',
-      isValid: true,
-      sourceCode: 'steam'
-    });
-
-    // Extreme sub-euro glitch keyshop offer (0.49€ on 59.99€ game)
+    // Extreme sub-euro glitch keyshop offer (0.49€ on 59.99€ game, becomes is_best_deal = 1)
     offerRepo.upsertOffer({
       gameId: game.id,
       merchantId: keyshopMerchant.id,
@@ -305,5 +292,65 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
     // Confirmed game must have higher Deal Score due to full ATL rarity bonus vs halved for unconfirmed
     expect(gConfirmed.bestDealScore!).toBeGreaterThan(gKeyshop.bestDealScore!);
   });
+
+  it('deduplicates anomalies: only logs the game\'s best deal offer when multiple offers qualify as HIGH risk', () => {
+    resetDb();
+
+    const game = gameRepo.upsert({
+      steamAppId: 77777,
+      title: 'Multi-Anomalous Keyshop Game',
+      basePriceEur: 59.99
+    });
+
+    const merchantA = merchantRepo.getOrCreate('keyshop_a', 'Keyshop A', false);
+    const merchantB = merchantRepo.getOrCreate('keyshop_b', 'Keyshop B', false);
+    const merchantC = merchantRepo.getOrCreate('keyshop_c', 'Keyshop C', false);
+
+    // Ingest 3 separate offers that all trigger SUB_EURO_PREMIUM_GLITCH (< 1.00 EUR on 59.99 EUR game)
+    // Merchant A offers 0.50 EUR (cheapest, becomes is_best_deal = 1)
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchantA.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.50,
+      dealUrl: 'https://keyshop-a.com/deal',
+      isValid: true,
+      sourceCode: 'allkeyshop'
+    });
+
+    // Merchant B offers 0.70 EUR (also HIGH risk, but not best deal)
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchantB.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.70,
+      dealUrl: 'https://keyshop-b.com/deal',
+      isValid: true,
+      sourceCode: 'allkeyshop'
+    });
+
+    // Merchant C offers 0.90 EUR (also HIGH risk, but not best deal)
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchantC.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.90,
+      dealUrl: 'https://keyshop-c.com/deal',
+      isValid: true,
+      sourceCode: 'allkeyshop'
+    });
+
+    // Verify in anomalies table
+    const anomalies = anomalyRepo.list();
+    const gameAnomalies = anomalies.filter(a => a.gameId === game.id);
+
+    // Crucial assertion: Exactly 1 row in anomalies table for this game, corresponding to the best deal (0.50 EUR)
+    expect(gameAnomalies.length).toBe(1);
+    expect(gameAnomalies[0].priceEur).toBe(0.50);
+  });
 });
+
 

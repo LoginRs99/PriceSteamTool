@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Anomaly } from '../types.js';
 import { api } from '../api.js';
-import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, RefreshCw } from 'lucide-react';
 
 interface AnomaliesViewProps {
   onRefresh?: () => void;
@@ -57,15 +57,27 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
             <AlertTriangle size={24} color="#f59e0b" />
             <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Data Safety & Price Glitch Review</h2>
           </div>
-          <button 
-            className="btn btn-secondary" 
-            onClick={fetchAnomalies}
-            disabled={loading}
-            style={{ fontSize: 13, padding: '6px 14px' }}
-          >
-            <RefreshCw size={14} className={loading ? 'spin-icon' : ''} />
-            <span>Refresh</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a 
+              href="/api/export/offers.csv" 
+              className="btn btn-secondary" 
+              download="priceSteamTool-offers-export.csv"
+              style={{ fontSize: 13, padding: '6px 14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              title="Export all current offers for wishlist games to CSV"
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
+            </a>
+            <button 
+              className="btn btn-secondary" 
+              onClick={fetchAnomalies}
+              disabled={loading}
+              style={{ fontSize: 13, padding: '6px 14px' }}
+            >
+              <RefreshCw size={14} className={loading ? 'spin-icon' : ''} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>

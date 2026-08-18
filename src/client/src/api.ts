@@ -207,5 +207,9 @@ export const api = {
       throw new Error(err.error || 'Failed to update target price');
     }
     return res.json();
+  },
+
+  getOffersExportCsvUrl(): string {
+    return `${API_BASE}/export/offers.csv`;
   }
 };

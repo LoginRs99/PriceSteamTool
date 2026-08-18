@@ -318,6 +318,71 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   // ----------------------------------------------------
+  // CSV Export API (Offline Data Distribution Analysis)
+  // ----------------------------------------------------
+  fastify.get('/api/export/offers.csv', async (request, reply) => {
+    const activeProfile = profileRepo.getActive();
+    if (!activeProfile) {
+      reply.header('Content-Type', 'text/csv; charset=utf-8');
+      reply.header('Content-Disposition', 'attachment; filename="priceSteamTool-offers-export.csv"');
+      return 'game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at\r\n';
+    }
+
+    const rows = offerRepo.getOffersCsvExportData(activeProfile.id);
+
+    const escapeCsvCell = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const formatRiskFlags = (flagsJson: string | null): string => {
+      if (!flagsJson) return '';
+      try {
+        const parsed = JSON.parse(flagsJson);
+        if (Array.isArray(parsed)) {
+          return parsed.join(';');
+        }
+        return String(parsed);
+      } catch {
+        return String(flagsJson);
+      }
+    };
+
+    const lines: string[] = [
+      'game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at'
+    ];
+
+    for (const r of rows) {
+      const line = [
+        escapeCsvCell(r.game_title),
+        escapeCsvCell(r.merchant_name),
+        escapeCsvCell(Boolean(r.merchant_is_official)),
+        escapeCsvCell(r.price_eur !== null && r.price_eur !== undefined ? Number(r.price_eur).toFixed(2) : ''),
+        escapeCsvCell(r.msrp_eur !== null && r.msrp_eur !== undefined ? Number(r.msrp_eur).toFixed(2) : ''),
+        escapeCsvCell(r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur).toFixed(2) : ''),
+        escapeCsvCell(r.atl_eur !== null && r.atl_eur !== undefined ? Number(r.atl_eur).toFixed(2) : ''),
+        escapeCsvCell(r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined ? Boolean(r.atl_is_confirmed) : ''),
+        escapeCsvCell(r.risk_level || 'SAFE'),
+        escapeCsvCell(r.risk_score !== null && r.risk_score !== undefined ? Number(r.risk_score).toFixed(2) : '0.00'),
+        escapeCsvCell(formatRiskFlags(r.risk_flags)),
+        escapeCsvCell(Boolean(r.is_anomaly)),
+        escapeCsvCell(Boolean(r.is_best_deal)),
+        escapeCsvCell(r.last_observed_at || '')
+      ].join(',');
+      lines.push(line);
+    }
+
+    const csvOutput = lines.join('\r\n') + '\r\n';
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="priceSteamTool-offers-export.csv"');
+    return reply.send(csvOutput);
+  });
+
+  // ----------------------------------------------------
   // Discord Notification Settings API
   // ----------------------------------------------------
   fastify.get('/api/settings/discord', async () => {

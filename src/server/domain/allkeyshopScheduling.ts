@@ -4,7 +4,7 @@
 
 export const PRICE_TOLERANCE_EUR = 0.05;
 export const FLOOR_HOURS = 24;
-export const CEILING_HOURS = 336; // 14 days
+export const CEILING_HOURS = 168; // 7 days
 
 /**
  * Recomputes the check interval and unchanged streak for a game after an AllKeyShop fetch.

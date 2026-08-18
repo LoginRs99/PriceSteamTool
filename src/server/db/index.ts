@@ -1308,14 +1308,6 @@ export const offerRepo = {
         );
       }
 
-      // Manage genuine anomalies & HIGH risk detections in the anomalies table (Data Safety audit trail)
-      if (pricingEval.isAnomaly || pricingEval.riskLevel === 'HIGH') {
-        const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
-          ? pricingEval.riskFlags[0]
-          : 'PRICE_ANOMALY';
-        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
-      }
-
       // If a verified new historical low occurred, update game record
       if (pricingEval.event === 'NEW_HISTORICAL_LOW') {
         gameRepo.updateHistoricalLow(data.gameId, data.priceEur, now, data.sourceCode);
@@ -1492,6 +1484,18 @@ export const offerRepo = {
 
       // Recalculate best deal for this game
       offerRepo.recomputeBestDealForGame(data.gameId);
+
+      // Manage genuine anomalies & HIGH risk detections in the anomalies table (Data Safety audit trail)
+      // Only record an anomaly if this offer is currently the game's best deal (prevents flooding when a game has multiple cheap keyshops)
+      if (pricingEval.isAnomaly || pricingEval.riskLevel === 'HIGH') {
+        const isBestDealRow = prepareStmt(`SELECT is_best_deal FROM offers WHERE id = ?`).get(offerId) as any;
+        if (isBestDealRow?.is_best_deal === 1) {
+          const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
+            ? pricingEval.riskFlags[0]
+            : 'PRICE_ANOMALY';
+          anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
+        }
+      }
 
       return offerId;
     });
@@ -1722,6 +1726,47 @@ export const offerRepo = {
       dealScore: r.deal_score !== null && r.deal_score !== undefined ? Number(r.deal_score) : undefined,
       recordedAt: r.recorded_at
     }));
+  },
+
+  getOffersCsvExportData(profileId: string): Array<{
+    game_title: string;
+    merchant_name: string;
+    merchant_is_official: number;
+    price_eur: number;
+    msrp_eur: number | null;
+    typical_sale_median_eur: number | null;
+    atl_eur: number | null;
+    atl_is_confirmed: number | null;
+    risk_level: string | null;
+    risk_score: number | null;
+    risk_flags: string | null;
+    is_anomaly: number;
+    is_best_deal: number;
+    last_observed_at: string | null;
+  }> {
+    return prepareStmt(`
+      SELECT
+        g.title AS game_title,
+        m.name AS merchant_name,
+        m.is_official AS merchant_is_official,
+        o.price_eur,
+        g.base_price_eur AS msrp_eur,
+        g.typical_sale_median_eur,
+        g.historical_low_eur AS atl_eur,
+        g.atl_is_confirmed,
+        o.risk_level,
+        o.risk_score,
+        o.risk_flags,
+        o.is_anomaly,
+        o.is_best_deal,
+        o.last_observed_at
+      FROM offers o
+      JOIN games g ON o.game_id = g.id
+      JOIN merchants m ON o.merchant_id = m.id
+      JOIN wishlist_entries w ON w.game_id = g.id
+      WHERE w.profile_id = ? AND w.is_active = 1 AND o.is_valid = 1
+      ORDER BY g.title, o.price_eur ASC
+    `).all(profileId) as any[];
   }
 };
 
