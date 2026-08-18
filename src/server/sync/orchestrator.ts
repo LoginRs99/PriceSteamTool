@@ -9,7 +9,8 @@ import {
   gameRepo, 
   offerRepo, 
   merchantRepo, 
-  sourceRepo 
+  sourceRepo,
+  type WishlistSyncGame 
 } from '../db/index.js';
 import { circuitBreakers } from './circuitBreaker.js';
 import { normalizeProductType, normalizeRegion } from '../domain/normalizer.js';
@@ -413,7 +414,9 @@ export class SyncOrchestrator {
 
       this.generateSummary(profileName, steamId, trigger, 'COMPLETED', duration, totalWishlistCount, staleQueriedCount, cacheHitRatio, totalOffersIngested, selectedSources);
 
-      // Trigger Discord notifications for exceptional deals from core sync
+      // Trigger Discord notifications for exceptional deals from core sync.
+      // Note: Keyshop enrichment runs asynchronously after this in the background to avoid blocking the main sync.
+      // If keyshop enrichment yields newly improved deals, a secondary post-enrichment alert pass is fired upon its completion.
       try {
         const bestDeals = gameRepo.getBestDeals(profileId, 50);
         await sendDealNotifications(bestDeals, trigger);
@@ -423,7 +426,7 @@ export class SyncOrchestrator {
 
       // Step 6: Non-Blocking Background Keyshop Enrichment (AllKeyShop)
       if (shouldRunSource('allkeyshop') && allkeyshopAdapter.isEnabled() && !this.isCancelled) {
-        this.startBackgroundEnrichment(profileId, gamesToRefresh).catch(e => {
+        this.startBackgroundEnrichment(profileId, allWishlistGames).catch(e => {
           logWarn(`[Enrichment] Background keyshop worker warning: ${e.message}`);
         });
       }
@@ -444,7 +447,7 @@ export class SyncOrchestrator {
   /**
    * Non-blocking background worker that enriches games with AllKeyShop keyshop offers
    */
-  private async startBackgroundEnrichment(profileId: string, games: any[]): Promise<void> {
+  private async startBackgroundEnrichment(profileId: string, games: WishlistSyncGame[]): Promise<void> {
     if (this.enrichmentStatus.isRunning) {
       logInfo('[Enrichment] Background enrichment already in progress.');
       return;
@@ -529,6 +532,16 @@ export class SyncOrchestrator {
 
       this.lastEnrichmentAt = new Date().toISOString();
       logInfo(`[Enrichment] Keyshop background enrichment completed. Found ${this.enrichmentStatus.offersFound} offers.`);
+
+      // Secondary lightweight deal notification pass for keyshop-driven deals
+      if (this.enrichmentStatus.offersFound > 0) {
+        try {
+          const bestDeals = gameRepo.getBestDeals(profileId, 50);
+          await sendDealNotifications(bestDeals, 'allkeyshop_enrichment');
+        } catch (e: any) {
+          logWarn(`[Discord] Could not dispatch post-enrichment deal alerts: ${e.message}`);
+        }
+      }
     } finally {
       this.enrichmentStatus.isRunning = false;
       this.enrichmentStatus.currentGameTitle = undefined;

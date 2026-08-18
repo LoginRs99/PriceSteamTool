@@ -24,23 +24,29 @@ export function getRandomAllkeyshopUserAgent(): string {
   return ALLKEYSHOP_USER_AGENTS[idx];
 }
 
-export function getAllkeyshopHeaders(): Record<string, string> {
-  const ua = getRandomAllkeyshopUserAgent();
+export function getAllkeyshopHeaders(uaOverride?: string): Record<string, string> {
+  const ua = uaOverride || getRandomAllkeyshopUserAgent();
+  const isChromium = ua.includes('Chrome') || ua.includes('Edg');
   const isMac = ua.includes('Macintosh');
   const platform = isMac ? '"macOS"' : '"Windows"';
 
-  return {
+  const headers: Record<string, string> = {
     'User-Agent': ua,
     'Accept': 'application/json, text/plain, */*',
     'Accept-Language': 'en-US,en;q=0.9,hu;q=0.8',
-    'Sec-CH-UA': '"Chromium";v="126", "Not/A)Brand";v="8"',
-    'Sec-CH-UA-Mobile': '?0',
-    'Sec-CH-UA-Platform': platform,
     'Sec-Fetch-Dest': 'empty',
     'Sec-Fetch-Mode': 'cors',
     'Sec-Fetch-Site': 'same-origin',
     'Referer': 'https://www.allkeyshop.com/blog/'
   };
+
+  if (isChromium) {
+    headers['Sec-CH-UA'] = '"Chromium";v="126", "Not/A)Brand";v="8"';
+    headers['Sec-CH-UA-Mobile'] = '?0';
+    headers['Sec-CH-UA-Platform'] = platform;
+  }
+
+  return headers;
 }
 
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {

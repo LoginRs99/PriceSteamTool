@@ -399,6 +399,18 @@ export const profileRepo = {
   }
 };
 
+export interface WishlistSyncGame {
+  id: string;
+  steamAppId: number;
+  itadId?: string;
+  title: string;
+  allkeyshopLastCheckedAt?: string;
+  allkeyshopCheckIntervalHours?: number;
+  allkeyshopUnchangedStreak?: number;
+  allkeyshopLastPriceEur?: number;
+  targetPriceEur?: number;
+}
+
 // ----------------------------------------------------
 // Game & Wishlist Repository
 // ----------------------------------------------------
@@ -912,9 +924,18 @@ export const gameRepo = {
     return generatePriceIntelligence({ game, offers, history });
   },
 
-  getAllWishlistGameIds(profileId: string): { id: string; steamAppId: number; itadId?: string; title: string }[] {
+  getAllWishlistGameIds(profileId: string): WishlistSyncGame[] {
     const rows = prepareStmt(`
-      SELECT g.id, g.steam_app_id, g.itad_id, g.title
+      SELECT 
+        g.id, 
+        g.steam_app_id, 
+        g.itad_id, 
+        g.title,
+        g.allkeyshop_last_checked_at,
+        g.allkeyshop_check_interval_hours,
+        g.allkeyshop_unchanged_streak,
+        g.allkeyshop_last_price_eur,
+        w.target_price_eur
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       WHERE w.profile_id = ? AND w.is_active = 1
@@ -925,13 +946,35 @@ export const gameRepo = {
       id: r.id,
       steamAppId: Number(r.steam_app_id),
       itadId: r.itad_id || undefined,
-      title: r.title
+      title: r.title,
+      allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
+      allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
+        ? Number(r.allkeyshop_check_interval_hours) 
+        : undefined,
+      allkeyshopUnchangedStreak: r.allkeyshop_unchanged_streak !== null && r.allkeyshop_unchanged_streak !== undefined 
+        ? Number(r.allkeyshop_unchanged_streak) 
+        : undefined,
+      allkeyshopLastPriceEur: r.allkeyshop_last_price_eur !== null && r.allkeyshop_last_price_eur !== undefined 
+        ? Number(r.allkeyshop_last_price_eur) 
+        : undefined,
+      targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined 
+        ? Number(r.target_price_eur) 
+        : undefined,
     }));
   },
 
-  getStaleWishlistGameIds(profileId: string, ttlHours: number = 6): { id: string; steamAppId: number; itadId?: string; title: string }[] {
+  getStaleWishlistGameIds(profileId: string, ttlHours: number = 6): WishlistSyncGame[] {
     const rows = prepareStmt(`
-      SELECT g.id, g.steam_app_id, g.itad_id, g.title
+      SELECT 
+        g.id, 
+        g.steam_app_id, 
+        g.itad_id, 
+        g.title,
+        g.allkeyshop_last_checked_at,
+        g.allkeyshop_check_interval_hours,
+        g.allkeyshop_unchanged_streak,
+        g.allkeyshop_last_price_eur,
+        w.target_price_eur
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       LEFT JOIN offers o ON o.game_id = g.id
@@ -945,7 +988,20 @@ export const gameRepo = {
       id: r.id,
       steamAppId: Number(r.steam_app_id),
       itadId: r.itad_id || undefined,
-      title: r.title
+      title: r.title,
+      allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
+      allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
+        ? Number(r.allkeyshop_check_interval_hours) 
+        : undefined,
+      allkeyshopUnchangedStreak: r.allkeyshop_unchanged_streak !== null && r.allkeyshop_unchanged_streak !== undefined 
+        ? Number(r.allkeyshop_unchanged_streak) 
+        : undefined,
+      allkeyshopLastPriceEur: r.allkeyshop_last_price_eur !== null && r.allkeyshop_last_price_eur !== undefined 
+        ? Number(r.allkeyshop_last_price_eur) 
+        : undefined,
+      targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined 
+        ? Number(r.target_price_eur) 
+        : undefined,
     }));
   },
 
