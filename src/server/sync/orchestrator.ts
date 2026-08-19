@@ -598,7 +598,7 @@ export class SyncOrchestrator {
     rawOffer: NormalizedSourceOffer,
     knownBasePrice?: number
   ): void {
-    const productNorm = normalizeProductType(rawOffer.productTypeRaw);
+    const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
     if (!productNorm.isValid) return;
 
     const regionNorm = normalizeRegion(rawOffer.regionRaw);

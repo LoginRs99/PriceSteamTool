@@ -17,18 +17,20 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
   currentSort,
   onSortChange 
 }) => {
-  const handleHeaderClick = (sortKey: string, ascFallback: string = sortKey) => {
+  const handleHeaderClick = (primarySort: string, altSort: string = primarySort) => {
     if (!onSortChange) return;
-    if (currentSort === sortKey) {
-      onSortChange(ascFallback.endsWith('_desc') ? ascFallback.replace('_desc', '_asc') : 'best_value');
+    if (currentSort === primarySort) {
+      onSortChange(altSort !== primarySort ? altSort : 'best_value');
+    } else if (currentSort === altSort) {
+      onSortChange('best_value');
     } else {
-      onSortChange(sortKey);
+      onSortChange(primarySort);
     }
   };
 
-  const renderSortIndicator = (sortKey: string, altKey?: string) => {
-    if (currentSort === sortKey) return <ArrowDown size={12} style={{ display: 'inline', marginLeft: 4, color: 'var(--accent-primary)' }} />;
-    if (altKey && currentSort === altKey) return <ArrowUp size={12} style={{ display: 'inline', marginLeft: 4, color: 'var(--accent-primary)' }} />;
+  const renderSortIndicator = (primarySort: string, altSort?: string) => {
+    if (currentSort === primarySort) return <ArrowDown size={12} style={{ display: 'inline', marginLeft: 4, color: 'var(--accent-primary)' }} />;
+    if (altSort && currentSort === altSort) return <ArrowUp size={12} style={{ display: 'inline', marginLeft: 4, color: 'var(--accent-primary)' }} />;
     return <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4, opacity: 0.35 }} />;
   };
 

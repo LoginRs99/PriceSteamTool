@@ -575,6 +575,10 @@ export const App: React.FC = () => {
         <GameDetailModal
           gameId={selectedGameId}
           onClose={() => setSelectedGameId(null)}
+          onTargetPriceUpdated={(gameId, targetPrice) => {
+            setGames(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
+            setTopDeals(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
+          }}
         />
       )}
 

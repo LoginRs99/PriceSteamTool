@@ -23,9 +23,10 @@ import {
 interface GameDetailModalProps {
   gameId: string;
   onClose: () => void;
+  onTargetPriceUpdated?: (gameId: string, targetPriceEur: number | null) => void;
 }
 
-export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClose }) => {
+export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClose, onTargetPriceUpdated }) => {
   const [data, setData] = useState<{ 
     game: Game; 
     offers: Offer[]; 
@@ -71,6 +72,9 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
           targetPriceEur: parsed === null ? undefined : parsed
         }
       } : null);
+      if (onTargetPriceUpdated) {
+        onTargetPriceUpdated(data.game.id, parsed);
+      }
       setTargetSavedSuccess(true);
       setTimeout(() => setTargetSavedSuccess(false), 2000);
     } catch (err) {

@@ -1561,15 +1561,11 @@ export const offerRepo = {
       offerRepo.recomputeBestDealForGame(data.gameId);
 
       // Manage genuine anomalies & HIGH risk detections in the anomalies table (Data Safety audit trail)
-      // Only record an anomaly if this offer is currently the game's best deal (prevents flooding when a game has multiple cheap keyshops)
       if (pricingEval.isAnomaly || pricingEval.riskLevel === 'HIGH') {
-        const isBestDealRow = prepareStmt(`SELECT is_best_deal FROM offers WHERE id = ?`).get(offerId) as any;
-        if (isBestDealRow?.is_best_deal === 1) {
-          const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
-            ? pricingEval.riskFlags[0]
-            : 'PRICE_ANOMALY';
-          anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
-        }
+        const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
+          ? pricingEval.riskFlags[0]
+          : 'PRICE_ANOMALY';
+        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
       }
 
       return offerId;

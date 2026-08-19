@@ -51,8 +51,8 @@ const FORBIDDEN_NON_STEAM_PLATFORMS = [
 
 // ISO country codes and tokens for foreign regions locked outside EU/HU
 const RESTRICTED_COUNTRY_CODES = new Set([
-  'US', 'USA', 'CA', 'CAN', 
-  'RU', 'RUS', 'CIS',
+  'US', 'USA', 'CA', 'CAN', 'NA', 'US/CA', 'CAN/US',
+  'RU', 'RUS', 'CIS', 'RU/CIS', 'CIS/RU',
   'TR', 'TUR',
   'EG', 'EGY',
   'AR', 'ARG',
@@ -64,8 +64,8 @@ const RESTRICTED_COUNTRY_CODES = new Set([
 ]);
 
 const RESTRICTED_WORDS = [
-  /\b(united\s*states|usa?|north\s*america|na\s*only)\b/i,
-  /\b(russia|russian\s*federation|cis\s*countries)\b/i,
+  /\b(united\s*states|usa?|north\s*america|na(\s*only)?|us\/ca)\b/i,
+  /\b(russia|russian\s*federation|cis(\s*countries)?|ru\/cis|cis\/ru)\b/i,
   /\b(turkey|turkish)\b/i,
   /\b(egypt|egyptian)\b/i,
   /\b(argentina|argentine)\b/i,
