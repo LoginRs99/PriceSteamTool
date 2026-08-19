@@ -223,9 +223,33 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           .replace(/^-+|-+$/g, '');
         const defaultDealUrl = `https://www.allkeyshop.com/blog/buy-${encodeURIComponent(cleanSlug)}-cd-key-compare-prices/`;
 
+        const historyEntries: any[] = Array.isArray(raw?.history) ? raw.history : [];
+        if (historyEntries.length === 0) return offers;
+
+        // Determine the latest observation timestamp across the feed
+        let latestTime = 0;
+        for (const h of historyEntries) {
+          const tStr = h?.end || h?.start;
+          if (tStr) {
+            const t = new Date(tStr).getTime();
+            if (!isNaN(t) && t > latestTime) latestTime = t;
+          }
+        }
+
+        // Active offer window: within 72 hours of the latest observed snapshot (filters out dead records from past years)
+        const ACTIVE_WINDOW_MS = 72 * 60 * 60 * 1000;
+
         const merchantOffers = new Map<string, NormalizedSourceOffer>();
 
-        for (const entry of (raw?.history || [])) {
+        for (const entry of historyEntries) {
+          if (!entry) continue;
+
+          // Reject dead historical records from past months/years
+          const entryEndTime = entry.end ? new Date(entry.end).getTime() : entry.start ? new Date(entry.start).getTime() : NaN;
+          if (latestTime > 0 && !isNaN(entryEndTime) && (latestTime - entryEndTime) > ACTIVE_WINDOW_MS) {
+            continue;
+          }
+
           const merchantName = resolveName(raw.merchants, entry.merchant_id);
           const editionName = resolveName(raw.editions, entry.edition);
           const regionName = resolveName(raw.regions, entry.region);
@@ -266,7 +290,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const offerKey = `${merchantCode}_${productTypeRaw}`;
           const existing = merchantOffers.get(offerKey);
 
-          // Keep cheapest offer per merchant
+          // Keep cheapest active offer per merchant
           if (!existing || existing.priceEur > priceEur) {
             merchantOffers.set(offerKey, {
               merchantCode,

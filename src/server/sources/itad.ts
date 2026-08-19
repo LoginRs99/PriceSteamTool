@@ -27,16 +27,17 @@ export function parseItadProductAndOfficial(shopName: string = '', drms: string[
     return { productTypeRaw: 'Direct Purchase', isOfficial: true };
   }
 
+  // Proprietary non-Steam launcher stores (Epic Games Store, GOG, Ubisoft, EA App, Origin, Battle.net, etc.) NEVER sell Steam keys
+  if (isKnownNonSteamShop) {
+    return { productTypeRaw: `${shopName} (Non-Steam)`, isOfficial: false };
+  }
+
   if (hasSteamDrm) {
     return { productTypeRaw: 'Steam Key', isOfficial: true };
   }
 
   if (drms.length > 0 && !hasSteamDrm) {
     return { productTypeRaw: `${drms.join(', ')} (Non-Steam)`, isOfficial: false };
-  }
-
-  if (isKnownNonSteamShop) {
-    return { productTypeRaw: `${shopName} (Non-Steam)`, isOfficial: false };
   }
 
   if (isKnownSteamShop) {
