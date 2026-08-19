@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { apiRoutes } from '../../src/server/routes/api.js';
-import { getDb, profileRepo, gameRepo, merchantRepo, offerRepo } from '../../src/server/db/index.js';
+import { getDb, profileRepo, gameRepo, merchantRepo, offerRepo, clearStmtCache } from '../../src/server/db/index.js';
 
 describe('CSV Export API — GET /api/export/offers.csv', () => {
   let app: FastifyInstance;
@@ -13,6 +13,7 @@ describe('CSV Export API — GET /api/export/offers.csv', () => {
   });
 
   afterAll(async () => {
+    clearStmtCache();
     await app.close();
   });
 

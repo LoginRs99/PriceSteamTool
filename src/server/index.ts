@@ -6,6 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { config } from './config/index.js';
 import { apiRoutes } from './routes/api.js';
+import { v1Routes } from './routes/v1.js';
 import { getDb, closeDb, backfillDealScoreStats } from './db/index.js';
 import { syncOrchestrator } from './sync/orchestrator.js';
 
@@ -31,6 +32,7 @@ export async function createApp(): Promise<FastifyInstance> {
 
   // Register API Routes
   await fastify.register(apiRoutes);
+  await fastify.register(v1Routes);
 
   // Serve compiled SPA in production mode
   const clientDist = path.resolve(__dirname, '../../dist/client');

@@ -1101,6 +1101,75 @@ export const gameRepo = {
     });
 
     tx();
+  },
+
+  resolveGames(queries: { steamAppIds?: number[]; titles?: string[] }): {
+    resolved: Array<{
+      query: string;
+      gameId: string;
+      title: string;
+      steamAppId: number;
+      confidence: number;
+    }>;
+    unresolved: string[];
+  } {
+    const resolved: Array<{
+      query: string;
+      gameId: string;
+      title: string;
+      steamAppId: number;
+      confidence: number;
+    }> = [];
+    const unresolved: string[] = [];
+
+    if (Array.isArray(queries.steamAppIds)) {
+      for (const appId of queries.steamAppIds) {
+        if (!appId || typeof appId !== 'number') continue;
+        const g = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE steam_app_id = ?`).get(appId) as any;
+        if (g) {
+          resolved.push({
+            query: String(appId),
+            gameId: g.id,
+            title: g.title,
+            steamAppId: Number(g.steam_app_id),
+            confidence: 1.0
+          });
+        } else {
+          unresolved.push(String(appId));
+        }
+      }
+    }
+
+    if (Array.isArray(queries.titles)) {
+      for (const title of queries.titles) {
+        if (!title || typeof title !== 'string') continue;
+        const exact = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE LOWER(title) = LOWER(?) LIMIT 1`).get(title.trim()) as any;
+        if (exact) {
+          resolved.push({
+            query: title,
+            gameId: exact.id,
+            title: exact.title,
+            steamAppId: Number(exact.steam_app_id),
+            confidence: 1.0
+          });
+        } else {
+          const likeMatch = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE title LIKE ? LIMIT 1`).get(`%${title.trim()}%`) as any;
+          if (likeMatch) {
+            resolved.push({
+              query: title,
+              gameId: likeMatch.id,
+              title: likeMatch.title,
+              steamAppId: Number(likeMatch.steam_app_id),
+              confidence: 0.85
+            });
+          } else {
+            unresolved.push(title);
+          }
+        }
+      }
+    }
+
+    return { resolved, unresolved };
   }
 };
 
@@ -1767,6 +1836,51 @@ export const offerRepo = {
       WHERE w.profile_id = ? AND w.is_active = 1 AND o.is_valid = 1
       ORDER BY g.title, o.price_eur ASC
     `).all(profileId) as any[];
+  },
+
+  getBatchOffers(steamAppIds: number[], options?: { onlyOfficial?: boolean; includeAllOffers?: boolean }): {
+    results: Record<string, any>;
+    fetchedAt: string;
+  } {
+    const fetchedAt = new Date().toISOString();
+    const results: Record<string, any> = {};
+
+    if (!steamAppIds || steamAppIds.length === 0) {
+      return { results, fetchedAt };
+    }
+
+    for (const appId of steamAppIds) {
+      const g = gameRepo.getBySteamAppId(appId);
+      if (!g) continue;
+
+      let offers = offerRepo.getOffersForGame(g.id);
+      if (options?.onlyOfficial) {
+        offers = offers.filter(o => o.isOfficial);
+      }
+
+      const bestDeal = offers.find(o => o.isBestDeal) || offers[0] || null;
+
+      results[String(appId)] = {
+        gameId: g.id,
+        title: g.title,
+        msrpEur: g.basePriceEur ?? null,
+        historicalLowEur: g.historicalLowEur ?? null,
+        historicalLowDate: g.historicalLowDate ?? null,
+        bestPriceEur: bestDeal ? bestDeal.priceEur : (g.basePriceEur ?? null),
+        bestMerchant: bestDeal ? bestDeal.merchantName : (g.bestMerchantName || null),
+        isOfficial: bestDeal ? bestDeal.isOfficial : (g.bestMerchantIsOfficial ?? false),
+        voucherCode: bestDeal?.voucherCode || null,
+        dealUrl: bestDeal?.dealUrl || null,
+        dealScore: bestDeal ? bestDeal.dealScore : g.bestDealScore,
+        dealTier: bestDeal ? bestDeal.dealTier : g.bestDealTier,
+        riskLevel: bestDeal ? bestDeal.riskLevel : (g.bestRiskLevel || 'SAFE'),
+        riskFlags: bestDeal ? bestDeal.riskFlags : [],
+        actionSignal: g.actionSignal || null,
+        ...(options?.includeAllOffers ? { offers } : {})
+      };
+    }
+
+    return { results, fetchedAt };
   }
 };
 
