@@ -2,9 +2,9 @@
 
 > **Session Handover Document**  
 > **Repository:** [LoginRs99/PriceSteamTool](https://github.com/LoginRs99/PriceSteamTool)  
-> **Version:** 1.6.0  
+> **Version:** 1.7.0  
 > **Last Updated:** 2026-08-19  
-> **Test Status:** 20 Test Suites / 200 Tests Passing (100% Green), TypeScript Strict Clean (`tsc --noEmit`).
+> **Test Status:** 20 Test Suites / 204 Tests Passing (100% Green), TypeScript Strict Clean (`tsc --noEmit`).
 
 ---
 
@@ -134,7 +134,7 @@ The project includes **20 test suites** with **200 automated tests** using Vites
 | `tests/unit/dealScore.test.ts` | Mathematical formulation, Z-score, sigmoid mapping, tiers | 46 tests |
 | `tests/unit/pricingEngine.test.ts` | Multi-factor risk calculation, lone-bottom outliers, peer corroboration | 33 tests |
 | `tests/unit/priceIntelligence.test.ts` | Statistical metrics calculation, historical anchor aggregation | 14 tests |
-| `tests/unit/allkeyshopScheduling.test.ts` | Exponential backoff, due-filtering, DB hydration, Client Hints | 12 tests |
+| `tests/unit/allkeyshopScheduling.test.ts` | Exponential backoff, round-robin due sorting, DB hydration, exponential jitter | 16 tests |
 | `tests/unit/normalizer.test.ts` | Region codes, platform filtering, currency normalization | 12 tests |
 | `tests/unit/discordNotifier.test.ts` | Alert criteria, target price overrides, provisional deals, embed formatting | 10 tests |
 | `tests/unit/anomaly.test.ts` | Anomaly classifications, best deal gating, and edge cases | 9 tests |
@@ -160,7 +160,7 @@ The project includes **20 test suites** with **200 automated tests** using Vites
 # Typecheck TypeScript (Clean / Strict)
 npm run typecheck
 
-# Run full Vitest test suite (20 suites / 200 tests)
+# Run full Vitest test suite (20 suites / 204 tests)
 npm test
 
 # Build client (Vite) and server (TypeScript)
@@ -175,10 +175,12 @@ npm run dev
 
 ---
 
-## 🚀 9. Current State & Recent Accomplishments (v1.6.0)
+## 🚀 9. Current State & Recent Accomplishments (v1.7.0)
 
-1. **v1 Anti-Rate-Limit REST API:** Created `/api/v1/offers/batch` (250-game multi-offer payload), `/api/v1/games/resolve` (bulk ID matching), ETag `304 Not Modified` caching, and RFC-compliant `X-RateLimit-*` headers.
-2. **Database Performance Indexing:** Added composite index `idx_offers_game_valid_price` on `offers(game_id, is_valid, price_eur)` for sort-free price scans and sub-millisecond batch query execution.
-3. **Corroborated Sub-Euro Glitch Detection:** Gated `SUB_EURO_PREMIUM_GLITCH` behind $\pm 30\%$ peer corroboration (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`), eliminating false-positive alarms on genuine sub-euro multi-store promotions.
-4. **Data Safety Deduplication & CSV Export:** Restricting anomaly log creation strictly to the game's canonical `is_best_deal` offer, and added full 14-column spreadsheet export (`GET /api/export/offers.csv`).
-5. **Adaptive AllKeyShop Scheduling (Option C):** Self-tuning check intervals (24h to 168h ceiling) with active target price fast-track override, 7–11s pacing, and rotating modern User-Agents with Chromium Client Hints (`Sec-CH-UA`).
+1. **Grouped Data Safety Review UI:** Implemented clean client-side card grouping in `AnomaliesView.tsx` with count and severity badges, multi-offer collapse toggles, and 1-click "Dismiss Game" batch dismissal while preserving the raw 1-row-per-offer audit log.
+2. **AllKeyShop Stealth Pacing & Scheduling:** Added round-robin sorting of due games by `allkeyshop_last_checked_at` ascending, 30-game default volume cap, exponential-tailed jitter, and 5–15m natural hesitation pauses to eliminate robotic traffic patterns.
+3. **Dead Historical Snapshot Protection:** Added 72h active observation window to AllKeyShop parser, preventing dead historical prices (e.g. on delisted titles) from overwriting live market prices.
+4. **Strict DRM Store Isolation:** Explicitly excluded Epic Games Store, GOG, and non-Steam stores from being ingested as Steam keys.
+5. **Database Startup Migrations:** Added safe `ALTER TABLE offers ADD COLUMN ...` migrations for `is_anomaly`, `anomaly_score`, and `anomaly_reason` to guarantee seamless upgrades for existing databases.
+6. **v1 Anti-Rate-Limit REST API:** Created `/api/v1/offers/batch` (250-game multi-offer payload), `/api/v1/games/resolve` (bulk ID matching), ETag `304 Not Modified` caching, and RFC-compliant `X-RateLimit-*` headers.
+7. **Complete 14-Column CSV Export:** Spreadsheet export at `GET /api/export/offers.csv` for in-depth price analysis.

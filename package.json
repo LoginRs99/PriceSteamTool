@@ -1,7 +1,7 @@
 {
   "name": "pricetool",
-  "version": "1.6.0",
-  "description": "Self-hosted Steam Wishlist Price Aggregator & Intelligence Engine",
+  "version": "1.7.0",
+  "description": "Multi-source Steam Wishlist & Deals Intelligence Engine",
   "type": "module",
   "scripts": {
     "dev:server": "tsx watch src/server/index.ts",

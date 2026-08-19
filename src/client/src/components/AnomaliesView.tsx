@@ -353,7 +353,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
                 {!isCollapsed && (
                   <div style={{
                     borderTop: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-secondary)',
+                    background: 'var(--bg-surface-elevated)',
                     padding: '12px 16px',
                     display: 'flex',
                     flexDirection: 'column',

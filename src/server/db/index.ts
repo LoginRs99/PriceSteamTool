@@ -22,7 +22,8 @@ import type {
   PriceRiskLevel,
   DealScoreTier,
   ConfidenceTier,
-  PriceIntelligenceResponse
+  PriceIntelligenceResponse,
+  ActionSignal
 } from '../../shared/types.js';
 
 let dbInstance: Database.Database | null = null;
@@ -63,6 +64,9 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_currency TEXT DEFAULT 'EUR'"); } catch {}
     try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_original_price REAL"); } catch {}
     try { dbInstance.exec("ALTER TABLE offers ADD COLUMN last_observed_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN is_anomaly INTEGER NOT NULL DEFAULT 0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN anomaly_score REAL NOT NULL DEFAULT 0.0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN anomaly_reason TEXT"); } catch {}
     try { dbInstance.exec("ALTER TABLE source_observations ADD COLUMN observed_raw_price REAL"); } catch {}
     try { dbInstance.exec("ALTER TABLE source_observations ADD COLUMN observed_currency TEXT DEFAULT 'EUR'"); } catch {}
     try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN price_event TEXT"); } catch {}
@@ -2170,7 +2174,7 @@ function mapGameRow(r: any): Game {
     valueRankingScore = Number((dealResult.score * (0.65 + 0.35 * (dealResult.confidenceScore / 100))).toFixed(1));
   }
 
-  let actionSignal: any = undefined;
+  let actionSignal: ActionSignal | undefined = undefined;
   if (r.best_price_eur !== null && r.best_price_eur !== undefined && bestDealScore !== undefined) {
     actionSignal = generateActionSignal({
       dealScore: bestDealScore,

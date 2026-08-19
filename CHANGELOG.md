@@ -5,6 +5,26 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-19
+
+### Added
+* **Grouped Data Safety & Price Glitch Review UI**:
+  * Client-side grouped presentation in `AnomaliesView` organizing multiple flagged offers under clean, collapsible game cards with severity and count badges.
+  * 1-click "Dismiss Game" batch dismissal alongside per-offer "View Deal" links and individual dismissals.
+  * Preserved raw one-row-per-offer database write behavior in `anomalies` table for granular auditability and CSV exports.
+* **AllKeyShop Stealth Pacing & Round-Robin Scheduling**:
+  * Added fair round-robin sorting of due games by `allkeyshop_last_checked_at` ascending, eliminating starvation of lower-priority games across capped runs.
+  * Safe default volume cap of 30 games per run (`ALLKEYSHOP_MAX_GAMES=30`), consistent across code, Docker Compose, and `.env.example`.
+  * Replaced uniform random delay with exponential-tailed jitter (`calculateExponentialJitter`, capped at 3x) and occasional natural hesitation breaks (5–15 min, ~5% probability) to eliminate robotic periodic request patterns.
+* **Dead Historical Snapshot Protection**:
+  * Added 72h active observation window filtering to the AllKeyShop parser, preventing ancient historical sale logs (e.g. from delisted games) from overwriting live market prices.
+* **Strict Non-Steam DRM Exclusion**:
+  * Prioritized `isKnownNonSteamShop` DRM check over generic store flags to strictly prevent non-Steam shops (e.g. Epic Games Store) from being ingested as Steam keys.
+* **Database Startup Column Migrations**:
+  * Added safe `ALTER TABLE offers ADD COLUMN ...` migrations for `is_anomaly`, `anomaly_score`, and `anomaly_reason` to guarantee seamless database upgrades.
+
+---
+
 ## [1.6.0] - 2026-08-19
 
 ### Added
@@ -20,9 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Corroborated Sub-Euro Glitch Detection**:
   * Gated `SUB_EURO_PREMIUM_GLITCH` behind $\pm 30\%$ peer corroboration check (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`), eliminating false positives on legitimate multi-store sub-euro deals.
 * **Data Safety Deduplication & CSV Export**:
-  * Gated anomaly logging strictly to winning `is_best_deal = 1` offers, preventing single games with multiple keyshop offers from flooding the safety log.
   * Added complete 14-column spreadsheet CSV export (`GET /api/export/offers.csv`) with Export button in `AnomaliesView`.
-* **Adaptive AllKeyShop Scheduling & Stealth Hardening**:
+* **Adaptive AllKeyShop Scheduling**:
   * Dynamic exponential check backoff (24h to 168h ceiling) for stable prices with fast-track target price override.
   * Rotating modern User-Agents with matching Chromium Client Hints (`Sec-CH-UA`).
 
@@ -38,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Automated startup migration that drops non-Steam offers and reassigns canonical `is_best_deal` to lowest valid Steam offer on boot.
 * **Clickable Anomalies with Direct Deal Links**:
   * Extended `Anomaly` model to join `deal_url`, `steam_app_id`, and `original_price_eur`.
-  * Added direct "View Deal" actions and clickable title links in `AnomaliesModal`.
+  * Added direct "View Deal" actions and clickable title links in `AnomaliesView`.
 * **Complete Quality-of-Life (QOL) Suite**:
   * Quick-search keyboard shortcuts (`/` and `Ctrl+K`).
   * 1-click search clear `(X)` button and "Reset filters" button.

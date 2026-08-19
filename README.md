@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.6.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-200%2F200%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-1.7.0-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-204%2F204%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -105,7 +105,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (20 test suites / 200 unit & integration tests)
+# 3. Run test suite (20 test suites / 204 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck
@@ -146,7 +146,7 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 * [`docs/sync.md`](./docs/sync.md) — Sync orchestrator, queue token buckets, and multi-source pacing.
 * [`docs/sources.md`](./docs/sources.md) — Source comparison matrix, rate limits, and API analysis.
 * [`docs/development.md`](./docs/development.md) — Development workflow, testing guidelines, and CI/CD.
-* [`CHANGELOG.md`](./CHANGELOG.md) — Version history from v1.0.0 through v1.4.0.
+* [`CHANGELOG.md`](./CHANGELOG.md) — Version history from v1.0.0 through v1.7.0.
 
 ---
 
