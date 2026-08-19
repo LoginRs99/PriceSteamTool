@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Anomaly } from '../types.js';
 import { api } from '../api.js';
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CheckCheck, Download, ExternalLink, RefreshCw } from 'lucide-react';
 
 interface AnomaliesViewProps {
   onRefresh?: () => void;
@@ -10,6 +10,7 @@ interface AnomaliesViewProps {
 export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dismissing, setDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAnomalies = async () => {
@@ -43,6 +44,22 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
     }
   };
 
+  const handleDismissAll = async () => {
+    if (anomalies.length === 0) return;
+    try {
+      setDismissing(true);
+      await api.dismissAllAnomalies();
+      await fetchAnomalies();
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (e) {
+      console.error('Failed to dismiss all anomalies:', e);
+    } finally {
+      setDismissing(false);
+    }
+  };
+
   return (
     <div className="anomalies-view-container" style={{ maxWidth: 1000, margin: '0 auto', padding: '20px 0' }}>
       <div style={{
@@ -57,7 +74,17 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
             <AlertTriangle size={24} color="#f59e0b" />
             <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Data Safety & Price Glitch Review</h2>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={handleDismissAll}
+              disabled={loading || dismissing || anomalies.length === 0}
+              style={{ fontSize: 13, padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              title="Dismiss all active anomalies"
+            >
+              <CheckCheck size={14} color="#10b981" />
+              <span>Dismiss All {anomalies.length > 0 ? `(${anomalies.length})` : ''}</span>
+            </button>
             <a 
               href="/api/export/offers.csv" 
               className="btn btn-secondary" 
@@ -71,7 +98,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh }) => {
             <button 
               className="btn btn-secondary" 
               onClick={fetchAnomalies}
-              disabled={loading}
+              disabled={loading || dismissing}
               style={{ fontSize: 13, padding: '6px 14px' }}
             >
               <RefreshCw size={14} className={loading ? 'spin-icon' : ''} />

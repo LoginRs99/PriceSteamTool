@@ -2040,6 +2040,10 @@ export const anomalyRepo = {
 
   dismiss(id: string): void {
     prepareStmt(`UPDATE anomalies SET is_dismissed = 1 WHERE id = ?`).run(id);
+  },
+
+  dismissAll(): void {
+    prepareStmt(`UPDATE anomalies SET is_dismissed = 1 WHERE is_dismissed = 0`).run();
   }
 };
 

@@ -317,6 +317,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return { success: true };
   });
 
+  fastify.post('/api/anomalies/dismiss-all', async () => {
+    anomalyRepo.dismissAll();
+    return { success: true };
+  });
+
   // ----------------------------------------------------
   // CSV Export API (Offline Data Distribution Analysis)
   // ----------------------------------------------------

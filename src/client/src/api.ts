@@ -150,6 +150,10 @@ export const api = {
     await fetch(`${API_BASE}/anomalies/${id}/dismiss`, { method: 'POST' });
   },
 
+  async dismissAllAnomalies(): Promise<void> {
+    await fetch(`${API_BASE}/anomalies/dismiss-all`, { method: 'POST' });
+  },
+
   // Discord Notifications
   async getDiscordSettings(): Promise<{
     webhookUrl: string;

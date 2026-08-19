@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Profile, SyncProgressUpdate } from '../types.js';
-import { RefreshCw, User, Activity } from 'lucide-react';
+import { RefreshCw, User, Activity, Download } from 'lucide-react';
 
 interface NavbarProps {
   activeProfile: Profile | null;
@@ -32,6 +32,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="nav-actions">
+        {/* Export All Offers as CSV */}
+        <a 
+          href="/api/export/offers.csv" 
+          download="priceSteamTool-offers-export.csv" 
+          className="btn btn-outline" 
+          title="Export all current offers for wishlist games as CSV"
+          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <Download size={15} />
+          <span>Export CSV</span>
+        </a>
+
         {/* Discord Webhook Deal Alerts */}
         <button className="btn btn-outline" onClick={onOpenDiscord} title="Discord Webhook Deal Alerts">
           <span style={{ color: '#5865F2' }}>🔔</span>
