@@ -34,6 +34,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copiedVoucherId, setCopiedVoucherId] = useState<string | null>(null);
   const [targetPriceInput, setTargetPriceInput] = useState<string>('');
   const [savingTarget, setSavingTarget] = useState(false);
   const [targetSavedSuccess, setTargetSavedSuccess] = useState(false);
@@ -44,6 +45,14 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
       await navigator.clipboard.writeText(`https://store.steampowered.com/app/${data.game.steamAppId}/`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+
+  const handleCopyVoucher = async (offerId: string, code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedVoucherId(offerId);
+      setTimeout(() => setCopiedVoucherId(null), 2000);
     } catch {}
   };
 
@@ -580,6 +589,42 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({ gameId, onClos
                             {offer.rawCurrency && offer.rawCurrency !== 'EUR' && offer.rawPrice && (
                               <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
                                 {offer.rawPrice.toFixed(2)} {offer.rawCurrency}
+                              </div>
+                            )}
+                            {offer.voucherCode && (
+                              <div style={{ marginTop: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyVoucher(offer.id, offer.voucherCode!)}
+                                  className="voucher-copy-btn"
+                                  title="Click to copy voucher code to clipboard"
+                                  style={{
+                                    background: copiedVoucherId === offer.id ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.12)',
+                                    border: '1px dashed #10b981',
+                                    color: '#10b981',
+                                    padding: '2px 6px',
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4
+                                  }}
+                                >
+                                  {copiedVoucherId === offer.id ? (
+                                    <>
+                                      <Check size={11} />
+                                      <span>COPIED!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={11} />
+                                      <span>{offer.voucherCode}</span>
+                                    </>
+                                  )}
+                                </button>
                               </div>
                             )}
                           </td>

@@ -58,11 +58,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     if (filters.buyOnly) return 'buy_recommendations';
     if ((filters.minDealScore ?? 0) >= 85) return 'exceptional';
     if ((filters.minDealScore ?? 0) >= 70) return 'best_deals';
+    if (filters.minDiscount === 75) return 'discount_75';
+    if (filters.minDiscount === 50) return 'discount_50';
     if (filters.allTimeLowOnly) return 'atl';
     if (filters.underPrice === 5 || filters.maxPrice === 5) return 'under_5';
     if (filters.underPrice === 10 || filters.maxPrice === 10) return 'under_10';
     if (filters.underPrice === 20 || filters.maxPrice === 20) return 'under_20';
     if (filters.merchantType === 'official') return 'official';
+    if (filters.merchantType === 'keyshop') return 'keyshop';
     if (filters.saleOnly) return 'sale';
     return 'all';
   };
@@ -74,6 +77,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   if (filters.search) activeFilterCount++;
   if (filters.buyOnly) activeFilterCount++;
   if (filters.saleOnly) activeFilterCount++;
+  if (filters.minDiscount && filters.minDiscount > 0) activeFilterCount++;
   if (filters.allTimeLowOnly) activeFilterCount++;
   if (filters.majorDealsOnly) activeFilterCount++;
   if (filters.trustedOnly) activeFilterCount++;
@@ -98,6 +102,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       underPrice: undefined,
       minPrice: undefined,
       maxPrice: undefined,
+      minDiscount: undefined,
       minDealScore: undefined,
       hideAnomalies: false,
       hideProvisional: false,
@@ -120,6 +125,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           underPrice: undefined,
           minPrice: undefined,
           maxPrice: undefined,
+          minDiscount: undefined,
           minDealScore: undefined,
           hideAnomalies: false,
           hideProvisional: false,
@@ -138,6 +144,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: undefined,
+          minDiscount: undefined,
           minDealScore: 70,
           merchantType: 'all',
           hasAnomaly: false,
@@ -153,6 +160,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: undefined,
+          minDiscount: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -167,6 +175,37 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: undefined,
+          minDiscount: undefined,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'discount_75':
+        onFilterChange({
+          sort: 'price_drops',
+          minDiscount: 75,
+          saleOnly: true,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: undefined,
+          minDealScore: undefined,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'discount_50':
+        onFilterChange({
+          sort: 'price_drops',
+          minDiscount: 50,
+          saleOnly: true,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: undefined,
+          minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
@@ -180,6 +219,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: true,
           trustedOnly: false,
           underPrice: undefined,
+          minDiscount: undefined,
           minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
@@ -188,11 +228,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         break;
       case 'sale':
         onFilterChange({
+          sort: 'price_drops',
           saleOnly: true,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: undefined,
+          minDiscount: undefined,
           minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
@@ -201,12 +243,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         break;
       case 'under_5':
         onFilterChange({
+          sort: 'price_asc',
           saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: 5,
           maxPrice: 5,
+          minDiscount: undefined,
           minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
@@ -215,12 +259,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         break;
       case 'under_10':
         onFilterChange({
+          sort: 'price_asc',
           saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: 10,
           maxPrice: 10,
+          minDiscount: undefined,
           minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
@@ -229,12 +275,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         break;
       case 'under_20':
         onFilterChange({
+          sort: 'price_asc',
           saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: 20,
           maxPrice: 20,
+          minDiscount: undefined,
           minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
@@ -248,8 +296,23 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           allTimeLowOnly: false,
           trustedOnly: false,
           underPrice: undefined,
+          minDiscount: undefined,
           minDealScore: undefined,
           merchantType: 'official',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'keyshop':
+        onFilterChange({
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: undefined,
+          minDiscount: undefined,
+          minDealScore: undefined,
+          merchantType: 'keyshop',
           hasAnomaly: false,
           page: 1
         });
@@ -559,6 +622,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </button>
 
         <button
+          className={`pill-btn ${currentPill === 'discount_50' ? 'active' : ''}`}
+          onClick={() => setPill('discount_50')}
+        >
+          <span>-50%+ Off</span>
+        </button>
+
+        <button
+          className={`pill-btn ${currentPill === 'discount_75' ? 'active' : ''}`}
+          onClick={() => setPill('discount_75')}
+        >
+          <span>-75%+ Off</span>
+        </button>
+
+        <button
           className={`pill-btn ${currentPill === 'under_5' ? 'active' : ''}`}
           onClick={() => setPill('under_5')}
         >
@@ -584,7 +661,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           onClick={() => setPill('official')}
         >
           <ShieldCheck size={13} />
-          <span>Official Stores</span>
+          <span>Official Only</span>
+        </button>
+
+        <button
+          className={`pill-btn ${currentPill === 'keyshop' ? 'active' : ''}`}
+          onClick={() => setPill('keyshop')}
+        >
+          <Tag size={13} />
+          <span>Keyshops</span>
         </button>
 
         {isFiltered && (
@@ -627,6 +712,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             </span>
           )}
 
+          {filters.minDiscount !== undefined && filters.minDiscount > 0 && (
+            <span className="filter-active-tag">
+              Discount ≥ {filters.minDiscount}%
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minDiscount: undefined, page: 1 })} />
+            </span>
+          )}
+
           {filters.minPrice !== undefined && filters.minPrice > 0 && (
             <span className="filter-active-tag">
               Min: €{filters.minPrice}
@@ -644,6 +736,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           {filters.merchantType === 'official' && (
             <span className="filter-active-tag">
               Official Stores Only
+              <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ merchantType: 'all', page: 1 })} />
+            </span>
+          )}
+
+          {filters.merchantType === 'keyshop' && (
+            <span className="filter-active-tag">
+              Keyshops Only
               <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ merchantType: 'all', page: 1 })} />
             </span>
           )}

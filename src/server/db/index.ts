@@ -752,6 +752,11 @@ export const gameRepo = {
       whereClauses.push(`bo.discount_percent > 0`);
     }
 
+    if (options.minDiscount !== undefined && options.minDiscount > 0) {
+      whereClauses.push(`bo.discount_percent >= ?`);
+      params.push(options.minDiscount);
+    }
+
     if (options.majorDealsOnly) {
       whereClauses.push(`bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP')`);
     }

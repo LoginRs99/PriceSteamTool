@@ -88,6 +88,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       underPrice: query.underPrice ? parseFloat(query.underPrice) : undefined,
       minPrice: query.minPrice ? parseFloat(query.minPrice) : undefined,
       maxPrice: query.maxPrice ? parseFloat(query.maxPrice) : undefined,
+      minDiscount: query.minDiscount ? parseInt(query.minDiscount, 10) : undefined,
       minDealScore: query.minDealScore ? parseInt(query.minDealScore, 10) : undefined,
       minConfidence: query.minConfidence ? parseInt(query.minConfidence, 10) : undefined,
       hideAnomalies: query.hideAnomalies === 'true' || query.hideAnomalies === true,

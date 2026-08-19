@@ -336,6 +336,7 @@ export interface WishlistFilterOptions {
   underPrice?: number;
   minPrice?: number;
   maxPrice?: number;
+  minDiscount?: number;
   minDealScore?: number;
   minConfidence?: number;
   hideAnomalies?: boolean;

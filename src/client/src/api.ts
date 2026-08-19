@@ -62,6 +62,12 @@ export const api = {
     if (options.underPrice) params.set('underPrice', String(options.underPrice));
     if (options.minPrice !== undefined) params.set('minPrice', String(options.minPrice));
     if (options.maxPrice !== undefined) params.set('maxPrice', String(options.maxPrice));
+    if (options.minDiscount !== undefined) params.set('minDiscount', String(options.minDiscount));
+    if (options.minDealScore !== undefined) params.set('minDealScore', String(options.minDealScore));
+    if (options.minConfidence !== undefined) params.set('minConfidence', String(options.minConfidence));
+    if (options.hideAnomalies) params.set('hideAnomalies', 'true');
+    if (options.hideProvisional) params.set('hideProvisional', 'true');
+    if (options.buyOnly) params.set('buyOnly', 'true');
     if (options.merchantType) params.set('merchantType', options.merchantType);
     if (options.hasAnomaly) params.set('hasAnomaly', 'true');
     if (options.page) params.set('page', String(options.page));

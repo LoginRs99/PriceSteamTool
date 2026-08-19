@@ -407,6 +407,8 @@ export const App: React.FC = () => {
                       games={games}
                       onGameClick={(game) => setSelectedGameId(game.id)}
                       onExplain={(g) => setExplainGame(g)}
+                      currentSort={filters.sort}
+                      onSortChange={(sort) => handleFilterChange({ sort, page: 1 })}
                     />
                   )}
 

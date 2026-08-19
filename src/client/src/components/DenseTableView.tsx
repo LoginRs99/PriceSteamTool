@@ -1,27 +1,86 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Flame, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
 
 interface DenseTableViewProps {
   games: Game[];
   onGameClick: (game: Game) => void;
   onExplain?: (game: Game) => void;
+  currentSort?: string;
+  onSortChange?: (sort: any) => void;
 }
 
-export const DenseTableView: React.FC<DenseTableViewProps> = ({ games, onGameClick, onExplain }) => {
+export const DenseTableView: React.FC<DenseTableViewProps> = ({ 
+  games, 
+  onGameClick, 
+  onExplain,
+  currentSort,
+  onSortChange 
+}) => {
+  const handleHeaderClick = (sortKey: string, ascFallback: string = sortKey) => {
+    if (!onSortChange) return;
+    if (currentSort === sortKey) {
+      onSortChange(ascFallback.endsWith('_desc') ? ascFallback.replace('_desc', '_asc') : 'best_value');
+    } else {
+      onSortChange(sortKey);
+    }
+  };
+
+  const renderSortIndicator = (sortKey: string, altKey?: string) => {
+    if (currentSort === sortKey) return <ArrowDown size={12} style={{ display: 'inline', marginLeft: 4, color: 'var(--accent-primary)' }} />;
+    if (altKey && currentSort === altKey) return <ArrowUp size={12} style={{ display: 'inline', marginLeft: 4, color: 'var(--accent-primary)' }} />;
+    return <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4, opacity: 0.35 }} />;
+  };
+
   return (
     <div className="dense-table-wrapper">
       <table className="dense-table">
         <thead>
           <tr>
-            <th style={{ width: 45 }}>#</th>
-            <th>Title</th>
+            <th 
+              style={{ width: 55, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
+              onClick={() => handleHeaderClick('priority')}
+              title="Sort by Steam Wishlist Priority"
+            >
+              # {renderSortIndicator('priority')}
+            </th>
+            <th 
+              style={{ cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
+              onClick={() => handleHeaderClick('title_asc')}
+              title="Sort by Title Alphabetically"
+            >
+              Title {renderSortIndicator('title_asc')}
+            </th>
             <th style={{ width: 90 }}>MSRP</th>
-            <th style={{ width: 105 }}>Best Deal</th>
-            <th style={{ width: 85 }}>Discount</th>
-            <th style={{ width: 130 }}>Deal Score</th>
+            <th 
+              style={{ width: 110, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
+              onClick={() => handleHeaderClick('price_asc', 'price_desc')}
+              title="Sort by Best Deal Price"
+            >
+              Best Deal {renderSortIndicator('price_asc', 'price_desc')}
+            </th>
+            <th 
+              style={{ width: 95, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
+              onClick={() => handleHeaderClick('price_drops', 'discount_desc')}
+              title="Sort by Highest Discount %"
+            >
+              Discount {renderSortIndicator('price_drops', 'discount_desc')}
+            </th>
+            <th 
+              style={{ width: 135, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
+              onClick={() => handleHeaderClick('best_value', 'deal_score_desc')}
+              title="Sort by Deal Score (Best Value)"
+            >
+              Deal Score {renderSortIndicator('best_value', 'deal_score_desc')}
+            </th>
             <th style={{ width: 160 }}>Best Store</th>
-            <th style={{ width: 100 }}>ATL</th>
+            <th 
+              style={{ width: 105, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
+              onClick={() => handleHeaderClick('near_atl')}
+              title="Sort by All-Time Low Status"
+            >
+              ATL {renderSortIndicator('near_atl')}
+            </th>
             <th style={{ width: 90, textAlign: 'right' }}>Action</th>
           </tr>
         </thead>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ShieldCheck, Info, Gamepad2 } from 'lucide-react';
+import { Flame, AlertTriangle, ShieldCheck, Info, Gamepad2, ExternalLink } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -101,6 +101,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
             className="deal-score-badge"
             style={{ 
               background: dealScore > 0 ? tierColor : 'rgba(30, 41, 59, 0.88)', 
+              boxShadow: dealTier === 'Exceptional' ? '0 0 12px rgba(139, 92, 246, 0.45)' : dealTier === 'Great' ? '0 0 10px rgba(16, 185, 129, 0.35)' : undefined,
               zIndex: 3,
               cursor: onExplain && dealScore > 0 ? 'pointer' : 'default'
             }}
@@ -247,6 +248,25 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
               {game.bestMerchantIsOfficial && <ShieldCheck size={11} color="#10b981" style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
               {game.bestMerchantName || 'Steam'}
             </span>
+
+            {game.bestDealUrl && (
+              <a
+                href={game.bestDealUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="score-info-trigger"
+                title={`Open direct deal page at ${game.bestMerchantName || 'Store'}`}
+                style={{
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 2
+                }}
+              >
+                <ExternalLink size={13} />
+              </a>
+            )}
 
             {onExplain && (
               <button 
