@@ -7,6 +7,18 @@ interface QueuedTask<T> {
   reject: (reason?: any) => void;
 }
 
+/**
+ * Calculates exponential-tailed jitter:
+ * Most values stay close to low end, with occasional long tail.
+ * Capped at 3x jitterMs to prevent pathological multi-minute delays in a single request.
+ */
+export function calculateExponentialJitter(jitterMs: number, randFn: () => number = Math.random): number {
+  if (jitterMs <= 0) return 0;
+  const u = Math.max(0.0001, Math.min(0.9999, randFn()));
+  const rawJitter = -Math.log(1 - u) * (jitterMs / 2);
+  return Math.floor(Math.min(rawJitter, jitterMs * 3));
+}
+
 export class PacedSourceQueue {
   private queue: QueuedTask<any>[] = [];
   private isProcessing = false;
@@ -55,7 +67,7 @@ export class PacedSourceQueue {
       }
 
       const now = Date.now();
-      const jitter = Math.floor(Math.random() * this.jitterMs);
+      const jitter = calculateExponentialJitter(this.jitterMs);
       const elapsed = now - this.lastExecutionTime;
       const waitTime = Math.max(0, (this.minIntervalMs + jitter) - elapsed);
 

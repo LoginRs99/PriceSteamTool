@@ -453,7 +453,13 @@ export class SyncOrchestrator {
       return;
     }
 
-    const dueGames = games.filter(g => isAllkeyshopDue(g));
+    const dueGames = games
+      .filter(g => isAllkeyshopDue(g))
+      .sort((a, b) => {
+        const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        return aTime - bTime;
+      });
     const maxGames = config.allkeyshopMaxGames;
     const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
       ? dueGames.slice(0, maxGames) 
@@ -527,6 +533,14 @@ export class SyncOrchestrator {
         if (isChunkEnd && !this.isCancelled) {
           logInfo(`[Enrichment] Completed chunk of ${chunkSize} games. Cooling down for ${Math.round(pauseMs / 1000)}s.`);
           await new Promise(r => setTimeout(r, pauseMs));
+        } else if ((i + 1) < prioritizedGames.length && !this.isCancelled) {
+          // Occasional irregular hesitation break (~5% probability) of 5-15 minutes
+          if (Math.random() < 0.05) {
+            const hesitationMinutes = 5 + Math.random() * 10;
+            const hesitationMs = Math.round(hesitationMinutes * 60 * 1000);
+            logInfo(`[Enrichment] Natural pacing hesitation: pausing for ${(hesitationMs / 1000 / 60).toFixed(1)} minutes.`);
+            await new Promise(r => setTimeout(r, hesitationMs));
+          }
         }
       }
 

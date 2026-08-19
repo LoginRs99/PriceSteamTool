@@ -272,4 +272,105 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       expect(sched3.streak).toBe(2);
     });
   });
+
+  describe('4. Round-Robin Due-Game Ordering & Volume Cap', () => {
+    it('sorts never-checked games first, then oldest checked games ascending', () => {
+      const mockGames = [
+        { id: '1', title: 'Game 1', steamAppId: 1, allkeyshopLastCheckedAt: '2026-08-19T12:00:00Z' },
+        { id: '2', title: 'Game 2', steamAppId: 2, allkeyshopLastCheckedAt: undefined }, // never checked
+        { id: '3', title: 'Game 3', steamAppId: 3, allkeyshopLastCheckedAt: '2026-08-18T08:00:00Z' }, // older
+        { id: '4', title: 'Game 4', steamAppId: 4, allkeyshopLastCheckedAt: undefined }, // never checked
+        { id: '5', title: 'Game 5', steamAppId: 5, allkeyshopLastCheckedAt: '2026-08-19T18:00:00Z' }, // newest
+      ];
+
+      const sorted = [...mockGames].sort((a, b) => {
+        const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        return aTime - bTime;
+      });
+
+      // Both never-checked games (2, 4) must come first
+      expect([sorted[0].id, sorted[1].id]).toContain('2');
+      expect([sorted[0].id, sorted[1].id]).toContain('4');
+      // Followed by oldest checked (3: Aug 18)
+      expect(sorted[2].id).toBe('3');
+      // Followed by Aug 19 12:00 (1)
+      expect(sorted[3].id).toBe('1');
+      // Followed by Aug 19 18:00 (5)
+      expect(sorted[4].id).toBe('5');
+    });
+
+    it('rotates through full list across successive capped runs without starving low-priority games', () => {
+      const allGames = Array.from({ length: 6 }, (_, i) => ({
+        id: `g${i + 1}`,
+        title: `Game ${i + 1}`,
+        steamAppId: i + 1,
+        allkeyshopLastCheckedAt: undefined as string | undefined
+      }));
+
+      const maxGames = 2;
+
+      // Run 1: Takes g1, g2 (never checked)
+      let sorted = [...allGames].sort((a, b) => {
+        const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        return aTime - bTime;
+      });
+      const batch1 = sorted.slice(0, maxGames);
+      expect(batch1.map(g => g.id)).toEqual(['g1', 'g2']);
+
+      // Simulate update for batch 1
+      batch1.forEach(g => {
+        const idx = allGames.findIndex(item => item.id === g.id);
+        allGames[idx].allkeyshopLastCheckedAt = '2026-08-19T10:00:00Z';
+      });
+
+      // Run 2: Takes g3, g4 (remaining never checked)
+      sorted = [...allGames].sort((a, b) => {
+        const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        return aTime - bTime;
+      });
+      const batch2 = sorted.slice(0, maxGames);
+      expect(batch2.map(g => g.id)).toEqual(['g3', 'g4']);
+
+      // Simulate update for batch 2
+      batch2.forEach(g => {
+        const idx = allGames.findIndex(item => item.id === g.id);
+        allGames[idx].allkeyshopLastCheckedAt = '2026-08-19T10:05:00Z';
+      });
+
+      // Run 3: Takes g5, g6
+      sorted = [...allGames].sort((a, b) => {
+        const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
+        return aTime - bTime;
+      });
+      const batch3 = sorted.slice(0, maxGames);
+      expect(batch3.map(g => g.id)).toEqual(['g5', 'g6']);
+    });
+  });
+
+  describe('5. calculateExponentialJitter (Long-tailed jitter distribution)', () => {
+    it('has higher probability density near low end and long tail capped at 3x jitterMs', async () => {
+      const { calculateExponentialJitter } = await import('../../src/server/sync/rateLimiter.js');
+
+      const jitterMs = 4000;
+      // Deterministic inputs
+      const lowVal = calculateExponentialJitter(jitterMs, () => 0.1); // -ln(0.9) * 2000 ≈ 210ms
+      const midVal = calculateExponentialJitter(jitterMs, () => 0.5); // -ln(0.5) * 2000 ≈ 1386ms
+      const highVal = calculateExponentialJitter(jitterMs, () => 0.95); // -ln(0.05) * 2000 ≈ 5991ms
+      const extremeVal = calculateExponentialJitter(jitterMs, () => 0.9999); // Capped at 3 * 4000 = 12000ms
+
+      expect(lowVal).toBeLessThan(midVal);
+      expect(midVal).toBeLessThan(highVal);
+      expect(highVal).toBeGreaterThan(jitterMs); // Long tail exceeds base jitterMs
+      expect(extremeVal).toBe(jitterMs * 3); // Firmly clamped at 3x
+    });
+
+    it('returns 0 when jitterMs is 0', async () => {
+      const { calculateExponentialJitter } = await import('../../src/server/sync/rateLimiter.js');
+      expect(calculateExponentialJitter(0)).toBe(0);
+    });
+  });
 });
