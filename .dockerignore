@@ -1,9 +1,12 @@
 node_modules
 dist
 data
-.env
 .git
-.github
-tests
-docs
+.gitignore
+.agents
+.env
+.env.local
 *.log
+tests
+scripts
+coverage
