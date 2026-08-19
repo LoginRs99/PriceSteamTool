@@ -11,6 +11,18 @@ import { syncOrchestrator } from '../sync/orchestrator.js';
 import { steamAdapter } from '../sources/steam.js';
 import type { WishlistFilterOptions, SourceCode } from '../../shared/types.js';
 
+function safeFloat(val: any): number | undefined {
+  if (val === undefined || val === null || val === '') return undefined;
+  const n = parseFloat(val);
+  return isNaN(n) ? undefined : n;
+}
+
+function safeInt(val: any, fallback?: number): number | undefined {
+  if (val === undefined || val === null || val === '') return fallback;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? fallback : n;
+}
+
 export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   // ----------------------------------------------------
@@ -85,19 +97,19 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       allTimeLowOnly: query.allTimeLowOnly === 'true' || query.allTimeLowOnly === true || query.historicalLowOnly === 'true' || query.historicalLowOnly === true,
       trustedOnly: query.trustedOnly === 'true' || query.trustedOnly === true,
       isFreeOnly: query.isFreeOnly === 'true' || query.isFreeOnly === true ? true : query.isFreeOnly === 'false' || query.isFreeOnly === false ? false : undefined,
-      underPrice: query.underPrice ? parseFloat(query.underPrice) : undefined,
-      minPrice: query.minPrice ? parseFloat(query.minPrice) : undefined,
-      maxPrice: query.maxPrice ? parseFloat(query.maxPrice) : undefined,
-      minDiscount: query.minDiscount ? parseInt(query.minDiscount, 10) : undefined,
-      minDealScore: query.minDealScore ? parseInt(query.minDealScore, 10) : undefined,
-      minConfidence: query.minConfidence ? parseInt(query.minConfidence, 10) : undefined,
+      underPrice: safeFloat(query.underPrice),
+      minPrice: safeFloat(query.minPrice),
+      maxPrice: safeFloat(query.maxPrice),
+      minDiscount: safeInt(query.minDiscount),
+      minDealScore: safeInt(query.minDealScore),
+      minConfidence: safeInt(query.minConfidence),
       hideAnomalies: query.hideAnomalies === 'true' || query.hideAnomalies === true,
       hideProvisional: query.hideProvisional === 'true' || query.hideProvisional === true,
       buyOnly: query.buyOnly === 'true' || query.buyOnly === true,
       merchantType: query.merchantType || 'all',
       hasAnomaly: query.hasAnomaly === 'true' || query.hasAnomaly === true,
-      page: query.page ? parseInt(query.page, 10) : 1,
-      limit: query.limit ? parseInt(query.limit, 10) : 50,
+      page: safeInt(query.page, 1) || 1,
+      limit: Math.min(500, Math.max(1, safeInt(query.limit, 50) || 50)),
     };
 
     const result = gameRepo.getWishlistGames(activeProfile.id, filterOptions);

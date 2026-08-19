@@ -134,6 +134,13 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                       className="spotlight-img"
                       loading="lazy"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (!target.dataset.triedFallback) {
+                          target.dataset.triedFallback = 'true';
+                          target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+                        }
+                      }}
                     />
                     {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
                       <span className="spotlight-discount">

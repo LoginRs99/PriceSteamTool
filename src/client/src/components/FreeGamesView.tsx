@@ -160,6 +160,13 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
                     className="compact-thumb"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.dataset.triedFallback) {
+                        target.dataset.triedFallback = 'true';
+                        target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+                      }
+                    }}
                   />
                   <div className="compact-title-wrap">
                     <span className="compact-title">{game.title}</span>
@@ -207,6 +214,13 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
                     className="game-card-image"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.dataset.triedFallback) {
+                        target.dataset.triedFallback = 'true';
+                        target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+                      }
+                    }}
                   />
                   <div className="free-badge" style={{ position: 'absolute', top: 8, left: 8 }}>
                     FREE
