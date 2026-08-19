@@ -10,7 +10,6 @@ export default defineConfig({
       }
     },
     fileParallelism: false,
-    isolate: false,
     env: {
       NODE_ENV: 'test',
       DB_PATH: ':memory:'

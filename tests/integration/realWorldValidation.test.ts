@@ -35,10 +35,6 @@ describe('Real-World Validation — Complete Integration Suite', () => {
     resetDatabase();
   });
 
-  afterAll(() => {
-    resetDatabase();
-  });
-
   // ----------------------------------------------------
   // Test 1: Deduplication & Provenance
   // ----------------------------------------------------

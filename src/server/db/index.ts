@@ -69,6 +69,7 @@ export function getDb(): Database.Database {
     try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN deal_score INTEGER"); } catch {}
     try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level)"); } catch {}
     try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event)"); } catch {}
+    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur)"); } catch {}
 
     // Deal Score v2 cached statistical columns on games
     try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_median_eur REAL"); } catch {}

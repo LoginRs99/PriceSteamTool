@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS offers (
 
 CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
 CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
+CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
 CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
 
 -- 6. Source Observations Table
