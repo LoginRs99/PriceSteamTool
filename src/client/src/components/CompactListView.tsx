@@ -49,7 +49,13 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+                  const target = e.target as HTMLImageElement;
+                  if (!target.dataset.triedFallback) {
+                    target.dataset.triedFallback = 'true';
+                    target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+                  } else {
+                    target.style.display = 'none';
+                  }
                 }}
               />
               <div className="compact-title-wrap">

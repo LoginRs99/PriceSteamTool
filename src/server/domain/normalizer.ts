@@ -39,12 +39,14 @@ const FORBIDDEN_NON_STEAM_PLATFORMS = [
   /\bblizzard\b/i,
   /\brockstar(\s*games|\s*launcher)?\b/i,
   /\bmicrosoft\s*store\b/i,
-  /\bxbox(\s*live)?\b/i,
-  /\bplaystation\b/i,
+  /\bxbox(\s*live|\s*one|\s*series|\s*360)?\b/i,
+  /\bplaystation(\s*[345])?\b/i,
+  /\bps[345]\b/i,
   /\bpsn\b/i,
-  /\bnintendo(\s*switch)?\b/i,
+  /\bnintendo(\s*switch|\s*wii)?\b/i,
   /\bdrm[\s-]*free\b/i,
-  /\bnon-steam\b/i
+  /\bnon-steam\b/i,
+  /\bwindows\s*(10|11)(\s*eu)?\b/i
 ];
 
 // ISO country codes and tokens for foreign regions locked outside EU/HU
@@ -115,7 +117,7 @@ export function normalizeProductType(rawType: string = '', merchantOrStoreName?:
     };
   }
 
-  if (clean.includes('direct') || clean.includes('store.steampowered') || clean.includes('steam direct') || clean.includes('connect')) {
+  if (clean.includes('direct') || clean.includes('store.steampowered') || clean.includes('steam direct') || clean.includes('steam connect')) {
     return {
       productType: 'DIRECT_PURCHASE',
       isValid: true

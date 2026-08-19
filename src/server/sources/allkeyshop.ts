@@ -232,9 +232,17 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
           if (!merchantName) continue;
 
-          // Reject non-Steam platforms (Xbox, PlayStation, Switch, GOG, Epic, Origin, Ubisoft, EA App, Windows 10)
-          const isNonSteam = ['xbox', 'ps4', 'ps5', 'switch', 'nintendo', 'gog', 'epic', 'origin', 'uplay', 'ubisoft', 'ea app', 'windows 10'].some(s => 
-            regionName.toLowerCase().includes(s) || editionName.toLowerCase().includes(s) || merchantName.toLowerCase().includes(s)
+          // Reject non-Steam platforms (Xbox, PlayStation, Switch, GOG, Epic, Origin, Ubisoft, EA App, Windows 10/11, Accounts)
+          const isNonSteam = [
+            'xbox', 'ps4', 'ps5', 'ps3', 'switch', 'nintendo', 'wii',
+            'gog', 'epic', 'origin', 'uplay', 'ubisoft', 'ea app', 
+            'battle.net', 'blizzard', 'rockstar', 'windows 10', 'windows 11',
+            'account'
+          ].some(s => 
+            regionName.toLowerCase().includes(s) || 
+            editionName.toLowerCase().includes(s) || 
+            merchantName.toLowerCase().includes(s) ||
+            (matched.name && matched.name.toLowerCase().includes(s))
           );
           if (isNonSteam) continue;
 

@@ -56,8 +56,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const getActivePill = () => {
     if (filters.hasAnomaly) return 'anomaly';
     if (filters.buyOnly) return 'buy_recommendations';
-    if (filters.minDealScore === 85) return 'exceptional';
-    if (filters.minDealScore === 70 && filters.saleOnly) return 'best_deals';
+    if ((filters.minDealScore ?? 0) >= 85) return 'exceptional';
+    if ((filters.minDealScore ?? 0) >= 70) return 'best_deals';
     if (filters.allTimeLowOnly) return 'atl';
     if (filters.underPrice === 5 || filters.maxPrice === 5) return 'under_5';
     if (filters.underPrice === 10 || filters.maxPrice === 10) return 'under_10';

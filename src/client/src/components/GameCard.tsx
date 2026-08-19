@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ShieldCheck, Info } from 'lucide-react';
+import { Flame, AlertTriangle, ShieldCheck, Info, Gamepad2 } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -9,6 +9,9 @@ interface GameCardProps {
 }
 
 export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
+  const [imgError, setImgError] = useState(false);
+  const [triedFallback, setTriedFallback] = useState(false);
+
   const imageUrl = game.capsuleImage || 
     game.headerImage || 
     `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/capsule_231x87.jpg`;
@@ -39,16 +42,42 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
     <div className="game-card" onClick={onClick}>
       {/* Cover Image Container */}
       <div className="game-card-image-wrap">
-        <img 
-          src={imageUrl} 
-          alt={game.title} 
-          className="game-card-image"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
-          }}
-        />
+        {!imgError ? (
+          <img 
+            src={imageUrl} 
+            alt={game.title} 
+            className="game-card-image"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (!triedFallback) {
+                setTriedFallback(true);
+                target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+              } else {
+                setImgError(true);
+              }
+            }}
+          />
+        ) : (
+          <div 
+            className="game-card-image" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+              color: 'var(--text-muted)',
+              gap: 6
+            }}
+          >
+            <Gamepad2 size={24} style={{ opacity: 0.6 }} />
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '0 8px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+              {game.title}
+            </span>
+          </div>
+        )}
 
         {/* Top-Left Badges: Discount & ATL */}
         <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
@@ -58,7 +87,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
             </div>
           )}
 
-          {!isHighRisk && isConfirmedATL && !isProvisional && (
+          {isConfirmedATL && !isProvisional && (
             <div className="price-event-pill atl-pill" style={{ position: 'static' }}>
               <Flame size={11} />
               <span>ATL</span>
@@ -66,31 +95,33 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           )}
         </div>
 
-        {/* Top-Right: Unified Deal Score Pill */}
-        {hasBestDeal && dealScore > 0 && !isHighRisk && (
+        {/* Top-Right: Unified Deal Score & Store Pill */}
+        {hasBestDeal && (
           <div 
             className="deal-score-badge"
-            style={{ background: tierColor, zIndex: 3 }}
-            title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
+            style={{ 
+              background: dealScore > 0 ? tierColor : 'rgba(30, 41, 59, 0.88)', 
+              zIndex: 3,
+              cursor: onExplain && dealScore > 0 ? 'pointer' : 'default'
+            }}
+            title={`Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
             onClick={(e) => {
-              if (onExplain) {
+              if (onExplain && dealScore > 0) {
                 e.stopPropagation();
                 onExplain(game);
               }
             }}
           >
-            <span className="deal-score-num">{dealScore}</span>
-            <span className="deal-score-tier-label">
-              {dealTier}
-            </span>
-          </div>
-        )}
-
-        {/* High Risk Warning Pill */}
-        {isHighRisk && (
-          <div className="anomaly-tag" style={{ zIndex: 3 }} title="High risk pricing anomaly suppressed">
-            <AlertTriangle size={12} />
-            <span>High Risk</span>
+            {dealScore > 0 ? (
+              <>
+                <span className="deal-score-num">{dealScore}</span>
+                <span className="deal-score-tier-label">{dealTier}</span>
+              </>
+            ) : (
+              <span className="deal-score-tier-label" style={{ padding: '0 4px' }}>
+                {game.bestMerchantName || 'Best Deal'}
+              </span>
+            )}
           </div>
         )}
 
@@ -191,6 +222,27 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {isHighRisk && (
+              <span 
+                className="merchant-tag" 
+                style={{ 
+                  background: 'rgba(245, 158, 11, 0.12)', 
+                  borderColor: 'rgba(245, 158, 11, 0.35)', 
+                  color: '#f59e0b', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: 3, 
+                  padding: '2px 6px', 
+                  fontSize: '0.7rem',
+                  fontWeight: 700
+                }}
+                title="Price is an unconfirmed drop or anomaly"
+              >
+                <AlertTriangle size={11} />
+                <span>Risk Flag</span>
+              </span>
+            )}
+
             <span className="merchant-tag" title={`Store: ${game.bestMerchantName || 'Steam Store'}`}>
               {game.bestMerchantIsOfficial && <ShieldCheck size={11} color="#10b981" style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
               {game.bestMerchantName || 'Steam'}

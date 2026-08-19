@@ -360,11 +360,11 @@ export const App: React.FC = () => {
                 onFilterChange={handleFilterChange}
               />
 
-              {loading ? (
+              {loading && games.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
                   <p>Loading wishlist games...</p>
                 </div>
-              ) : games.length === 0 ? (
+              ) : !loading && games.length === 0 ? (
                 <div className="empty-state">
                   <Gamepad2 size={40} color="var(--text-muted)" />
                   <h3 className="empty-title">No games found</h3>
@@ -380,7 +380,7 @@ export const App: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <>
+                <div style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s ease' }}>
                   {viewMode === 'grid' && (
                     <div className="games-grid">
                       {games.map(game => (
@@ -464,7 +464,7 @@ export const App: React.FC = () => {
                       )}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </>
           )}
