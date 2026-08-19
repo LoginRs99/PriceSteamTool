@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.4.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-112%2F112%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-1.6.0-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-200%2F200%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -59,6 +59,11 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
   * 📊 **Dense Data Table View**: Highly compact multi-column data table showing Rank, Title, MSRP, Best Price, Discount %, Deal Score, Store, and ATL in tabular rows.
 * **High-Capacity Pagination**: Adjustable page limits (24, 50, 100, 200 items per page) and persistent user view preferences via `localStorage`.
 
+### 6. Anti-Rate-Limit v1 REST API & Batch Pricing
+* **`POST /api/v1/offers/batch`**: Bulk query resolving best prices, Deal Scores, and stores for up to 250 Steam games in a single request.
+* **`POST /api/v1/games/resolve`**: T-shirt sized ID and title matching against SQLite database.
+* **ETag & IETF Rate Limit Headers**: RFC-compliant caching (`304 Not Modified`) and standard `X-RateLimit-*` headers.
+
 ---
 
 ## ⚡ Quick Start (Docker Compose)
@@ -100,7 +105,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (106 unit & integration tests)
+# 3. Run test suite (20 test suites / 200 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck

@@ -2,9 +2,9 @@
 
 > **Session Handover Document**  
 > **Repository:** [LoginRs99/PriceSteamTool](https://github.com/LoginRs99/PriceSteamTool)  
-> **Version:** 1.5.0  
-> **Last Updated:** 2026-08-18  
-> **Test Status:** 18 Test Suites / 186 Tests Passing (100% Green), TypeScript Strict Clean (`tsc --noEmit`).
+> **Version:** 1.6.0  
+> **Last Updated:** 2026-08-19  
+> **Test Status:** 20 Test Suites / 200 Tests Passing (100% Green), TypeScript Strict Clean (`tsc --noEmit`).
 
 ---
 
@@ -18,8 +18,9 @@
 
 ### Backend
 - **Runtime:** Node.js 22+ with TypeScript (ES Modules).
-- **Database:** SQLite via `better-sqlite3` with WAL mode enabled (`PRAGMA journal_mode = WAL`, `PRAGMA synchronous = NORMAL`, prepared statement caching via `prepareStmt`).
-- **Web Server:** Express.js REST API with Server-Sent Events (SSE) for live sync progress.
+- **Database:** SQLite via `better-sqlite3` with WAL mode enabled (`PRAGMA journal_mode = WAL`, `PRAGMA synchronous = NORMAL`, prepared statement caching via `prepareStmt`, composite indexing `idx_offers_game_valid_price`).
+- **Web Server:** Fastify 5 REST API with Server-Sent Events (SSE) for live sync progress.
+- **REST APIs:** `/api/*` (SPA internal) + `/api/v1/*` (Batch pricing & resolve endpoints).
 - **Pacing & Resiliency:** Custom paced queues (`PacedSourceQueue`), random jitter, per-source Circuit Breakers, and exponential backoff retry handlers.
 
 ### Frontend
@@ -126,17 +127,18 @@ erDiagram
 
 ## 🧪 7. Test Suite & Verification
 
-The project includes **18 test suites** with **186 automated tests** using Vitest:
+The project includes **20 test suites** with **200 automated tests** using Vitest:
 
 | Test Suite | Focus Area | Test Count |
 | :--- | :--- | :--- |
-| `tests/unit/dealScore.test.ts` | Mathematical distributions, sigma scaling, ATL bonus, provisional deals | 46 tests |
-| `tests/unit/pricingEngine.test.ts` | Multi-factor risk calculation, lone-bottom outliers, peer dispersion | 29 tests |
-| `tests/unit/allkeyshopScheduling.test.ts` | Exponential backoff, due-filtering, DB hydration, Client Hints | 12 tests |
-| `tests/unit/discordNotifier.test.ts` | Alert criteria, target price overrides, provisional deals, embed formatting | 10 tests |
+| `tests/unit/dealScore.test.ts` | Mathematical formulation, Z-score, sigmoid mapping, tiers | 46 tests |
+| `tests/unit/pricingEngine.test.ts` | Multi-factor risk calculation, lone-bottom outliers, peer corroboration | 33 tests |
 | `tests/unit/priceIntelligence.test.ts` | Statistical metrics calculation, historical anchor aggregation | 14 tests |
+| `tests/unit/allkeyshopScheduling.test.ts` | Exponential backoff, due-filtering, DB hydration, Client Hints | 12 tests |
 | `tests/unit/normalizer.test.ts` | Region codes, platform filtering, currency normalization | 12 tests |
-| `tests/unit/anomaly.test.ts` | Anomaly classifications and edge cases | 8 tests |
+| `tests/unit/discordNotifier.test.ts` | Alert criteria, target price overrides, provisional deals, embed formatting | 10 tests |
+| `tests/unit/anomaly.test.ts` | Anomaly classifications, best deal gating, and edge cases | 9 tests |
+| `tests/integration/v1Api.test.ts` | Batch offers, game resolve, ETag 304, alerts, merchants, rate limits | 7 tests |
 | `tests/unit/actionSignal.test.ts` | BUY_NOW / STRONG_BUY / WAIT signal evaluations | 7 tests |
 | `tests/unit/itad.test.ts` | ITAD API response parsing & conversion | 7 tests |
 | `tests/integration/realWorldValidation.test.ts` | End-to-end sync, cache hit/miss, multi-merchant ranking | 7 tests |
@@ -147,6 +149,7 @@ The project includes **18 test suites** with **186 automated tests** using Vites
 | `tests/unit/exchangeRate.test.ts` | FX rate conversions and caching | 4 tests |
 | `tests/unit/cheapsharkBatch.test.ts` | CheapShark batch API chunking and response handling | 3 tests |
 | `tests/unit/v12_features.test.ts` | Deal Score v2 feature regression tests | 3 tests |
+| `tests/integration/csvExport.test.ts` | 14-column spreadsheet CSV export formatting and quoting | 2 tests |
 | `tests/unit/freeGamesAndViewModes.test.ts` | 100% free giveaways and filter view modes | 2 tests |
 
 ---
@@ -157,7 +160,7 @@ The project includes **18 test suites** with **186 automated tests** using Vites
 # Typecheck TypeScript (Clean / Strict)
 npm run typecheck
 
-# Run full Vitest test suite
+# Run full Vitest test suite (20 suites / 200 tests)
 npm test
 
 # Build client (Vite) and server (TypeScript)
@@ -172,11 +175,10 @@ npm run dev
 
 ---
 
-## 🚀 9. Current State & Recent Accomplishments
+## 🚀 9. Current State & Recent Accomplishments (v1.6.0)
 
-1. **Lone-Bottom Outlier Risk Engine:** Replaced fragile median-peer outlier flagging with a cross-sectional minimum comparator (`LONE_BOTTOM_OUTLIER`), ensuring tight keyshop clusters aren't misflagged as HIGH RISK.
-2. **Search & Filter UI Polish:** Fixed absolute positioning for `/` shortcut badge and clear button; expanded container padding and pill button click areas.
-3. **Adaptive AllKeyShop Scheduling:** Implemented per-game self-tuning check frequency (Option C) with exponential backoff (24h–336h), active target price pinning, and request-level User-Agent rotation.
-4. **Data Plumbing & Integration Fix:** Hydrated `getAllWishlistGameIds` and `getStaleWishlistGameIds` with all 5 scheduling state columns and added strongly-typed `WishlistSyncGame[]` worker signatures.
-5. **Client Hints Alignment:** Restricted `Sec-CH-UA` headers to Chromium browsers to avoid fingerprinting anomalies on Firefox/Safari.
-6. **Post-Enrichment Discord Dispatch:** Non-blocking secondary alert dispatch for freshly discovered keyshop deals.
+1. **v1 Anti-Rate-Limit REST API:** Created `/api/v1/offers/batch` (250-game multi-offer payload), `/api/v1/games/resolve` (bulk ID matching), ETag `304 Not Modified` caching, and RFC-compliant `X-RateLimit-*` headers.
+2. **Database Performance Indexing:** Added composite index `idx_offers_game_valid_price` on `offers(game_id, is_valid, price_eur)` for sort-free price scans and sub-millisecond batch query execution.
+3. **Corroborated Sub-Euro Glitch Detection:** Gated `SUB_EURO_PREMIUM_GLITCH` behind $\pm 30\%$ peer corroboration (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`), eliminating false-positive alarms on genuine sub-euro multi-store promotions.
+4. **Data Safety Deduplication & CSV Export:** Restricting anomaly log creation strictly to the game's canonical `is_best_deal` offer, and added full 14-column spreadsheet export (`GET /api/export/offers.csv`).
+5. **Adaptive AllKeyShop Scheduling (Option C):** Self-tuning check intervals (24h to 168h ceiling) with active target price fast-track override, 7–11s pacing, and rotating modern User-Agents with Chromium Client Hints (`Sec-CH-UA`).

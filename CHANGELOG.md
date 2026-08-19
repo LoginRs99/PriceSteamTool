@@ -5,6 +5,27 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-08-19
+
+### Added
+* **Anti-Rate-Limit v1 REST API (`/api/v1/*`)**:
+  * `POST /api/v1/offers/batch`: Batch pricing endpoint resolving up to 250 games in a single JSON payload.
+  * `POST /api/v1/games/resolve`: Bulk game lookup resolving Steam AppIDs and title queries.
+  * `GET /api/v1/games`: Catalog endpoint with pagination envelope and ETag `304 Not Modified` caching.
+  * `GET /api/v1/games/:id`: Supports both internal UUID and `steam:<appId>` path parameter lookups.
+  * `GET /api/v1/merchants`, `GET /api/v1/merchants/:id`, `POST / GET / DELETE /api/v1/alerts`, `GET /api/v1/quota`.
+  * Standard IETF rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-API-Version`).
+* **Database Performance & Composite Indexing**:
+  * Added composite index `idx_offers_game_valid_price` on `offers(game_id, is_valid, price_eur)` for sort-free index scans and sub-millisecond price resolution.
+* **Corroborated Sub-Euro Glitch Detection**:
+  * Gated `SUB_EURO_PREMIUM_GLITCH` behind $\pm 30\%$ peer corroboration check (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`), eliminating false positives on legitimate multi-store sub-euro deals.
+* **Data Safety Deduplication & CSV Export**:
+  * Gated anomaly logging strictly to winning `is_best_deal = 1` offers, preventing single games with multiple keyshop offers from flooding the safety log.
+  * Added complete 14-column spreadsheet CSV export (`GET /api/export/offers.csv`) with Export button in `AnomaliesView`.
+* **Adaptive AllKeyShop Scheduling & Stealth Hardening**:
+  * Dynamic exponential check backoff (24h to 168h ceiling) for stable prices with fast-track target price override.
+  * Rotating modern User-Agents with matching Chromium Client Hints (`Sec-CH-UA`).
+
 ---
 
 ## [1.4.0] - 2026-08-15
