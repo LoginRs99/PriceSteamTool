@@ -139,7 +139,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         onFilterChange({
           sort: 'best_value',
           buyOnly: true,
-          saleOnly: true,
+          saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
@@ -155,7 +155,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         onFilterChange({
           sort: 'best_value',
           minDealScore: 70,
-          saleOnly: true,
+          saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,
@@ -170,7 +170,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         onFilterChange({
           sort: 'deal_score_desc',
           minDealScore: 85,
-          saleOnly: true,
+          saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
           trustedOnly: false,

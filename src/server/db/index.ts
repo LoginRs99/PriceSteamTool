@@ -715,7 +715,7 @@ export const gameRepo = {
         AND bo.is_valid = 1
         AND bo.risk_level != 'HIGH'
         AND bo.is_anomaly = 0
-        AND bo.discount_percent > 0
+        AND (bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))
     `).all(profileId) as any[];
 
     const games = rows.map(mapGameRow);
@@ -753,7 +753,7 @@ export const gameRepo = {
     }
 
     if (options.saleOnly) {
-      whereClauses.push(`bo.discount_percent > 0`);
+      whereClauses.push(`(bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))`);
     }
 
     if (options.minDiscount !== undefined && options.minDiscount > 0) {
