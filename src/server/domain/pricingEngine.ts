@@ -162,8 +162,18 @@ export function calculatePriceRisk(
 
   // 1. Sub-euro / extreme ratio drop glitch check (<€1.00 or <5% of MSRP)
   if (currentPriceEur < 1.00 || (msrp > 0 && currentPriceEur < msrp * 0.05)) {
-    rawSeverity = Math.max(rawSeverity, 0.85);
-    flags.add('SUB_EURO_PREMIUM_GLITCH');
+    const peers = marketPricesEur.filter(p => p > 0);
+    const hasCorroboratingPeer = peers.some(p => (Math.abs(p - currentPriceEur) / currentPriceEur) <= 0.30001);
+
+    if (peers.length === 0 || !hasCorroboratingPeer) {
+      // No other source to compare against, or genuinely a lone outlier — treat as before.
+      rawSeverity = Math.max(rawSeverity, 0.85);
+      flags.add('SUB_EURO_PREMIUM_GLITCH');
+    } else {
+      // At least one other live offer agrees within 30% — likely a real, if steep, price. Downgrade.
+      rawSeverity = Math.max(rawSeverity, 0.35);
+      flags.add('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
+    }
   }
 
   // 2. Lone bottom outlier check (primary driver of HIGH risk for live market bottom outlier)

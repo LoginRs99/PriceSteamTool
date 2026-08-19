@@ -428,4 +428,64 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
     expect(res.riskLevel).toBe('HIGH');
     expect(res.isAnomaly).toBe(true);
   });
+
+  it('30. Sub-€1 offer with no marketPricesEur peers at all -> reaches HIGH risk with SUB_EURO_PREMIUM_GLITCH', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.50,
+      basePriceEur: 59.99,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: []
+    });
+
+    expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
+    expect(res.riskFlags).not.toContain('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
+    expect(res.riskLevel).toBe('HIGH');
+    expect(res.isAnomaly).toBe(true);
+  });
+
+  it('31. Sub-€1 offer with one peer 60%+ away (no corroboration) -> reaches HIGH risk with SUB_EURO_PREMIUM_GLITCH', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.50,
+      basePriceEur: 59.99,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [1.20] // (1.20 - 0.50) / 0.50 = 140% away
+    });
+
+    expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
+    expect(res.riskFlags).not.toContain('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
+    expect(res.riskLevel).toBe('HIGH');
+    expect(res.isAnomaly).toBe(true);
+  });
+
+  it('32. Sub-€1 offer with a peer within 30% -> does NOT reach HIGH risk, flag is SUB_EURO_PREMIUM_GLITCH_CORROBORATED', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.50,
+      basePriceEur: 59.99,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [0.60] // (0.60 - 0.50) / 0.50 = 20% away
+    });
+
+    expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
+    expect(res.riskFlags).not.toContain('SUB_EURO_PREMIUM_GLITCH');
+    expect(res.riskLevel).not.toBe('HIGH');
+    expect(res.isAnomaly).toBe(false);
+  });
+
+  it('33. Sub-€1 offer with a peer at exactly the 30% boundary -> corroborated (inclusive <= boundary)', () => {
+    const res = evaluatePriceMovement({
+      currentPriceEur: 0.50,
+      basePriceEur: 59.99,
+      isOfficialMerchant: false,
+      sourceAgreementCount: 1,
+      marketPricesEur: [0.65] // (0.65 - 0.50) / 0.50 = exactly 30%
+    });
+
+    expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
+    expect(res.riskFlags).not.toContain('SUB_EURO_PREMIUM_GLITCH');
+    expect(res.riskLevel).not.toBe('HIGH');
+    expect(res.isAnomaly).toBe(false);
+  });
 });

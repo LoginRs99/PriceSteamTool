@@ -31,6 +31,7 @@ export type PriceRiskFlag =
   | 'STALE_OBSERVATION'            // Stale observation (affects confidence, not pricing risk)
   | 'MISSING_MSRP_ANCHOR'          // No verified MSRP baseline available
   | 'SUB_EURO_PREMIUM_GLITCH'
+  | 'SUB_EURO_PREMIUM_GLITCH_CORROBORATED'
   | 'EXTREME_MEDIAN_OUTLIER'
   | 'LONE_BOTTOM_OUTLIER'
   | 'HISTORICAL_LOW_DISCREPANCY';
