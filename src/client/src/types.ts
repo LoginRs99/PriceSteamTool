@@ -34,7 +34,8 @@ export type PriceRiskFlag =
   | 'SUB_EURO_PREMIUM_GLITCH_CORROBORATED'
   | 'EXTREME_MEDIAN_OUTLIER'
   | 'LONE_BOTTOM_OUTLIER'
-  | 'HISTORICAL_LOW_DISCREPANCY';
+  | 'HISTORICAL_LOW_DISCREPANCY'
+  | 'SOURCE_OWN_HISTORY_BREAK';
 
 export interface PriceEvaluation {
   event: PriceEventType;

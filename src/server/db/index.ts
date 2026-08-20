@@ -1274,6 +1274,13 @@ export const offerRepo = {
         sourceCount = (obsCountRow?.c || 0) + (alreadyHasThisSource ? 0 : 1);
       }
 
+      const sourceHistoryRows = prepareStmt(`
+        SELECT price_eur FROM price_history 
+        WHERE game_id = ? AND merchant_id = ? 
+        ORDER BY recorded_at ASC
+      `).all(data.gameId, data.merchantId) as any[];
+      const sourceHistory = sourceHistoryRows.map(r => Number(r.price_eur));
+
       const lastHistory = prepareStmt(`
         SELECT price_eur, discount_percent FROM price_history 
         WHERE game_id = ? AND merchant_id = ? 
@@ -1287,6 +1294,7 @@ export const offerRepo = {
         historicalLowEur: gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
         previousPriceEur: lastHistory?.price_eur ? Number(lastHistory.price_eur) : undefined,
         marketPricesEur: marketPrices,
+        sourceHistoryEur: sourceHistory,
         sourceAgreementCount: Math.max(1, sourceCount),
         isOfficialMerchant: merchantInfo ? Boolean(merchantInfo.is_official) : true,
         merchantTrustScore: merchantInfo?.trust_score ? Number(merchantInfo.trust_score) : 1.0,

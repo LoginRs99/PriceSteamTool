@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluatePriceMovement } from '../../src/server/domain/pricingEngine.js';
+import { evaluatePriceMovement, evaluateSourceOwnHistoryAnomaly } from '../../src/server/domain/pricingEngine.js';
 
 describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
   // -------------------------------------------------------------
@@ -487,5 +487,82 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
     expect(res.riskFlags).not.toContain('SUB_EURO_PREMIUM_GLITCH');
     expect(res.riskLevel).not.toBe('HIGH');
     expect(res.isAnomaly).toBe(false);
+  });
+
+  // -------------------------------------------------------------
+  // Per-Source Own History Anomaly Check & Peer Fallback Suite
+  // -------------------------------------------------------------
+  describe('Per-Source Own History Anomaly Check & Fallback', () => {
+    it('34. evaluateSourceOwnHistoryAnomaly returns applicable: false when fewer than 3 observations', () => {
+      const emptyRes = evaluateSourceOwnHistoryAnomaly(10.00, []);
+      expect(emptyRes.applicable).toBe(false);
+      expect(emptyRes.isBreak).toBe(false);
+      expect(emptyRes.zScore).toBeNull();
+      expect(emptyRes.ownMedian).toBeNull();
+
+      const twoObsRes = evaluateSourceOwnHistoryAnomaly(10.00, [10.00, 10.50]);
+      expect(twoObsRes.applicable).toBe(false);
+      expect(twoObsRes.isBreak).toBe(false);
+    });
+
+    it('35. evaluateSourceOwnHistoryAnomaly returns applicable: true for exactly 3 observations (boundary)', () => {
+      const res = evaluateSourceOwnHistoryAnomaly(13.00, [13.00, 13.50, 12.80]);
+      expect(res.applicable).toBe(true);
+      expect(res.isBreak).toBe(false);
+      expect(res.ownMedian).toBe(13.00);
+      expect(res.zScore).toBeDefined();
+    });
+
+    it('36. Gears 5 case: merchant with 3+ stable observations matching current price -> SOURCE_OWN_HISTORY_BREAK does not fire and peer flags suppressed', () => {
+      // Keyshop consistently sells at ~€13, current price is €12.80. Official store peer is €39.99.
+      const res = evaluatePriceMovement({
+        currentPriceEur: 12.80,
+        basePriceEur: 39.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [12.99, 13.49, 13.10], // 3 prior observations ~€13
+        marketPricesEur: [39.99] // Official store peer is 3x higher (would trigger LONE_BOTTOM_OUTLIER if peer-based)
+      });
+
+      expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).not.toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.riskFlags).not.toContain('EXTREME_MEDIAN_OUTLIER');
+      expect(res.riskFlags).not.toContain('SOURCE_DISAGREEMENT');
+      expect(res.riskLevel).not.toBe('HIGH');
+      expect(res.isAnomaly).toBe(false);
+    });
+
+    it('37. Blue Prince / DOOM 3 case: merchant with 3+ stable observations near MSRP suddenly near-zero -> SOURCE_OWN_HISTORY_BREAK fires at HIGH severity', () => {
+      // Merchant was consistently ~€19.99, suddenly drops to €0.11
+      const res = evaluatePriceMovement({
+        currentPriceEur: 0.11,
+        basePriceEur: 19.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [19.99, 19.99, 18.99, 19.99], // Stable near ~€19.99
+        marketPricesEur: [19.99]
+      });
+
+      expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
+    });
+
+    it('38. Fallback path: fewer than 3 own observations -> peer-based LONE_BOTTOM_OUTLIER fires as before', () => {
+      // Only 1 prior observation -> not applicable for own-history check -> fallback peer check runs
+      const res = evaluatePriceMovement({
+        currentPriceEur: 10.00,
+        basePriceEur: 59.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [10.00], // < 3 observations
+        marketPricesEur: [45.00] // Second cheapest is €45 -> 10 < 45 * 0.55
+      });
+
+      expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
+    });
   });
 });
