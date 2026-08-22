@@ -457,5 +457,64 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         global.fetch = origFetch;
       }
     });
+
+    it('caches and reuses clearance cookies across consecutive Byparr solver requests', async () => {
+      const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://localhost:8191';
+        let secondRequestBody: any = null;
+        let callCount = 0;
+
+        global.fetch = (async (url: any, options: any) => {
+          callCount++;
+          if (callCount === 1) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                status: 'ok',
+                solution: {
+                  url: 'https://www.allkeyshop.com/api/call1',
+                  status: 200,
+                  cookies: [{ name: 'cf_clearance', value: 'secret_token_123', domain: '.allkeyshop.com' }],
+                  response: '{"status":"success"}'
+                }
+              })
+            } as any;
+          } else {
+            secondRequestBody = JSON.parse(options.body);
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                status: 'ok',
+                solution: {
+                  url: 'https://www.allkeyshop.com/api/call2',
+                  status: 200,
+                  response: '{"status":"success"}'
+                }
+              })
+            } as any;
+          }
+        }) as any;
+
+        // Call 1: establishes cookies
+        await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/call1', 5000);
+        // Call 2: should carry cached cookies in payload
+        await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/call2', 5000);
+
+        expect(secondRequestBody.cookies).toEqual([
+          { name: 'cf_clearance', value: 'secret_token_123', domain: '.allkeyshop.com' }
+        ]);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
   });
 });

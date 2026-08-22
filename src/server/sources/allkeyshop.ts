@@ -49,6 +49,21 @@ export function getAllkeyshopHeaders(uaOverride?: string): Record<string, string
   return headers;
 }
 
+interface SolverCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  expires?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: string;
+}
+
+let cachedSolverCookies: SolverCookie[] = [];
+let lastCookieTimestamp = 0;
+const COOKIE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 export async function fetchWithAllkeyshopSolver<T = any>(
   url: string, 
   timeoutMs: number = 15000
@@ -60,13 +75,20 @@ export async function fetchWithAllkeyshopSolver<T = any>(
     const baseEndpoint = solverUrl.replace(/\/+$/, '');
     const endpoint = baseEndpoint.endsWith('/v1') ? baseEndpoint : `${baseEndpoint}/v1`;
 
-    const payload = {
+    const now = Date.now();
+    const validCookies = (now - lastCookieTimestamp < COOKIE_TTL_MS) ? cachedSolverCookies : [];
+
+    const payload: Record<string, any> = {
       cmd: 'request.get',
       url,
       maxTimeout: Math.max(15000, timeoutMs),
       blockMedia: true,
       returnOnlyCookies: false
     };
+
+    if (validCookies.length > 0) {
+      payload.cookies = validCookies;
+    }
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -85,6 +107,11 @@ export async function fetchWithAllkeyshopSolver<T = any>(
 
     const data: any = await res.json();
     if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
+      if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
+        cachedSolverCookies = data.solution.cookies;
+        lastCookieTimestamp = Date.now();
+      }
+
       let resp = data.solution.response;
       if (typeof resp === 'string') {
         const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
