@@ -49,6 +49,77 @@ export function getAllkeyshopHeaders(uaOverride?: string): Record<string, string
   return headers;
 }
 
+export async function fetchWithAllkeyshopSolver<T = any>(
+  url: string, 
+  timeoutMs: number = 15000
+): Promise<T | null> {
+  const solverUrl = config.allkeyshopSolverUrl?.trim();
+  
+  if (solverUrl) {
+    // Normalise Byparr / FlareSolverr endpoint (e.g. http://localhost:8191 -> http://localhost:8191/v1)
+    const baseEndpoint = solverUrl.replace(/\/+$/, '');
+    const endpoint = baseEndpoint.endsWith('/v1') ? baseEndpoint : `${baseEndpoint}/v1`;
+
+    const payload = {
+      cmd: 'request.get',
+      url,
+      maxTimeout: Math.max(15000, timeoutMs),
+      blockMedia: true,
+      returnOnlyCookies: false
+    };
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs + 15000)
+    });
+
+    if (!res.ok) {
+      const err: any = new Error(`Byparr / FlareSolverr returned HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+
+    const data: any = await res.json();
+    if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
+      let resp = data.solution.response;
+      if (typeof resp === 'string') {
+        const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        if (jsonMatch) {
+          resp = jsonMatch[0];
+        }
+        return JSON.parse(resp) as T;
+      } else if (typeof resp === 'object' && resp !== null) {
+        return resp as T;
+      }
+    } else {
+      const solutionStatus = data?.solution?.status || 500;
+      const errMsg = data?.message || `Byparr challenge failed (status ${solutionStatus})`;
+      const err: any = new Error(errMsg);
+      err.status = solutionStatus;
+      throw err;
+    }
+  }
+
+  // Fallback: direct fetch with modern rotating browser headers
+  const res = await fetch(url, {
+    headers: getAllkeyshopHeaders(),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+
+  if (res.status === 403 || res.status === 429) {
+    const err: any = new Error(`AllKeyShop rate limit or challenge (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  if (!res.ok) return null;
+  return await res.json() as T;
+}
+
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
   public readonly name = 'AllKeyShop';
@@ -96,28 +167,22 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         console.warn('Could not read cached AllKeyShop catalog from disk:', err);
       }
 
-      // 3. Download fresh catalog from AllKeyShop with 10s timeout
+      // 3. Download fresh catalog from AllKeyShop with solver/fallback
       try {
         const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur';
-        const res = await fetch(url, {
-          headers: getAllkeyshopHeaders(),
-          signal: AbortSignal.timeout(10000)
-        });
+        const data: any = await fetchWithAllkeyshopSolver(url, 20000);
 
-        if (res.ok) {
-          const data: any = await res.json();
-          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
-            this.cachedCatalog = data.games;
-            this.lastCatalogFetch = Date.now();
-            try {
-              const dataDir = path.dirname(this.catalogPath);
-              if (!fs.existsSync(dataDir)) {
-                fs.mkdirSync(dataDir, { recursive: true });
-              }
-              fs.writeFileSync(this.catalogPath, JSON.stringify(data), 'utf8');
-            } catch {}
-            return this.cachedCatalog || [];
-          }
+        if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+          this.cachedCatalog = data.games;
+          this.lastCatalogFetch = Date.now();
+          try {
+            const dataDir = path.dirname(this.catalogPath);
+            if (!fs.existsSync(dataDir)) {
+              fs.mkdirSync(dataDir, { recursive: true });
+            }
+            fs.writeFileSync(this.catalogPath, JSON.stringify(data), 'utf8');
+          } catch {}
+          return this.cachedCatalog || [];
         }
       } catch (err: any) {
         console.warn('Failed to download AllKeyShop catalog:', err.message);
@@ -199,20 +264,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         }
 
         const priceApiUrl = `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`;
-        const res = await fetch(priceApiUrl, {
-          headers: getAllkeyshopHeaders(),
-          signal: AbortSignal.timeout(8000)
-        });
+        const raw: any = await fetchWithAllkeyshopSolver(priceApiUrl, 15000);
+        if (!raw) return offers;
 
-        if (res.status === 403 || res.status === 429) {
-          const err: any = new Error(`AllKeyShop rate limit or challenge (${res.status})`);
-          err.status = res.status;
-          throw err;
-        }
-
-        if (!res.ok) return offers;
-
-        const raw: any = await res.json();
         const resolveName = (dict: any, id: any) => dict?.[String(id)]?.name ?? '';
         const officialMerchantIds: number[] = Array.isArray(raw?.officialMerchants) ? raw.officialMerchants : [];
 

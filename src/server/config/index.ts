@@ -42,6 +42,7 @@ export const config = {
   autoSyncEnabled: process.env.AUTO_SYNC_ENABLED !== 'false',
   autoSyncIntervalHours: parseInt(process.env.AUTO_SYNC_INTERVAL_HOURS || '6', 10),
   allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '30', 10), // default cap per enrichment run; 0 = unlimited (not recommended)
+  allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '', // Byparr / FlareSolverr anti-bot solver (e.g. http://localhost:8191)
 
   // Region preferences (default: Hungary / EU / Global)
   preferredCountry: 'HU',

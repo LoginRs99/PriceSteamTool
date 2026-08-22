@@ -373,4 +373,89 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       expect(calculateExponentialJitter(0)).toBe(0);
     });
   });
+
+  describe('6. fetchWithAllkeyshopSolver (Byparr / FlareSolverr Anti-Bot Integration)', () => {
+    it('calls Byparr /v1 endpoint with request.get payload when solverUrl is configured', async () => {
+      const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://localhost:8191';
+        let capturedUrl = '';
+        let capturedBody: any = null;
+
+        global.fetch = (async (url: any, options: any) => {
+          capturedUrl = String(url);
+          capturedBody = JSON.parse(options.body);
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              status: 'ok',
+              message: 'Challenge not detected',
+              solution: {
+                url: 'https://www.allkeyshop.com/api/test',
+                status: 200,
+                response: '{"status":"success","games":[{"id":123,"name":"Test Game"}]}'
+              }
+            })
+          } as any;
+        }) as any;
+
+        const res: any = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 10000);
+
+        expect(capturedUrl).toBe('http://localhost:8191/v1');
+        expect(capturedBody).toEqual({
+          cmd: 'request.get',
+          url: 'https://www.allkeyshop.com/api/test',
+          maxTimeout: 15000,
+          blockMedia: true,
+          returnOnlyCookies: false
+        });
+        expect(res).toEqual({
+          status: 'success',
+          games: [{ id: 123, name: 'Test Game' }]
+        });
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
+
+    it('falls back to direct fetch when solverUrl is empty', async () => {
+      const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = '';
+        let capturedUrl = '';
+        let capturedHeaders: any = null;
+
+        global.fetch = (async (url: any, options: any) => {
+          capturedUrl = String(url);
+          capturedHeaders = options.headers;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'success', data: 'direct' })
+          } as any;
+        }) as any;
+
+        const res: any = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/direct-test', 5000);
+
+        expect(capturedUrl).toBe('https://www.allkeyshop.com/api/direct-test');
+        expect(capturedHeaders['User-Agent']).toBeDefined();
+        expect(res).toEqual({ status: 'success', data: 'direct' });
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
+  });
 });
