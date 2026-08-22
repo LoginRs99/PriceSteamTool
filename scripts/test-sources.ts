@@ -27,6 +27,7 @@ async function runLiveSourceDiagnostics() {
   console.log(` - STEAM_API_KEY:    ${maskKey(config.steamApiKey)}`);
   console.log(` - ITAD_API_KEY:     ${maskKey(config.itadApiKey)}`);
   console.log(` - GGDEALS_API_KEY:  ${maskKey(config.ggdealsApiKey)}`);
+  console.log(` - BYPARR / SOLVER:  ${config.allkeyshopSolverUrl || '(not set - using direct fetch)'}`);
   console.log(` - Preferred Country: ${config.preferredCountry}`);
   console.log('======================================================\n');
 
