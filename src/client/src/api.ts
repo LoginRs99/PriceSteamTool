@@ -103,6 +103,33 @@ export const api = {
     return res.json();
   },
 
+  async getAllkeyshopCandidates(id: string): Promise<{
+    gameId: string;
+    title: string;
+    steamAppId: number;
+    currentOverride: string | number | null;
+    candidates: { id: number; name: string; slug?: string }[];
+  }> {
+    const res = await fetch(`${API_BASE}/games/${id}/allkeyshop-candidates`);
+    if (!res.ok) throw new Error('Failed to load AllKeyShop candidates');
+    return res.json();
+  },
+
+  async setAllkeyshopOverride(id: string, override: string | number | null): Promise<{
+    success: boolean;
+    gameId: string;
+    override: string | number | null;
+    offersUpdated: number;
+  }> {
+    const res = await fetch(`${API_BASE}/games/${id}/allkeyshop-override`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ override })
+    });
+    if (!res.ok) throw new Error('Failed to set AllKeyShop override');
+    return res.json();
+  },
+
   // Sync
   async startSync(options: { forceRefresh?: boolean; sources?: SourceCode[] } = {}): Promise<SyncProgressUpdate> {
     const res = await fetch(`${API_BASE}/sync/start`, {

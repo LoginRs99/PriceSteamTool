@@ -446,4 +446,99 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     return { success: true, message: 'Test message sent to Discord successfully!' };
   });
+
+  // ----------------------------------------------------
+  // AllKeyShop Candidate Discovery & Custom Match Override
+  // ----------------------------------------------------
+  fastify.get('/api/games/:id/allkeyshop-candidates', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = gameRepo.getById(id);
+    if (!game) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+
+    const { allkeyshopAdapter, findCandidateGamesInCatalog, loadCustomMappings } = await import('../sources/allkeyshop.js');
+    const catalog = await allkeyshopAdapter.ensureCatalog();
+    const mappings = loadCustomMappings();
+    const currentOverride = mappings[String(game.steamAppId)] || mappings[game.title] || null;
+
+    const candidates = findCandidateGamesInCatalog(catalog, game.title, game.steamAppId, game.releaseDate);
+
+    return {
+      gameId: game.id,
+      title: game.title,
+      steamAppId: game.steamAppId,
+      currentOverride,
+      candidates
+    };
+  });
+
+  fastify.post('/api/games/:id/allkeyshop-override', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = gameRepo.getById(id);
+    if (!game) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+
+    const schema = z.object({
+      override: z.union([z.string(), z.number(), z.null()]).optional()
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.message });
+    }
+
+    const { saveCustomMapping, allkeyshopAdapter } = await import('../sources/allkeyshop.js');
+    const { normalizeProductType, normalizeRegion } = await import('../domain/normalizer.js');
+    const { merchantRepo, offerRepo } = await import('../db/index.js');
+
+    saveCustomMapping(game.steamAppId, parsed.data.override ?? null);
+
+    let offersCount = 0;
+    if (parsed.data.override !== null && allkeyshopAdapter.isEnabled()) {
+      try {
+        const freshOffers = await allkeyshopAdapter.fetchPricesForGame(
+          game.steamAppId, 
+          game.title, 
+          game.itadId, 
+          game.releaseDate
+        );
+        for (const rawOffer of freshOffers) {
+          const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
+          if (!productNorm.isValid) continue;
+          const regionNorm = normalizeRegion(rawOffer.regionRaw);
+          if (!regionNorm.isValid) continue;
+          const merchant = merchantRepo.getOrCreate(rawOffer.merchantCode, rawOffer.merchantName, rawOffer.isOfficial, rawOffer.dealUrl);
+          offerRepo.upsertOffer({
+            gameId: game.id,
+            merchantId: merchant.id,
+            productType: productNorm.productType,
+            regionType: regionNorm.regionType,
+            regionCode: regionNorm.regionCode,
+            regionConfidence: regionNorm.regionConfidence,
+            priceEur: rawOffer.priceEur,
+            originalPriceEur: rawOffer.originalPriceEur,
+            rawPrice: rawOffer.rawPrice,
+            rawCurrency: rawOffer.rawCurrency,
+            rawOriginalPrice: rawOffer.rawOriginalPrice,
+            voucherCode: rawOffer.voucherCode,
+            dealUrl: rawOffer.dealUrl,
+            isValid: true,
+            sourceCode: 'allkeyshop'
+          });
+          offersCount++;
+        }
+      } catch (err: any) {
+        console.warn('Failed to refresh AllKeyShop prices after override:', err.message);
+      }
+    }
+
+    return {
+      success: true,
+      gameId: game.id,
+      override: parsed.data.override ?? null,
+      offersUpdated: offersCount
+    };
+  });
 };

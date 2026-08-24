@@ -153,7 +153,7 @@ function extractYear(text?: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
-function loadCustomMappings(): Record<string, string | number> {
+export function loadCustomMappings(): Record<string, string | number> {
   const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
   try {
     if (fs.existsSync(mappingPath)) {
@@ -162,6 +162,31 @@ function loadCustomMappings(): Record<string, string | number> {
     }
   } catch {}
   return {};
+}
+
+export function saveCustomMapping(steamAppId: number | string, value: string | number | null): void {
+  const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
+  try {
+    const dataDir = path.dirname(mappingPath);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    let mappings: Record<string, string | number> = {};
+    if (fs.existsSync(mappingPath)) {
+      try {
+        mappings = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
+      } catch {}
+    }
+    const key = String(steamAppId);
+    if (value === null || value === undefined || value === '') {
+      delete mappings[key];
+    } else {
+      mappings[key] = value;
+    }
+    fs.writeFileSync(mappingPath, JSON.stringify(mappings, null, 2), 'utf8');
+  } catch (err: any) {
+    console.error('Failed to save AllKeyShop mapping override:', err);
+  }
 }
 
 export function findCandidateGamesInCatalog(
@@ -283,7 +308,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return config.allkeyshopEnabled;
   }
 
-  private async ensureCatalog(): Promise<CatalogGame[]> {
+  public async ensureCatalog(): Promise<CatalogGame[]> {
     const now = Date.now();
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 

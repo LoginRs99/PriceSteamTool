@@ -565,6 +565,26 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       expect(candidates.length).toBe(1);
       expect(candidates[0].id).toBe(2);
     });
+
+    it('persists and respects manual AllKeyShop mapping overrides', async () => {
+      const { findCandidateGamesInCatalog, saveCustomMapping } = await import('../../src/server/sources/allkeyshop.js');
+      const catalog = [
+        { id: 501, name: 'Judas' },
+        { id: 502, name: 'Judas 2' }
+      ];
+
+      // Set manual override for AppID 1778820 to 502 (Judas 2)
+      saveCustomMapping(1778820, 502);
+
+      const candidates = findCandidateGamesInCatalog(catalog, 'Judas', 1778820);
+      expect(candidates.length).toBe(1);
+      expect(candidates[0].id).toBe(502);
+
+      // Clean up override
+      saveCustomMapping(1778820, null);
+      const resetCandidates = findCandidateGamesInCatalog(catalog, 'Judas', 1778820);
+      expect(resetCandidates.length).toBe(2);
+    });
   });
 });
 
