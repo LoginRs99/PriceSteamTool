@@ -480,10 +480,11 @@ export function calculateMarketComparison(
 
   if (compatible.length === 0) {
     const p = currentBestOffer?.priceEur || 0;
+    const isTrusted = Boolean(currentBestOffer && !currentBestOffer.isAnomaly && currentBestOffer.riskLevel !== 'HIGH');
     return {
       marketMedianEur: p,
       minOfficialPriceEur: currentBestOffer?.isOfficial ? p : undefined,
-      minTrustedPriceEur: p,
+      minTrustedPriceEur: isTrusted ? p : undefined,
       totalCompatibleOffers: currentBestOffer ? 1 : 0,
       currentRank: 1,
       percentBelowMarketMedian: 0
@@ -721,7 +722,7 @@ export function buildPriceChartData(
  * Helper: simple min/max interval downsampling preserving peaks and valleys
  */
 function downsamplePoints(points: PriceChartPoint[], targetCount: number): PriceChartPoint[] {
-  if (points.length <= targetCount) return points;
+  if (targetCount <= 2 || points.length <= targetCount) return points;
   const result: PriceChartPoint[] = [points[0]];
   const bucketSize = (points.length - 2) / (targetCount - 2);
 

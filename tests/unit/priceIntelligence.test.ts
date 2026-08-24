@@ -240,6 +240,18 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
       expect(res.marketMedianEur).toBe(31.49);
       expect(res.currentRank).toBe(1);
     });
+
+    it('sets minTrustedPriceEur to undefined when only compatible offers are anomalies', () => {
+      const anomalyOffer: Offer = {
+        ...sampleOffer,
+        isAnomaly: true,
+        riskLevel: 'HIGH',
+        priceEur: 0.99
+      };
+      const res = calculateMarketComparison([anomalyOffer], anomalyOffer);
+      expect(res.minTrustedPriceEur).toBeUndefined();
+      expect(res.totalCompatibleOffers).toBe(1);
+    });
   });
 
   describe('6. Purchase Advice Precedence', () => {
