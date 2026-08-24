@@ -119,6 +119,15 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
     const jsonSteam = JSON.parse(resSteam.body);
     expect(jsonSteam.id).toBe(g.id);
     expect(jsonSteam.historicalLowEur).toBe(14.99);
+
+    // Lookup by direct numeric AppID
+    const resNumeric = await app.inject({
+      method: 'GET',
+      url: '/api/v1/games/1091500'
+    });
+    expect(resNumeric.statusCode).toBe(200);
+    const jsonNumeric = JSON.parse(resNumeric.body);
+    expect(jsonNumeric.id).toBe(g.id);
   });
 
   it('4. POST /api/v1/games/resolve handles bulk AppID and title matching', async () => {

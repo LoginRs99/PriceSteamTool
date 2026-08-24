@@ -8,6 +8,18 @@ import {
 } from '../db/index.js';
 import type { Game, Offer, PriceHistoryEntry } from '../../shared/types.js';
 
+function resolveGame(id: string): Game | null {
+  if (id.startsWith('steam:')) {
+    const appId = parseInt(id.replace('steam:', ''), 10);
+    return !isNaN(appId) ? gameRepo.getBySteamAppId(appId) : null;
+  }
+  if (/^\d+$/.test(id)) {
+    const byAppId = gameRepo.getBySteamAppId(parseInt(id, 10));
+    if (byAppId) return byAppId;
+  }
+  return gameRepo.getById(id);
+}
+
 export const v1Routes: FastifyPluginAsync = async (fastify) => {
 
   // Standard IETF & Custom RateLimit and Diagnostics Headers Hook for /api/v1/*
@@ -80,16 +92,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/games/:id
   fastify.get('/api/v1/games/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    
-    let game: Game | null = null;
-    if (id.startsWith('steam:')) {
-      const appId = parseInt(id.replace('steam:', ''), 10);
-      if (!isNaN(appId)) {
-        game = gameRepo.getBySteamAppId(appId);
-      }
-    } else {
-      game = gameRepo.getById(id);
-    }
+    const game = resolveGame(id);
 
     if (!game) {
       return reply.status(404).send({ error: 'Game not found' });
@@ -141,16 +144,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     const query = request.query as any;
     const onlyOfficial = query.official_only === 'true' || query.official_only === true;
-
-    let game: Game | null = null;
-    if (id.startsWith('steam:')) {
-      const appId = parseInt(id.replace('steam:', ''), 10);
-      if (!isNaN(appId)) {
-        game = gameRepo.getBySteamAppId(appId);
-      }
-    } else {
-      game = gameRepo.getById(id);
-    }
+    const game = resolveGame(id);
 
     if (!game) {
       return reply.status(404).send({ error: 'Game not found' });
@@ -229,15 +223,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
     const query = request.query as any;
     const limit = Math.min(365, Math.max(1, parseInt(query.days || '90', 10)));
 
-    let game: Game | null = null;
-    if (id.startsWith('steam:')) {
-      const appId = parseInt(id.replace('steam:', ''), 10);
-      if (!isNaN(appId)) {
-        game = gameRepo.getBySteamAppId(appId);
-      }
-    } else {
-      game = gameRepo.getById(id);
-    }
+    const game = resolveGame(id);
 
     if (!game) {
       return reply.status(404).send({ error: 'Game not found' });
