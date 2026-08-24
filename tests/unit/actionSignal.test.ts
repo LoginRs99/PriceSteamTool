@@ -57,6 +57,8 @@ describe('Action Signal & Discount Cycle Engine', () => {
       expect(signal.urgency).toBe('HIGH');
       expect(signal.badgeColor).toBe('#10b981');
       expect(signal.expectedSaleTargetEur).toBe(24.99);
+      expect(signal.primaryReason).toContain('Exceptional buying opportunity');
+      expect(signal.timingContext).toContain('immediate purchase strongly recommended');
     });
 
     it('should assign BUY for solid score and medium confidence', () => {

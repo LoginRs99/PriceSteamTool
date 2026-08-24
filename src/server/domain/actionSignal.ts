@@ -222,9 +222,9 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
       badgeColor: '#64748b',
       urgency: 'LOW',
       primaryReason: isAnomaly 
-        ? 'Az ár rendkívüli statisztikai eltérést vagy gyanús anomáliát mutat, kézi ellenőrzés javasolt.'
-        : 'Kevés történelmi adat áll rendelkezésre a megbízható döntéshez; az árképzés még előzetes státuszú.',
-      timingContext: 'További árfigyelés szükséges a trend megbízható megállapításához.',
+        ? 'Price exhibits extreme statistical deviation or anomaly; manual verification recommended.'
+        : 'Insufficient price history for reliable decision; pricing remains provisional.',
+      timingContext: 'Further price tracking required to establish reliable trend.',
       expectedSaleTargetEur,
       expectedSaleMinEur,
       expectedSaleMaxEur,
@@ -242,8 +242,8 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
   // 2. STRONG BUY: Exceptional deal with reliable data
   if (dealScore >= 85 && confidenceScore >= 50) {
     const reason = isNearAtl
-      ? `Kiemelkedő vételi lehetőség: az ár eléri vagy megközelíti a valaha mért legalacsonyabb szintet (€${historicalLowEur?.toFixed(2)}).`
-      : `Kivételes akció: az ár jelentősen a tipikus €${typicalSaleMedianEur?.toFixed(2)} akciós medián alatt van.`;
+      ? `Exceptional buying opportunity: price matches or approaches all-time low (€${historicalLowEur?.toFixed(2)}).`
+      : `Outstanding deal: price is significantly below the typical sale median of €${typicalSaleMedianEur?.toFixed(2)}.`;
 
     return {
       decision: 'STRONG_BUY',
@@ -251,7 +251,7 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
       badgeColor: '#10b981',
       urgency: 'HIGH',
       primaryReason: reason,
-      timingContext: 'Ritkán elérhető kedvezmény, azonnali vásárlásra erősen ajánlott.',
+      timingContext: 'Rarely discounted to this level; immediate purchase strongly recommended.',
       expectedSaleTargetEur,
       expectedSaleMinEur,
       expectedSaleMaxEur,
@@ -267,8 +267,8 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
   if (dealScore >= 70 && confidenceScore >= 35) {
     const savingVsMedian = typicalSaleMedianEur ? (typicalSaleMedianEur - currentPriceEur) : 0;
     const reason = savingVsMedian > 0
-      ? `Kedvező ajánlat: €${savingVsMedian.toFixed(2)}-val olcsóbb, mint a játék szokásos €${typicalSaleMedianEur?.toFixed(2)}-s akciós ára.`
-      : 'Erős leárazás a korábbi árelőzményekhez képest.';
+      ? `Great offer: €${savingVsMedian.toFixed(2)} cheaper than the customary sale price of €${typicalSaleMedianEur?.toFixed(2)}.`
+      : 'Substantial discount compared to historical pricing.';
 
     return {
       decision: 'BUY',
@@ -276,7 +276,7 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
       badgeColor: '#06b6d4',
       urgency: 'MEDIUM',
       primaryReason: reason,
-      timingContext: 'Kifejezetten jó ár a megszokott leárazási sávhoz képest.',
+      timingContext: 'Solid discount relative to typical sale ranges.',
       expectedSaleTargetEur,
       expectedSaleMinEur,
       expectedSaleMaxEur,
@@ -295,8 +295,8 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
       badgeLabel: 'Wait (Steam Sale)',
       badgeColor: '#f59e0b',
       urgency: 'LOW',
-      primaryReason: `Hamarosan (${upcomingEvent.daysUntil} nap múlva) kezdődik a ${upcomingEvent.name}, ahol a játék várhatóan mélyebb akciót kap.`,
-      timingContext: `Érdemes megvárni a ${upcomingEvent.name}-t a vásárlással.`,
+      primaryReason: `Upcoming ${upcomingEvent.name} in ${upcomingEvent.daysUntil} day(s), where deeper discounts are expected.`,
+      timingContext: `Recommended to wait for ${upcomingEvent.name} before purchasing.`,
       expectedSaleTargetEur,
       expectedSaleMinEur,
       expectedSaleMaxEur,
@@ -317,15 +317,15 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
     currentPriceEur >= typicalSaleMedianEur * 0.95
   ) {
     const timingDesc = cycleInfo.isSaleOverdue
-      ? `A játék átlagosan ${cycleInfo.avgDaysBetweenSales} naponta le van árazva (${cycleInfo.daysSinceLastSale} napja volt utoljára) — új akció hamarosan esedékes.`
-      : `A játék gyakran (${cycleInfo.avgDaysBetweenSales} naponta) akciós, a várható akciós célár ~€${expectedSaleTargetEur?.toFixed(2)}.`;
+      ? `Game discounts every ~${cycleInfo.avgDaysBetweenSales} days (${cycleInfo.daysSinceLastSale} days since last discount) — new sale expected soon.`
+      : `Game discounts frequently (~every ${cycleInfo.avgDaysBetweenSales} days); target sale price is ~€${expectedSaleTargetEur?.toFixed(2)}.`;
 
     return {
       decision: 'WAIT',
       badgeLabel: 'Wait for Sale',
       badgeColor: '#f59e0b',
       urgency: 'LOW',
-      primaryReason: `Rendszeresen leárazott cím. Jelenleg nem éri meg megvenni, mert gyakran elérhető €${expectedSaleTargetEur?.toFixed(2)} körüli áron.`,
+      primaryReason: `Regularly discounted title. Not optimal to buy now; frequently on sale around €${expectedSaleTargetEur?.toFixed(2)}.`,
       timingContext: timingDesc,
       expectedSaleTargetEur,
       expectedSaleMinEur,
@@ -345,10 +345,10 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
       badgeLabel: 'Fair Price',
       badgeColor: '#3b82f6',
       urgency: 'LOW',
-      primaryReason: 'Elfogadható átlagos akciós ár, de nem rendkívüli alkalom.',
+      primaryReason: 'Standard discount price, but not an exceptional drop.',
       timingContext: expectedSaleTargetEur 
-        ? `A játék korábban már elérhető volt €${expectedSaleTargetEur.toFixed(2)} céláron is.` 
-        : 'Nem sürgős vétel, de elfogadható árszint.',
+        ? `Game has previously reached a target price of €${expectedSaleTargetEur.toFixed(2)}.` 
+        : 'Acceptable price level, but no rush to buy.',
       expectedSaleTargetEur,
       expectedSaleMinEur,
       expectedSaleMaxEur,
@@ -366,10 +366,10 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
     badgeLabel: 'Hold / Base Price',
     badgeColor: '#64748b',
     urgency: 'LOW',
-    primaryReason: 'A játék jelenleg teljes alapáron vagy minimális kedvezménnyel érhető el.',
+    primaryReason: 'Game is currently at full base price or minimal discount.',
     timingContext: expectedSaleTargetEur 
-      ? `Érdemes várni a következő akcióra, várható célár: €${expectedSaleTargetEur.toFixed(2)}.` 
-      : 'Várj egy hivatalos akcióra a vásárlás előtt.',
+      ? `Hold for the next sale; expected target price is ~€${expectedSaleTargetEur.toFixed(2)}.` 
+      : 'Wait for an official discount before purchasing.',
     expectedSaleTargetEur,
     expectedSaleMinEur,
     expectedSaleMaxEur,
