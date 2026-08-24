@@ -27,6 +27,16 @@
   --accent-blue: #3b82f6;
   --accent-blue-dim: rgba(59, 130, 246, 0.15);
 
+  --accent-purple: #8b5cf6;
+  --accent-purple-dim: rgba(139, 92, 246, 0.15);
+
+  --glow-primary: 0 0 20px rgba(16, 185, 129, 0.25);
+  --glow-exceptional: 0 0 20px rgba(139, 92, 246, 0.35);
+  --glow-atl: 0 0 16px rgba(245, 158, 11, 0.35);
+
+  --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -2197,4 +2207,155 @@ input:checked + .toggle-slider:before {
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   display: inline-block;
+}
+
+/* ==========================================================================
+   Visual Refresh: Deal Badges, Ribbons, & Micro-Interactions
+   ========================================================================== */
+
+.deal-badge-cluster {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 4;
+}
+
+.deal-ribbon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  letter-spacing: -0.2px;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
+}
+
+.deal-ribbon-discount {
+  background: var(--accent-primary);
+  color: #022c22;
+}
+
+.deal-ribbon-atl {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #451a03;
+  box-shadow: var(--glow-atl);
+}
+
+.deal-ribbon-target {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: #ffffff;
+  box-shadow: var(--glow-exceptional);
+}
+
+/* Quick Action Buttons on Game Cards */
+.game-card-quick-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 4;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s var(--transition-smooth), transform 0.2s var(--transition-smooth);
+}
+
+.game-card:hover .game-card-quick-actions,
+.game-card:focus-within .game-card-quick-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Touch & Mobile Fallback: always show quick actions when hover is not supported */
+@media (hover: none) {
+  .game-card-quick-actions {
+    opacity: 0.95;
+    transform: translateY(0);
+  }
+}
+
+.quick-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: rgba(14, 19, 31, 0.85);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.18s var(--transition-smooth);
+}
+
+.quick-action-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  transform: scale(1.08);
+}
+
+.quick-action-btn:active {
+  transform: scale(0.92);
+}
+
+.quick-action-btn.active-pop {
+  animation: heart-pop 0.35s var(--transition-bounce);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+/* Micro-Animation Keyframes */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+@keyframes deal-glow-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(139, 92, 246, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.6); }
+}
+
+.glow-pulse-exceptional {
+  animation: deal-glow-pulse 2.8s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   Accessibility: prefers-reduced-motion
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .game-card:hover {
+    transform: none !important;
+  }
+
+  .game-card-quick-actions {
+    transform: none !important;
+  }
+
+  .glow-pulse-exceptional {
+    animation: none !important;
+  }
+
+  .quick-action-btn.active-pop {
+    animation: none !important;
+  }
 }
