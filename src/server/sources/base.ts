@@ -28,7 +28,8 @@ export interface PriceSourceAdapter {
   fetchPricesForGame(
     steamAppId: number, 
     gameTitle: string, 
-    itadId?: string
+    itadId?: string,
+    releaseDate?: string
   ): Promise<NormalizedSourceOffer[]>;
 
   fetchBatchPrices?(

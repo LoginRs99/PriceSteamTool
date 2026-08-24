@@ -147,6 +147,127 @@ export async function fetchWithAllkeyshopSolver<T = any>(
   return await res.json() as T;
 }
 
+function extractYear(text?: string): number | null {
+  if (!text) return null;
+  const match = text.match(/\b(19\d\d|20\d\d)\b/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function loadCustomMappings(): Record<string, string | number> {
+  const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
+  try {
+    if (fs.existsSync(mappingPath)) {
+      const content = fs.readFileSync(mappingPath, 'utf8');
+      return JSON.parse(content);
+    }
+  } catch {}
+  return {};
+}
+
+export function findCandidateGamesInCatalog(
+  catalog: CatalogGame[], 
+  gameTitle: string,
+  steamAppId?: number,
+  releaseDate?: string
+): CatalogGame[] {
+  if (!catalog || catalog.length === 0) return [];
+
+  // 1. Check custom overrides mapping first (data/allkeyshop_mapping.json)
+  const mappings = loadCustomMappings();
+  const overrideKey = steamAppId ? String(steamAppId) : null;
+  const rawOverride = (overrideKey && mappings[overrideKey]) || mappings[gameTitle] || mappings[gameTitle.toLowerCase()];
+
+  if (rawOverride) {
+    if (typeof rawOverride === 'number') {
+      const matched = catalog.find(g => g.id === rawOverride);
+      if (matched) return [matched];
+      return [{ id: rawOverride, name: gameTitle }];
+    } else if (typeof rawOverride === 'string') {
+      if (/^\d+$/.test(rawOverride)) {
+        const idNum = parseInt(rawOverride, 10);
+        const matched = catalog.find(g => g.id === idNum);
+        if (matched) return [matched];
+        return [{ id: idNum, name: gameTitle }];
+      }
+      const slug = rawOverride.replace(/^https?:\/\/[^/]+\/blog\//, '').replace(/\/+$/, '');
+      const matched = catalog.find(g => g.slug === slug || g.name.toLowerCase() === slug.toLowerCase());
+      if (matched) return [matched];
+      return [{ id: 0, name: gameTitle, slug }];
+    }
+  }
+
+  const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!cleanTarget) return [];
+  const targetNumbers = cleanTarget.match(/\d+/g)?.join('') || '';
+  const steamReleaseYear = extractYear(releaseDate) || extractYear(gameTitle);
+
+  const cleanNumbers = (str: string): string => str.match(/\d+/g)?.join('') || '';
+
+  const candidates: { game: CatalogGame; score: number }[] = [];
+
+  for (const g of catalog) {
+    if (!g.name) continue;
+    const cleanG = g.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const gNumbers = cleanNumbers(cleanG);
+    const gYear = extractYear(g.name);
+
+    // Filter out mismatched major release years (e.g. Screamer 1995 when Steam release is 2026)
+    if (steamReleaseYear && gYear && Math.abs(steamReleaseYear - gYear) > 2) {
+      continue;
+    }
+
+    // 1. Exact match with release year appended (e.g. Screamer 2026 when steamReleaseYear is 2026)
+    if (steamReleaseYear && cleanG === `${cleanTarget}${steamReleaseYear}`) {
+      candidates.push({ game: g, score: 100 });
+      continue;
+    }
+
+    // 2. Exact match
+    if (cleanG === cleanTarget) {
+      candidates.push({ game: g, score: 80 });
+      continue;
+    }
+
+    // 3. Suffix match (e.g. Judas 2, Judas (2), Judas Edition)
+    if (cleanG.startsWith(cleanTarget)) {
+      const suffix = cleanG.slice(cleanTarget.length);
+      if (/^(2|3|4|edition|deluxe|standard|goty|remastered|reboot|vr)*$/.test(suffix)) {
+        candidates.push({ game: g, score: 75 });
+        continue;
+      }
+    }
+
+    // 4. Base game match (strip standard/deluxe/goty/edition keywords)
+    const baseTarget = cleanTarget
+      .replace(/standardedition/g, '')
+      .replace(/deluxeedition/g, '')
+      .replace(/gameoftheyearedition/g, '')
+      .replace(/gotyedition/g, '')
+      .replace(/goty/g, '')
+      .replace(/edition/g, '');
+
+    if (baseTarget.length >= 4 && (gNumbers === targetNumbers)) {
+      if (cleanG === baseTarget || cleanG === `${baseTarget}edition` || cleanG === `${baseTarget}deluxe` || cleanG === `${baseTarget}2`) {
+        candidates.push({ game: g, score: 60 });
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+
+  const seenIds = new Set<number>();
+  const results: CatalogGame[] = [];
+  for (const c of candidates) {
+    if (!seenIds.has(c.game.id)) {
+      seenIds.add(c.game.id);
+      results.push(c.game);
+      if (results.length >= 4) break;
+    }
+  }
+
+  return results;
+}
+
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
   public readonly name = 'AllKeyShop';
@@ -179,24 +300,22 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       // 2. Check local disk cache
       try {
         if (fs.existsSync(this.catalogPath)) {
-          const stats = fs.statSync(this.catalogPath);
-          if ((now - stats.mtimeMs) < ONE_DAY_MS) {
+          const stat = fs.statSync(this.catalogPath);
+          if (now - stat.mtimeMs < ONE_DAY_MS) {
             const raw = fs.readFileSync(this.catalogPath, 'utf8');
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed?.games) && parsed.games.length > 0) {
-              this.cachedCatalog = parsed.games;
-              this.lastCatalogFetch = stats.mtimeMs;
-              return parsed.games;
+            const data = JSON.parse(raw);
+            if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+              this.cachedCatalog = data.games;
+              this.lastCatalogFetch = stat.mtimeMs;
+              return this.cachedCatalog || [];
             }
           }
         }
-      } catch (err) {
-        console.warn('Could not read cached AllKeyShop catalog from disk:', err);
-      }
+      } catch {}
 
-      // 3. Download fresh catalog from AllKeyShop with solver/fallback
+      // 3. Remote download via FlareSolverr/Byparr or direct fetch
       try {
-        const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&currency=eur';
+        const url = 'https://www.allkeyshop.com/api/vaks.php?action=products&v=2';
         const data: any = await fetchWithAllkeyshopSolver(url, 20000);
 
         if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
@@ -226,168 +345,132 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     }
   }
 
-  private matchGameInCatalog(catalog: CatalogGame[], gameTitle: string): CatalogGame | null {
-    if (!catalog || catalog.length === 0) return null;
-
-    const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!cleanTarget) return null;
-    const targetNumbers = cleanTarget.match(/\d+/g)?.join('') || '';
-
-    // 1. Exact cleaned match
-    const exact = catalog.find(g => (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTarget);
-    if (exact) return exact;
-
-    // 2. Base game match (strip standard/deluxe/goty/edition keywords)
-    const baseTarget = cleanTarget
-      .replace(/standardedition/g, '')
-      .replace(/deluxeedition/g, '')
-      .replace(/gameoftheyearedition/g, '')
-      .replace(/gotyedition/g, '')
-      .replace(/goty/g, '')
-      .replace(/edition/g, '');
-
-    if (baseTarget.length >= 4) {
-      const baseMatch = catalog.find(g => {
-        const cleanG = (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (cleanNumbers(cleanG) !== targetNumbers) return false;
-        return cleanG === baseTarget || cleanG === `${baseTarget}edition` || cleanG === `${baseTarget}deluxe`;
-      });
-      if (baseMatch) return baseMatch;
-    }
-
-    // 3. Strict prefix match (only allow edition suffixes and ensure numbers match strictly)
-    if (cleanTarget.length >= 6) {
-      const prefixMatch = catalog.find(g => {
-        const cleanG = (g.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        // Require numeric equality so sequel "Game 2" never matches "Game 3" or "Game 1"
-        if (cleanNumbers(cleanG) !== targetNumbers) return false;
-        if (cleanG.startsWith(cleanTarget)) {
-          const suffix = cleanG.slice(cleanTarget.length);
-          return /^(edition|deluxe|standard|goty|remastered|vr|director|cut)*$/.test(suffix);
-        }
-        return false;
-      });
-      if (prefixMatch) return prefixMatch;
-    }
-
-    return null;
-
-    function cleanNumbers(str: string): string {
-      return str.match(/\d+/g)?.join('') || '';
-    }
-  }
-
   public async fetchPricesForGame(
     steamAppId: number, 
-    gameTitle: string
+    gameTitle: string,
+    itadId?: string,
+    releaseDate?: string
   ): Promise<NormalizedSourceOffer[]> {
     return this.queue.enqueue(async () => {
-      const offers: NormalizedSourceOffer[] = [];
       try {
         const catalog = await this.ensureCatalog();
-        const matched = this.matchGameInCatalog(catalog, gameTitle);
-        if (!matched || !matched.id) {
-          return offers;
+        const candidates = findCandidateGamesInCatalog(catalog, gameTitle, steamAppId, releaseDate);
+        if (candidates.length === 0) {
+          return [];
         }
 
-        const priceApiUrl = `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`;
-        const raw: any = await fetchWithAllkeyshopSolver(priceApiUrl, 15000);
-        if (!raw) return offers;
+        // Probe candidates in priority order and select the one with active offers
+        for (const matched of candidates) {
+          if (!matched || (!matched.id && !matched.slug)) continue;
 
-        const resolveName = (dict: any, id: any) => dict?.[String(id)]?.name ?? '';
-        const officialMerchantIds: number[] = Array.isArray(raw?.officialMerchants) ? raw.officialMerchants : [];
+          const priceApiUrl = matched.id 
+            ? `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`
+            : `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${encodeURIComponent(matched.slug || '')}&currency=EUR&database=allkeyshop.com&v2=1`;
 
-        // Build game slug for direct comparison page link
-        const cleanSlug = (matched.name || gameTitle)
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '');
-        const defaultDealUrl = `https://www.allkeyshop.com/blog/buy-${encodeURIComponent(cleanSlug)}-cd-key-compare-prices/`;
+          const raw: any = await fetchWithAllkeyshopSolver(priceApiUrl, 15000);
+          if (!raw) continue;
 
-        const historyEntries: any[] = Array.isArray(raw?.history) ? raw.history : [];
-        if (historyEntries.length === 0) return offers;
+          const resolveName = (dict: any, id: any) => dict?.[String(id)]?.name ?? '';
+          const officialMerchantIds: number[] = Array.isArray(raw?.officialMerchants) ? raw.officialMerchants : [];
 
-        // Determine the latest observation timestamp across the feed
-        let latestTime = 0;
-        for (const h of historyEntries) {
-          const tStr = h?.end || h?.start;
-          if (tStr) {
-            const t = new Date(tStr).getTime();
-            if (!isNaN(t) && t > latestTime) latestTime = t;
+          // Build game slug for direct comparison page link
+          const cleanSlug = (matched.slug || matched.name || gameTitle)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          const defaultDealUrl = cleanSlug.startsWith('buy-')
+            ? `https://www.allkeyshop.com/blog/${encodeURIComponent(cleanSlug)}/`
+            : `https://www.allkeyshop.com/blog/buy-${encodeURIComponent(cleanSlug)}-cd-key-compare-prices/`;
+
+          const historyEntries: any[] = Array.isArray(raw?.history) ? raw.history : [];
+          if (historyEntries.length === 0) continue;
+
+          // Determine the latest observation timestamp across the feed
+          let latestTime = 0;
+          for (const h of historyEntries) {
+            const tStr = h?.end || h?.start;
+            if (tStr) {
+              const t = new Date(tStr).getTime();
+              if (!isNaN(t) && t > latestTime) latestTime = t;
+            }
+          }
+
+          // Active offer window: within 72 hours of the latest observed snapshot
+          const ACTIVE_WINDOW_MS = 72 * 60 * 60 * 1000;
+          const merchantOffers = new Map<string, NormalizedSourceOffer>();
+
+          for (const entry of historyEntries) {
+            if (!entry) continue;
+
+            // Reject dead historical records from past months/years
+            const entryEndTime = entry.end ? new Date(entry.end).getTime() : entry.start ? new Date(entry.start).getTime() : NaN;
+            if (latestTime > 0 && !isNaN(entryEndTime) && (latestTime - entryEndTime) > ACTIVE_WINDOW_MS) {
+              continue;
+            }
+
+            const merchantName = resolveName(raw.merchants, entry.merchant_id);
+            const editionName = resolveName(raw.editions, entry.edition);
+            const regionName = resolveName(raw.regions, entry.region);
+
+            if (!merchantName) continue;
+
+            // Reject non-Steam platforms
+            const isNonSteam = [
+              'xbox', 'ps4', 'ps5', 'ps3', 'switch', 'nintendo', 'wii',
+              'gog', 'epic', 'origin', 'uplay', 'ubisoft', 'ea app', 
+              'battle.net', 'blizzard', 'rockstar', 'windows 10', 'windows 11',
+              'account'
+            ].some(s => 
+              regionName.toLowerCase().includes(s) || 
+              editionName.toLowerCase().includes(s) || 
+              merchantName.toLowerCase().includes(s) ||
+              (matched.name && matched.name.toLowerCase().includes(s))
+            );
+            if (isNonSteam) continue;
+
+            const priceEur = Number(entry.min_discount_price || entry.last_price);
+            if (isNaN(priceEur) || priceEur <= 0) continue;
+
+            const merchantCode = merchantName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+            const isOfficial = officialMerchantIds.includes(Number(entry.merchant_id));
+            const isGift = regionName.toLowerCase().includes('gift') || editionName.toLowerCase().includes('gift');
+            const productTypeRaw = isGift ? 'Steam Gift' : 'Steam Key';
+            const voucherCode = entry.best_discount_code ? String(entry.best_discount_code).trim() : undefined;
+
+            // Regional formatting
+            let regionRaw = 'GLOBAL';
+            if (regionName.toLowerCase().includes('eu') || regionName.toLowerCase().includes('europe')) {
+              regionRaw = 'EU';
+            } else if (regionName.toLowerCase().includes('row')) {
+              regionRaw = 'ROW';
+            }
+
+            const offerKey = `${merchantCode}_${productTypeRaw}`;
+            const existing = merchantOffers.get(offerKey);
+
+            // Keep cheapest active offer per merchant
+            if (!existing || existing.priceEur > priceEur) {
+              merchantOffers.set(offerKey, {
+                merchantCode,
+                merchantName,
+                isOfficial,
+                productTypeRaw,
+                regionRaw,
+                priceEur,
+                originalPriceEur: entry.original_price ? Number(entry.original_price) : undefined,
+                voucherCode,
+                dealUrl: entry.url || defaultDealUrl
+              });
+            }
+          }
+
+          const offers = Array.from(merchantOffers.values());
+          if (offers.length > 0) {
+            return offers;
           }
         }
 
-        // Active offer window: within 72 hours of the latest observed snapshot (filters out dead records from past years)
-        const ACTIVE_WINDOW_MS = 72 * 60 * 60 * 1000;
-
-        const merchantOffers = new Map<string, NormalizedSourceOffer>();
-
-        for (const entry of historyEntries) {
-          if (!entry) continue;
-
-          // Reject dead historical records from past months/years
-          const entryEndTime = entry.end ? new Date(entry.end).getTime() : entry.start ? new Date(entry.start).getTime() : NaN;
-          if (latestTime > 0 && !isNaN(entryEndTime) && (latestTime - entryEndTime) > ACTIVE_WINDOW_MS) {
-            continue;
-          }
-
-          const merchantName = resolveName(raw.merchants, entry.merchant_id);
-          const editionName = resolveName(raw.editions, entry.edition);
-          const regionName = resolveName(raw.regions, entry.region);
-
-          if (!merchantName) continue;
-
-          // Reject non-Steam platforms (Xbox, PlayStation, Switch, GOG, Epic, Origin, Ubisoft, EA App, Windows 10/11, Accounts)
-          const isNonSteam = [
-            'xbox', 'ps4', 'ps5', 'ps3', 'switch', 'nintendo', 'wii',
-            'gog', 'epic', 'origin', 'uplay', 'ubisoft', 'ea app', 
-            'battle.net', 'blizzard', 'rockstar', 'windows 10', 'windows 11',
-            'account'
-          ].some(s => 
-            regionName.toLowerCase().includes(s) || 
-            editionName.toLowerCase().includes(s) || 
-            merchantName.toLowerCase().includes(s) ||
-            (matched.name && matched.name.toLowerCase().includes(s))
-          );
-          if (isNonSteam) continue;
-
-          const priceEur = Number(entry.min_discount_price || entry.last_price);
-          if (isNaN(priceEur) || priceEur <= 0) continue;
-
-          const merchantCode = merchantName.toLowerCase().replace(/[^a-z0-9]+/g, '');
-          const isOfficial = officialMerchantIds.includes(Number(entry.merchant_id));
-          const isGift = regionName.toLowerCase().includes('gift') || editionName.toLowerCase().includes('gift');
-          const productTypeRaw = isGift ? 'Steam Gift' : 'Steam Key';
-          const voucherCode = entry.best_discount_code ? String(entry.best_discount_code).trim() : undefined;
-
-          // Regional formatting
-          let regionRaw = 'GLOBAL';
-          if (regionName.toLowerCase().includes('eu') || regionName.toLowerCase().includes('europe')) {
-            regionRaw = 'EU';
-          } else if (regionName.toLowerCase().includes('row')) {
-            regionRaw = 'ROW';
-          }
-
-          const offerKey = `${merchantCode}_${productTypeRaw}`;
-          const existing = merchantOffers.get(offerKey);
-
-          // Keep cheapest active offer per merchant
-          if (!existing || existing.priceEur > priceEur) {
-            merchantOffers.set(offerKey, {
-              merchantCode,
-              merchantName,
-              isOfficial,
-              productTypeRaw,
-              regionRaw,
-              priceEur,
-              voucherCode,
-              dealUrl: defaultDealUrl,
-              rawPayload: entry
-            });
-          }
-        }
-
-        return Array.from(merchantOffers.values());
+        return [];
       } catch (err: any) {
         if (err?.name === 'TimeoutError' || err?.message?.includes('timeout') || err?.message?.includes('aborted')) {
           const timeoutErr: any = new Error('AllKeyShop request timed out (firewall packet drop)');
@@ -397,8 +480,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         if (err?.status === 403 || err?.status === 429) {
           throw err;
         }
+        console.warn(`AllKeyShop fetchPricesForGame failed for ${gameTitle}:`, err.message);
+        return [];
       }
-      return offers;
     });
   }
 }

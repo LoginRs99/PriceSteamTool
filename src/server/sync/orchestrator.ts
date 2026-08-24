@@ -497,7 +497,7 @@ export class SyncOrchestrator {
 
         let lowestPriceEur: number | null = null;
         try {
-          const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title);
+          const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId, g.releaseDate);
           for (const offer of offers) {
             this.ingestOffer(g.id, 'allkeyshop', offer);
             this.enrichmentStatus.offersFound++;

@@ -409,6 +409,7 @@ export interface WishlistSyncGame {
   steamAppId: number;
   itadId?: string;
   title: string;
+  releaseDate?: string;
   allkeyshopLastCheckedAt?: string;
   allkeyshopCheckIntervalHours?: number;
   allkeyshopUnchangedStreak?: number;
@@ -947,6 +948,7 @@ export const gameRepo = {
         g.steam_app_id, 
         g.itad_id, 
         g.title,
+        g.release_date,
         g.allkeyshop_last_checked_at,
         g.allkeyshop_check_interval_hours,
         g.allkeyshop_unchanged_streak,
@@ -963,6 +965,7 @@ export const gameRepo = {
       steamAppId: Number(r.steam_app_id),
       itadId: r.itad_id || undefined,
       title: r.title,
+      releaseDate: r.release_date || undefined,
       allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
       allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
         ? Number(r.allkeyshop_check_interval_hours) 
@@ -986,6 +989,7 @@ export const gameRepo = {
         g.steam_app_id, 
         g.itad_id, 
         g.title,
+        g.release_date,
         g.allkeyshop_last_checked_at,
         g.allkeyshop_check_interval_hours,
         g.allkeyshop_unchanged_streak,
@@ -1005,6 +1009,7 @@ export const gameRepo = {
       steamAppId: Number(r.steam_app_id),
       itadId: r.itad_id || undefined,
       title: r.title,
+      releaseDate: r.release_date || undefined,
       allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
       allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
         ? Number(r.allkeyshop_check_interval_hours) 

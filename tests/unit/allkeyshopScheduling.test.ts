@@ -517,4 +517,54 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       }
     });
   });
+
+  describe('5. Smart Multi-Candidate Catalog Matching (Release Year, Suffix, & Overrides)', () => {
+    it('prioritizes reboot with matching release year over legacy game and filters out old year collisions', async () => {
+      const { findCandidateGamesInCatalog } = await import('../../src/server/sources/allkeyshop.js');
+      const catalog = [
+        { id: 101, name: 'Screamer' },
+        { id: 102, name: 'Screamer 1995' },
+        { id: 202, name: 'Screamer 2026' },
+        { id: 303, name: 'Unrelated Game' }
+      ];
+
+      // Steam game with release year 2026
+      const candidates = findCandidateGamesInCatalog(catalog, 'Screamer', 999999, '2026-03-26');
+      expect(candidates.length).toBeGreaterThan(0);
+      expect(candidates[0].id).toBe(202); // Screamer 2026 is #1
+      expect(candidates[0].name).toBe('Screamer 2026');
+
+      // Screamer 1995 must NOT be in candidates due to year mismatch (>2 years from 2026)
+      expect(candidates.some(c => c.id === 102)).toBe(false);
+    });
+
+    it('finds alternative candidate versions with suffix (e.g. Judas 2) when matching reboot games', async () => {
+      const { findCandidateGamesInCatalog } = await import('../../src/server/sources/allkeyshop.js');
+      const catalog = [
+        { id: 501, name: 'Judas' },
+        { id: 502, name: 'Judas 2' },
+        { id: 999, name: 'Judas Priest Concert' }
+      ];
+
+      const candidates = findCandidateGamesInCatalog(catalog, 'Judas', 1778820, '2026');
+      expect(candidates.length).toBe(2);
+      expect(candidates.map(c => c.id)).toContain(501);
+      expect(candidates.map(c => c.id)).toContain(502);
+      expect(candidates.some(c => c.id === 999)).toBe(false);
+    });
+
+    it('enforces strict numeric matching so sequels do not collide', async () => {
+      const { findCandidateGamesInCatalog } = await import('../../src/server/sources/allkeyshop.js');
+      const catalog = [
+        { id: 1, name: 'Dead Space' },
+        { id: 2, name: 'Dead Space 2' },
+        { id: 3, name: 'Dead Space 3' }
+      ];
+
+      const candidates = findCandidateGamesInCatalog(catalog, 'Dead Space 2');
+      expect(candidates.length).toBe(1);
+      expect(candidates[0].id).toBe(2);
+    });
+  });
 });
+
