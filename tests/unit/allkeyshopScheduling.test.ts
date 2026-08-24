@@ -383,7 +383,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       const origFetch = global.fetch;
 
       try {
-        config.allkeyshopSolverUrl = 'http://localhost:8191';
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
         let capturedUrl = '';
         let capturedBody: any = null;
 
@@ -407,7 +407,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
 
         const res: any = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 10000);
 
-        expect(capturedUrl).toBe('http://localhost:8191/v1');
+        expect(capturedUrl).toBe('http://127.0.0.1:8191/v1');
         expect(capturedBody).toEqual({
           cmd: 'request.get',
           url: 'https://www.allkeyshop.com/api/test',
@@ -466,7 +466,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       const origFetch = global.fetch;
 
       try {
-        config.allkeyshopSolverUrl = 'http://localhost:8191';
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
         let secondRequestBody: any = null;
         let callCount = 0;
 
