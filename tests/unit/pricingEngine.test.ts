@@ -564,5 +564,13 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.riskLevel).toBe('HIGH');
       expect(res.isAnomaly).toBe(true);
     });
+
+    it('39. Zero-price history: free game history (0€) evaluates cleanly without division by zero', () => {
+      const res = evaluateSourceOwnHistoryAnomaly(0.00, [0.00, 0.00, 0.00]);
+      expect(res.applicable).toBe(true);
+      expect(res.isBreak).toBe(false);
+      expect(res.zScore).toBe(0);
+      expect(res.ownMedian).toBe(0);
+    });
   });
 });
