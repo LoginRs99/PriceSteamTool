@@ -10,6 +10,7 @@ export default defineConfig({
       }
     },
     fileParallelism: false,
+    setupFiles: ['./tests/setup.ts'],
     env: {
       NODE_ENV: 'test',
       DB_PATH: ':memory:'
