@@ -465,4 +465,14 @@ describe('Discord Notifier Service', () => {
     expect(sentCount).toBe(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('should reject invalid non-Discord webhook URLs to prevent SSRF', async () => {
+    const resInternal = await sendTestNotification('http://169.254.169.254/latest/meta-data');
+    expect(resInternal.success).toBe(false);
+    expect(resInternal.error).toContain('Invalid Discord Webhook URL');
+
+    const resHttp = await sendTestNotification('http://discord.com/api/webhooks/123/abc');
+    expect(resHttp.success).toBe(false);
+    expect(resHttp.error).toContain('Invalid Discord Webhook URL');
+  });
 });

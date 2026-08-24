@@ -83,6 +83,22 @@ export function saveDiscordSettings(settings: Partial<DiscordSettings>): Discord
   return getDiscordSettings();
 }
 
+export function isValidDiscordWebhookUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    const hostname = parsed.hostname.toLowerCase();
+    const isDiscordHost = hostname === 'discord.com' ||
+      hostname === 'discordapp.com' ||
+      hostname === 'ptb.discord.com' ||
+      hostname === 'canary.discord.com';
+    return isDiscordHost && parsed.pathname.startsWith('/api/webhooks/');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Sends a test notification to verify the Discord Webhook connection
  */
@@ -90,8 +106,8 @@ export async function sendTestNotification(webhookUrlOverride?: string): Promise
   const settings = getDiscordSettings();
   const targetUrl = webhookUrlOverride ? webhookUrlOverride.trim() : settings.webhookUrl;
 
-  if (!targetUrl) {
-    return { success: false, error: 'No Discord Webhook URL provided.' };
+  if (!targetUrl || !isValidDiscordWebhookUrl(targetUrl)) {
+    return { success: false, error: 'Invalid Discord Webhook URL. URL must start with https://discord.com/api/webhooks/' };
   }
 
   const payload = {
@@ -161,7 +177,7 @@ export async function sendTestNotification(webhookUrlOverride?: string): Promise
 export async function sendDealNotifications(deals: Game[], trigger: string = 'MANUAL'): Promise<{ sentCount: number }> {
   const settings = getDiscordSettings();
 
-  if (!settings.isEnabled || !settings.webhookUrl) {
+  if (!settings.isEnabled || !settings.webhookUrl || !isValidDiscordWebhookUrl(settings.webhookUrl)) {
     return { sentCount: 0 };
   }
 
