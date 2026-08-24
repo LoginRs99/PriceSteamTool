@@ -159,7 +159,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private catalogPath = path.join(process.cwd(), 'data', 'allkeyshop_catalog.json');
 
   public isEnabled(): boolean {
-    return true;
+    return config.allkeyshopEnabled;
   }
 
   private async ensureCatalog(): Promise<CatalogGame[]> {

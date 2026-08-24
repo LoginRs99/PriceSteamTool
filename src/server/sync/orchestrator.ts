@@ -453,6 +453,11 @@ export class SyncOrchestrator {
       return;
     }
 
+    if (!allkeyshopAdapter.isEnabled()) {
+      logInfo('[Enrichment] AllKeyShop background enrichment disabled (no solver configured). Skipping.');
+      return;
+    }
+
     const dueGames = games
       .filter(g => isAllkeyshopDue(g))
       .sort((a, b) => {
@@ -481,6 +486,7 @@ export class SyncOrchestrator {
     logInfo(`[Enrichment] Starting background Keyshop worker for ${prioritizedGames.length} due games (out of ${games.length} total).`);
     const chunkSize = config.allkeyshopChunkSize;
     const pauseMs = config.allkeyshopChunkPauseMs;
+    const hasSolver = Boolean(config.allkeyshopSolverUrl?.trim());
 
     try {
       for (let i = 0; i < prioritizedGames.length; i++) {
@@ -533,8 +539,8 @@ export class SyncOrchestrator {
         if (isChunkEnd && !this.isCancelled) {
           logInfo(`[Enrichment] Completed chunk of ${chunkSize} games. Cooling down for ${Math.round(pauseMs / 1000)}s.`);
           await new Promise(r => setTimeout(r, pauseMs));
-        } else if ((i + 1) < prioritizedGames.length && !this.isCancelled) {
-          // Occasional irregular hesitation break (~5% probability) of 5-15 minutes
+        } else if (!hasSolver && (i + 1) < prioritizedGames.length && !this.isCancelled) {
+          // Occasional irregular hesitation break (~5% probability) of 5-15 minutes ONLY for raw scraping without solver
           if (Math.random() < 0.05) {
             const hesitationMinutes = 5 + Math.random() * 10;
             const hesitationMs = Math.round(hesitationMinutes * 60 * 1000);

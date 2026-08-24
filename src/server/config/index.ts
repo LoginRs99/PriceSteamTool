@@ -32,16 +32,20 @@ export const config = {
   },
 
   // Stealth & Anti-Ban Batching for Keyshop scrapers
-  allkeyshopJitterMs: parseInt(process.env.ALLKEYSHOP_JITTER_MS || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '1500' : '4000'), 10),
-  allkeyshopChunkSize: parseInt(process.env.ALLKEYSHOP_CHUNK_SIZE || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '60' : '30'), 10),
-  allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '30000' : '100000'), 10),
+  allkeyshopJitterMs: parseInt(process.env.ALLKEYSHOP_JITTER_MS || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '1000' : '4000'), 10),
+  allkeyshopChunkSize: parseInt(process.env.ALLKEYSHOP_CHUNK_SIZE || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '100' : '30'), 10),
+  allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '10000' : '100000'), 10),
 
   // Cache & Periodic Auto-Sync settings
   cacheTtlHours: parseInt(process.env.CACHE_TTL_HOURS || '6', 10),
   historyRetentionDays: parseInt(process.env.HISTORY_RETENTION_DAYS || '365', 10),
   autoSyncEnabled: process.env.AUTO_SYNC_ENABLED !== 'false',
   autoSyncIntervalHours: parseInt(process.env.AUTO_SYNC_INTERVAL_HOURS || '6', 10),
-  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '60' : '30'), 10), // default cap per enrichment run; 0 = unlimited
+  allkeyshopEnabled: process.env.ALLKEYSHOP_ENABLED !== 'false' && (
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || process.env.ALLKEYSHOP_FORCE_DIRECT === 'true')
+  ),
+  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || (process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL ? '100' : '30'), 10), // default cap per enrichment run; 0 = unlimited
   allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '', // Byparr / FlareSolverr anti-bot solver (e.g. http://localhost:8191)
 
   // Region preferences (default: Hungary / EU / Global)
