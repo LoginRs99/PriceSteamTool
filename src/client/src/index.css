@@ -2219,6 +2219,8 @@ input:checked + .toggle-slider:before {
   left: 8px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: calc(100% - 95px);
   gap: 6px;
   z-index: 4;
 }
@@ -2252,6 +2254,14 @@ input:checked + .toggle-slider:before {
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
   color: #ffffff;
   box-shadow: var(--glow-exceptional);
+}
+
+.deal-ribbon-target-pending {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 /* Quick Action Buttons on Game Cards */

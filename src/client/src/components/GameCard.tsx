@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ShieldCheck, Info, Gamepad2, ExternalLink } from 'lucide-react';
+import { Flame, AlertTriangle, ShieldCheck, Info, Gamepad2, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -11,6 +11,8 @@ interface GameCardProps {
 export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
   const [imgError, setImgError] = useState(false);
   const [triedFallback, setTriedFallback] = useState(false);
+  const [copiedSteam, setCopiedSteam] = useState(false);
+  const [copyError, setCopyError] = useState(false);
 
   const imageUrl = game.capsuleImage || 
     game.headerImage || 
@@ -33,10 +35,26 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
   // Primary event flags
   const isConfirmedATL = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW';
   const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
+  const isTargetHit = game.targetPriceEur !== undefined && hasBestDeal && game.bestPriceEur! <= game.targetPriceEur;
+  const isTargetPending = game.targetPriceEur !== undefined && (!hasBestDeal || game.bestPriceEur! > game.targetPriceEur);
 
   // Real context savings
   const savingVsMedian = game.bestSavingVsMedianEur;
   const typicalMedian = game.typicalSaleMedianEur;
+
+  const handleCopySteam = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(`https://store.steampowered.com/app/${game.steamAppId}/`);
+      setCopiedSteam(true);
+      setCopyError(false);
+      setTimeout(() => setCopiedSteam(false), 1800);
+    } catch (err) {
+      console.warn('Failed to copy Steam URL to clipboard:', err);
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2500);
+    }
+  };
 
   return (
     <div className="game-card" onClick={onClick}>
@@ -79,18 +97,30 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           </div>
         )}
 
-        {/* Top-Left Badges: Discount & ATL */}
-        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
+        {/* Top-Left Ribbon Cluster: Discount, ATL, Target Price */}
+        <div className="deal-badge-cluster">
           {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
-            <div className="discount-badge" style={{ position: 'static' }}>
+            <div className="deal-ribbon-badge deal-ribbon-discount">
               -{game.bestDiscountPercent}%
             </div>
           )}
 
           {isConfirmedATL && !isProvisional && (
-            <div className="price-event-pill atl-pill" style={{ position: 'static' }}>
+            <div className="deal-ribbon-badge deal-ribbon-atl" title="Confirmed All-Time Low price">
               <Flame size={11} />
               <span>ATL</span>
+            </div>
+          )}
+
+          {isTargetHit && (
+            <div className="deal-ribbon-badge deal-ribbon-target" title={`Target price (€${game.targetPriceEur!.toFixed(2)}) reached!`}>
+              <span>🎯 HIT</span>
+            </div>
+          )}
+
+          {isTargetPending && (
+            <div className="deal-ribbon-badge deal-ribbon-target-pending" title={`Target alert set at €${game.targetPriceEur!.toFixed(2)} (Current best: ${hasBestDeal ? `€${game.bestPriceEur!.toFixed(2)}` : 'N/A'})`}>
+              <span>🎯 €{game.targetPriceEur!.toFixed(2)}</span>
             </div>
           )}
         </div>
@@ -98,10 +128,10 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
         {/* Top-Right: Unified Deal Score & Store Pill */}
         {hasBestDeal && (
           <div 
-            className="deal-score-badge"
+            className={`deal-score-badge ${dealTier === 'Exceptional' ? 'glow-pulse-exceptional' : ''}`}
             style={{ 
               background: dealScore > 0 ? tierColor : 'rgba(30, 41, 59, 0.88)', 
-              boxShadow: dealTier === 'Exceptional' ? '0 0 12px rgba(139, 92, 246, 0.45)' : dealTier === 'Great' ? '0 0 10px rgba(16, 185, 129, 0.35)' : undefined,
+              boxShadow: dealTier === 'Exceptional' ? 'var(--glow-exceptional)' : dealTier === 'Great' ? '0 0 10px rgba(16, 185, 129, 0.35)' : undefined,
               zIndex: 3,
               cursor: onExplain && dealScore > 0 ? 'pointer' : 'default'
             }}
@@ -125,6 +155,32 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
             )}
           </div>
         )}
+
+        {/* Touch & Hover Quick Action Bar */}
+        <div className="game-card-quick-actions" onClick={e => e.stopPropagation()}>
+          <button
+            type="button"
+            className={`quick-action-btn ${copiedSteam ? 'active-pop' : ''}`}
+            title={copiedSteam ? 'Steam URL Copied!' : copyError ? 'Failed to copy Steam URL' : 'Copy Steam Store URL'}
+            aria-label={copiedSteam ? 'Steam URL copied to clipboard' : copyError ? 'Failed to copy Steam URL' : `Copy Steam store link for ${game.title}`}
+            onClick={handleCopySteam}
+          >
+            {copiedSteam ? <Check size={13} color="#10b981" /> : copyError ? <XCircle size={13} color="#ef4444" /> : <Copy size={13} />}
+          </button>
+
+          {game.bestDealUrl && (
+            <a
+              href={game.bestDealUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="quick-action-btn"
+              title={`Open direct deal page at ${game.bestMerchantName || 'Store'}`}
+              aria-label={`Open direct deal page for ${game.title} at ${game.bestMerchantName || 'Store'}`}
+            >
+              <ExternalLink size={13} />
+            </a>
+          )}
+        </div>
 
         {/* Bottom-Left: Action Signal Pill (Must Buy, Buy, Wait, etc.) */}
         {game.actionSignal && !isHighRisk && (
@@ -152,34 +208,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: game.actionSignal.badgeColor, boxShadow: `0 0 6px ${game.actionSignal.badgeColor}` }} />
             <span>{game.actionSignal.badgeLabel}</span>
-          </div>
-        )}
-
-        {/* Target Price Indicator */}
-        {game.targetPriceEur !== undefined && (
-          <div
-            className="target-price-indicator-badge"
-            style={{
-              position: 'absolute',
-              bottom: 8,
-              right: 8,
-              background: 'rgba(15, 23, 42, 0.88)',
-              backdropFilter: 'blur(6px)',
-              border: '1px solid rgba(56, 189, 248, 0.4)',
-              color: '#38bdf8',
-              padding: '2px 6px',
-              borderRadius: 6,
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              zIndex: 2
-            }}
-            title={`Target Price Alert set at €${game.targetPriceEur.toFixed(2)}`}
-          >
-            <span>🎯</span>
-            <span>€{game.targetPriceEur.toFixed(2)}</span>
           </div>
         )}
       </div>
@@ -249,30 +277,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
               {game.bestMerchantName || 'Steam'}
             </span>
 
-            {game.bestDealUrl && (
-              <a
-                href={game.bestDealUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="score-info-trigger"
-                title={`Open direct deal page at ${game.bestMerchantName || 'Store'}`}
-                style={{
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 2
-                }}
-              >
-                <ExternalLink size={13} />
-              </a>
-            )}
-
             {onExplain && (
               <button 
                 type="button" 
                 className="score-info-trigger"
                 title="Explain why this score was assigned"
+                aria-label={`Explain deal score for ${game.title}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onExplain(game);
