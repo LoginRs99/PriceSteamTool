@@ -90,61 +90,64 @@ export async function fetchWithAllkeyshopSolver<T = any>(
       payload.cookies = validCookies;
     }
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(timeoutMs + 15000)
-    });
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(timeoutMs + 15000)
+      });
 
-    if (!res.ok) {
-      const err: any = new Error(`Byparr / FlareSolverr returned HTTP ${res.status}`);
-      err.status = res.status;
-      throw err;
-    }
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
+          if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
+            cachedSolverCookies = data.solution.cookies;
+            lastCookieTimestamp = Date.now();
+          }
 
-    const data: any = await res.json();
-    if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
-      if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
-        cachedSolverCookies = data.solution.cookies;
-        lastCookieTimestamp = Date.now();
-      }
-
-      let resp = data.solution.response;
-      if (typeof resp === 'string') {
-        const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-        if (jsonMatch) {
-          resp = jsonMatch[0];
+          let resp = data.solution.response;
+          if (typeof resp === 'string') {
+            const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+            if (jsonMatch) {
+              resp = jsonMatch[0];
+            }
+            return JSON.parse(resp) as T;
+          } else if (typeof resp === 'object' && resp !== null) {
+            return resp as T;
+          }
         }
-        return JSON.parse(resp) as T;
-      } else if (typeof resp === 'object' && resp !== null) {
-        return resp as T;
+      } else {
+        console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}, attempting direct fetch.`);
       }
-    } else {
-      const solutionStatus = data?.solution?.status || 500;
-      const errMsg = data?.message || `Byparr challenge failed (status ${solutionStatus})`;
-      const err: any = new Error(errMsg);
-      err.status = solutionStatus;
-      throw err;
+    } catch (solverErr: any) {
+      console.warn(`Byparr / FlareSolverr solver challenge failed (${solverErr.message}), falling back to direct fetch.`);
     }
   }
 
   // Fallback: direct fetch with modern rotating browser headers
-  const res = await fetch(url, {
-    headers: getAllkeyshopHeaders(),
-    signal: AbortSignal.timeout(timeoutMs)
-  });
+  try {
+    const res = await fetch(url, {
+      headers: getAllkeyshopHeaders(),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
 
-  if (res.status === 403 || res.status === 429) {
-    const err: any = new Error(`AllKeyShop rate limit or challenge (${res.status})`);
-    err.status = res.status;
-    throw err;
+    if (res.status === 403 || res.status === 429) {
+      const err: any = new Error(`AllKeyShop rate limit or challenge (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+
+    if (!res.ok) return null;
+    return await res.json() as T;
+  } catch (directErr: any) {
+    if (directErr.status === 403 || directErr.status === 429) {
+      throw directErr;
+    }
+    return null;
   }
-
-  if (!res.ok) return null;
-  return await res.json() as T;
 }
 
 function extractYear(text?: string): number | null {
@@ -358,6 +361,20 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       } catch (err: any) {
         console.warn('Failed to download AllKeyShop catalog:', err.message);
       }
+
+      // 4. If remote download failed, try reading whatever is cached on disk (even if older than 24h)
+      try {
+        if (!this.cachedCatalog && fs.existsSync(this.catalogPath)) {
+          const raw = fs.readFileSync(this.catalogPath, 'utf8');
+          const data = JSON.parse(raw);
+          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+            this.cachedCatalog = data.games;
+          }
+        }
+      } catch {}
+
+      // Set 15-minute failure cooldown to avoid hitting solver repeatedly for every game in sync loop
+      this.lastCatalogFetch = now - ONE_DAY_MS + (15 * 60 * 1000);
 
       return this.cachedCatalog || [];
     })();
