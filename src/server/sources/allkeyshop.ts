@@ -71,17 +71,18 @@ export async function fetchWithAllkeyshopSolver<T = any>(
   const solverUrl = config.allkeyshopSolverUrl?.trim();
   
   if (solverUrl) {
-    // Normalise Byparr / FlareSolverr endpoint (e.g. http://localhost:8191 -> http://localhost:8191/v1)
+    // 1. Solver Mode: STRICTLY route through Byparr / FlareSolverr only (NO direct IP fallback to prevent IP bans)
     const baseEndpoint = solverUrl.replace(/\/+$/, '');
     const endpoint = baseEndpoint.endsWith('/v1') ? baseEndpoint : `${baseEndpoint}/v1`;
 
     const now = Date.now();
     const validCookies = (now - lastCookieTimestamp < COOKIE_TTL_MS) ? cachedSolverCookies : [];
 
+    const maxSolverTimeout = Math.max(15000, timeoutMs);
     const payload: Record<string, any> = {
       cmd: 'request.get',
       url,
-      maxTimeout: Math.max(15000, timeoutMs),
+      maxTimeout: maxSolverTimeout,
       blockMedia: true,
       returnOnlyCookies: false
     };
@@ -97,37 +98,49 @@ export async function fetchWithAllkeyshopSolver<T = any>(
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs + 15000)
+        signal: AbortSignal.timeout(maxSolverTimeout + 15000)
       });
 
-      if (res.ok) {
-        const data: any = await res.json();
-        if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
-          if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
-            cachedSolverCookies = data.solution.cookies;
-            lastCookieTimestamp = Date.now();
-          }
+      if (!res.ok) {
+        console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
+        return null;
+      }
 
-          let resp = data.solution.response;
-          if (typeof resp === 'string') {
-            const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-            if (jsonMatch) {
-              resp = jsonMatch[0];
-            }
-            return JSON.parse(resp) as T;
-          } else if (typeof resp === 'object' && resp !== null) {
-            return resp as T;
+      const data: any = await res.json();
+      if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
+        if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
+          cachedSolverCookies = data.solution.cookies;
+          lastCookieTimestamp = Date.now();
+        }
+
+        let resp = data.solution.response;
+        if (typeof resp === 'string') {
+          const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+          if (jsonMatch) {
+            resp = jsonMatch[0];
           }
+          try {
+            return JSON.parse(resp) as T;
+          } catch {
+            return resp as unknown as T;
+          }
+        } else if (typeof resp === 'object' && resp !== null) {
+          return resp as T;
         }
       } else {
-        console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}, attempting direct fetch.`);
+        const solutionStatus = data?.solution?.status || 500;
+        console.warn(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
+        return null;
       }
     } catch (solverErr: any) {
-      console.warn(`Byparr / FlareSolverr solver challenge failed (${solverErr.message}), falling back to direct fetch.`);
+      console.warn(`Byparr request failed for ${url}: ${solverErr.message}`);
+      return null;
     }
+
+    return null;
   }
 
-  // Fallback: direct fetch with modern rotating browser headers
+  // 2. Direct Mode: Only used when NO solver URL is provided
   try {
     const res = await fetch(url, {
       headers: getAllkeyshopHeaders(),

@@ -458,6 +458,43 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       }
     });
 
+    it('STRICTLY avoids direct IP fallback when Byparr fails with 502 to protect IP from bans', async () => {
+      const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        let directFetchCalled = false;
+
+        global.fetch = (async (url: any) => {
+          const urlStr = String(url);
+          if (urlStr.startsWith('http://127.0.0.1:8191')) {
+            // Byparr returns 502 Bad Gateway
+            return {
+              ok: false,
+              status: 502,
+              json: async () => ({ status: 'error', message: 'NS_ERROR_NET_EMPTY_RESPONSE' })
+            } as any;
+          }
+          // Any other URL means direct fetch was attempted!
+          directFetchCalled = true;
+          return { ok: true, status: 200, json: async () => ({}) } as any;
+        }) as any;
+
+        const res = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 5000);
+
+        // Result must be null, and direct fetch MUST NOT have been called
+        expect(res).toBeNull();
+        expect(directFetchCalled).toBe(false);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
+
     it('caches and reuses clearance cookies across consecutive Byparr solver requests', async () => {
       const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
       const { config } = await import('../../src/server/config/index.js');
