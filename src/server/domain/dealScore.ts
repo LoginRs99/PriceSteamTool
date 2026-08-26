@@ -382,17 +382,3 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     }
   };
 }
-
-// Backward-compatibility stubs for legacy test callers
-export function calculateDiscountScore(discountPercent: number): number {
-  return Math.min(45, discountPercent * 0.5);
-}
-export function calculateHistoricalScore(): number {
-  return 0;
-}
-export function calculateTrustScore(): number {
-  return 20;
-}
-export function getRiskPenalty(): number {
-  return 0;
-}

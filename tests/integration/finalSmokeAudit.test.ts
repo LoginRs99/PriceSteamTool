@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { 
   profileRepo, 
   gameRepo, 
   merchantRepo, 
   offerRepo, 
-  getDb 
+  getDb,
+  closeDb 
 } from '../../src/server/db/index.js';
 import { calculateDealScore } from '../../src/server/domain/dealScore.js';
 import { generateActionSignal } from '../../src/server/domain/actionSignal.js';
