@@ -1,0 +1,294 @@
+import Database from 'better-sqlite3';
+import { config } from '../config/index.js';
+import { SCHEMA_SQL, SEED_SOURCES_SQL } from './schema.js';
+import { calculateTypicalSalePrice, calculatePeriodLows } from '../domain/priceIntelligence.js';
+import type { 
+  Game, 
+  Offer, 
+  SourceCode, 
+  PriceHistoryEntry 
+} from '../../shared/types.js';
+
+let dbInstance: Database.Database | null = null;
+const stmtCache = new Map<string, Database.Statement>();
+
+export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
+  -- Reset and reassign is_best_deal for all games using canonical priority (safe lowest > anomaly fallback)
+  UPDATE offers SET is_best_deal = 0;
+  WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY game_id 
+      ORDER BY 
+        CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
+        price_eur ASC
+    ) as rn
+    FROM offers
+    WHERE is_valid = 1
+  )
+  UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
+`;
+
+export function getDb(): Database.Database {
+  if (!dbInstance || !dbInstance.open) {
+    dbInstance = new Database(config.dbPath);
+    dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('busy_timeout = 5000');
+    dbInstance.pragma('foreign_keys = ON');
+    dbInstance.exec(SCHEMA_SQL);
+    dbInstance.exec(SEED_SOURCES_SQL);
+
+    // Apply safe column migrations for existing databases
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN price_event TEXT NOT NULL DEFAULT 'NONE'"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'SAFE'"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_score REAL NOT NULL DEFAULT 0.0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_flags TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN evaluation_confidence REAL NOT NULL DEFAULT 1.0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_price REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_currency TEXT DEFAULT 'EUR'"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_original_price REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN last_observed_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN is_anomaly INTEGER NOT NULL DEFAULT 0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN anomaly_score REAL NOT NULL DEFAULT 0.0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN anomaly_reason TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE source_observations ADD COLUMN observed_raw_price REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE source_observations ADD COLUMN observed_currency TEXT DEFAULT 'EUR'"); } catch {}
+    try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN price_event TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN deal_score INTEGER"); } catch {}
+    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level)"); } catch {}
+    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event)"); } catch {}
+    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur)"); } catch {}
+
+    // Deal Score v2 cached statistical columns on games
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_median_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_q1_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_q3_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_sample_count INTEGER"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_low_confidence INTEGER"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_90d_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_1y_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN atl_is_confirmed INTEGER DEFAULT 1"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN atl_is_single_source_low INTEGER DEFAULT 0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN price_tracking_first_observed_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN best_offer_source_count INTEGER"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_last_checked_at TEXT"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_check_interval_hours INTEGER DEFAULT 24"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_unchanged_streak INTEGER DEFAULT 0"); } catch {}
+    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_last_price_eur REAL"); } catch {}
+    try { dbInstance.exec("ALTER TABLE wishlist_entries ADD COLUMN target_price_eur REAL"); } catch {}
+
+    // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
+    try {
+      dbInstance.exec(`
+        DELETE FROM offers WHERE merchant_id IN (
+          SELECT id FROM merchants WHERE 
+            LOWER(name) LIKE '%gog%' OR 
+            LOWER(name) LIKE '%epic games%' OR 
+            LOWER(name) LIKE '%origin%' OR 
+            LOWER(name) LIKE '%uplay%' OR 
+            LOWER(name) LIKE '%ubisoft store%' OR 
+            LOWER(name) LIKE '%blizzard%' OR 
+            LOWER(name) LIKE '%battle.net%'
+        );
+
+        -- Clean up fake Borderlands mismatched offers if any
+        DELETE FROM offers WHERE id IN (
+          SELECT o.id FROM offers o
+          JOIN games g ON o.game_id = g.id
+          WHERE (LOWER(o.deal_url) LIKE '%borderlands%' AND LOWER(g.title) NOT LIKE '%borderlands%')
+             OR (o.merchant_id IN (SELECT id FROM merchants WHERE LOWER(code) IN ('allkeyshop', 'allkeyshopbest', 'kinguin') AND LOWER(g.title) NOT LIKE '%borderlands%'))
+        );
+
+        -- Delete any orphaned offers
+        DELETE FROM offers WHERE id NOT IN (SELECT DISTINCT offer_id FROM source_observations);
+      `);
+      dbInstance.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
+    } catch {}
+
+    // Diagnostic: audit anomalies table content at startup to inspect stale records
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        const rawAnomalies = dbInstance.prepare(`SELECT id, game_id, offer_id, anomaly_type, score, detected_at, is_dismissed FROM anomalies`).all();
+        if (rawAnomalies.length > 0) {
+          console.log(`[Data Safety] Startup anomalies table audit (${rawAnomalies.length} entries):`, JSON.stringify(rawAnomalies));
+        }
+      } catch {}
+    }
+  }
+  return dbInstance;
+}
+
+/**
+ * One-time backfill of Deal Score v2 stats for existing games in database
+ */
+export function backfillDealScoreStats(): void {
+  try {
+    const db = getDb();
+    const uncalculatedGames = prepareStmt(`
+      SELECT g.id, g.steam_app_id, g.title, g.slug, g.base_price_eur, g.historical_low_eur, g.historical_low_date, g.historical_low_source, g.is_dlc, g.is_free, g.created_at, g.updated_at
+      FROM games g
+      WHERE g.deal_score_stats_updated_at IS NULL 
+         OR g.price_tracking_first_observed_at IS NULL 
+         OR g.best_offer_source_count IS NULL
+    `).all() as any[];
+
+    if (uncalculatedGames.length === 0) return;
+
+    const updateStmt = prepareStmt(`
+      UPDATE games SET
+        typical_sale_median_eur = ?,
+        typical_sale_q1_eur = ?,
+        typical_sale_q3_eur = ?,
+        typical_sale_sample_count = ?,
+        typical_sale_low_confidence = ?,
+        low_90d_eur = ?,
+        low_1y_eur = ?,
+        atl_is_confirmed = ?,
+        atl_is_single_source_low = ?,
+        price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
+        best_offer_source_count = COALESCE(best_offer_source_count, ?),
+        deal_score_stats_updated_at = ?
+      WHERE id = ?
+    `);
+
+    const histStmt = prepareStmt(`
+      SELECT * FROM price_history WHERE game_id = ? ORDER BY recorded_at DESC
+    `);
+
+    const bestOfferStmt = prepareStmt(`
+      SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official
+      FROM offers o
+      JOIN merchants m ON o.merchant_id = m.id
+      WHERE o.game_id = ? AND o.is_best_deal = 1
+      LIMIT 1
+    `);
+
+    const sourceCountStmt = prepareStmt(`
+      SELECT COUNT(DISTINCT source_code) as cnt FROM source_observations WHERE offer_id = ?
+    `);
+
+    const nowIso = new Date().toISOString();
+    const backfillTx = db.transaction(() => {
+      for (const g of uncalculatedGames) {
+        const rawHist = histStmt.all(g.id) as any[];
+        const history: PriceHistoryEntry[] = rawHist.map(h => ({
+          id: h.id,
+          gameId: h.game_id,
+          merchantId: h.merchant_id,
+          merchantName: '',
+          isOfficial: true,
+          sourceCode: h.source_code as SourceCode,
+          priceEur: Number(h.price_eur),
+          discountPercent: Number(h.discount_percent || 0),
+          priceEvent: h.price_event || 'NONE',
+          dealScore: h.deal_score ? Number(h.deal_score) : undefined,
+          recordedAt: h.recorded_at
+        }));
+
+        const bestRow = bestOfferStmt.get(g.id) as any;
+        let currentBestOffer: Offer | undefined;
+        let sourceCount = 1;
+        if (bestRow) {
+          const sc = (sourceCountStmt.get(bestRow.id) as any)?.cnt;
+          if (sc && sc > 0) sourceCount = Number(sc);
+
+          currentBestOffer = {
+            id: bestRow.id,
+            gameId: bestRow.game_id,
+            merchantId: bestRow.merchant_id,
+            merchantName: bestRow.merchant_name,
+            merchantCode: bestRow.merchant_code,
+            isOfficial: Boolean(bestRow.is_official),
+            productType: bestRow.product_type,
+            regionType: bestRow.region_type,
+            regionConfidence: Number(bestRow.region_confidence || 1.0),
+            priceEur: Number(bestRow.price_eur),
+            discountPercent: Number(bestRow.discount_percent),
+            dealUrl: bestRow.deal_url,
+            isBestDeal: true,
+            isValid: Boolean(bestRow.is_valid),
+            priceEvent: bestRow.price_event || 'NONE',
+            riskLevel: bestRow.risk_level || 'SAFE',
+            riskScore: Number(bestRow.risk_score || 0),
+            riskFlags: [],
+            evaluationConfidence: Number(bestRow.evaluation_confidence || 1.0),
+            isAnomaly: Boolean(bestRow.is_anomaly),
+            sources: [],
+            sourceAgreementCount: sourceCount,
+            fetchedAt: bestRow.fetched_at || nowIso,
+            lastObservedAt: bestRow.last_observed_at || nowIso,
+            createdAt: bestRow.created_at || nowIso,
+            updatedAt: bestRow.updated_at || nowIso
+          };
+        }
+
+        const basePrice = g.base_price_eur ? Number(g.base_price_eur) : undefined;
+        const typicalSale = calculateTypicalSalePrice(basePrice, history);
+        const mappedGame: Game = {
+          id: g.id,
+          steamAppId: Number(g.steam_app_id),
+          title: g.title,
+          slug: g.slug,
+          basePriceEur: basePrice,
+          historicalLowEur: g.historical_low_eur ? Number(g.historical_low_eur) : undefined,
+          historicalLowDate: g.historical_low_date || undefined,
+          historicalLowSource: g.historical_low_source || undefined,
+          isDlc: Boolean(g.is_dlc),
+          isFree: Boolean(g.is_free),
+          hasAnomaly: false,
+          offersCount: 1,
+          createdAt: g.created_at,
+          updatedAt: g.updated_at
+        };
+
+        const periodLows = calculatePeriodLows(mappedGame, history, currentBestOffer);
+        const atlConfirmed = periodLows.allTimeLow.isConfirmed ? 1 : 0;
+        const atlSingleSource = (periodLows.allTimeLow.isConfirmed === false || Boolean(periodLows.low90d.isSingleSourceLow)) ? 1 : 0;
+
+        const firstObserved = rawHist.length > 0
+          ? rawHist[rawHist.length - 1].recorded_at
+          : (bestRow?.created_at || g.created_at || nowIso);
+
+        updateStmt.run(
+          typicalSale.medianPriceEur,
+          typicalSale.q1PriceEur ?? null,
+          typicalSale.q3PriceEur ?? null,
+          typicalSale.sampleCount,
+          typicalSale.isLowConfidence ? 1 : 0,
+          periodLows.low90d.priceEur,
+          periodLows.low1y.priceEur,
+          atlConfirmed,
+          atlSingleSource,
+          firstObserved,
+          sourceCount,
+          nowIso,
+          g.id
+        );
+      }
+    });
+    backfillTx();
+  } catch {}
+}
+
+export function prepareStmt(sql: string): Database.Statement {
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = getDb().prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
+}
+
+export function clearStmtCache(): void {
+  stmtCache.clear();
+}
+
+export function closeDb(): void {
+  stmtCache.clear();
+  if (dbInstance && dbInstance.open) {
+    try {
+      dbInstance.close();
+    } catch {}
+    dbInstance = null;
+  }
+}
