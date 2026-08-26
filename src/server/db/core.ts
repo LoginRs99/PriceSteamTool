@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { config } from '../config/index.js';
 import { SCHEMA_SQL, SEED_SOURCES_SQL } from './schema.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../domain/priceIntelligence.js';
+import { runMigrations } from './migrations.js';
 import type { 
   Game, 
   Offer, 
@@ -37,73 +38,8 @@ export function getDb(): Database.Database {
     dbInstance.exec(SCHEMA_SQL);
     dbInstance.exec(SEED_SOURCES_SQL);
 
-    // Apply safe column migrations for existing databases
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN price_event TEXT NOT NULL DEFAULT 'NONE'"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'SAFE'"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_score REAL NOT NULL DEFAULT 0.0"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN risk_flags TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN evaluation_confidence REAL NOT NULL DEFAULT 1.0"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_price REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_currency TEXT DEFAULT 'EUR'"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN raw_original_price REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN last_observed_at TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN is_anomaly INTEGER NOT NULL DEFAULT 0"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN anomaly_score REAL NOT NULL DEFAULT 0.0"); } catch {}
-    try { dbInstance.exec("ALTER TABLE offers ADD COLUMN anomaly_reason TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE source_observations ADD COLUMN observed_raw_price REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE source_observations ADD COLUMN observed_currency TEXT DEFAULT 'EUR'"); } catch {}
-    try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN price_event TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE price_history ADD COLUMN deal_score INTEGER"); } catch {}
-    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level)"); } catch {}
-    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event)"); } catch {}
-    try { dbInstance.exec("CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur)"); } catch {}
-
-    // Deal Score v2 cached statistical columns on games
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_median_eur REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_q1_eur REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_q3_eur REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_sample_count INTEGER"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN typical_sale_low_confidence INTEGER"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_90d_eur REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN low_1y_eur REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN atl_is_confirmed INTEGER DEFAULT 1"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN atl_is_single_source_low INTEGER DEFAULT 0"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN price_tracking_first_observed_at TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN best_offer_source_count INTEGER"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN deal_score_stats_updated_at TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_last_checked_at TEXT"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_check_interval_hours INTEGER DEFAULT 24"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_unchanged_streak INTEGER DEFAULT 0"); } catch {}
-    try { dbInstance.exec("ALTER TABLE games ADD COLUMN allkeyshop_last_price_eur REAL"); } catch {}
-    try { dbInstance.exec("ALTER TABLE wishlist_entries ADD COLUMN target_price_eur REAL"); } catch {}
-
-    // Clean up any legacy non-Steam offers (GOG, Epic, Origin, Uplay, Blizzard, etc.)
-    try {
-      dbInstance.exec(`
-        DELETE FROM offers WHERE merchant_id IN (
-          SELECT id FROM merchants WHERE 
-            LOWER(name) LIKE '%gog%' OR 
-            LOWER(name) LIKE '%epic games%' OR 
-            LOWER(name) LIKE '%origin%' OR 
-            LOWER(name) LIKE '%uplay%' OR 
-            LOWER(name) LIKE '%ubisoft store%' OR 
-            LOWER(name) LIKE '%blizzard%' OR 
-            LOWER(name) LIKE '%battle.net%'
-        );
-
-        -- Clean up fake Borderlands mismatched offers if any
-        DELETE FROM offers WHERE id IN (
-          SELECT o.id FROM offers o
-          JOIN games g ON o.game_id = g.id
-          WHERE (LOWER(o.deal_url) LIKE '%borderlands%' AND LOWER(g.title) NOT LIKE '%borderlands%')
-             OR (o.merchant_id IN (SELECT id FROM merchants WHERE LOWER(code) IN ('allkeyshop', 'allkeyshopbest', 'kinguin') AND LOWER(g.title) NOT LIKE '%borderlands%'))
-        );
-
-        -- Delete any orphaned offers
-        DELETE FROM offers WHERE id NOT IN (SELECT DISTINCT offer_id FROM source_observations);
-      `);
-      dbInstance.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
-    } catch {}
+    // Run versioned schema migrations
+    runMigrations(dbInstance);
 
     // Diagnostic: audit anomalies table content at startup to inspect stale records
     if (process.env.NODE_ENV !== 'test') {

@@ -1,4 +1,5 @@
 export * from './core.js';
+export * from './migrations.js';
 export * from './repositories/profile.js';
 export * from './repositories/game.js';
 export * from './repositories/merchant.js';

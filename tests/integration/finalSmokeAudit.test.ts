@@ -375,8 +375,9 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
         // 4. Release first sync
         resolveFirstSync([]);
         while (syncOrchestrator.isSyncRunning()) {
-          await new Promise((r) => setTimeout(r, 10));
+          await new Promise((r) => setTimeout(r, 20));
         }
+        await new Promise((r) => setTimeout(r, 50));
       } finally {
         steamAdapter.fetchWishlist = origFetchWishlist;
         await app.close();
