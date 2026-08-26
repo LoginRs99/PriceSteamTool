@@ -51,4 +51,10 @@ export const config = {
   // Region preferences (default: Hungary / EU / Global)
   preferredCountry: 'HU',
   preferredCurrency: 'EUR',
+
+  // Security & Access Control
+  trustedOrigins: process.env.TRUSTED_ORIGINS 
+    ? process.env.TRUSTED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean) 
+    : null,
+  apiToken: process.env.API_TOKEN?.trim() || '',
 };

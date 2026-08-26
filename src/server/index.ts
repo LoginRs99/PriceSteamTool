@@ -21,10 +21,39 @@ export async function createApp(): Promise<FastifyInstance> {
   });
 
   // Enable CORS
-  await fastify.register(cors, {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-  });
+  if (config.trustedOrigins && config.trustedOrigins.length > 0) {
+    await fastify.register(cors, {
+      origin: config.trustedOrigins,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    });
+  } else {
+    await fastify.register(cors, {
+      origin: '*',
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    });
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[SECURITY] Warning: TRUSTED_ORIGINS is unset. API CORS is open (*) and unauthenticated on bind address http://${config.host}:${config.port}`);
+    }
+  }
+
+  // Opt-in Shared-Secret Guard (X-API-Token)
+  if (config.apiToken) {
+    fastify.addHook('onRequest', async (request, reply) => {
+      // Allow preflight OPTIONS
+      if (request.method === 'OPTIONS') return;
+
+      const path = request.url.split('?')[0];
+      // Exclude health endpoints and static assets
+      if (path === '/api/health' || path === '/health' || !path.startsWith('/api')) {
+        return;
+      }
+
+      const clientToken = request.headers['x-api-token'];
+      if (!clientToken || clientToken !== config.apiToken) {
+        return reply.status(401).send({ error: 'Unauthorized: Invalid or missing X-API-Token' });
+      }
+    });
+  }
 
   // Initialize SQLite database schema and backfill stats
   getDb();

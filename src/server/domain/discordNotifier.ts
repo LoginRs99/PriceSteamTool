@@ -4,6 +4,8 @@ import type { Game } from '../../shared/types.js';
 
 export interface DiscordSettings {
   webhookUrl: string;
+  hasWebhook?: boolean;
+  webhookUrlMasked?: string;
   isEnabled: boolean;
   minDealScore: number;
   minConfidence: number;
@@ -12,14 +14,24 @@ export interface DiscordSettings {
   cooldownHours: number;
 }
 
-export function getDiscordSettings(): DiscordSettings {
+export function maskWebhookUrl(url?: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.length <= 6) return '...';
+  return '...' + trimmed.slice(-6);
+}
+
+export function getDiscordSettings(maskUrl = false): DiscordSettings {
   const urlFromDb = settingsRepo.get('discord_webhook_url');
-  const webhookUrl = urlFromDb !== undefined ? urlFromDb : (process.env.DISCORD_WEBHOOK_URL || '');
+  const rawWebhookUrl = urlFromDb !== undefined ? urlFromDb : (process.env.DISCORD_WEBHOOK_URL || '');
+  const hasWebhook = Boolean(rawWebhookUrl);
+  const webhookUrlMasked = maskWebhookUrl(rawWebhookUrl);
+  const webhookUrl = maskUrl ? webhookUrlMasked : rawWebhookUrl;
   
   const enabledFromDb = settingsRepo.get('discord_enabled');
   const isEnabled = enabledFromDb !== undefined 
     ? enabledFromDb === 'true' 
-    : (process.env.DISCORD_ENABLED ? process.env.DISCORD_ENABLED === 'true' : Boolean(webhookUrl));
+    : (process.env.DISCORD_ENABLED ? process.env.DISCORD_ENABLED === 'true' : hasWebhook);
 
   const minScoreFromDb = settingsRepo.get('discord_min_deal_score');
   const minDealScore = minScoreFromDb !== undefined 
@@ -48,6 +60,8 @@ export function getDiscordSettings(): DiscordSettings {
 
   return {
     webhookUrl,
+    hasWebhook,
+    webhookUrlMasked,
     isEnabled,
     minDealScore: isNaN(minDealScore) ? 75 : Math.max(0, Math.min(100, minDealScore)),
     minConfidence: isNaN(minConfidence) ? 40 : Math.max(0, Math.min(100, minConfidence)),
@@ -59,7 +73,11 @@ export function getDiscordSettings(): DiscordSettings {
 
 export function saveDiscordSettings(settings: Partial<DiscordSettings>): DiscordSettings {
   if (settings.webhookUrl !== undefined) {
-    settingsRepo.set('discord_webhook_url', settings.webhookUrl.trim());
+    const trimmed = settings.webhookUrl.trim();
+    // Do not overwrite existing real webhook URL if client sent back masked string (...xxxxxx)
+    if (!trimmed.startsWith('...')) {
+      settingsRepo.set('discord_webhook_url', trimmed);
+    }
   }
   if (settings.isEnabled !== undefined) {
     settingsRepo.set('discord_enabled', settings.isEnabled ? 'true' : 'false');

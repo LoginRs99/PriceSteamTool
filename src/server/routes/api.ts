@@ -9,6 +9,7 @@ import {
 } from '../db/index.js';
 import { syncOrchestrator } from '../sync/orchestrator.js';
 import { steamAdapter } from '../sources/steam.js';
+import { config } from '../config/index.js';
 import type { WishlistFilterOptions, SourceCode } from '../../shared/types.js';
 
 function safeFloat(val: any): number | undefined {
@@ -403,9 +404,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Discord Notification Settings API
   // ----------------------------------------------------
-  fastify.get('/api/settings/discord', async () => {
+  fastify.get('/api/settings/discord', async (request) => {
     const { getDiscordSettings } = await import('../domain/discordNotifier.js');
-    return getDiscordSettings();
+    const isFullAuth = Boolean(config.apiToken && request.headers['x-api-token'] === config.apiToken);
+    return getDiscordSettings(!isFullAuth);
   });
 
   fastify.post('/api/settings/discord', async (request, reply) => {
@@ -435,7 +437,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }).optional();
 
     const parsed = schema.safeParse(request.body);
-    const webhookUrlOverride = parsed.success ? parsed.data?.webhookUrl : undefined;
+    const rawOverride = parsed.success ? parsed.data?.webhookUrl : undefined;
+    const webhookUrlOverride = rawOverride && !rawOverride.startsWith('...') ? rawOverride : undefined;
 
     const { sendTestNotification } = await import('../domain/discordNotifier.js');
     const result = await sendTestNotification(webhookUrlOverride);

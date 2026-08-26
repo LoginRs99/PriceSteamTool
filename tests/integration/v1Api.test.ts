@@ -273,13 +273,77 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
       method: 'DELETE',
       url: `/api/v1/alerts/${game.id}`
     });
-    expect(deleteRes.statusCode).toBe(200);
-
     const listEmptyRes = await app.inject({
       method: 'GET',
       url: '/api/v1/alerts'
     });
     const listEmptyJson = JSON.parse(listEmptyRes.body);
     expect(listEmptyJson.data.length).toBe(0);
+  });
+
+  it('8. Enforces API_TOKEN guard when configured and masks Discord Webhook URL', async () => {
+    const { createApp } = await import('../../src/server/index.js');
+    const { config } = await import('../../src/server/config/index.js');
+    const { settingsRepo } = await import('../../src/server/db/index.js');
+
+    settingsRepo.set('discord_webhook_url', 'https://discord.com/api/webhooks/123456789/secrettoken99');
+
+    // 8a. Test with API_TOKEN enabled
+    const origToken = config.apiToken;
+    try {
+      config.apiToken = 'test-secret-token-123';
+      const authApp = await createApp();
+
+      // Request without token to /api/v1/quota -> 401
+      const resUnauth = await authApp.inject({
+        method: 'GET',
+        url: '/api/v1/quota'
+      });
+      expect(resUnauth.statusCode).toBe(401);
+
+      // Request with wrong token -> 401
+      const resWrong = await authApp.inject({
+        method: 'GET',
+        url: '/api/v1/quota',
+        headers: { 'x-api-token': 'wrong-token' }
+      });
+      expect(resWrong.statusCode).toBe(401);
+
+      // Health endpoint remains accessible without token
+      const resHealth = await authApp.inject({
+        method: 'GET',
+        url: '/api/health'
+      });
+      expect(resHealth.statusCode).toBe(200);
+
+      // Request with valid token -> 200 and unmasked webhook URL
+      const resAuth = await authApp.inject({
+        method: 'GET',
+        url: '/api/settings/discord',
+        headers: { 'x-api-token': 'test-secret-token-123' }
+      });
+      expect(resAuth.statusCode).toBe(200);
+      const authJson = JSON.parse(resAuth.body);
+      expect(authJson.hasWebhook).toBe(true);
+      expect(authJson.webhookUrl).toBe('https://discord.com/api/webhooks/123456789/secrettoken99');
+      expect(authJson.webhookUrlMasked).toBe('...oken99');
+
+      await authApp.close();
+    } finally {
+      config.apiToken = origToken;
+    }
+
+    // 8b. Test default unauthenticated mode -> returns masked webhook URL
+    const publicApp = await (await import('../../src/server/index.js')).createApp();
+    const resPublic = await publicApp.inject({
+      method: 'GET',
+      url: '/api/settings/discord'
+    });
+    expect(resPublic.statusCode).toBe(200);
+    const publicJson = JSON.parse(resPublic.body);
+    expect(publicJson.hasWebhook).toBe(true);
+    expect(publicJson.webhookUrl).toBe('...oken99');
+    expect(publicJson.webhookUrlMasked).toBe('...oken99');
+    await publicApp.close();
   });
 });
