@@ -72,10 +72,11 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
       )}
 
       {/* Per-source progress indicators */}
-      <div className="source-badges-row">
-        {(Object.keys(progress.sourceProgress) as SourceCode[]).map(code => {
-          const s = progress.sourceProgress[code];
-          if (!s || (s.total === 0 && s.processed === 0 && s.offersFound === 0)) return null;
+      {progress.sourceProgress && (
+        <div className="source-badges-row">
+          {(Object.keys(progress.sourceProgress) as SourceCode[]).map(code => {
+            const s = progress.sourceProgress[code];
+            if (!s || (s.total === 0 && s.processed === 0 && s.offersFound === 0)) return null;
 
           const stateClass = s.state.toLowerCase();
 
@@ -97,6 +98,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
           );
         })}
       </div>
+      )}
     </div>
   );
 };

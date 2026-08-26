@@ -1,16 +1,9 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import type { 
-  Profile, 
   Game, 
-  WishlistFilterOptions, 
-  WishlistStatistics, 
-  SyncProgressUpdate, 
-  Anomaly, 
-  SourceCode,
-  ViewMode,
-  MainTab
+  ViewMode, 
+  MainTab 
 } from './types.js';
-import { api } from './api.js';
 import { Navbar } from './components/Navbar.js';
 import { SyncBanner } from './components/SyncBanner.js';
 import { DealsDashboard } from './components/DealsDashboard.js';
@@ -29,9 +22,9 @@ import { ScoreExplainModal } from './components/ScoreExplainModal.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  ChevronsLeft,
-  ChevronsRight,
-  ArrowUp,
+  ChevronsLeft, 
+  ChevronsRight, 
+  ArrowUp, 
   Gamepad2, 
   PlusCircle, 
   Sparkles, 
@@ -39,14 +32,20 @@ import {
   Gift, 
   LayoutGrid, 
   List, 
-  Table as TableIcon,
-  AlertTriangle
+  Table as TableIcon, 
+  AlertTriangle 
 } from 'lucide-react';
 
+import { useProfiles } from './hooks/useProfiles.js';
+import { useWishlistGames } from './hooks/useWishlistGames.js';
+import { useWishlistStats } from './hooks/useWishlistStats.js';
+import { useWishlistSync } from './hooks/useWishlistSync.js';
+import { useAnomalies } from './hooks/useAnomalies.js';
+
 export const App: React.FC = () => {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
-  
+  // Profiles
+  const { profiles, activeProfile, loadProfiles } = useProfiles();
+
   // Navigation Tabs & View Mode
   const [mainTab, setMainTab] = useState<MainTab>('wishlist');
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -59,18 +58,39 @@ export const App: React.FC = () => {
     localStorage.setItem('pricetool_view_mode', mode);
   };
 
-  const [games, setGames] = useState<Game[]>([]);
-  const [totalGames, setTotalGames] = useState(0);
-  const [freeGames, setFreeGames] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  // Wishlist Games & Filtering
+  const {
+    games,
+    setGames,
+    totalGames,
+    loading,
+    filters,
+    updateFilters,
+    loadGames
+  } = useWishlistGames(activeProfile?.id);
 
-  // Stats and Best Deals
-  const [stats, setStats] = useState<WishlistStatistics | null>(null);
-  const [topDeals, setTopDeals] = useState<Game[]>([]);
+  // Statistics, Top Deals, and Free Games
+  const {
+    stats,
+    topDeals,
+    setTopDeals,
+    freeGames,
+    loadStatsAndDeals,
+    loadFreeGames
+  } = useWishlistStats(activeProfile?.id);
 
-  const [syncProgress, setSyncProgress] = useState<SyncProgressUpdate | null>(null);
-  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  // Anomalies
+  const { anomalies, loadAnomalies } = useAnomalies();
+
+  // Sync state & SSE Stream
+  const handleSyncCompleted = useCallback(() => {
+    loadGames();
+    loadStatsAndDeals();
+    loadFreeGames();
+    loadAnomalies();
+  }, [loadGames, loadStatsAndDeals, loadFreeGames, loadAnomalies]);
+
+  const { syncProgress, handleExecuteSync, handleCancelSync } = useWishlistSync(handleSyncCompleted);
 
   // Modals
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
@@ -80,19 +100,8 @@ export const App: React.FC = () => {
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
-  // Filters for Paid Wishlist with localStorage persistence for sort and limit
-  const [filters, setFilters] = useState<WishlistFilterOptions>(() => {
-    const savedSort = localStorage.getItem('pricetool_sort') as any;
-    const savedLimit = parseInt(localStorage.getItem('pricetool_limit') || '50', 10);
-    return {
-      sort: savedSort || 'best_value',
-      page: 1,
-      limit: !isNaN(savedLimit) && savedLimit > 0 ? savedLimit : 50,
-      isFreeOnly: false
-    };
-  });
-
-  // Track window scroll for scroll-to-top button
+  // Scroll to top
+  const [showScrollTop, setShowScrollTop] = useState(false);
   useEffect(() => {
     const handleScroll = () => {
       setShowScrollTop(window.scrollY > 350);
@@ -103,158 +112,6 @@ export const App: React.FC = () => {
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Load profiles
-  const loadProfiles = useCallback(async () => {
-    try {
-      const list = await api.getProfiles();
-      setProfiles(list);
-      const active = list.find(p => p.isActive) || (list.length > 0 ? list[0] : null);
-      setActiveProfile(active);
-      return active;
-    } catch (e) {
-      console.error('Failed to load profiles:', e);
-      return null;
-    }
-  }, []);
-
-  // Monotonic request counters to guard against out-of-order race conditions
-  const gamesRequestCounter = useRef<number>(0);
-  const freeGamesRequestCounter = useRef<number>(0);
-  const anomaliesRequestCounter = useRef<number>(0);
-
-  // Load stats and top deals
-  const loadStatsAndDeals = useCallback(async () => {
-    try {
-      const [s, d] = await Promise.all([
-        api.getWishlistStatistics(),
-        api.getBestDeals(12)
-      ]);
-      setStats(s);
-      setTopDeals(d.deals || []);
-    } catch (e) {
-      console.error('Failed to load statistics or best deals:', e);
-    }
-  }, []);
-
-  // Load wishlist games with out-of-order response protection
-  const loadGames = useCallback(async (opts: WishlistFilterOptions = filters) => {
-    const requestId = ++gamesRequestCounter.current;
-    setLoading(true);
-    try {
-      const res = await api.getWishlistGames({ ...opts, isFreeOnly: false });
-      if (requestId === gamesRequestCounter.current) {
-        setGames(res.games);
-        setTotalGames(res.total);
-        if (res.activeProfile) {
-          setActiveProfile(res.activeProfile);
-        }
-      }
-    } catch (e) {
-      if (requestId === gamesRequestCounter.current) {
-        console.error('Failed to load wishlist games:', e);
-      }
-    } finally {
-      if (requestId === gamesRequestCounter.current) {
-        setLoading(false);
-      }
-    }
-  }, [filters]);
-
-  // Load free games with race condition guard
-  const loadFreeGames = useCallback(async () => {
-    const requestId = ++freeGamesRequestCounter.current;
-    try {
-      const res = await api.getWishlistGames({ isFreeOnly: true, limit: 500 });
-      if (requestId === freeGamesRequestCounter.current) {
-        setFreeGames(res.games);
-      }
-    } catch (e) {
-      if (requestId === freeGamesRequestCounter.current) {
-        console.error('Failed to load free games:', e);
-      }
-    }
-  }, []);
-
-  // Load anomalies with race condition guard
-  const loadAnomalies = useCallback(async () => {
-    const requestId = ++anomaliesRequestCounter.current;
-    try {
-      const list = await api.getAnomalies();
-      if (requestId === anomaliesRequestCounter.current) {
-        setAnomalies(list);
-      }
-    } catch (e) {
-      if (requestId === anomaliesRequestCounter.current) {
-        console.error('Failed to load anomalies:', e);
-      }
-    }
-  }, []);
-
-  // Initial load & SSE connection
-  useEffect(() => {
-    loadProfiles().then((active) => {
-      if (active) {
-        loadGames();
-        loadFreeGames();
-        loadStatsAndDeals();
-      } else {
-        setLoading(false);
-      }
-    });
-
-    loadAnomalies();
-
-    // Server-Sent Events (SSE) Stream for real-time progress
-    const eventSource = new EventSource('/api/sync/events');
-    eventSource.onmessage = (event) => {
-      try {
-        const update: SyncProgressUpdate = JSON.parse(event.data);
-        setSyncProgress(update);
-
-        if (update.status === 'COMPLETED') {
-          loadGames();
-          loadFreeGames();
-          loadStatsAndDeals();
-          loadAnomalies();
-        }
-      } catch (e) {
-        console.error('Error parsing SSE event:', e);
-      }
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [loadProfiles, loadGames, loadFreeGames, loadStatsAndDeals, loadAnomalies]);
-
-  const handleFilterChange = (newFilters: Partial<WishlistFilterOptions>) => {
-    const updated = { ...filters, ...newFilters };
-    if (newFilters.sort) {
-      localStorage.setItem('pricetool_sort', newFilters.sort);
-    }
-    if (newFilters.limit) {
-      localStorage.setItem('pricetool_limit', String(newFilters.limit));
-    }
-    setFilters(updated);
-    loadGames(updated);
-  };
-
-  const handleTriggerSync = () => {
-    setShowSyncModal(true);
-  };
-
-  const handleExecuteSync = async (forceRefresh: boolean, selectedSources?: SourceCode[]) => {
-    try {
-      await api.startSync({ forceRefresh, sources: selectedSources });
-    } catch (err: any) {
-      alert(err.message || 'Failed to start sync');
-    }
-  };
-
-  const handleCancelSync = async () => {
-    await api.cancelSync();
   };
 
   const totalPages = Math.ceil(totalGames / (filters.limit || 50)) || 1;
@@ -269,7 +126,7 @@ export const App: React.FC = () => {
         onOpenProfiles={() => setShowProfilesModal(true)}
         onOpenSources={() => setShowSourcesModal(true)}
         onOpenDiscord={() => setShowDiscordModal(true)}
-        onTriggerSync={handleTriggerSync}
+        onTriggerSync={() => setShowSyncModal(true)}
       />
 
       {/* Sync Progress Banner */}
@@ -347,9 +204,9 @@ export const App: React.FC = () => {
                 stats={stats}
                 topDeals={topDeals}
                 onSelectGame={(id) => setSelectedGameId(id)}
-                onFilterATL={() => handleFilterChange({ allTimeLowOnly: true, majorDealsOnly: false, saleOnly: false, page: 1 })}
-                onFilterMajor={() => handleFilterChange({ majorDealsOnly: true, allTimeLowOnly: false, saleOnly: false, page: 1 })}
-                onFilterSale={() => handleFilterChange({ saleOnly: true, majorDealsOnly: false, allTimeLowOnly: false, page: 1 })}
+                onFilterATL={() => updateFilters({ allTimeLowOnly: true, majorDealsOnly: false, saleOnly: false, page: 1 })}
+                onFilterMajor={() => updateFilters({ majorDealsOnly: true, allTimeLowOnly: false, saleOnly: false, page: 1 })}
+                onFilterSale={() => updateFilters({ saleOnly: true, majorDealsOnly: false, allTimeLowOnly: false, page: 1 })}
               />
 
               <FilterBar
@@ -357,7 +214,7 @@ export const App: React.FC = () => {
                 totalGames={totalGames}
                 viewMode={viewMode}
                 onViewModeChange={handleViewModeChange}
-                onFilterChange={handleFilterChange}
+                onFilterChange={updateFilters}
               />
 
               {loading && games.length === 0 ? (
@@ -374,7 +231,7 @@ export const App: React.FC = () => {
                       : 'No games match your current search and filter settings.'}
                   </p>
                   {totalGames === 0 && (
-                    <button className="btn btn-primary" onClick={handleTriggerSync}>
+                    <button className="btn btn-primary" onClick={() => setShowSyncModal(true)}>
                       <span>Sync Wishlist Now</span>
                     </button>
                   )}
@@ -408,7 +265,7 @@ export const App: React.FC = () => {
                       onGameClick={(game) => setSelectedGameId(game.id)}
                       onExplain={(g) => setExplainGame(g)}
                       currentSort={filters.sort}
-                      onSortChange={(sort) => handleFilterChange({ sort, page: 1 })}
+                      onSortChange={(sort) => updateFilters({ sort, page: 1 })}
                     />
                   )}
 
@@ -419,7 +276,7 @@ export const App: React.FC = () => {
                         <button
                           className="btn btn-secondary"
                           disabled={currentPage <= 1}
-                          onClick={() => handleFilterChange({ page: 1 })}
+                          onClick={() => updateFilters({ page: 1 })}
                           title="First Page"
                           aria-label="First Page"
                         >
@@ -430,7 +287,7 @@ export const App: React.FC = () => {
                       <button
                         className="btn btn-secondary"
                         disabled={currentPage <= 1}
-                        onClick={() => handleFilterChange({ page: currentPage - 1 })}
+                        onClick={() => updateFilters({ page: currentPage - 1 })}
                         title="Previous Page"
                         aria-label="Previous Page"
                       >
@@ -445,7 +302,7 @@ export const App: React.FC = () => {
                       <button
                         className="btn btn-secondary"
                         disabled={currentPage >= totalPages}
-                        onClick={() => handleFilterChange({ page: currentPage + 1 })}
+                        onClick={() => updateFilters({ page: currentPage + 1 })}
                         title="Next Page"
                         aria-label="Next Page"
                       >
@@ -457,7 +314,7 @@ export const App: React.FC = () => {
                         <button
                           className="btn btn-secondary"
                           disabled={currentPage >= totalPages}
-                          onClick={() => handleFilterChange({ page: totalPages })}
+                          onClick={() => updateFilters({ page: totalPages })}
                           title="Last Page"
                           aria-label="Last Page"
                         >
