@@ -84,10 +84,10 @@ Each source adapter operates with an isolated token-bucket queue:
 4. **GG.deals Worker (Batch / Selective API)**:
    * Delay: 1000ms. Refreshes batch catalog in parallel.
 
-5. **AllKeyShop Worker (Smart Priority Scraping)**:
-   * Uses AllKeyShop's structured `vaks.php` v2 JSON API.
-   * Pacing: 2500ms delay for TOP 150 priority games (~6 minutes total).
-   * Fallback Circuit Breaker protects against anti-bot challenges.
+5. **AllKeyShop Worker (Adaptive Keyshop Enrichment)**:
+   * Uses AllKeyShop's unofficial internal JSON endpoints (`vaks.php`, `price_history_api.php`) strictly routed through an anti-bot solver (Byparr / FlareSolverr).
+   * Pacing: 2000ms base delay with exponential jitter and adaptive check intervals per title.
+   * Solver-only policy ensures zero IP ban risk by skipping enrichment gracefully if the solver is unavailable.
 
 ---
 

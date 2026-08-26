@@ -12,7 +12,7 @@ This document provides a thorough analysis of each game price source, detailing 
 | **IsThereAnyDeal (ITAD)** | **Yes (REST v2 / v3)** | Free API Key | **Yes (up to 200 IDs)** | 500ms delay | EU / Global / Multi-country | **Yes** (Built-in `historyLow`) | No | **Primary Source (Official Stores)** |
 | **GG.deals** | **Yes (Developer API / Endpoints)** | Optional / Free Key | **Yes (Batch & per-game)** | 1000ms delay | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Primary / Secondary (Official + Keyshops)** |
 | **CheapShark** | **Yes (Public REST API)** | None (`User-Agent` req.) | **Yes (up to 60 IDs/call)** | 500ms delay | US / EU / Global | **Yes** (`cheapestPriceEver`) | No | **Primary / Secondary (Official Stores)** |
-| **AllKeyShop** | **Yes (vaks.php v2 JSON API)** | None | Full / Configurable (TOP N) | 2500ms delay | EU / Global / Key types | **Yes** (Lowest keyshop/official) | No | **Keyshop Coverage (Eneba, Kinguin, etc.)** |
+| **AllKeyShop** | **No (Unofficial internal API)** | None (Solver req.) | Per-title search | 2000ms delay | EU / Global / Key types | **Yes** (Lowest keyshop/official) | Solver Required | **Keyshop Coverage (Eneba, Kinguin, etc.)** |
 | **GoCDKeys** | No (Unofficial JSON / Web) | None | No (Per-title search) | 4000ms delay | EU / Global | No | Fallback only if blocked | **Fallback (Disabled by Default)** |
 
 ---
@@ -58,11 +58,11 @@ This document provides a thorough analysis of each game price source, detailing 
 
 ### 2.5 AllKeyShop
 * **Canonical Role**: Comprehensive grey-market keyshop coverage (Eneba, Kinguin, G2A, CDKeys, Instant Gaming, Gamivo, etc.).
-* **Integration Strategy**:
-  * Queries AllKeyShop's high-fidelity **`vaks.php` v2 JSON API** (`https://www.allkeyshop.com/api/v2/vaks.php?action=products&currency=eur&name=...`).
-  * Extracts exact merchant names (*Gamivo, Eneba, Kinguin, Instant Gaming*), active voucher codes (`bestVoucher`), direct redirect URLs, and discount depths.
-  * Runs with respectful 2500ms pacing across the full catalog (`ALLKEYSHOP_MAX_GAMES=0` by default), or can be capped to TOP N games via configuration.
-  * If anti-bot challenge (403/429) is detected, adapter trips circuit breaker into `PAUSED` without stalling or interrupting the main sync pipeline.
+* **API Endpoints & Architecture**:
+  * Queries AllKeyShop's **unofficial internal endpoints** (`vaks.php` and `price_history_api.php`) to fetch product listings, merchant offers, voucher discounts, and historical pricing.
+  * **Solver Requirement**: Strictly requires an external anti-bot solver (Byparr or FlareSolverr via `ALLKEYSHOP_SOLVER_URL`). To protect user IP addresses from Cloudflare rate-limits and bans, all direct-scraping fallbacks have been eliminated.
+  * **Adaptive Scheduling & Pacing**: Implements adaptive exponential backoff per title (24h to 168h intervals based on price stability streak), with 2000ms base pacing, long-tailed jitter, and chunked batching.
+  * **Circuit Breaker & Failure Cooldown**: If the solver challenge fails (or returns 403/429/502), the adapter activates a cooldown and gracefully skips enrichment without interrupting or delaying the primary sync pipeline.
 
 ### 2.6 GoCDKeys
 * **Canonical Role**: Secondary keyshop comparison fallback (Disabled by default).
@@ -85,8 +85,8 @@ Sync Orchestrator (Parallel Multi-Source Execution)
   │     ├── CheapShark Batch (Batch: 50-60 items/req, Delay: 500ms)
   │     └── GG.deals Batch   (Batch: 50 items/req, Delay: 1000ms)
   │
-  └── Smart Priority Secondary Pool (~6m total for TOP 150):
-        ├── AllKeyShop Queue (vaks.php v2 JSON API, Delay: 2500ms, TOP 150 games)
+  └── Smart Priority Secondary Pool:
+        ├── AllKeyShop Queue (Solver required, Delay: 2000ms, Adaptive intervals)
         └── GoCDKeys Queue   (Disabled by default)
 ```
 
