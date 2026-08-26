@@ -4,14 +4,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true
-      }
-    },
-    fileParallelism: false,
-    isolate: false,
     projects: [
       {
         plugins: [react()],
@@ -42,6 +34,7 @@ export default defineConfig({
           globals: true,
           include: ['tests/client/**', 'src/client/**/*.test.{ts,tsx}'],
           environment: 'jsdom',
+          isolate: true,
           setupFiles: ['./tests/setupClient.ts']
         }
       }
