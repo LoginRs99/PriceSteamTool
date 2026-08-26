@@ -6,6 +6,7 @@ import type {
 } from '../../shared/types.js';
 import type { NormalizedSourceOffer } from '../sources/base.js';
 import { 
+  profileRepo,
   gameRepo, 
   offerRepo, 
   merchantRepo, 
@@ -78,8 +79,18 @@ export class SyncOrchestrator {
     selectedSources?: SourceCode[],
     trigger: 'MANUAL' | 'SCHEDULED' | 'STARTUP' = 'MANUAL'
   ): Promise<SyncProgressUpdate> {
-    const profile = (await import('../db/index.js')).profileRepo.getById(profileId);
-    if (!profile) throw new Error(`Profile ${profileId} not found`);
+    if (this.isRunning) {
+      const err: any = new Error('A synchronization task is already in progress.');
+      err.status = 409;
+      throw err;
+    }
+
+    const profile = profileRepo.getById(profileId);
+    if (!profile) {
+      const err: any = new Error(`Profile ${profileId} not found`);
+      err.status = 404;
+      throw err;
+    }
 
     // Run executeSync in background and return initial progress immediately
     this.executeSync(profile.id, profile.steamId, profile.name, forceRefresh, trigger, selectedSources).catch(err => {
@@ -153,7 +164,9 @@ export class SyncOrchestrator {
     selectedSources?: SourceCode[]
   ): Promise<void> {
     if (this.isRunning) {
-      throw new Error('A synchronization task is already in progress.');
+      const err: any = new Error('A synchronization task is already in progress.');
+      err.status = 409;
+      throw err;
     }
 
     this.isRunning = true;

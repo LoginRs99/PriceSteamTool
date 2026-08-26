@@ -322,4 +322,64 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
       }
     });
   });
+
+  // ----------------------------------------------------
+  // Audit 5: Sync-Start Race Condition Prevention
+  // ----------------------------------------------------
+  describe('5. Sync Start Race Condition Prevention & 409 Conflict', () => {
+    it('rejects concurrent startSync calls with 409 and does not return stale 200 payload', async () => {
+      const { syncOrchestrator } = await import('../../src/server/sync/orchestrator.js');
+      const { steamAdapter } = await import('../../src/server/sources/steam.js');
+      const { createApp } = await import('../../src/server/index.js');
+
+      const profile = profileRepo.create('SyncRaceUser', '76561198000000009');
+      profileRepo.setActive(profile.id);
+
+      // Controlled promise to deterministically hold the first sync in-flight
+      let resolveFirstSync!: (val: any) => void;
+      const controlledHold = new Promise((resolve) => {
+        resolveFirstSync = resolve;
+      });
+
+      const origFetchWishlist = steamAdapter.fetchWishlist.bind(steamAdapter);
+      steamAdapter.fetchWishlist = vi.fn().mockImplementation(async () => {
+        await controlledHold;
+        return [];
+      });
+
+      const app = await createApp();
+
+      try {
+        // 1. Fire first sync via startSync
+        const firstSyncProgress = await syncOrchestrator.startSync(profile.id);
+        expect(syncOrchestrator.isSyncRunning()).toBe(true);
+        expect(firstSyncProgress.status).toBe('RUNNING');
+
+        // 2. Direct startSync while running must throw with status 409
+        await expect(syncOrchestrator.startSync(profile.id)).rejects.toMatchObject({
+          message: 'A synchronization task is already in progress.',
+          status: 409
+        });
+
+        // 3. HTTP POST /api/sync/start while running must respond with HTTP 409 Conflict
+        const resConflict = await app.inject({
+          method: 'POST',
+          url: '/api/sync/start'
+        });
+
+        expect(resConflict.statusCode).toBe(409);
+        const jsonConflict = JSON.parse(resConflict.body);
+        expect(jsonConflict.error).toBe('A synchronization task is already in progress.');
+
+        // 4. Release first sync
+        resolveFirstSync([]);
+        while (syncOrchestrator.isSyncRunning()) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+      } finally {
+        steamAdapter.fetchWishlist = origFetchWishlist;
+        await app.close();
+      }
+    });
+  });
 });

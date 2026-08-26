@@ -243,7 +243,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       const progress = await syncOrchestrator.startSync(activeProfile.id, forceRefresh, selectedSources, 'MANUAL');
       return progress;
     } catch (err: any) {
-      return reply.status(500).send({ error: err.message });
+      return reply.status(err.status || 500).send({ error: err.message });
     }
   });
 
