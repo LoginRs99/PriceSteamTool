@@ -10,45 +10,6 @@ interface CatalogGame {
   slug?: string;
 }
 
-const ALLKEYSHOP_USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:127.0) Gecko/20100101 Firefox/127.0',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'
-];
-
-export function getRandomAllkeyshopUserAgent(): string {
-  const idx = Math.floor(Math.random() * ALLKEYSHOP_USER_AGENTS.length);
-  return ALLKEYSHOP_USER_AGENTS[idx];
-}
-
-export function getAllkeyshopHeaders(uaOverride?: string): Record<string, string> {
-  const ua = uaOverride || getRandomAllkeyshopUserAgent();
-  const isChromium = ua.includes('Chrome') || ua.includes('Edg');
-  const isMac = ua.includes('Macintosh');
-  const platform = isMac ? '"macOS"' : '"Windows"';
-
-  const headers: Record<string, string> = {
-    'User-Agent': ua,
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Language': 'en-US,en;q=0.9,hu;q=0.8',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-origin',
-    'Referer': 'https://www.allkeyshop.com/blog/'
-  };
-
-  if (isChromium) {
-    headers['Sec-CH-UA'] = '"Chromium";v="126", "Not/A)Brand";v="8"';
-    headers['Sec-CH-UA-Mobile'] = '?0';
-    headers['Sec-CH-UA-Platform'] = platform;
-  }
-
-  return headers;
-}
-
 interface SolverCookie {
   name: string;
   value: string;
@@ -70,97 +31,77 @@ export async function fetchWithAllkeyshopSolver<T = any>(
 ): Promise<T | null> {
   const solverUrl = config.allkeyshopSolverUrl?.trim();
   
-  if (solverUrl) {
-    // 1. Solver Mode: STRICTLY route through Byparr / FlareSolverr only (NO direct IP fallback to prevent IP bans)
-    const baseEndpoint = solverUrl.replace(/\/+$/, '');
-    const endpoint = baseEndpoint.endsWith('/v1') ? baseEndpoint : `${baseEndpoint}/v1`;
+  if (!solverUrl) {
+    return null;
+  }
 
-    const now = Date.now();
-    const validCookies = (now - lastCookieTimestamp < COOKIE_TTL_MS) ? cachedSolverCookies : [];
+  // Solver Mode: STRICTLY route through Byparr / FlareSolverr only (NO direct IP fallback to prevent IP bans)
+  const baseEndpoint = solverUrl.replace(/\/+$/, '');
+  const endpoint = baseEndpoint.endsWith('/v1') ? baseEndpoint : `${baseEndpoint}/v1`;
 
-    const maxSolverTimeout = Math.max(15000, timeoutMs);
-    const payload: Record<string, any> = {
-      cmd: 'request.get',
-      url,
-      maxTimeout: maxSolverTimeout,
-      blockMedia: true,
-      returnOnlyCookies: false
-    };
+  const now = Date.now();
+  const validCookies = (now - lastCookieTimestamp < COOKIE_TTL_MS) ? cachedSolverCookies : [];
 
-    if (validCookies.length > 0) {
-      payload.cookies = validCookies;
-    }
+  const maxSolverTimeout = Math.max(15000, timeoutMs);
+  const payload: Record<string, any> = {
+    cmd: 'request.get',
+    url,
+    maxTimeout: maxSolverTimeout,
+    blockMedia: true,
+    returnOnlyCookies: false
+  };
 
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(maxSolverTimeout + 15000)
-      });
+  if (validCookies.length > 0) {
+    payload.cookies = validCookies;
+  }
 
-      if (!res.ok) {
-        console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
-        return null;
-      }
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(maxSolverTimeout + 15000)
+    });
 
-      const data: any = await res.json();
-      if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
-        if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
-          cachedSolverCookies = data.solution.cookies;
-          lastCookieTimestamp = Date.now();
-        }
-
-        let resp = data.solution.response;
-        if (typeof resp === 'string') {
-          const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-          if (jsonMatch) {
-            resp = jsonMatch[0];
-          }
-          try {
-            return JSON.parse(resp) as T;
-          } catch {
-            return resp as unknown as T;
-          }
-        } else if (typeof resp === 'object' && resp !== null) {
-          return resp as T;
-        }
-      } else {
-        const solutionStatus = data?.solution?.status || 500;
-        console.warn(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
-        return null;
-      }
-    } catch (solverErr: any) {
-      console.warn(`Byparr request failed for ${url}: ${solverErr.message}`);
+    if (!res.ok) {
+      console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
       return null;
     }
 
+    const data: any = await res.json();
+    if (data?.status === 'ok' && data?.solution?.status >= 200 && data?.solution?.status < 300) {
+      if (Array.isArray(data?.solution?.cookies) && data.solution.cookies.length > 0) {
+        cachedSolverCookies = data.solution.cookies;
+        lastCookieTimestamp = Date.now();
+      }
+
+      let resp = data.solution.response;
+      if (typeof resp === 'string') {
+        const jsonMatch = resp.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        if (jsonMatch) {
+          resp = jsonMatch[0];
+        }
+        try {
+          return JSON.parse(resp) as T;
+        } catch {
+          return resp as unknown as T;
+        }
+      } else if (typeof resp === 'object' && resp !== null) {
+        return resp as T;
+      }
+    } else {
+      const solutionStatus = data?.solution?.status || 500;
+      console.warn(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
+      return null;
+    }
+  } catch (solverErr: any) {
+    console.warn(`Byparr request failed for ${url}: ${solverErr.message}`);
     return null;
   }
 
-  // 2. Direct Mode: Only used when NO solver URL is provided
-  try {
-    const res = await fetch(url, {
-      headers: getAllkeyshopHeaders(),
-      signal: AbortSignal.timeout(timeoutMs)
-    });
-
-    if (res.status === 403 || res.status === 429) {
-      const err: any = new Error(`AllKeyShop rate limit or challenge (${res.status})`);
-      err.status = res.status;
-      throw err;
-    }
-
-    if (!res.ok) return null;
-    return await res.json() as T;
-  } catch (directErr: any) {
-    if (directErr.status === 403 || directErr.status === 429) {
-      throw directErr;
-    }
-    return null;
-  }
+  return null;
 }
 
 function extractYear(text?: string): number | null {

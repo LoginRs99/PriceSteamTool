@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { 
   computeNextInterval, 
   isAllkeyshopDue, 
@@ -6,7 +6,7 @@ import {
   CEILING_HOURS, 
   PRICE_TOLERANCE_EUR 
 } from '../../src/server/domain/allkeyshopScheduling.js';
-import { getRandomAllkeyshopUserAgent, getAllkeyshopHeaders } from '../../src/server/sources/allkeyshop.js';
+import { fetchWithAllkeyshopSolver } from '../../src/server/sources/allkeyshop.js';
 
 describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
   describe('1. computeNextInterval (Self-tuning exponential backoff)', () => {
@@ -95,38 +95,23 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
     });
   });
 
-  describe('3. User-Agent Rotation & Client Hints', () => {
-    it('rotates User-Agent strings and generates valid headers', () => {
-      const uas = new Set<string>();
-      for (let i = 0; i < 30; i++) {
-        uas.add(getRandomAllkeyshopUserAgent());
+  describe('3. Strict Solver-Only Requirement (No direct scraping fallback)', () => {
+    it('returns null immediately when no solver URL is configured without calling fetch', async () => {
+      const { config } = await import('../../src/server/config/index.js');
+      const origSolver = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+      const fetchSpy = vi.fn();
+      global.fetch = fetchSpy;
+
+      try {
+        config.allkeyshopSolverUrl = '';
+        const res = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test');
+        expect(res).toBeNull();
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        config.allkeyshopSolverUrl = origSolver;
+        global.fetch = origFetch;
       }
-      expect(uas.size).toBeGreaterThan(1);
-    });
-
-    it('includes Sec-CH-UA client hints ONLY for Chromium-based User-Agents', () => {
-      const chromeUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-      const edgeUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0';
-      const firefoxUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0';
-      const safariUa = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15';
-
-      const chromeHeaders = getAllkeyshopHeaders(chromeUa);
-      expect(chromeHeaders['Sec-CH-UA']).toBeDefined();
-      expect(chromeHeaders['Sec-CH-UA-Mobile']).toBe('?0');
-      expect(chromeHeaders['Sec-CH-UA-Platform']).toBe('"Windows"');
-
-      const edgeHeaders = getAllkeyshopHeaders(edgeUa);
-      expect(edgeHeaders['Sec-CH-UA']).toBeDefined();
-
-      const firefoxHeaders = getAllkeyshopHeaders(firefoxUa);
-      expect(firefoxHeaders['Sec-CH-UA']).toBeUndefined();
-      expect(firefoxHeaders['Sec-CH-UA-Mobile']).toBeUndefined();
-      expect(firefoxHeaders['Sec-CH-UA-Platform']).toBeUndefined();
-
-      const safariHeaders = getAllkeyshopHeaders(safariUa);
-      expect(safariHeaders['Sec-CH-UA']).toBeUndefined();
-      expect(safariHeaders['Sec-CH-UA-Mobile']).toBeUndefined();
-      expect(safariHeaders['Sec-CH-UA-Platform']).toBeUndefined();
     });
   });
 
@@ -425,7 +410,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       }
     });
 
-    it('falls back to direct fetch when solverUrl is empty', async () => {
+    it('returns null without making direct fetch calls when solverUrl is empty', async () => {
       const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
       const { config } = await import('../../src/server/config/index.js');
 
@@ -434,24 +419,13 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
 
       try {
         config.allkeyshopSolverUrl = '';
-        let capturedUrl = '';
-        let capturedHeaders: any = null;
-
-        global.fetch = (async (url: any, options: any) => {
-          capturedUrl = String(url);
-          capturedHeaders = options.headers;
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ status: 'success', data: 'direct' })
-          } as any;
-        }) as any;
+        const fetchSpy = vi.fn();
+        global.fetch = fetchSpy as any;
 
         const res: any = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/direct-test', 5000);
 
-        expect(capturedUrl).toBe('https://www.allkeyshop.com/api/direct-test');
-        expect(capturedHeaders['User-Agent']).toBeDefined();
-        expect(res).toEqual({ status: 'success', data: 'direct' });
+        expect(res).toBeNull();
+        expect(fetchSpy).not.toHaveBeenCalled();
       } finally {
         config.allkeyshopSolverUrl = origSolverUrl;
         global.fetch = origFetch;
