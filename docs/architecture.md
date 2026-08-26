@@ -73,6 +73,7 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 ## 3. Security & Reliability
 
 1. **Non-Root Execution**: Docker container runs as non-privileged `node` user with explicit UID/GID ownership on `/data`.
-2. **SSRF & URL Sanitization**: All merchant redirect links and external requests are validated against known domains; no user-supplied arbitrary URL fetching.
-3. **HTML & Data Sanitization**: All external payloads (titles, merchant names, raw notes) are strictly stripped of dangerous HTML tags before storage or UI rendering.
-4. **Graceful Shutdown**: Handles `SIGTERM` / `SIGINT` by stopping active queues, flushing SQLite WAL checkpoints, and closing client connections cleanly.
+2. **SSRF & Webhook Hostname Validation**: Outbound webhook requests are strictly validated against a Discord domain allowlist (`discord.com`, `discordapp.com`, `ptb.discord.com`, `canary.discord.com`) to prevent SSRF against internal network resources.
+3. **XSS Protection & Data Handling**: XSS prevention relies entirely on React's default JSX string escaping (`dangerouslySetInnerHTML` is not used anywhere). Ingested titles and merchant data are stored as verbatim text in SQLite without external HTML sanitization libraries.
+4. **Authentication & Access Control**: Designed as a single-tenant self-hosted application for trusted home-lab or reverse-proxy deployments. Optional shared-secret protection (`API_TOKEN`) and CORS restriction (`TRUSTED_ORIGINS`) can be configured via environment variables; when unconfigured, the API operates in an open local network mode.
+5. **Graceful Shutdown**: Handles `SIGTERM` / `SIGINT` by stopping active queues, flushing SQLite WAL checkpoints, and closing client connections cleanly.
