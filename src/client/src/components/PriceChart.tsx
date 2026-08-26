@@ -14,7 +14,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
     return (
       <div className="price-chart-empty">
         <p>Price tracking initialized. Timeline history graph will develop with subsequent sync observations.</p>
-        {points.length === 1 && (
+        {points && points.length === 1 && (
           <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
             Latest recorded price: <strong>€{points[0].priceEur.toFixed(2)}</strong> ({points[0].merchantName})
           </div>

@@ -5,7 +5,8 @@ import {
   merchantRepo, 
   offerRepo, 
   getDb,
-  closeDb 
+  closeDb,
+  clearStmtCache 
 } from '../../src/server/db/index.js';
 import { calculateDealScore } from '../../src/server/domain/dealScore.js';
 import { generateActionSignal } from '../../src/server/domain/actionSignal.js';
@@ -375,12 +376,13 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
         // 4. Release first sync
         resolveFirstSync([]);
         while (syncOrchestrator.isSyncRunning()) {
-          await new Promise((r) => setTimeout(r, 20));
+          await new Promise((r) => setTimeout(r, 30));
         }
-        await new Promise((r) => setTimeout(r, 50));
+        await new Promise((r) => setTimeout(r, 100));
       } finally {
         steamAdapter.fetchWishlist = origFetchWishlist;
         await app.close();
+        clearStmtCache();
       }
     });
   });
