@@ -309,6 +309,13 @@ export function findCandidateGamesInCatalog(
   return results;
 }
 
+export class AllKeyShopUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AllKeyShopUnavailableError';
+  }
+}
+
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
   public readonly name = 'AllKeyShop';
@@ -319,6 +326,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private lastCatalogFetch = 0;
   private pendingCatalogLoad: Promise<CatalogGame[]> | null = null;
   private catalogPath = path.join(process.cwd(), 'data', 'allkeyshop_catalog.json');
+  private catalogFailureCooldownUntil = 0;
 
   public isEnabled(): boolean {
     return config.allkeyshopEnabled;
@@ -331,6 +339,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     // 1. In-memory cache check
     if (this.cachedCatalog && (now - this.lastCatalogFetch) < ONE_DAY_MS) {
       return this.cachedCatalog;
+    }
+
+    if (!this.cachedCatalog && now < this.catalogFailureCooldownUntil) {
+      throw new AllKeyShopUnavailableError('AllKeyShop catalog unavailable (solver cooldown active)');
     }
 
     if (this.pendingCatalogLoad) {
@@ -386,10 +398,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         }
       } catch {}
 
-      // Set 15-minute failure cooldown to avoid hitting solver repeatedly for every game in sync loop
-      this.lastCatalogFetch = now - ONE_DAY_MS + (15 * 60 * 1000);
+      this.catalogFailureCooldownUntil = now + (15 * 60 * 1000);
 
-      return this.cachedCatalog || [];
+      if (this.cachedCatalog) return this.cachedCatalog;
+      throw new AllKeyShopUnavailableError('AllKeyShop catalog fetch failed and no cache available');
     })();
 
     try {
@@ -533,6 +545,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           throw timeoutErr;
         }
         if (err?.status === 403 || err?.status === 429) {
+          throw err;
+        }
+        if (err?.name === 'AllKeyShopUnavailableError') {
           throw err;
         }
         console.warn(`AllKeyShop fetchPricesForGame failed for ${gameTitle}:`, err.message);
