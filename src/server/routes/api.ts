@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { 
   profileRepo, 
@@ -122,7 +122,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     };
   });
 
-  fastify.get('/api/wishlist/statistics', async () => {
+  const getStatisticsHandler = async () => {
     const activeProfile = profileRepo.getActive();
     if (!activeProfile) {
       return {
@@ -135,25 +135,12 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       };
     }
     return gameRepo.getWishlistStatistics(activeProfile.id);
-  });
+  };
 
-  // Alias for statistics
-  fastify.get('/api/games/statistics', async () => {
-    const activeProfile = profileRepo.getActive();
-    if (!activeProfile) {
-      return {
-        totalGames: 0,
-        gamesOnSale: 0,
-        gamesAtHistoricalLow: 0,
-        majorDropsCount: 0,
-        gamesWithHighRiskOffers: 0,
-        averageDiscountPercent: 0
-      };
-    }
-    return gameRepo.getWishlistStatistics(activeProfile.id);
-  });
+  fastify.get('/api/wishlist/statistics', getStatisticsHandler);
+  fastify.get('/api/games/statistics', getStatisticsHandler);
 
-  fastify.get('/api/wishlist/best-deals', async (request) => {
+  const getBestDealsHandler = async (request: FastifyRequest) => {
     const activeProfile = profileRepo.getActive();
     if (!activeProfile) {
       return { deals: [] };
@@ -162,19 +149,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const limit = query.limit ? parseInt(query.limit, 10) : 12;
     const deals = gameRepo.getBestDeals(activeProfile.id, limit);
     return { deals };
-  });
+  };
 
-  // Alias for best-deals
-  fastify.get('/api/games/best-deals', async (request) => {
-    const activeProfile = profileRepo.getActive();
-    if (!activeProfile) {
-      return { deals: [] };
-    }
-    const query = request.query as any;
-    const limit = query.limit ? parseInt(query.limit, 10) : 12;
-    const deals = gameRepo.getBestDeals(activeProfile.id, limit);
-    return { deals };
-  });
+  fastify.get('/api/wishlist/best-deals', getBestDealsHandler);
+  fastify.get('/api/games/best-deals', getBestDealsHandler);
 
   fastify.post('/api/wishlist/:gameId/target-price', async (request, reply) => {
     const activeProfile = profileRepo.getActive();
