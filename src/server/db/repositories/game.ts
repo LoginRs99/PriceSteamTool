@@ -27,6 +27,81 @@ export interface WishlistSyncGame {
   targetPriceEur?: number;
 }
 
+export interface WishlistFilterClauseResult {
+  whereSql: string;
+  params: any[];
+}
+
+export function buildWishlistFilterClause(
+  profileId: string, 
+  options: WishlistFilterOptions = {}
+): WishlistFilterClauseResult {
+  const params: any[] = [profileId];
+  const whereClauses = [`w.profile_id = ?`, `w.is_active = 1`];
+
+  // Free vs Paid filtering
+  if (options.isFreeOnly === true) {
+    whereClauses.push(`(g.is_free = 1 OR g.base_price_eur = 0)`);
+  } else {
+    whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL)`);
+  }
+
+  if (options.search && options.search.trim() !== '') {
+    whereClauses.push(`g.title LIKE ?`);
+    params.push(`%${options.search.trim()}%`);
+  }
+
+  if (options.saleOnly) {
+    whereClauses.push(`(bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))`);
+  }
+
+  if (options.minDiscount !== undefined && options.minDiscount > 0) {
+    whereClauses.push(`bo.discount_percent >= ?`);
+    params.push(options.minDiscount);
+  }
+
+  if (options.majorDealsOnly) {
+    whereClauses.push(`bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP')`);
+  }
+
+  if (options.allTimeLowOnly || options.historicalLowOnly) {
+    whereClauses.push(`bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW')`);
+  }
+
+  if (options.trustedOnly) {
+    whereClauses.push(`bo.risk_level IN ('SAFE', 'LOW') AND (m.is_official = 1 OR m.trust_score >= 0.8)`);
+  }
+
+  if (options.minPrice !== undefined && options.minPrice >= 0) {
+    whereClauses.push(`bo.price_eur >= ?`);
+    params.push(options.minPrice);
+  }
+
+  if (options.maxPrice !== undefined && options.maxPrice > 0) {
+    whereClauses.push(`bo.price_eur <= ?`);
+    params.push(options.maxPrice);
+  }
+
+  if (options.underPrice !== undefined && options.underPrice > 0) {
+    whereClauses.push(`bo.price_eur <= ?`);
+    params.push(options.underPrice);
+  }
+
+  if (options.hasAnomaly) {
+    whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) > 0`);
+  }
+
+  if (options.merchantType === 'official' || (options.merchantType as any) === 'official_only') {
+    whereClauses.push(`m.is_official = 1`);
+  } else if (options.merchantType === 'keyshop' || (options.merchantType as any) === 'keyshop_only') {
+    whereClauses.push(`m.is_official = 0`);
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  return { whereSql, params };
+}
+
 export const gameRepo = {
   upsert(game: {
     steamAppId: number;
@@ -351,81 +426,7 @@ export const gameRepo = {
   },
 
   getWishlistGames(profileId: string, options: WishlistFilterOptions = {}): { games: Game[]; total: number } {
-    const params: any[] = [profileId];
-    let whereClauses = [`w.profile_id = ?`, `w.is_active = 1`];
-
-    // Free vs Paid filtering
-    if (options.isFreeOnly === true) {
-      whereClauses.push(`(g.is_free = 1 OR g.base_price_eur = 0)`);
-    } else {
-      whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL)`);
-    }
-
-    if (options.search && options.search.trim() !== '') {
-      whereClauses.push(`g.title LIKE ?`);
-      params.push(`%${options.search.trim()}%`);
-    }
-
-    if (options.saleOnly) {
-      whereClauses.push(`(bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))`);
-    }
-
-    if (options.minDiscount !== undefined && options.minDiscount > 0) {
-      whereClauses.push(`bo.discount_percent >= ?`);
-      params.push(options.minDiscount);
-    }
-
-    if (options.majorDealsOnly) {
-      whereClauses.push(`bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP')`);
-    }
-
-    if (options.allTimeLowOnly || options.historicalLowOnly) {
-      whereClauses.push(`bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW')`);
-    }
-
-    if (options.trustedOnly) {
-      whereClauses.push(`bo.risk_level IN ('SAFE', 'LOW') AND (m.is_official = 1 OR m.trust_score >= 0.8)`);
-    }
-
-    if (options.minPrice !== undefined && options.minPrice >= 0) {
-      whereClauses.push(`bo.price_eur >= ?`);
-      params.push(options.minPrice);
-    }
-
-    if (options.maxPrice !== undefined && options.maxPrice > 0) {
-      whereClauses.push(`bo.price_eur <= ?`);
-      params.push(options.maxPrice);
-    }
-
-    if (options.underPrice !== undefined && options.underPrice > 0) {
-      whereClauses.push(`bo.price_eur <= ?`);
-      params.push(options.underPrice);
-    }
-
-    if (options.hasAnomaly) {
-      whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) > 0`);
-    }
-
-    if (options.merchantType === 'official' || (options.merchantType as any) === 'official_only') {
-      whereClauses.push(`m.is_official = 1`);
-    } else if (options.merchantType === 'keyshop' || (options.merchantType as any) === 'keyshop_only') {
-      whereClauses.push(`m.is_official = 0`);
-    }
-
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-
-    let orderSql = 'ORDER BY w.priority ASC, g.title ASC';
-    if (options.sort === 'price_asc') {
-      orderSql = 'ORDER BY CASE WHEN bo.price_eur IS NULL THEN 1 ELSE 0 END, bo.price_eur ASC';
-    } else if (options.sort === 'price_desc') {
-      orderSql = 'ORDER BY CASE WHEN bo.price_eur IS NULL THEN 1 ELSE 0 END, bo.price_eur DESC';
-    } else if (options.sort === 'discount_desc') {
-      orderSql = 'ORDER BY CASE WHEN bo.discount_percent IS NULL THEN 1 ELSE 0 END, bo.discount_percent DESC';
-    } else if (options.sort === 'title_asc') {
-      orderSql = 'ORDER BY g.title ASC';
-    } else if (options.sort === 'historical_low') {
-      orderSql = 'ORDER BY (bo.price_eur - g.historical_low_eur) ASC';
-    }
+    const { whereSql, params } = buildWishlistFilterClause(profileId, options);
 
     const limit = Math.min(options.limit || 50, 500);
     const page = Math.max(options.page || 1, 1);
