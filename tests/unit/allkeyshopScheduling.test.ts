@@ -7,6 +7,7 @@ import {
   PRICE_TOLERANCE_EUR 
 } from '../../src/server/domain/allkeyshopScheduling.js';
 import { fetchWithAllkeyshopSolver } from '../../src/server/sources/allkeyshop.js';
+import { config } from '../../src/server/config/index.js';
 
 describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
   describe('1. computeNextInterval (Self-tuning exponential backoff)', () => {
@@ -522,6 +523,33 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         expect(secondRequestBody.cookies).toEqual([
           { name: 'cf_clearance', value: 'secret_token_123', domain: '.allkeyshop.com' }
         ]);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
+
+    it('automatically normalizes raw IP:port solver URL without http:// prefix', async () => {
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+      let requestedEndpoint = '';
+
+      try {
+        config.allkeyshopSolverUrl = '10.0.0.50:8191';
+        global.fetch = vi.fn().mockImplementation(async (url: any) => {
+          requestedEndpoint = url.toString();
+          return {
+            ok: true,
+            json: async () => ({
+              status: 'ok',
+              solution: { status: 200, response: '{"data": "test"}' }
+            })
+          };
+        });
+
+        const result = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 5000);
+        expect(requestedEndpoint).toBe('http://10.0.0.50:8191/v1');
+        expect(result).toEqual({ data: 'test' });
       } finally {
         config.allkeyshopSolverUrl = origSolverUrl;
         global.fetch = origFetch;

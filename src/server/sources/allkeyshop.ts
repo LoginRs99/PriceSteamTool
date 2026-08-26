@@ -36,7 +36,11 @@ export async function fetchWithAllkeyshopSolver<T = any>(
   }
 
   // Solver Mode: STRICTLY route through Byparr / FlareSolverr only (NO direct IP fallback to prevent IP bans)
-  const baseEndpoint = solverUrl.replace(/\/+$/, '');
+  let normalizedUrl = solverUrl.trim();
+  if (!/^https?:\/\//i.test(normalizedUrl)) {
+    normalizedUrl = `http://${normalizedUrl}`;
+  }
+  const baseEndpoint = normalizedUrl.replace(/\/+$/, '');
   const endpoint = baseEndpoint.endsWith('/v1') ? baseEndpoint : `${baseEndpoint}/v1`;
 
   const now = Date.now();
