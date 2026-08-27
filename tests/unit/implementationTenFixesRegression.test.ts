@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 
 // Mock DB repositories to prevent SQLite native binary initialization in test environment
 vi.mock('../../src/server/db/index.js', () => ({
