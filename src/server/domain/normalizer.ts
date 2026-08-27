@@ -191,12 +191,13 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     }
   }
 
-  // Fallback: If unknown string not containing restricted keywords, treat as Global with medium confidence
+  // Fallback: If unknown / unverified region string, reject to prevent surfacing region-incompatible deals
   return {
-    regionType: 'GLOBAL',
+    regionType: 'RESTRICTED',
     regionCode: rawRegion || 'UNKNOWN',
-    regionConfidence: 0.7,
-    isValid: true
+    regionConfidence: 0.0,
+    isValid: false,
+    rejectReason: `Unverified / ambiguous activation region (${rawRegion})`
   };
 }
 

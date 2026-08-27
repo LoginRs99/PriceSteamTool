@@ -142,20 +142,14 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             if (fetchErr?.status === 429) {
               // Transient Steam rate limit hit: backoff for 5 seconds and retry page once
               await new Promise(r => setTimeout(r, 5000));
-              try {
-                data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
-              } catch {
-                if (page === 0) throw fetchErr;
-                break;
-              }
+              data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
             } else {
-              if (page === 0) throw fetchErr;
-              break; // Finished last page
+              throw fetchErr;
             }
           }
 
           if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
-            break; // No more items on next page
+            break; // Valid end of wishlist reached
           }
 
           let pageItemsAdded = 0;
@@ -236,9 +230,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
           page++;
         }
 
-        if (items.length > 0) {
-          return items;
-        }
+        return items;
       } catch (err) {
         // Fall back to IWishlistService if wishlistdata was blocked or failed
       }

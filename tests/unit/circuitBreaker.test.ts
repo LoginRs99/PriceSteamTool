@@ -45,4 +45,12 @@ describe('Circuit Breaker State Machine — State Transitions', () => {
     expect(cb.getState('ggdeals')).toBe('NORMAL');
     expect(cb.canExecute('ggdeals').allowed).toBe(true);
   });
+
+  it('does not immediately trip to BACKOFF on first failure after restart when historical failureCount > 0', () => {
+    const cb = new CircuitBreakerRegistry();
+    // Simulate first failure after restart: consecutiveFailures starts at 0 -> becomes 1
+    cb.recordFailure('itad', 'Transient error 1');
+    // Threshold for BACKOFF is consecutiveFailures >= 2; 1 failure should stay in NORMAL
+    expect(cb.getState('itad')).toBe('NORMAL');
+  });
 });

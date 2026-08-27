@@ -131,6 +131,15 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
       expect(res.isValid).toBe(true);
       expect(res.regionType).toBe('GLOBAL');
     });
+
+    it('strictly rejects unknown or ambiguous region strings to prevent surfacing invalid keys', () => {
+      const unknownSamples = ['Asia Pacific', 'Sub-Saharan Africa', 'Japan Only', 'South Korea Key', 'XYZ-Unknown'];
+      for (const s of unknownSamples) {
+        const res = normalizeRegion(s);
+        expect(res.isValid).toBe(false);
+        expect(res.regionType).toBe('RESTRICTED');
+      }
+    });
   });
 
   describe('Currency Normalization', () => {

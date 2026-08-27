@@ -71,7 +71,9 @@ export async function fetchWithAllkeyshopSolver<T = any>(
 
     if (!res.ok) {
       console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
-      return null;
+      const err: any = new AllKeyShopUnavailableError(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
+      err.status = res.status;
+      throw err;
     }
 
     const data: any = await res.json();
@@ -98,11 +100,18 @@ export async function fetchWithAllkeyshopSolver<T = any>(
     } else {
       const solutionStatus = data?.solution?.status || 500;
       console.warn(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
-      return null;
+      const err: any = new AllKeyShopUnavailableError(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
+      err.status = solutionStatus;
+      throw err;
     }
   } catch (solverErr: any) {
+    if (solverErr instanceof AllKeyShopUnavailableError) {
+      throw solverErr;
+    }
     console.warn(`Byparr request failed for ${url}: ${solverErr.message}`);
-    return null;
+    const err: any = new AllKeyShopUnavailableError(`Byparr request failed for ${url}: ${solverErr.message}`);
+    err.status = 502;
+    throw err;
   }
 
   return null;
@@ -372,8 +381,13 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         }
 
         // Probe candidates in priority order and select the one with active offers
-        for (const matched of candidates) {
+        for (let cIdx = 0; cIdx < candidates.length; cIdx++) {
+          const matched = candidates[cIdx];
           if (!matched || (!matched.id && !matched.slug)) continue;
+
+          if (cIdx > 0) {
+            await new Promise(r => setTimeout(r, Math.max(1000, config.delays.allkeyshop)));
+          }
 
           const priceApiUrl = matched.id 
             ? `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`

@@ -459,10 +459,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
           return { ok: true, status: 200, json: async () => ({}) } as any;
         }) as any;
 
-        const res = await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 5000);
-
-        // Result must be null, and direct fetch MUST NOT have been called
-        expect(res).toBeNull();
+        await expect(fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 5000)).rejects.toThrow();
         expect(directFetchCalled).toBe(false);
       } finally {
         config.allkeyshopSolverUrl = origSolverUrl;
