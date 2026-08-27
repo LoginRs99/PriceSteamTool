@@ -14,6 +14,7 @@ import {
   type WishlistSyncGame 
 } from '../db/index.js';
 import { circuitBreakers } from './circuitBreaker.js';
+import { calculateCoreSyncStatus } from './syncOutcome.js';
 import { normalizeProductType, normalizeRegion } from '../domain/normalizer.js';
 import { sendDealNotifications } from '../domain/discordNotifier.js';
 import { steamAdapter } from '../sources/steam.js';
@@ -451,15 +452,7 @@ export class SyncOrchestrator {
       // Calculate 3-State Core Sync Outcome (REL-05)
       const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
       const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
-      const successfulSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'SUCCESS');
-      const failedSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'FAILED');
-
-      let finalStatus: 'COMPLETED' | 'COMPLETED_WITH_WARNINGS' | 'FAILED' = 'COMPLETED';
-      if (activeCoreSources.length > 0 && successfulSources.length === 0 && failedSources.length > 0) {
-        finalStatus = 'FAILED';
-      } else if (activeCoreSources.length > 0 && failedSources.length > 0) {
-        finalStatus = 'COMPLETED_WITH_WARNINGS';
-      }
+      const { status: finalStatus, failedSources } = calculateCoreSyncStatus(activeCoreSources, sourceOutcomes);
 
       // Finalize Core Sync
       const duration = Math.round((Date.now() - this.startTime) / 1000);
