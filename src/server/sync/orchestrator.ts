@@ -278,12 +278,17 @@ export class SyncOrchestrator {
         return;
       }
 
+      const sourceOutcomes = new Map<SourceCode, 'SUCCESS' | 'FAILED'>();
+
       // Step 4: Fetch Detailed Steam Storefront Prices & Historical Lows
       if (shouldRunSource('steam') && !this.isCancelled) {
         this.progress.sourceProgress.steam.total = gamesToRefresh.length;
         this.progress.sourceProgress.steam.processed = 0;
         this.progress.currentAction = `Fetching official Steam storefront prices for ${gamesToRefresh.length} games...`;
         this.broadcast();
+
+        let steamSuccesses = 0;
+        let steamFailures = 0;
 
         for (let i = 0; i < gamesToRefresh.length; i++) {
           if (this.isCancelled) return;
@@ -292,34 +297,40 @@ export class SyncOrchestrator {
           this.progress.currentAction = `Steam storefront: [${i + 1}/${gamesToRefresh.length}] ${g.title}`;
 
           try {
-            const details = await steamAdapter.fetchAppDetails(g.steamAppId);
-            if (details && details.title && !details.title.startsWith('App ')) {
-              gameRepo.updateMetadata(g.steamAppId, {
-                title: details.title,
-                headerImage: details.headerImage,
-                capsuleImage: details.capsuleImage,
-                releaseDate: details.releaseDate,
-                isDlc: details.isDlc,
-                isFree: details.isFree,
-                basePriceEur: details.basePriceEur
-              });
-              g.title = details.title;
-            }
-
+            // PERF-01: Single call to fetchPricesForGame (which fetches details once internally)
             const steamOffers = await steamAdapter.fetchPricesForGame(g.steamAppId);
+            steamSuccesses++;
             for (const offer of steamOffers) {
+              const details = offer.rawPayload;
+              if (details && details.title && !details.title.startsWith('App ') && g.title.startsWith('App ')) {
+                gameRepo.updateMetadata(g.steamAppId, {
+                  title: details.title,
+                  headerImage: details.headerImage,
+                  capsuleImage: details.capsuleImage,
+                  releaseDate: details.releaseDate,
+                  isDlc: details.isDlc,
+                  isFree: details.isFree,
+                  basePriceEur: details.basePriceEur
+                });
+                g.title = details.title;
+              }
+
               this.ingestOffer(g.id, 'steam', offer);
               this.progress.sourceProgress.steam.offersFound++;
               totalOffersIngested++;
             }
           } catch {
-            // Non-fatal, continue with next game
+            steamFailures++;
           } finally {
             this.progress.sourceProgress.steam.processed = i + 1;
             if (i % 5 === 0 || i === gamesToRefresh.length - 1) {
               this.broadcast();
             }
           }
+        }
+
+        if (gamesToRefresh.length > 0) {
+          sourceOutcomes.set('steam', steamSuccesses > 0 || steamFailures === 0 ? 'SUCCESS' : 'FAILED');
         }
       }
 
@@ -347,8 +358,10 @@ export class SyncOrchestrator {
               this.progress.sourceProgress.itad.processed++;
             }
             this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
+            sourceOutcomes.set('itad', 'SUCCESS');
             this.broadcast();
           } catch (e: any) {
+            sourceOutcomes.set('itad', 'FAILED');
             logWarn(`ITAD batch sync warning: ${e?.message}`);
           }
         })());
@@ -378,8 +391,10 @@ export class SyncOrchestrator {
               this.progress.sourceProgress.cheapshark.processed++;
             }
             this.progress.sourceProgress.cheapshark.processed = gamesToRefresh.length;
+            sourceOutcomes.set('cheapshark', 'SUCCESS');
             this.broadcast();
           } catch (e: any) {
+            sourceOutcomes.set('cheapshark', 'FAILED');
             logWarn(`CheapShark batch sync warning: ${e?.message}`);
           }
         })());
@@ -404,8 +419,10 @@ export class SyncOrchestrator {
               this.progress.sourceProgress.ggdeals.processed++;
             }
             this.progress.sourceProgress.ggdeals.processed = gamesToRefresh.length;
+            sourceOutcomes.set('ggdeals', 'SUCCESS');
             this.broadcast();
           } catch (e: any) {
+            sourceOutcomes.set('ggdeals', 'FAILED');
             logWarn(`GG.deals batch sync warning: ${e?.message}`);
           }
         })());
@@ -417,15 +434,40 @@ export class SyncOrchestrator {
         await Promise.allSettled(batchTasks);
       }
 
-      // Finalize Core Sync Immediately
+      if (this.isCancelled) return;
+
+      // Calculate 3-State Core Sync Outcome (REL-05)
+      const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+      const activeCoreSources = coreSourceCodes.filter(c => shouldRunSource(c));
+      const successfulSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'SUCCESS');
+      const failedSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'FAILED');
+
+      let finalStatus: 'COMPLETED' | 'COMPLETED_WITH_WARNINGS' | 'FAILED' = 'COMPLETED';
+      if (activeCoreSources.length > 0 && successfulSources.length === 0 && failedSources.length > 0) {
+        finalStatus = 'FAILED';
+      } else if (activeCoreSources.length > 0 && failedSources.length > 0) {
+        finalStatus = 'COMPLETED_WITH_WARNINGS';
+      }
+
+      // Finalize Core Sync
       const duration = Math.round((Date.now() - this.startTime) / 1000);
-      this.progress.status = 'COMPLETED';
+      this.progress.status = finalStatus;
       this.progress.completedAt = new Date().toISOString();
       this.lastCoreSyncAt = new Date().toISOString();
-      this.progress.currentAction = `Core sync complete! Refreshed official & batch deals for ${gamesToRefresh.length} games.`;
+      this.progress.currentAction = finalStatus === 'FAILED'
+        ? `Core sync failed: all active price sources encountered errors.`
+        : finalStatus === 'COMPLETED_WITH_WARNINGS'
+        ? `Core sync complete with warnings (${failedSources.join(', ')} failed).`
+        : `Core sync complete! Refreshed official & batch deals for ${gamesToRefresh.length} games.`;
       this.broadcast();
 
-      this.generateSummary(profileName, steamId, trigger, 'COMPLETED', duration, totalWishlistCount, staleQueriedCount, cacheHitRatio, totalOffersIngested, selectedSources);
+      this.generateSummary(profileName, steamId, trigger, finalStatus, duration, totalWishlistCount, staleQueriedCount, cacheHitRatio, totalOffersIngested, selectedSources);
+
+      if (finalStatus === 'FAILED') {
+        const err: any = new Error('All active price sources failed during core synchronization.');
+        err.status = 502;
+        throw err;
+      }
 
       // Trigger Discord notifications for exceptional deals from core sync.
       // Note: Keyshop enrichment runs asynchronously after this in the background to avoid blocking the main sync.
@@ -518,34 +560,34 @@ export class SyncOrchestrator {
               lowestPriceEur = offer.priceEur;
             }
           }
+
+          // Adaptive interval recomputation after each check
+          const prevPrice = g.allkeyshopLastPriceEur !== undefined && g.allkeyshopLastPriceEur !== null
+            ? Number(g.allkeyshopLastPriceEur)
+            : null;
+          const streak = g.allkeyshopUnchangedStreak ?? 0;
+          const prevInterval = g.allkeyshopCheckIntervalHours ?? 24;
+          const hasActiveTargetPrice = g.targetPriceEur !== undefined && g.targetPriceEur !== null;
+
+          const nextSchedule = computeNextInterval(
+            prevPrice,
+            lowestPriceEur,
+            streak,
+            prevInterval,
+            hasActiveTargetPrice
+          );
+
+          const nowIso = new Date().toISOString();
+          gameRepo.updateAllkeyshopCheckState(
+            g.id,
+            nowIso,
+            lowestPriceEur,
+            nextSchedule.intervalHours,
+            nextSchedule.streak
+          );
         } catch {
-          // Ignore individual keyshop scraping errors
+          // Ignore individual keyshop scraping errors and do not mark as checked
         }
-
-        // Adaptive interval recomputation after each check
-        const prevPrice = g.allkeyshopLastPriceEur !== undefined && g.allkeyshopLastPriceEur !== null
-          ? Number(g.allkeyshopLastPriceEur)
-          : null;
-        const streak = g.allkeyshopUnchangedStreak ?? 0;
-        const prevInterval = g.allkeyshopCheckIntervalHours ?? 24;
-        const hasActiveTargetPrice = g.targetPriceEur !== undefined && g.targetPriceEur !== null;
-
-        const nextSchedule = computeNextInterval(
-          prevPrice,
-          lowestPriceEur,
-          streak,
-          prevInterval,
-          hasActiveTargetPrice
-        );
-
-        const nowIso = new Date().toISOString();
-        gameRepo.updateAllkeyshopCheckState(
-          g.id,
-          nowIso,
-          lowestPriceEur,
-          nextSchedule.intervalHours,
-          nextSchedule.streak
-        );
 
         // Anti-ban Cooldown Break: every `chunkSize` games
         const isChunkEnd = (i + 1) % chunkSize === 0 && (i + 1) < prioritizedGames.length;

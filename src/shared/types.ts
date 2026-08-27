@@ -281,7 +281,7 @@ export interface DiscordSettings {
 
 export interface SyncProgressUpdate {
   runId?: string;
-  status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'COMPLETED_WITH_WARNINGS' | 'FAILED' | 'CANCELLED';
   startedAt?: string;
   completedAt?: string;
   startTime?: number;

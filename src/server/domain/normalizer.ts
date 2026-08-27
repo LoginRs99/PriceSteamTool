@@ -191,12 +191,13 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     }
   }
 
-  // Fallback: If unknown string not containing restricted keywords, treat as Global with medium confidence
+  // Fallback: Unrecognized region strings not matching EU/HU/Global tokens are treated as RESTRICTED/Invalid
   return {
-    regionType: 'GLOBAL',
+    regionType: 'RESTRICTED',
     regionCode: rawRegion || 'UNKNOWN',
-    regionConfidence: 0.7,
-    isValid: true
+    regionConfidence: 0.0,
+    isValid: false,
+    rejectReason: `Unrecognized region code locked outside Hungary/EU (${rawRegion || 'UNKNOWN'})`
   };
 }
 
