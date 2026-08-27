@@ -322,7 +322,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
       // 3. Remote download via FlareSolverr/Byparr or direct fetch
       try {
-        const url = 'https://www.allkeyshop.com/api/vaks.php?action=products&v=2';
+        const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&v=2&currency=eur&locales=en_GB';
         const data: any = await fetchWithAllkeyshopSolver(url, 20000);
 
         if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
@@ -333,9 +333,15 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             if (!fs.existsSync(dataDir)) {
               fs.mkdirSync(dataDir, { recursive: true });
             }
-            fs.writeFileSync(this.catalogPath, JSON.stringify(data), 'utf8');
-          } catch {}
+            const tmpPath = `${this.catalogPath}.tmp.${Date.now()}`;
+            fs.writeFileSync(tmpPath, JSON.stringify(data), 'utf8');
+            fs.renameSync(tmpPath, this.catalogPath);
+          } catch (writeErr: any) {
+            console.warn('Failed to persist AllKeyShop catalog to disk:', writeErr.message);
+          }
           return this.cachedCatalog || [];
+        } else {
+          console.warn('[AllKeyShop] Catalog response malformed or empty games array.');
         }
       } catch (err: any) {
         console.warn('Failed to download AllKeyShop catalog:', err.message);
@@ -347,6 +353,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const raw = fs.readFileSync(this.catalogPath, 'utf8');
           const data = JSON.parse(raw);
           if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+            console.warn('[AllKeyShop] Using stale on-disk catalog fallback.');
             this.cachedCatalog = data.games;
           }
         }

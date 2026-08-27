@@ -622,5 +622,84 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       expect(resetCandidates.length).toBe(2);
     });
   });
+
+  describe('8. AllKeyShop V2 gameNames Catalog & Stale Cache Resilience', () => {
+    it('requests the V2 gameNames endpoint with currency=eur and locales=en_GB', async () => {
+      const { AllKeyShopSourceAdapter } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        let requestedUrl = '';
+
+        global.fetch = (async (url: any, options: any) => {
+          const body = JSON.parse(options.body);
+          requestedUrl = body.url;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              status: 'ok',
+              solution: {
+                status: 200,
+                response: JSON.stringify({
+                  status: 'success',
+                  games: [
+                    { id: 101, name: 'Borderlands' },
+                    { id: 102, name: 'Borderlands 2' }
+                  ]
+                })
+              }
+            })
+          } as any;
+        }) as any;
+
+        const adapter = new AllKeyShopSourceAdapter();
+        // Force fresh load by creating instance
+        const catalog = await adapter.ensureCatalog();
+
+        expect(requestedUrl).toBe('https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&v=2&currency=eur&locales=en_GB');
+        expect(catalog.length).toBeGreaterThanOrEqual(2);
+        expect(catalog.some(g => g.id === 101 && g.name === 'Borderlands')).toBe(true);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
+
+    it('falls back to existing stale disk cache when remote gameNames returns 503', async () => {
+      const { AllKeyShopSourceAdapter } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+
+        global.fetch = (async () => {
+          // Solver returns 503 for gameNames
+          return {
+            ok: false,
+            status: 503,
+            json: async () => ({ status: 'error', message: 'Service Unavailable' })
+          } as any;
+        }) as any;
+
+        const adapter = new AllKeyShopSourceAdapter();
+        const catalog = await adapter.ensureCatalog();
+
+        // Should return existing on-disk catalog without throwing
+        expect(Array.isArray(catalog)).toBe(true);
+        expect(catalog.length).toBeGreaterThan(0);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        global.fetch = origFetch;
+      }
+    });
+  });
 });
 
