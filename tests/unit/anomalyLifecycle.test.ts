@@ -15,12 +15,20 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     } catch {}
   });
 
-  it('1. startup anomaly audit query produces concise count summaries without raw JSON table dumps', () => {
+  it('1. startup anomaly audit query produces concise count summaries with valid foreign key fixture', () => {
     const game = gameRepo.upsert({ steamAppId: 100, title: 'Test Game', basePriceEur: 50 });
     const merchant = merchantRepo.getOrCreate('store_a', 'Store A', false);
     
-    // Create an anomaly record
-    anomalyRepo.record(game.id, 'off-1', 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Glitch', 0.49);
+    // Create valid offer row first so FK constraint offers(id) is satisfied
+    const offer = offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchant.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.49,
+      sourceCode: 'ggdeals',
+      dealUrl: 'https://example.com/deal'
+    });
 
     const counts = prepareStmt(`
       SELECT 
@@ -75,7 +83,7 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     const merchant = merchantRepo.getOrCreate('keyshop_2', 'Keyshop 2', false);
 
     // Sync 1: Anomaly price
-    const off = offerRepo.upsertOffer({
+    offerRepo.upsertOffer({
       gameId: game.id,
       merchantId: merchant.id,
       productType: 'STEAM_KEY',
@@ -102,12 +110,12 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     expect(anomalyRepo.list(true).length).toBe(0);
   });
 
-  it('4 & 5. dismissed anomaly does not recreate every sync while the same condition persists', () => {
+  it('4. dismissed anomaly is not recreated every sync while the same event persists', () => {
     const game = gameRepo.upsert({ steamAppId: 103, title: 'Game 3', basePriceEur: 50 });
     const merchant = merchantRepo.getOrCreate('keyshop_3', 'Keyshop 3', false);
 
     // Sync 1: Anomaly price
-    const off = offerRepo.upsertOffer({
+    offerRepo.upsertOffer({
       gameId: game.id,
       merchantId: merchant.id,
       productType: 'STEAM_KEY',
@@ -138,9 +146,55 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     expect(anomalyRepo.list(true).length).toBe(0);
   });
 
-  it('6. a materially changed anomaly (price drop > 15%) creates a new anomaly event', () => {
+  it('5. after resolution, the same anomaly condition appearing again creates a new active anomaly event', () => {
     const game = gameRepo.upsert({ steamAppId: 104, title: 'Game 4', basePriceEur: 50 });
     const merchant = merchantRepo.getOrCreate('keyshop_4', 'Keyshop 4', false);
+
+    // Sync 1: Glitch offer
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchant.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.49,
+      sourceCode: 'ggdeals',
+      dealUrl: 'https://example.com/deal'
+    });
+
+    // Dismiss it
+    const activeList = anomalyRepo.list(true);
+    anomalyRepo.dismiss(activeList[0].id);
+
+    // Sync 2: Price resolves back to normal €29.99
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchant.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 29.99,
+      sourceCode: 'ggdeals',
+      dealUrl: 'https://example.com/deal'
+    });
+
+    // Sync 3: Price drops back down to €0.49 (new anomaly event post-resolution)
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchant.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 0.49,
+      sourceCode: 'ggdeals',
+      dealUrl: 'https://example.com/deal'
+    });
+
+    const newActiveList = anomalyRepo.list(true);
+    expect(newActiveList.length).toBe(1);
+    expect(newActiveList[0].priceEur).toBe(0.49);
+  });
+
+  it('6. price drop from €0.49 to €0.05 while dismissed creates a new active anomaly event', () => {
+    const game = gameRepo.upsert({ steamAppId: 105, title: 'Game 5', basePriceEur: 50 });
+    const merchant = merchantRepo.getOrCreate('keyshop_5', 'Keyshop 5', false);
 
     // Sync 1: Anomaly at €0.49
     offerRepo.upsertOffer({
@@ -156,7 +210,7 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     const activeList = anomalyRepo.list(true);
     anomalyRepo.dismiss(activeList[0].id);
 
-    // Sync 2: Price drops significantly lower to €0.05 (material new drop > 15%)
+    // Sync 2: Price drops to €0.05
     offerRepo.upsertOffer({
       gameId: game.id,
       merchantId: merchant.id,
@@ -167,15 +221,14 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
       dealUrl: 'https://example.com/deal'
     });
 
-    // Materially new event triggers new active anomaly
     const newActiveList = anomalyRepo.list(true);
     expect(newActiveList.length).toBe(1);
     expect(newActiveList[0].priceEur).toBe(0.05);
   });
 
-  it('7 & 8. resolved anomaly does not appear in active queries but remains available in historical queries (list(false))', () => {
-    const game = gameRepo.upsert({ steamAppId: 105, title: 'Game 5', basePriceEur: 50 });
-    const merchant = merchantRepo.getOrCreate('keyshop_5', 'Keyshop 5', false);
+  it('7. resolved/dismissed anomalies do not appear in list(true) but remain available in list(false)', () => {
+    const game = gameRepo.upsert({ steamAppId: 106, title: 'Game 6', basePriceEur: 50 });
+    const merchant = merchantRepo.getOrCreate('keyshop_6', 'Keyshop 6', false);
 
     offerRepo.upsertOffer({
       gameId: game.id,

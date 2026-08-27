@@ -4,7 +4,15 @@ import type { Anomaly } from '../../../shared/types.js';
 import { logWarn } from '../../utils/logger.js';
 
 export const anomalyRepo = {
-  record(gameId: string, offerId: string, type: Anomaly['anomalyType'], score: number, reason: string, currentPriceEur?: number): void {
+  record(
+    gameId: string, 
+    offerId: string, 
+    type: Anomaly['anomalyType'], 
+    score: number, 
+    reason: string, 
+    currentPriceEur?: number,
+    previousPriceEur?: number
+  ): void {
     const now = new Date().toISOString();
     
     // 1. Check if an active (non-dismissed) anomaly record exists for this offer
@@ -25,31 +33,25 @@ export const anomalyRepo = {
 
     // 2. Check if a dismissed anomaly record exists for this offer
     const dismissedExisting = prepareStmt(`
-      SELECT a.id, a.anomaly_type, a.score, o.price_eur
-      FROM anomalies a
-      LEFT JOIN offers o ON a.offer_id = o.id
-      WHERE a.game_id = ? AND a.offer_id = ? AND a.is_dismissed = 1
-      ORDER BY a.detected_at DESC LIMIT 1
+      SELECT id, anomaly_type, score
+      FROM anomalies
+      WHERE game_id = ? AND offer_id = ? AND is_dismissed = 1
+      ORDER BY detected_at DESC LIMIT 1
     `).get(gameId, offerId) as any;
 
     if (dismissedExisting) {
-      const prevPrice = dismissedExisting.price_eur !== null && dismissedExisting.price_eur !== undefined 
-        ? Number(dismissedExisting.price_eur) 
-        : undefined;
-      const currPrice = currentPriceEur;
-
-      // Check if this is materially the same anomaly event that was dismissed:
-      // Same anomaly type and price is not significantly lower (within 15% drop of dismissed price)
+      // Check if this is materially the same ongoing anomaly event that was dismissed:
+      // Same anomaly type AND price did not drop further below previous price
       const isSameType = (dismissedExisting.anomaly_type === type);
-      const isPriceUnchanged = (prevPrice !== undefined && currPrice !== undefined && currPrice >= prevPrice * 0.85);
+      const isPriceDrop = (previousPriceEur !== undefined && currentPriceEur !== undefined && currentPriceEur < previousPriceEur - 0.005);
 
-      if (isSameType && isPriceUnchanged) {
+      if (isSameType && !isPriceDrop) {
         // Materially unchanged event -> respect dismissal and do NOT create new active row
         return;
       }
     }
 
-    // 3. New active anomaly event (first-time detection or materially new drop/type)
+    // 3. New active anomaly event (first-time detection, post-resolution, price drop, or type change)
     const id = randomUUID();
     prepareStmt(`
       INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
