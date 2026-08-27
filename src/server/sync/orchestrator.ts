@@ -210,6 +210,31 @@ export class SyncOrchestrator {
         return isSourceEnabled(code);
       };
 
+      const isSourceEligible = (code: SourceCode): boolean => {
+        if (!shouldRunSource(code)) return false;
+        switch (code) {
+          case 'steam': return steamAdapter.isEnabled();
+          case 'itad': return itadAdapter.isEnabled();
+          case 'cheapshark': return cheapsharkAdapter.isEnabled();
+          case 'ggdeals': return ggdealsAdapter.isEnabled();
+          case 'allkeyshop': return allkeyshopAdapter.isEnabled();
+          default: return false;
+        }
+      };
+
+      const SOURCE_DISPLAY_NAMES: Record<SourceCode, string> = {
+        steam: 'Steam Store',
+        itad: 'IsThereAnyDeal',
+        cheapshark: 'CheapShark',
+        ggdeals: 'GG.deals',
+        allkeyshop: 'AllKeyShop'
+      };
+
+      const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+      const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
+      const isKeyshopSelected = isSourceEligible('allkeyshop');
+      const isKeyshopOnly = isKeyshopSelected && activeCoreSources.length === 0;
+
       // Refresh dynamic FX rates if cache expired
       try {
         await exchangeRateService.refreshRates();
@@ -217,14 +242,14 @@ export class SyncOrchestrator {
         logWarn(`[FX] Could not update live exchange rates, using fallback: ${fxErr.message}`);
       }
 
-      // Step 1: Fetch Steam Wishlist
+      // Step 1: Fetch Steam Wishlist metadata
       this.progress.currentAction = `Fetching Steam Wishlist for ${profileName}...`;
       this.broadcast();
 
       const wishlistItems = await steamAdapter.fetchWishlist(steamId);
       totalWishlistCount = wishlistItems.length;
       this.progress.totalGames = totalWishlistCount;
-      this.progress.sourceProgress.steam.total = totalWishlistCount;
+      // Note: sourceProgress tracks price-source execution; do not set steam.total here
       this.broadcast();
 
       if (this.isCancelled) return;
@@ -257,26 +282,30 @@ export class SyncOrchestrator {
       // Step 3: Check TTL Cache
       const allWishlistGames = gameRepo.getAllWishlistGameIds(profileId);
       
-      // Auto-Heal: if any games have placeholder "App 123456" titles, force refresh their metadata
-      let gamesToRefresh = forceRefresh 
-        ? allWishlistGames 
-        : gameRepo.getStaleWishlistGameIds(profileId, config.cacheTtlHours);
+      let gamesToRefresh: WishlistSyncGame[] = [];
+      if (activeCoreSources.length > 0) {
+        // Auto-Heal: if any games have placeholder "App 123456" titles, force refresh their metadata
+        gamesToRefresh = forceRefresh 
+          ? allWishlistGames 
+          : gameRepo.getStaleWishlistGameIds(profileId, config.cacheTtlHours);
 
-      // Always include games with placeholder titles in gamesToRefresh so they get healed
-      const placeholderAppIds = new Set(allWishlistGames.filter(g => g.title.startsWith('App ')).map(g => g.steamAppId));
-      for (const g of allWishlistGames) {
-        if (placeholderAppIds.has(g.steamAppId) && !gamesToRefresh.some(r => r.steamAppId === g.steamAppId)) {
-          gamesToRefresh.push(g);
+        // Always include games with placeholder titles in gamesToRefresh so they get healed
+        const placeholderAppIds = new Set(allWishlistGames.filter(g => g.title.startsWith('App ')).map(g => g.steamAppId));
+        for (const g of allWishlistGames) {
+          if (placeholderAppIds.has(g.steamAppId) && !gamesToRefresh.some(r => r.steamAppId === g.steamAppId)) {
+            gamesToRefresh.push(g);
+          }
         }
+
+        staleQueriedCount = gamesToRefresh.length;
+        const cachedCount = allWishlistGames.length - staleQueriedCount;
+        cacheHitRatio = allWishlistGames.length > 0 ? Math.round((cachedCount / allWishlistGames.length) * 100) : 0;
+
+        logInfo(`Cache Evaluation: ${gamesToRefresh.length} games require price refresh (${cacheHitRatio}% cache hit ratio)`);
       }
 
-      staleQueriedCount = gamesToRefresh.length;
-      const cachedCount = allWishlistGames.length - staleQueriedCount;
-      cacheHitRatio = allWishlistGames.length > 0 ? Math.round((cachedCount / allWishlistGames.length) * 100) : 0;
-
-      logInfo(`Cache Evaluation: ${gamesToRefresh.length} games require price refresh (${cacheHitRatio}% cache hit ratio)`);
-
-      if (gamesToRefresh.length === 0) {
+      // If core sources are selected and all are cached, and keyshop is not selected, finish immediately
+      if (activeCoreSources.length > 0 && gamesToRefresh.length === 0 && !isKeyshopSelected) {
         const duration = Math.round((Date.now() - this.startTime) / 1000);
         this.progress.status = 'COMPLETED';
         this.progress.completedAt = new Date().toISOString();
@@ -290,7 +319,7 @@ export class SyncOrchestrator {
       const sourceOutcomes = new Map<SourceCode, 'SUCCESS' | 'FAILED'>();
 
       // Step 4: Fetch Detailed Steam Storefront Prices & Historical Lows
-      if (shouldRunSource('steam') && !this.isCancelled) {
+      if (shouldRunSource('steam') && gamesToRefresh.length > 0 && !this.isCancelled) {
         this.progress.sourceProgress.steam.total = gamesToRefresh.length;
         this.progress.sourceProgress.steam.processed = 0;
         this.progress.currentAction = `Fetching official Steam storefront prices for ${gamesToRefresh.length} games...`;
@@ -348,117 +377,106 @@ export class SyncOrchestrator {
       // Step 5: High-Speed Batch Sources (ITAD, CheapShark, GG.deals)
       const batchTasks: Promise<void>[] = [];
 
-      // ITAD Batch Sync
-      if (shouldRunSource('itad') && itadAdapter.isEnabled()) {
-        batchTasks.push((async () => {
-          try {
-            this.progress.sourceProgress.itad.total = gamesToRefresh.length;
-            this.broadcast();
+      if (gamesToRefresh.length > 0) {
+        // ITAD Batch Sync
+        if (shouldRunSource('itad') && itadAdapter.isEnabled()) {
+          batchTasks.push((async () => {
+            try {
+              this.progress.sourceProgress.itad.total = gamesToRefresh.length;
+              this.broadcast();
 
-            const itadBatchResults = await itadAdapter.fetchBatchPrices(gamesToRefresh);
-            for (const [appId, offers] of itadBatchResults.entries()) {
-              const game = gamesToRefresh.find(w => w.steamAppId === appId);
-              if (!game) continue;
-              for (const offer of offers) {
-                this.ingestOffer(game.id, 'itad', offer);
-                this.progress.sourceProgress.itad.offersFound++;
-                totalOffersIngested++;
+              const itadBatchResults = await itadAdapter.fetchBatchPrices(gamesToRefresh);
+              for (const [appId, offers] of itadBatchResults.entries()) {
+                const game = gamesToRefresh.find(w => w.steamAppId === appId);
+                if (!game) continue;
+                for (const offer of offers) {
+                  this.ingestOffer(game.id, 'itad', offer);
+                  this.progress.sourceProgress.itad.offersFound++;
+                  totalOffersIngested++;
+                }
+                this.progress.sourceProgress.itad.processed++;
               }
-              this.progress.sourceProgress.itad.processed++;
+              this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
+              sourceOutcomes.set('itad', 'SUCCESS');
+              this.broadcast();
+            } catch (e: any) {
+              sourceOutcomes.set('itad', 'FAILED');
+              logWarn(`ITAD batch sync warning: ${e?.message}`);
             }
-            this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
-            sourceOutcomes.set('itad', 'SUCCESS');
-            this.broadcast();
-          } catch (e: any) {
-            sourceOutcomes.set('itad', 'FAILED');
-            logWarn(`ITAD batch sync warning: ${e?.message}`);
-          }
-        })());
-      }
+          })());
+        }
 
-      // CheapShark Batch Sync
-      if (shouldRunSource('cheapshark') && cheapsharkAdapter.isEnabled()) {
-        batchTasks.push((async () => {
-          try {
-            this.progress.sourceProgress.cheapshark.total = gamesToRefresh.length;
-            this.broadcast();
+        // CheapShark Batch Sync
+        if (shouldRunSource('cheapshark') && cheapsharkAdapter.isEnabled()) {
+          batchTasks.push((async () => {
+            try {
+              this.progress.sourceProgress.cheapshark.total = gamesToRefresh.length;
+              this.broadcast();
 
-            const csBatchResults = await cheapsharkAdapter.fetchBatchPrices(gamesToRefresh);
-            for (const [appId, offers] of csBatchResults.entries()) {
-              const game = gamesToRefresh.find(w => w.steamAppId === appId);
-              if (!game) continue;
-              const csTitle = (offers[0]?.rawPayload as any)?.title;
-              if (csTitle && typeof csTitle === 'string' && csTitle.trim() && game.title.startsWith('App ')) {
-                gameRepo.updateMetadata(appId, { title: csTitle.trim() });
-                game.title = csTitle.trim();
+              const csBatchResults = await cheapsharkAdapter.fetchBatchPrices(gamesToRefresh);
+              for (const [appId, offers] of csBatchResults.entries()) {
+                const game = gamesToRefresh.find(w => w.steamAppId === appId);
+                if (!game) continue;
+                const csTitle = (offers[0]?.rawPayload as any)?.title;
+                if (csTitle && typeof csTitle === 'string' && csTitle.trim() && game.title.startsWith('App ')) {
+                  gameRepo.updateMetadata(appId, { title: csTitle.trim() });
+                  game.title = csTitle.trim();
+                }
+                for (const offer of offers) {
+                  this.ingestOffer(game.id, 'cheapshark', offer);
+                  this.progress.sourceProgress.cheapshark.offersFound++;
+                  totalOffersIngested++;
+                }
+                this.progress.sourceProgress.cheapshark.processed++;
               }
-              for (const offer of offers) {
-                this.ingestOffer(game.id, 'cheapshark', offer);
-                this.progress.sourceProgress.cheapshark.offersFound++;
-                totalOffersIngested++;
-              }
-              this.progress.sourceProgress.cheapshark.processed++;
+              this.progress.sourceProgress.cheapshark.processed = gamesToRefresh.length;
+              sourceOutcomes.set('cheapshark', 'SUCCESS');
+              this.broadcast();
+            } catch (e: any) {
+              sourceOutcomes.set('cheapshark', 'FAILED');
+              logWarn(`CheapShark batch sync warning: ${e?.message}`);
             }
-            this.progress.sourceProgress.cheapshark.processed = gamesToRefresh.length;
-            sourceOutcomes.set('cheapshark', 'SUCCESS');
-            this.broadcast();
-          } catch (e: any) {
-            sourceOutcomes.set('cheapshark', 'FAILED');
-            logWarn(`CheapShark batch sync warning: ${e?.message}`);
-          }
-        })());
-      }
+          })());
+        }
 
-      // GG.deals Batch Sync
-      if (shouldRunSource('ggdeals') && ggdealsAdapter.isEnabled()) {
-        batchTasks.push((async () => {
-          try {
-            this.progress.sourceProgress.ggdeals.total = gamesToRefresh.length;
-            this.broadcast();
+        // GG.deals Batch Sync
+        if (shouldRunSource('ggdeals') && ggdealsAdapter.isEnabled()) {
+          batchTasks.push((async () => {
+            try {
+              this.progress.sourceProgress.ggdeals.total = gamesToRefresh.length;
+              this.broadcast();
 
-            const ggBatchResults = await ggdealsAdapter.fetchBatchPrices(gamesToRefresh);
-            for (const [appId, offers] of ggBatchResults.entries()) {
-              const game = gamesToRefresh.find(w => w.steamAppId === appId);
-              if (!game) continue;
-              for (const offer of offers) {
-                this.ingestOffer(game.id, 'ggdeals', offer);
-                this.progress.sourceProgress.ggdeals.offersFound++;
-                totalOffersIngested++;
+              const ggBatchResults = await ggdealsAdapter.fetchBatchPrices(gamesToRefresh);
+              for (const [appId, offers] of ggBatchResults.entries()) {
+                const game = gamesToRefresh.find(w => w.steamAppId === appId);
+                if (!game) continue;
+                for (const offer of offers) {
+                  this.ingestOffer(game.id, 'ggdeals', offer);
+                  this.progress.sourceProgress.ggdeals.offersFound++;
+                  totalOffersIngested++;
+                }
+                this.progress.sourceProgress.ggdeals.processed++;
               }
-              this.progress.sourceProgress.ggdeals.processed++;
+              this.progress.sourceProgress.ggdeals.processed = gamesToRefresh.length;
+              sourceOutcomes.set('ggdeals', 'SUCCESS');
+              this.broadcast();
+            } catch (e: any) {
+              sourceOutcomes.set('ggdeals', 'FAILED');
+              logWarn(`GG.deals batch sync warning: ${e?.message}`);
             }
-            this.progress.sourceProgress.ggdeals.processed = gamesToRefresh.length;
-            sourceOutcomes.set('ggdeals', 'SUCCESS');
-            this.broadcast();
-          } catch (e: any) {
-            sourceOutcomes.set('ggdeals', 'FAILED');
-            logWarn(`GG.deals batch sync warning: ${e?.message}`);
-          }
-        })());
-      }
+          })());
+        }
 
-      if (batchTasks.length > 0) {
-        this.progress.currentAction = `Simultaneously querying official stores via parallel batch APIs...`;
-        this.broadcast();
-        await Promise.allSettled(batchTasks);
+        if (batchTasks.length > 0) {
+          this.progress.currentAction = `Simultaneously querying official stores via parallel batch APIs...`;
+          this.broadcast();
+          await Promise.allSettled(batchTasks);
+        }
       }
 
       if (this.isCancelled) return;
-      const isSourceEligible = (code: SourceCode): boolean => {
-        if (!shouldRunSource(code)) return false;
-        switch (code) {
-          case 'steam': return steamAdapter.isEnabled();
-          case 'itad': return itadAdapter.isEnabled();
-          case 'cheapshark': return cheapsharkAdapter.isEnabled();
-          case 'ggdeals': return ggdealsAdapter.isEnabled();
-          case 'allkeyshop': return allkeyshopAdapter.isEnabled();
-          default: return false;
-        }
-      };
 
       // Calculate 3-State Core Sync Outcome (REL-05)
-      const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
-      const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
       const { status: finalStatus, failedSources } = calculateCoreSyncStatus(activeCoreSources, sourceOutcomes);
 
       // Finalize Core Sync
@@ -466,11 +484,27 @@ export class SyncOrchestrator {
       this.progress.status = finalStatus;
       this.progress.completedAt = new Date().toISOString();
       this.lastCoreSyncAt = new Date().toISOString();
-      this.progress.currentAction = finalStatus === 'FAILED'
-        ? `Core sync failed: all active price sources encountered errors.`
-        : finalStatus === 'COMPLETED_WITH_WARNINGS'
-        ? `Core sync complete with warnings (${failedSources.join(', ')} failed).`
-        : `Core sync complete! Refreshed official & batch deals for ${gamesToRefresh.length} games.`;
+
+      let completionAction: string;
+      if (finalStatus === 'FAILED') {
+        completionAction = `Core sync failed: all active price sources encountered errors.`;
+      } else if (finalStatus === 'COMPLETED_WITH_WARNINGS') {
+        const failedNames = failedSources.map(s => SOURCE_DISPLAY_NAMES[s] || s).join(', ');
+        completionAction = `Core sync complete with warnings (${failedNames} failed).`;
+      } else if (isKeyshopOnly) {
+        completionAction = `Starting AllKeyShop refresh for ${allWishlistGames.length} wishlist games...`;
+      } else {
+        const allEnabledCoreCount = coreSourceCodes.filter(c => isSourceEnabled(c)).length;
+        const isFullCore = activeCoreSources.length === allEnabledCoreCount;
+        if (isFullCore) {
+          completionAction = `Core sync complete! Refreshed official & batch deals for ${gamesToRefresh.length} games.`;
+        } else {
+          const activeNames = activeCoreSources.map(s => SOURCE_DISPLAY_NAMES[s] || s).join(', ');
+          completionAction = `${activeNames} refresh complete for ${gamesToRefresh.length} games.`;
+        }
+      }
+
+      this.progress.currentAction = completionAction;
       this.broadcast();
 
       this.generateSummary(profileName, steamId, trigger, finalStatus, duration, totalWishlistCount, staleQueriedCount, cacheHitRatio, totalOffersIngested, selectedSources);
@@ -491,11 +525,15 @@ export class SyncOrchestrator {
         logWarn(`[Discord] Could not dispatch deal alerts: ${notifyErr.message}`);
       }
 
-      // Step 6: Non-Blocking Background Keyshop Enrichment (AllKeyShop)
-      if (shouldRunSource('allkeyshop') && allkeyshopAdapter.isEnabled() && !this.isCancelled) {
-        this.startBackgroundEnrichment(profileId, allWishlistGames).catch(e => {
-          logWarn(`[Enrichment] Background keyshop worker warning: ${e.message}`);
-        });
+      // Step 6: Background Keyshop Enrichment (AllKeyShop)
+      if (isKeyshopSelected && !this.isCancelled) {
+        if (isKeyshopOnly) {
+          await this.startBackgroundEnrichment(profileId, allWishlistGames, isKeyshopOnly, forceRefresh);
+        } else {
+          this.startBackgroundEnrichment(profileId, allWishlistGames, isKeyshopOnly, forceRefresh).catch(e => {
+            logWarn(`[Enrichment] Background keyshop worker warning: ${e.message}`);
+          });
+        }
       }
 
     } catch (err: any) {
@@ -514,7 +552,12 @@ export class SyncOrchestrator {
   /**
    * Non-blocking background worker that enriches games with AllKeyShop keyshop offers
    */
-  private async startBackgroundEnrichment(profileId: string, games: WishlistSyncGame[]): Promise<void> {
+  private async startBackgroundEnrichment(
+    profileId: string, 
+    games: WishlistSyncGame[], 
+    isSourceOnly = false,
+    forceRefresh = false
+  ): Promise<void> {
     if (this.enrichmentStatus.isRunning) {
       logInfo('[Enrichment] Background enrichment already in progress.');
       return;
@@ -525,13 +568,15 @@ export class SyncOrchestrator {
       return;
     }
 
-    const dueGames = games
-      .filter(g => isAllkeyshopDue(g))
-      .sort((a, b) => {
-        const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
-        const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
-        return aTime - bTime;
-      });
+    const dueGames = forceRefresh 
+      ? games 
+      : games
+          .filter(g => isAllkeyshopDue(g))
+          .sort((a, b) => {
+            const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
+            const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
+            return aTime - bTime;
+          });
     const maxGames = config.allkeyshopMaxGames;
     const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
       ? dueGames.slice(0, maxGames) 
@@ -539,6 +584,10 @@ export class SyncOrchestrator {
 
     if (prioritizedGames.length === 0) {
       logInfo('[Enrichment] AllKeyShop background worker: no games currently due for refresh.');
+      if (isSourceOnly) {
+        this.progress.currentAction = 'AllKeyShop refresh complete: all games are up to date.';
+        this.broadcast();
+      }
       return;
     }
 
@@ -549,6 +598,17 @@ export class SyncOrchestrator {
       offersFound: 0,
       currentGameTitle: undefined
     };
+
+    this.progress.sourceProgress.allkeyshop = {
+      processed: 0,
+      total: prioritizedGames.length,
+      offersFound: 0,
+      state: 'NORMAL'
+    };
+    if (isSourceOnly) {
+      this.progress.currentAction = `AllKeyShop refresh in progress for ${prioritizedGames.length} games...`;
+    }
+    this.broadcast();
 
     logInfo(`[Enrichment] Starting background Keyshop worker for ${prioritizedGames.length} due games (out of ${games.length} total).`);
     const chunkSize = config.allkeyshopChunkSize;
@@ -561,17 +621,21 @@ export class SyncOrchestrator {
         const g = prioritizedGames[i];
         this.enrichmentStatus.processed = i + 1;
         this.enrichmentStatus.currentGameTitle = g.title;
+        this.progress.sourceProgress.allkeyshop.processed = i + 1;
 
         let lowestPriceEur: number | null = null;
+        let newOffersCount = 0;
         try {
           const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId, g.releaseDate);
           for (const offer of offers) {
             this.ingestOffer(g.id, 'allkeyshop', offer);
             this.enrichmentStatus.offersFound++;
+            newOffersCount++;
             if (offer.priceEur > 0 && (lowestPriceEur === null || offer.priceEur < lowestPriceEur)) {
               lowestPriceEur = offer.priceEur;
             }
           }
+          this.progress.sourceProgress.allkeyshop.offersFound += newOffersCount;
 
           // Adaptive interval recomputation after each check
           const prevPrice = g.allkeyshopLastPriceEur !== undefined && g.allkeyshopLastPriceEur !== null
@@ -601,6 +665,11 @@ export class SyncOrchestrator {
           // Ignore individual keyshop scraping errors and do not mark as checked
         }
 
+        if (isSourceOnly) {
+          this.progress.currentAction = `AllKeyShop: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
+        }
+        this.broadcast();
+
         // Anti-ban Cooldown Break: every `chunkSize` games
         const isChunkEnd = (i + 1) % chunkSize === 0 && (i + 1) < prioritizedGames.length;
         if (isChunkEnd && !this.isCancelled) {
@@ -619,6 +688,10 @@ export class SyncOrchestrator {
 
       this.lastEnrichmentAt = new Date().toISOString();
       logInfo(`[Enrichment] Keyshop background enrichment completed. Found ${this.enrichmentStatus.offersFound} offers.`);
+      if (isSourceOnly) {
+        this.progress.currentAction = `AllKeyShop refresh complete for ${prioritizedGames.length} games.`;
+        this.broadcast();
+      }
 
       // Secondary lightweight deal notification pass for keyshop-driven deals
       if (this.enrichmentStatus.offersFound > 0) {

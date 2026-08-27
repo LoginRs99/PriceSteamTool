@@ -26,7 +26,7 @@ export default defineConfig({
             }
           },
           fileParallelism: false,
-          isolate: false,
+          isolate: true,
           setupFiles: ['./tests/setup.ts'],
           env: {
             NODE_ENV: 'test',

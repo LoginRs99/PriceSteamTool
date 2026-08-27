@@ -382,7 +382,6 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
       } finally {
         steamAdapter.fetchWishlist = origFetchWishlist;
         await app.close();
-        clearStmtCache();
       }
     });
   });
