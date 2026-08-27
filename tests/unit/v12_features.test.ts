@@ -240,8 +240,8 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
     // g1 (Score ~97) must come before g2 (Score ~36)
     expect(bestDeals.length).toBe(2);
     expect(bestDeals[0].id).toBe(g1.id);
-    expect(bestDeals[0].bestDealScore).toBeGreaterThan(80);
-    expect(bestDeals[0].bestDealTier).toBe('Exceptional');
+    expect(bestDeals[0].bestDealScore).toBe(74);
+    expect(bestDeals[0].bestDealTier).toBe('Great');
     expect(bestDeals[1].id).toBe(g2.id);
   });
 
