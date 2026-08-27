@@ -572,5 +572,67 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.zScore).toBe(0);
       expect(res.ownMedian).toBe(0);
     });
+
+    it('40. Test A — Persistent false price: stable €1.10 history, current €1.00 on €60 MSRP, peers €55-60 -> HIGH anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 1.00,
+        basePriceEur: 59.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [1.10, 1.05, 1.15, 1.10], // Stable history around ~€1.10
+        marketPricesEur: [59.99, 54.99, 58.00] // Live market strongly disagrees
+      });
+
+      expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
+    });
+
+    it('41. Test B — Legitimate market-wide sale: history €25-30, current €8.15, peers €7-9 -> NOT anomaly (corroborated)', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 8.15,
+        basePriceEur: 29.99,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [25.00, 27.00, 29.00, 26.00], // Old history was €25-30
+        marketPricesEur: [7.35, 7.99, 8.28, 8.68, 8.85] // Live market corroborates new ~€8 level
+      });
+
+      expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskLevel).not.toBe('HIGH');
+      expect(res.isAnomaly).toBe(false);
+    });
+
+    it('42. Test C — Strong true outlier: history €25-30, current €3.00, peers €27-29 -> HIGH anomaly (break + uncorroborated)', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 3.00,
+        basePriceEur: 29.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [25.00, 27.00, 29.00, 26.00], // Old history €25-30
+        marketPricesEur: [27.00, 28.00, 29.00] // Peers still at €27-29
+      });
+
+      expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
+    });
+
+    it('43. Test D — sourceCheck.applicable === true does NOT prevent peer anomaly evaluation', () => {
+      // 3 observations, no break, but severe peer sub-euro glitch on €60 MSRP
+      const res = evaluatePriceMovement({
+        currentPriceEur: 0.89,
+        basePriceEur: 59.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [0.90, 0.89, 0.91], // applicable = true, isBreak = false
+        marketPricesEur: [49.99, 55.00]
+      });
+
+      expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
+    });
   });
 });
