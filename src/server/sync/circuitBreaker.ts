@@ -1,4 +1,5 @@
 import { sourceRepo } from '../db/index.js';
+import { computeFailureCooldown } from './allkeyshop/backoff.js';
 import type { SourceCode, CircuitState } from '../../shared/types.js';
 
 interface CircuitStateInfo {
@@ -106,6 +107,20 @@ export class CircuitBreakerRegistry {
     info.consecutiveRateLimits++;
     info.lastFailureTime = Date.now();
 
+    if (source === 'allkeyshop') {
+      const cooldownMs = computeFailureCooldown(info.consecutiveRateLimits, retryAfterSec);
+      info.cooldownUntil = Date.now() + cooldownMs;
+      if (info.consecutiveRateLimits >= 3 || info.state === 'COOLDOWN') {
+        info.state = 'PAUSED';
+      } else {
+        info.state = 'BACKOFF';
+      }
+      const cooldownIso = new Date(info.cooldownUntil).toISOString();
+      sourceRepo.updateCircuitState(source, info.state, cooldownIso);
+      sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`);
+      return;
+    }
+
     const cooldownMs = Math.max(retryAfterSec * 1000, 30000);
     info.cooldownUntil = Date.now() + cooldownMs;
 
@@ -125,6 +140,20 @@ export class CircuitBreakerRegistry {
     info.consecutiveFailures++;
     info.lastFailureTime = Date.now();
     const errMsg = typeof error === 'string' ? error : (error?.message || String(error));
+
+    if (source === 'allkeyshop') {
+      const cooldownMs = computeFailureCooldown(info.consecutiveFailures);
+      info.cooldownUntil = Date.now() + cooldownMs;
+      if (info.consecutiveFailures >= 4 || info.state === 'COOLDOWN') {
+        info.state = 'PAUSED';
+      } else if (info.consecutiveFailures >= 2) {
+        info.state = 'BACKOFF';
+      }
+      const cooldownIso = new Date(info.cooldownUntil).toISOString();
+      sourceRepo.updateCircuitState(source, info.state, cooldownIso);
+      sourceRepo.incrementCounters(source, 'failure', errMsg);
+      return;
+    }
 
     // If probe failed during COOLDOWN, immediately return to PAUSED with doubled penalty
     if (info.state === 'COOLDOWN') {

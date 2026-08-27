@@ -22,6 +22,7 @@ import { itadAdapter } from '../sources/itad.js';
 import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
 import { allkeyshopAdapter } from '../sources/allkeyshop.js';
+import { allkeyshopQueue } from './allkeyshop/index.js';
 import { computeNextInterval, isAllkeyshopDue } from '../domain/allkeyshopScheduling.js';
 import { exchangeRateService } from '../domain/exchangeRate.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
@@ -880,25 +881,27 @@ export class SyncOrchestrator {
 
     // Non-blocking background AllKeyShop enrichment
     const includeKeyshops = options?.includeKeyshops ?? true;
-    if (includeKeyshops && isSourceEnabled('allkeyshop') && circuitBreakers.canExecute('allkeyshop').allowed) {
-      (async () => {
-        try {
-          logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
-          const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title);
-          circuitBreakers.recordSuccess('allkeyshop');
-          sourceRepo.incrementCounters('allkeyshop', 'success');
-
-          for (const offer of aksOffers) {
-            this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+    if (includeKeyshops && isSourceEnabled('allkeyshop')) {
+      const cbCheck = circuitBreakers.canExecute('allkeyshop');
+      if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
+        const remaining = allkeyshopQueue.getCooldownRemainingSec();
+        logInfo(`[Force Refresh] AllKeyShop enrichment skipped for "${game.title}": source is cooling down (${remaining}s remaining).`);
+        sourcesSkipped.push('allkeyshop');
+      } else {
+        (async () => {
+          try {
+            logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
+            const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title);
+            for (const offer of aksOffers) {
+              this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+            }
+            offerRepo.recomputeBestDealForGame(gameId);
+            logInfo(`[Force Refresh] Background AllKeyShop enrichment complete for "${game.title}" (${aksOffers.length} offers).`);
+          } catch (aksErr: any) {
+            logWarn(`[Force Refresh] Background AllKeyShop enrichment failed for "${game.title}": ${aksErr.message}`);
           }
-          offerRepo.recomputeBestDealForGame(gameId);
-          logInfo(`[Force Refresh] Background AllKeyShop enrichment complete for "${game.title}" (${aksOffers.length} offers).`);
-        } catch (aksErr: any) {
-          logWarn(`[Force Refresh] Background AllKeyShop enrichment failed for "${game.title}": ${aksErr.message}`);
-          circuitBreakers.recordFailure('allkeyshop', aksErr);
-          sourceRepo.incrementCounters('allkeyshop', 'failure', aksErr.message);
-        }
-      })().catch(() => {});
+        })().catch(() => {});
+      }
     }
 
     return {

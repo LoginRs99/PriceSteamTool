@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config/index.js';
 import { type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
-import { PacedSourceQueue } from '../sync/rateLimiter.js';
+import { allkeyshopQueue } from '../sync/allkeyshop/index.js';
 
 interface CatalogGame {
   id: number;
@@ -274,7 +274,6 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
   public readonly name = 'AllKeyShop';
   public readonly supportsBatch = false;
-  private queue = new PacedSourceQueue('allkeyshop', config.delays.allkeyshop, config.allkeyshopJitterMs);
 
   private cachedCatalog: CatalogGame[] | null = null;
   private lastCatalogFetch = 0;
@@ -288,10 +287,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
   public async ensureCatalog(): Promise<CatalogGame[]> {
     const now = Date.now();
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const CATALOG_TTL_MS = 48 * 60 * 60 * 1000; // 48h cache TTL
 
     // 1. In-memory cache check
-    if (this.cachedCatalog && (now - this.lastCatalogFetch) < ONE_DAY_MS) {
+    if (this.cachedCatalog && (now - this.lastCatalogFetch) < CATALOG_TTL_MS) {
       return this.cachedCatalog;
     }
 
@@ -308,7 +307,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       try {
         if (fs.existsSync(this.catalogPath)) {
           const stat = fs.statSync(this.catalogPath);
-          if (now - stat.mtimeMs < ONE_DAY_MS) {
+          if (now - stat.mtimeMs < CATALOG_TTL_MS) {
             const raw = fs.readFileSync(this.catalogPath, 'utf8');
             const data = JSON.parse(raw);
             if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
@@ -320,7 +319,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         }
       } catch {}
 
-      // 3. Remote download via FlareSolverr/Byparr or direct fetch
+      // 3. Remote download via FlareSolverr/Byparr
+      const downloadStartTime = Date.now();
       try {
         const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&v=2&currency=eur&locales=en_GB';
         const data: any = await fetchWithAllkeyshopSolver(url, 20000);
@@ -328,6 +328,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
           this.cachedCatalog = data.games;
           this.lastCatalogFetch = Date.now();
+          const durationSec = ((Date.now() - downloadStartTime) / 1000).toFixed(1);
+          console.log(`[AllKeyShop] catalog refreshed | games=${data.games.length} | duration=${durationSec}s`);
+          allkeyshopQueue.recordCatalogRefresh();
+
           try {
             const dataDir = path.dirname(this.catalogPath);
             if (!fs.existsSync(dataDir)) {
@@ -345,21 +349,24 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         }
       } catch (err: any) {
         console.warn('Failed to download AllKeyShop catalog:', err.message);
+        allkeyshopQueue.recordExternalFailure(err);
       }
 
-      // 4. If remote download failed, try reading whatever is cached on disk (even if older than 24h)
+      // 4. Stale fallback from disk if available
       try {
         if (!this.cachedCatalog && fs.existsSync(this.catalogPath)) {
+          const stat = fs.statSync(this.catalogPath);
           const raw = fs.readFileSync(this.catalogPath, 'utf8');
           const data = JSON.parse(raw);
           if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
-            console.warn('[AllKeyShop] Using stale on-disk catalog fallback.');
+            const ageHours = Math.round((now - stat.mtimeMs) / 3600000);
+            console.warn(`[AllKeyShop] using stale catalog cache | age=${ageHours}h`);
             this.cachedCatalog = data.games;
           }
         }
       } catch {}
 
-      this.catalogFailureCooldownUntil = now + (15 * 60 * 1000);
+      this.catalogFailureCooldownUntil = now + (60 * 60 * 1000); // 1 hour failure cooldown
 
       if (this.cachedCatalog) return this.cachedCatalog;
       throw new AllKeyShopUnavailableError('AllKeyShop catalog fetch failed and no cache available');
@@ -379,7 +386,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     itadId?: string,
     releaseDate?: string
   ): Promise<NormalizedSourceOffer[]> {
-    return this.queue.enqueue(async () => {
+    return allkeyshopQueue.enqueue(String(steamAppId), async () => {
       try {
         const catalog = await this.ensureCatalog();
         const candidates = findCandidateGamesInCatalog(catalog, gameTitle, steamAppId, releaseDate);
@@ -393,7 +400,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           if (!matched || (!matched.id && !matched.slug)) continue;
 
           if (cIdx > 0) {
-            await new Promise(r => setTimeout(r, Math.max(1000, config.delays.allkeyshop)));
+            await new Promise(r => setTimeout(r, 2000));
           }
 
           const priceApiUrl = matched.id 
@@ -519,7 +526,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         console.warn(`AllKeyShop fetchPricesForGame failed for ${gameTitle}:`, err.message);
         return [];
       }
-    });
+    }, gameTitle);
   }
 }
 
