@@ -22,6 +22,7 @@ import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
 import { allkeyshopAdapter } from '../sources/allkeyshop.js';
 import { computeNextInterval, isAllkeyshopDue } from '../domain/allkeyshopScheduling.js';
+import { exchangeRateService } from '../domain/exchangeRate.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
 
@@ -207,6 +208,13 @@ export class SyncOrchestrator {
         }
         return isSourceEnabled(code);
       };
+
+      // Refresh dynamic FX rates if cache expired
+      try {
+        await exchangeRateService.refreshRates();
+      } catch (fxErr: any) {
+        logWarn(`[FX] Could not update live exchange rates, using fallback: ${fxErr.message}`);
+      }
 
       // Step 1: Fetch Steam Wishlist
       this.progress.currentAction = `Fetching Steam Wishlist for ${profileName}...`;
@@ -416,6 +424,8 @@ export class SyncOrchestrator {
         this.broadcast();
         await Promise.allSettled(batchTasks);
       }
+
+      if (this.isCancelled) return;
 
       // Finalize Core Sync Immediately
       const duration = Math.round((Date.now() - this.startTime) / 1000);
@@ -662,6 +672,130 @@ export class SyncOrchestrator {
       sourceCode,
       rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined
     });
+  }
+
+  /**
+   * Refreshes pricing for a single specific game across active fast sources
+   * (Steam, ITAD, CheapShark, GG.deals) with asynchronous background AllKeyShop enrichment.
+   */
+  public async refreshGame(gameId: string, options?: { includeKeyshops?: boolean }): Promise<{
+    success: boolean;
+    game: any;
+    offers: any[];
+    history: any[];
+    intelligence: any;
+    refreshedAt: string;
+    sourcesChecked: SourceCode[];
+    sourcesFailed: SourceCode[];
+    sourcesSkipped: SourceCode[];
+    circuitStates: Record<string, string>;
+  }> {
+    const game = gameRepo.getById(gameId);
+    if (!game) {
+      throw new Error(`Game with ID ${gameId} not found`);
+    }
+
+    const currentSources = sourceRepo.list();
+    const isSourceEnabled = (code: SourceCode) => {
+      const s = currentSources.find(src => src.code === code);
+      return s ? Boolean(s.isEnabled) : true;
+    };
+
+    const fastSources: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+    const sourcesChecked: SourceCode[] = [];
+    const sourcesFailed: SourceCode[] = [];
+    const sourcesSkipped: SourceCode[] = [];
+    const circuitStates: Record<string, string> = {};
+
+    const fastTasks: Promise<void>[] = [];
+
+    for (const sourceCode of fastSources) {
+      const state = circuitBreakers.getState(sourceCode);
+      circuitStates[sourceCode] = state;
+
+      if (!isSourceEnabled(sourceCode)) {
+        sourcesSkipped.push(sourceCode);
+        continue;
+      }
+
+      if (!circuitBreakers.canExecute(sourceCode).allowed) {
+        sourcesSkipped.push(sourceCode);
+        continue;
+      }
+
+      sourcesChecked.push(sourceCode);
+
+      const task = (async () => {
+        try {
+          let offers: NormalizedSourceOffer[] = [];
+          if (sourceCode === 'steam') {
+            offers = await steamAdapter.fetchPricesForGame(game.steamAppId);
+          } else if (sourceCode === 'itad') {
+            offers = await itadAdapter.fetchPricesForGame(game.steamAppId, game.title, game.itadId || undefined);
+          } else if (sourceCode === 'cheapshark') {
+            offers = await cheapsharkAdapter.fetchPricesForGame(game.steamAppId, game.title);
+          } else if (sourceCode === 'ggdeals') {
+            offers = await ggdealsAdapter.fetchPricesForGame(game.steamAppId, game.title);
+          }
+
+          circuitBreakers.recordSuccess(sourceCode);
+          sourceRepo.incrementCounters(sourceCode, 'success');
+
+          for (const offer of offers) {
+            this.ingestOffer(gameId, sourceCode, offer, game.basePriceEur);
+          }
+        } catch (err: any) {
+          logWarn(`[Force Refresh] Source ${sourceCode} failed for game "${game.title}": ${err.message}`);
+          circuitBreakers.recordFailure(sourceCode, err);
+          sourceRepo.incrementCounters(sourceCode, 'failure', err.message);
+          sourcesFailed.push(sourceCode);
+        }
+      })();
+
+      fastTasks.push(task);
+    }
+
+    // Await all fast sources concurrently
+    await Promise.allSettled(fastTasks);
+
+    // Recompute best deal for this game
+    offerRepo.recomputeBestDealForGame(gameId);
+
+    // Non-blocking background AllKeyShop enrichment
+    const includeKeyshops = options?.includeKeyshops ?? true;
+    if (includeKeyshops && isSourceEnabled('allkeyshop') && circuitBreakers.canExecute('allkeyshop').allowed) {
+      (async () => {
+        try {
+          logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
+          const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title);
+          circuitBreakers.recordSuccess('allkeyshop');
+          sourceRepo.incrementCounters('allkeyshop', 'success');
+
+          for (const offer of aksOffers) {
+            this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+          }
+          offerRepo.recomputeBestDealForGame(gameId);
+          logInfo(`[Force Refresh] Background AllKeyShop enrichment complete for "${game.title}" (${aksOffers.length} offers).`);
+        } catch (aksErr: any) {
+          logWarn(`[Force Refresh] Background AllKeyShop enrichment failed for "${game.title}": ${aksErr.message}`);
+          circuitBreakers.recordFailure('allkeyshop', aksErr);
+          sourceRepo.incrementCounters('allkeyshop', 'failure', aksErr.message);
+        }
+      })().catch(() => {});
+    }
+
+    return {
+      success: true,
+      game: gameRepo.getById(gameId),
+      offers: offerRepo.getOffersForGame(gameId),
+      history: offerRepo.getPriceHistory(gameId, 50),
+      intelligence: gameRepo.getPriceIntelligence(gameId),
+      refreshedAt: new Date().toISOString(),
+      sourcesChecked,
+      sourcesFailed,
+      sourcesSkipped,
+      circuitStates
+    };
   }
 }
 

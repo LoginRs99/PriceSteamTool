@@ -6,6 +6,7 @@ import {
   offerRepo, 
   merchantRepo 
 } from '../db/index.js';
+import { syncOrchestrator } from '../sync/orchestrator.js';
 import type { Game, Offer, PriceHistoryEntry } from '../../shared/types.js';
 
 function resolveGame(id: string): Game | null {
@@ -28,6 +29,9 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
     reply.header('X-RateLimit-Remaining', '299');
     reply.header('X-RateLimit-Reset', '60');
     reply.header('X-API-Version', '1.0');
+    reply.header('RateLimit-Limit', '300');
+    reply.header('RateLimit-Remaining', '299');
+    reply.header('RateLimit-Reset', '60');
     return payload;
   });
 
@@ -113,6 +117,32 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
       bestDealScore: game.bestDealScore ?? null,
       riskLevel: game.bestRiskLevel ?? 'SAFE'
     };
+  });
+
+  // POST /api/v1/games/:id/refresh
+  fastify.post('/api/v1/games/:id/refresh', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = resolveGame(id);
+
+    if (!game) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+
+    const schema = z.object({
+      includeKeyshops: z.boolean().optional()
+    }).optional();
+
+    const parsed = schema.safeParse(request.body);
+    const includeKeyshops = parsed.success && parsed.data?.includeKeyshops !== undefined 
+      ? parsed.data.includeKeyshops 
+      : true;
+
+    try {
+      const result = await syncOrchestrator.refreshGame(game.id, { includeKeyshops });
+      return result;
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
   });
 
   // POST /api/v1/games/resolve

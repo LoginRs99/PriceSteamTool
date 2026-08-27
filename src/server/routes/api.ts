@@ -199,6 +199,29 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return intelligence;
   });
 
+  // Per-game force refresh (Fast parallel sync + async AllKeyShop enrichment)
+  fastify.post('/api/games/:id/refresh', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const schema = z.object({
+      includeKeyshops: z.boolean().optional()
+    }).optional();
+
+    const parsed = schema.safeParse(request.body);
+    const includeKeyshops = parsed.success && parsed.data?.includeKeyshops !== undefined 
+      ? parsed.data.includeKeyshops 
+      : true;
+
+    try {
+      const result = await syncOrchestrator.refreshGame(id, { includeKeyshops });
+      return result;
+    } catch (err: any) {
+      if (err.message && err.message.includes('not found')) {
+        return reply.status(404).send({ error: err.message });
+      }
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
   // ----------------------------------------------------
   // Synchronization API
   // ----------------------------------------------------

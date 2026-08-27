@@ -24,8 +24,8 @@ export class CircuitBreakerRegistry {
         const cooldownTime = s.cooldownUntil ? new Date(s.cooldownUntil).getTime() : null;
         this.states.set(s.code, {
           state: s.state,
-          consecutiveFailures: s.failureCount > 0 ? 1 : 0,
-          consecutiveRateLimits: s.rateLimitCount > 0 ? 1 : 0,
+          consecutiveFailures: 0,
+          consecutiveRateLimits: 0,
           cooldownUntil: cooldownTime,
           lastFailureTime: null,
           lastSuccessTime: s.lastSuccessAt ? new Date(s.lastSuccessAt).getTime() : null,
@@ -120,10 +120,11 @@ export class CircuitBreakerRegistry {
     sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`);
   }
 
-  public recordFailure(source: SourceCode, error: string): void {
+  public recordFailure(source: SourceCode, error: string | Error): void {
     const info = this.getOrCreate(source);
     info.consecutiveFailures++;
     info.lastFailureTime = Date.now();
+    const errMsg = typeof error === 'string' ? error : (error?.message || String(error));
 
     // If probe failed during COOLDOWN, immediately return to PAUSED with doubled penalty
     if (info.state === 'COOLDOWN') {
@@ -139,7 +140,18 @@ export class CircuitBreakerRegistry {
 
     const cooldownIso = info.cooldownUntil ? new Date(info.cooldownUntil).toISOString() : undefined;
     sourceRepo.updateCircuitState(source, info.state, cooldownIso);
-    sourceRepo.incrementCounters(source, 'failure', error);
+    sourceRepo.incrementCounters(source, 'failure', errMsg);
+  }
+
+  public reset(source: SourceCode): void {
+    this.recordSuccess(source);
+  }
+
+  public resetAll(): void {
+    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop'];
+    for (const s of sources) {
+      this.reset(s);
+    }
   }
 
   public getState(source: SourceCode): CircuitState {
