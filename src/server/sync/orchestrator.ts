@@ -436,9 +436,21 @@ export class SyncOrchestrator {
 
       if (this.isCancelled) return;
 
+      const isSourceEligible = (code: SourceCode): boolean => {
+        if (!shouldRunSource(code)) return false;
+        switch (code) {
+          case 'steam': return steamAdapter.isEnabled();
+          case 'itad': return itadAdapter.isEnabled();
+          case 'cheapshark': return cheapsharkAdapter.isEnabled();
+          case 'ggdeals': return ggdealsAdapter.isEnabled();
+          case 'allkeyshop': return allkeyshopAdapter.isEnabled();
+          default: return false;
+        }
+      };
+
       // Calculate 3-State Core Sync Outcome (REL-05)
       const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
-      const activeCoreSources = coreSourceCodes.filter(c => shouldRunSource(c));
+      const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
       const successfulSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'SUCCESS');
       const failedSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'FAILED');
 

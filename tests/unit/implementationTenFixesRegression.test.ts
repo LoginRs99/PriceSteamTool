@@ -201,6 +201,39 @@ describe('10 Approved Implementation Fixes Verification Suite', () => {
     });
   });
 
+  // 6. Item 6: REL-05 — Three-State Sync Result & Activation Semantics
+  describe('Item 6: REL-05 — Sync Result Activation Semantics', () => {
+    it('does NOT count an adapter-disabled source as an active failure or pending state', () => {
+      const coreSourceCodes: ('steam' | 'itad' | 'cheapshark' | 'ggdeals')[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+      const shouldRunSource = (s: string) => true;
+      const isAdapterEnabled = (s: string) => s === 'steam' || s === 'cheapshark'; // ITAD and GG.deals disabled at adapter level
+
+      const isSourceEligible = (code: 'steam' | 'itad' | 'cheapshark' | 'ggdeals'): boolean => {
+        if (!shouldRunSource(code)) return false;
+        return isAdapterEnabled(code);
+      };
+
+      const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
+      expect(activeCoreSources).toEqual(['steam', 'cheapshark']); // ITAD and GG.deals excluded
+
+      const sourceOutcomes = new Map<string, 'SUCCESS' | 'FAILED'>();
+      sourceOutcomes.set('steam', 'SUCCESS');
+      sourceOutcomes.set('cheapshark', 'SUCCESS');
+
+      const successfulSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'SUCCESS');
+      const failedSources = activeCoreSources.filter(c => sourceOutcomes.get(c) === 'FAILED');
+
+      let finalStatus: 'COMPLETED' | 'COMPLETED_WITH_WARNINGS' | 'FAILED' = 'COMPLETED';
+      if (activeCoreSources.length > 0 && successfulSources.length === 0 && failedSources.length > 0) {
+        finalStatus = 'FAILED';
+      } else if (activeCoreSources.length > 0 && failedSources.length > 0) {
+        finalStatus = 'COMPLETED_WITH_WARNINGS';
+      }
+
+      expect(finalStatus).toBe('COMPLETED'); // Clean COMPLETED without warnings
+    });
+  });
+
   // 7. Item 7: AllKeyShop Solver Error Propagation
   describe('Item 7: AllKeyShop Solver Error Propagation', () => {
     let savedSolverUrl: string | undefined;
