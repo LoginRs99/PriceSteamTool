@@ -114,12 +114,8 @@ export function calculatePriceRisk(
   if (isCheapestCandidate && allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
     const secondCheapest = allLiveOffers[1];
     if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
-      const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
-      // If own history is established, require at least 2 peers (multi-source market consensus) to override
-      if (!isEstablishedOwnPrice || validPeers.length >= 2) {
-        rawSeverity = Math.max(rawSeverity, 0.90);
-        flags.add('LONE_BOTTOM_OUTLIER');
-      }
+      rawSeverity = Math.max(rawSeverity, 0.90);
+      flags.add('LONE_BOTTOM_OUTLIER');
     }
   }
 

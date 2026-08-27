@@ -515,7 +515,7 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.zScore).toBeDefined();
     });
 
-    it('36. Gears 5 case: merchant with 3+ stable observations matching current price -> SOURCE_OWN_HISTORY_BREAK does not fire and peer flags suppressed', () => {
+    it('36. Merchant with 3+ stable observations still fires peer LONE_BOTTOM_OUTLIER if live peer is 3x higher', () => {
       // Keyshop consistently sells at ~€13, current price is €12.80. Official store peer is €39.99.
       const res = evaluatePriceMovement({
         currentPriceEur: 12.80,
@@ -523,15 +523,13 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
         isOfficialMerchant: false,
         sourceAgreementCount: 1,
         sourceHistoryEur: [12.99, 13.49, 13.10], // 3 prior observations ~€13
-        marketPricesEur: [39.99] // Official store peer is 3x higher (would trigger LONE_BOTTOM_OUTLIER if peer-based)
+        marketPricesEur: [39.99] // Official store peer is 3x higher -> 12.80 < 39.99 * 0.55
       });
 
       expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
-      expect(res.riskFlags).not.toContain('LONE_BOTTOM_OUTLIER');
-      expect(res.riskFlags).not.toContain('EXTREME_MEDIAN_OUTLIER');
-      expect(res.riskFlags).not.toContain('SOURCE_DISAGREEMENT');
-      expect(res.riskLevel).not.toBe('HIGH');
-      expect(res.isAnomaly).toBe(false);
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
     });
 
     it('37. Blue Prince / DOOM 3 case: merchant with 3+ stable observations near MSRP suddenly near-zero -> SOURCE_OWN_HISTORY_BREAK fires at HIGH severity', () => {
@@ -575,44 +573,69 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.ownMedian).toBe(0);
     });
 
-    it('40. Test A — Persistent false price: stable €1.10 history, current €1.00 on €60 MSRP, peers €55-60 -> HIGH anomaly', () => {
+    it('40. Test A — Own history established & stable, single peer dramatically more expensive -> peer anomaly executes (LONE_BOTTOM_OUTLIER)', () => {
+      // Case 1: history ~€1.00-1.15, current €1.00, peer €55, MSRP €60
       const res = evaluatePriceMovement({
         currentPriceEur: 1.00,
         basePriceEur: 59.99,
         isOfficialMerchant: false,
         sourceAgreementCount: 1,
-        sourceHistoryEur: [1.10, 1.05, 1.15, 1.10], // Stable history around ~€1.10
-        marketPricesEur: [59.99, 54.99, 58.00] // Live market strongly disagrees
+        sourceHistoryEur: [1.00, 1.00, 1.05, 1.00], // Stable history at ~€1.00 (z-score = 0)
+        marketPricesEur: [55.00] // Single live peer is €55
       });
 
+      expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
       expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
       expect(res.riskLevel).toBe('HIGH');
       expect(res.isAnomaly).toBe(true);
     });
 
-    it('41. Test B — Legitimate market-wide sale: history €25-30, current €8.15, peers €7-9 -> NOT anomaly (corroborated)', () => {
+    it('41. Test B — Own history established & stable, multiple compatible peers support anomaly -> peer anomaly executes', () => {
+      // Case B: history ~€5.00, current €4.90, peers €25, €27, €29
+      const res = evaluatePriceMovement({
+        currentPriceEur: 4.90,
+        basePriceEur: 29.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [5.00, 4.90, 5.10, 5.00], // Stable history ~€5
+        marketPricesEur: [25.00, 27.00, 29.00] // Multiple peers at €25-29
+      });
+
+      expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.riskFlags).toContain('EXTREME_MEDIAN_OUTLIER');
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.isAnomaly).toBe(true);
+    });
+
+    it('42. Test C — Market-wide sale: own-history break exists, but peer consensus prevents false HIGH anomaly', () => {
+      // Case 3: history €29.99/24.99/19.99/24.99, current €8.15, peers €7.35/7.99/8.28/8.68
       const res = evaluatePriceMovement({
         currentPriceEur: 8.15,
         basePriceEur: 29.99,
         isOfficialMerchant: true,
         sourceAgreementCount: 1,
-        sourceHistoryEur: [25.00, 27.00, 29.00, 26.00], // Old history was €25-30
-        marketPricesEur: [7.35, 7.99, 8.28, 8.68, 8.85] // Live market corroborates new ~€8 level
+        sourceHistoryEur: [29.99, 24.99, 19.99, 24.99], // Old history €20-30
+        marketPricesEur: [7.35, 7.99, 8.28, 8.68, 8.85] // Live peers corroborate new ~€8 level
       });
 
       expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK_CORROBORATED');
+      expect(res.riskFlags).not.toContain('LONE_BOTTOM_OUTLIER');
       expect(res.riskLevel).not.toBe('HIGH');
       expect(res.isAnomaly).toBe(false);
     });
 
-    it('42. Test C — Strong true outlier: history €25-30, current €3.00, peers €27-29 -> HIGH anomaly (break + uncorroborated)', () => {
+    it('43. Test D — True rogue outlier: both own-history break and peer signals fire', () => {
+      // Case 4: history €25/30/29/28, current €3.00, peers €27/29
       const res = evaluatePriceMovement({
         currentPriceEur: 3.00,
         basePriceEur: 29.99,
         isOfficialMerchant: false,
         sourceAgreementCount: 1,
-        sourceHistoryEur: [25.00, 27.00, 29.00, 26.00], // Old history €25-30
-        marketPricesEur: [27.00, 28.00, 29.00] // Peers still at €27-29
+        sourceHistoryEur: [25.00, 30.00, 29.00, 28.00], // Old history €25-30
+        marketPricesEur: [27.00, 29.00] // Peers at €27-29
       });
 
       expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
@@ -621,20 +644,22 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.isAnomaly).toBe(true);
     });
 
-    it('43. Test D — sourceCheck.applicable === true does NOT prevent peer anomaly evaluation', () => {
-      // 3 observations, no break, but severe peer sub-euro glitch on €60 MSRP
+    it('44. Same merchant has stable legitimate cheap price -> NO pricing error anomaly', () => {
+      // Case 2: history €8.20/8.10/8.00/8.15, current €8.10, peers €8.20/8.40/8.70
       const res = evaluatePriceMovement({
-        currentPriceEur: 0.89,
-        basePriceEur: 59.99,
+        currentPriceEur: 8.10,
+        basePriceEur: 19.99,
         isOfficialMerchant: false,
         sourceAgreementCount: 1,
-        sourceHistoryEur: [0.90, 0.89, 0.91], // applicable = true, isBreak = false
-        marketPricesEur: [49.99, 55.00]
+        sourceHistoryEur: [8.20, 8.10, 8.00, 8.15],
+        marketPricesEur: [8.20, 8.40, 8.70]
       });
 
-      expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
-      expect(res.riskLevel).toBe('HIGH');
-      expect(res.isAnomaly).toBe(true);
+      expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.riskFlags).not.toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.riskFlags).not.toContain('EXTREME_MEDIAN_OUTLIER');
+      expect(res.riskLevel).toBe('SAFE');
+      expect(res.isAnomaly).toBe(false);
     });
   });
 
