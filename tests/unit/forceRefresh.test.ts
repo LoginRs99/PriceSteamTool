@@ -35,7 +35,6 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
         isOfficial: true,
         priceEur: 59.99,
         originalPriceEur: 59.99,
-        discountPercent: 0,
         dealUrl: 'https://store.steampowered.com/app/1086940',
         productTypeRaw: 'DIRECT_PURCHASE',
         regionRaw: 'GLOBAL'
@@ -49,7 +48,6 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
         isOfficial: true,
         priceEur: 49.99,
         originalPriceEur: 59.99,
-        discountPercent: 17,
         dealUrl: 'https://fanatical.com/bg3',
         productTypeRaw: 'STEAM_KEY',
         regionRaw: 'GLOBAL'
@@ -63,7 +61,6 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
         isOfficial: true,
         priceEur: 45.99,
         originalPriceEur: 59.99,
-        discountPercent: 23,
         dealUrl: 'https://gamersgate.com/bg3',
         productTypeRaw: 'STEAM_KEY',
         regionRaw: 'GLOBAL'
@@ -77,7 +74,6 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
         isOfficial: true,
         priceEur: 44.50,
         originalPriceEur: 59.99,
-        discountPercent: 26,
         dealUrl: 'https://gmg.com/bg3',
         productTypeRaw: 'STEAM_KEY',
         regionRaw: 'GLOBAL'
@@ -92,7 +88,6 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
         isOfficial: false,
         priceEur: 39.99,
         originalPriceEur: 59.99,
-        discountPercent: 33,
         dealUrl: 'https://kinguin.net/bg3',
         productTypeRaw: 'STEAM_KEY',
         regionRaw: 'GLOBAL'
@@ -123,7 +118,6 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
         isOfficial: true,
         priceEur: 29.99,
         originalPriceEur: 59.99,
-        discountPercent: 50,
         dealUrl: 'https://store.steampowered.com/app/1091500',
         productTypeRaw: 'DIRECT_PURCHASE',
         regionRaw: 'GLOBAL'

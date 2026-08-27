@@ -11,9 +11,9 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:client && npm run build:server",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --project client && vitest run --project server",
+    "test": "vitest run --project client && vitest run --project server --pool=forks --poolOptions.forks.singleFork=true",
     "test:client": "vitest run --project client",
-    "test:server": "vitest run --project server",
+    "test:server": "vitest run --project server --pool=forks --poolOptions.forks.singleFork=true",
     "test:sources": "tsx scripts/test-sources.ts"
   },
   "dependencies": {

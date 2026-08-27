@@ -395,17 +395,18 @@ export const offerRepo = {
           evaluationConfidence: pricingEval.confidence,
           isAnomaly: pricingEval.isAnomaly,
           dealScore: 0,
-          dealTier: 'Standard',
+          dealTier: 'Fair',
           sources: [active.sourceCode],
           sourceAgreementCount: sourceCount,
           fetchedAt: now,
+          lastObservedAt: active.observedAt || now,
           createdAt: now,
           updatedAt: now
         });
 
         // Persist rolling stats
         const atlConfirmed = periodLows.allTimeLow.isConfirmed ? 1 : 0;
-        const atlSingleSource = periodLows.allTimeLow.isSingleSourceLow ? 1 : 0;
+        const atlSingleSource = (periodLows.allTimeLow.isConfirmed === false || Boolean(periodLows.low90d.isSingleSourceLow)) ? 1 : 0;
         prepareStmt(`
           UPDATE games 
           SET typical_sale_median_eur = ?,
