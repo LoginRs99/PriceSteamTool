@@ -363,7 +363,9 @@ export const offerRepo = {
         const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
           ? pricingEval.riskFlags[0]
           : 'PRICE_ANOMALY';
-        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
+        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary, data.priceEur);
+      } else {
+        anomalyRepo.resolveForOffer(offerId);
       }
 
       return offerId;
