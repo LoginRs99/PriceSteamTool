@@ -62,16 +62,16 @@ export const offerRepo = {
 
       const sourceHistoryRows = prepareStmt(`
         SELECT price_eur FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? 
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ?
         ORDER BY recorded_at ASC
-      `).all(data.gameId, data.merchantId) as any[];
+      `).all(data.gameId, data.merchantId, data.sourceCode) as any[];
       const sourceHistory = sourceHistoryRows.map(r => Number(r.price_eur));
 
       const lastHistory = prepareStmt(`
         SELECT price_eur, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? 
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ?
         ORDER BY recorded_at DESC LIMIT 1
-      `).get(data.gameId, data.merchantId) as any;
+      `).get(data.gameId, data.merchantId, data.sourceCode) as any;
 
       const evalInput: PriceEvaluationInput = {
         currentPriceEur: data.priceEur,

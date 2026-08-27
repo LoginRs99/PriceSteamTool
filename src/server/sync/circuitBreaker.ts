@@ -24,8 +24,8 @@ export class CircuitBreakerRegistry {
         const cooldownTime = s.cooldownUntil ? new Date(s.cooldownUntil).getTime() : null;
         this.states.set(s.code, {
           state: s.state,
-          consecutiveFailures: s.failureCount > 0 ? 1 : 0,
-          consecutiveRateLimits: s.rateLimitCount > 0 ? 1 : 0,
+          consecutiveFailures: 0,
+          consecutiveRateLimits: 0,
           cooldownUntil: cooldownTime,
           lastFailureTime: null,
           lastSuccessTime: s.lastSuccessAt ? new Date(s.lastSuccessAt).getTime() : null,

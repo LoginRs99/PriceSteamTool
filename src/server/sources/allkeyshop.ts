@@ -71,7 +71,9 @@ export async function fetchWithAllkeyshopSolver<T = any>(
 
     if (!res.ok) {
       console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
-      return null;
+      const err: any = new Error(`Byparr / FlareSolverr returned HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
     }
 
     const data: any = await res.json();
@@ -98,11 +100,13 @@ export async function fetchWithAllkeyshopSolver<T = any>(
     } else {
       const solutionStatus = data?.solution?.status || 500;
       console.warn(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
-      return null;
+      const err: any = new Error(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
+      err.status = solutionStatus;
+      throw err;
     }
   } catch (solverErr: any) {
     console.warn(`Byparr request failed for ${url}: ${solverErr.message}`);
-    return null;
+    throw solverErr;
   }
 
   return null;
@@ -372,8 +376,14 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         }
 
         // Probe candidates in priority order and select the one with active offers
+        let candCount = 0;
         for (const matched of candidates) {
           if (!matched || (!matched.id && !matched.slug)) continue;
+
+          if (candCount > 0) {
+            await new Promise(r => setTimeout(r, 500));
+          }
+          candCount++;
 
           const priceApiUrl = matched.id 
             ? `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`
