@@ -140,11 +140,16 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
           } catch (fetchErr: any) {
             if (fetchErr?.status === 429) {
-              // Transient Steam rate limit hit: backoff for 5 seconds and retry page once
-              await new Promise(r => setTimeout(r, 5000));
-              data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
+              const backoffSec = fetchErr.retryAfterSec ?? 30;
+              const backoffMs = Math.max(backoffSec * 1000, 5000);
+              await new Promise(r => setTimeout(r, backoffMs));
+              try {
+                data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
+              } catch (retryErr: any) {
+                throw new Error(`Steam wishlist pagination failed on page ${page}: ${retryErr?.message || 'Rate limit 429'}`);
+              }
             } else {
-              throw fetchErr;
+              throw new Error(`Steam wishlist pagination failed on page ${page}: ${fetchErr?.message || 'Network error'}`);
             }
           }
 

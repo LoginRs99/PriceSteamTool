@@ -459,7 +459,9 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
           return { ok: true, status: 200, json: async () => ({}) } as any;
         }) as any;
 
-        await expect(fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 5000)).rejects.toThrow();
+        await expect(fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 5000)).rejects.toThrow(
+          /Byparr \/ FlareSolverr returned HTTP 502/
+        );
         expect(directFetchCalled).toBe(false);
       } finally {
         config.allkeyshopSolverUrl = origSolverUrl;

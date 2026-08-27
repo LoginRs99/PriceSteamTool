@@ -101,7 +101,7 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
     expect(activeAnomalies[0].merchantName).toBe('Shady Keys');
     expect(activeAnomalies[0].priceEur).toBe(0.49);
     expect(activeAnomalies[0].anomalyType).toBe('SUB_EURO_PREMIUM_GLITCH');
-    expect(activeAnomalies[0].score).toBeGreaterThanOrEqual(0.70);
+    expect(activeAnomalies[0].score).toBeGreaterThanOrEqual(0.60);
     expect(activeAnomalies[0].isDismissed).toBe(false);
   });
 

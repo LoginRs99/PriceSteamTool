@@ -55,15 +55,9 @@ export class PacedSourceQueue {
     while (this.queue.length > 0) {
       const check = circuitBreakers.canExecute(this.sourceCode);
       if (!check.allowed) {
-        // If paused or in backoff, reject or wait
-        // Delay before re-checking
+        // If paused or in backoff, pause execution without discarding queued tasks
         await new Promise(r => setTimeout(r, 2000));
-        const recheck = circuitBreakers.canExecute(this.sourceCode);
-        if (!recheck.allowed) {
-          const task = this.queue.shift();
-          task?.reject(new Error(check.reason || `Source ${this.sourceCode} paused`));
-          continue;
-        }
+        continue;
       }
 
       const now = Date.now();
@@ -85,7 +79,7 @@ export class PacedSourceQueue {
         task.resolve(result);
       } catch (err: any) {
         if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
-          const retryAfter = err?.headers?.['retry-after'] ? parseInt(err.headers['retry-after'], 10) : 30;
+          const retryAfter = err?.retryAfterSec ?? 30;
           circuitBreakers.recordRateLimit(this.sourceCode, retryAfter);
         } else {
           circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure');

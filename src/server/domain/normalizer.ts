@@ -197,7 +197,7 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     regionCode: rawRegion || 'UNKNOWN',
     regionConfidence: 0.0,
     isValid: false,
-    rejectReason: `Unverified / ambiguous activation region (${rawRegion})`
+    rejectReason: `Unrecognized region code locked outside Hungary/EU (${rawRegion || 'UNKNOWN'})`
   };
 }
 

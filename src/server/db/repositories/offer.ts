@@ -45,7 +45,6 @@ export const offerRepo = {
         SELECT id, price_eur FROM offers 
         WHERE game_id = ? AND merchant_id = ? AND product_type = ? AND region_type = ?
       `).get(data.gameId, data.merchantId, data.productType, data.regionType) as any;
-
       if (existing) {
         offerId = existing.id;
       } else {
@@ -486,7 +485,12 @@ export const offerRepo = {
         const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
           ? pricingEval.riskFlags[0]
           : 'PRICE_ANOMALY';
-        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary);
+        const previousPriceEur = existing?.price_eur !== null && existing?.price_eur !== undefined 
+          ? Number(existing.price_eur) 
+          : undefined;
+        anomalyRepo.record(data.gameId, offerId, anomalyType, pricingEval.riskScore, pricingEval.summary, data.priceEur, previousPriceEur);
+      } else {
+        anomalyRepo.resolveForOffer(offerId);
       }
 
       return offerId;

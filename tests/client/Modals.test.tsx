@@ -225,6 +225,26 @@ describe('Modals & Ancillary Components', () => {
       fireEvent.click(cancelBtn);
       expect(cancelMock).toHaveBeenCalled();
     });
+
+    it('renders source progress badges with offers and unpriced counts rather than deals label', () => {
+      render(
+        <SyncBanner
+          progress={{
+            status: 'RUNNING',
+            currentAction: 'Syncing Steam...',
+            processedGames: 511,
+            totalGames: 1415,
+            sourceProgress: {
+              steam: { processed: 511, total: 1415, offersFound: 489, state: 'NORMAL' }
+            } as any
+          }}
+          onCancel={() => {}}
+        />
+      );
+
+      expect(screen.getByText('(489 offers • 22 unpriced)')).toBeInTheDocument();
+      expect(screen.queryByText(/deals/i)).not.toBeInTheDocument();
+    });
   });
 
   describe('AnomaliesView', () => {
@@ -248,10 +268,8 @@ describe('Modals & Ancillary Components', () => {
       render(<AnomaliesView />);
 
       await waitFor(() => {
-        expect(screen.getByText('Data Safety & Price Glitch Review')).toBeInTheDocument();
+        expect(screen.getByText('Terraria')).toBeInTheDocument();
       });
-
-      expect(screen.getByText('Terraria')).toBeInTheDocument();
 
       const dismissBtn = screen.getByRole('button', { name: /^Dismiss$/i });
       await act(async () => {

@@ -10,6 +10,8 @@ import type {
   PriceHistoryEntry 
 } from '../../shared/types.js';
 
+import { logInfo } from '../utils/logger.js';
+
 let dbInstance: Database.Database | null = null;
 const stmtCache = new Map<string, Database.Statement>();
 
@@ -41,12 +43,18 @@ export function getDb(): Database.Database {
     // Run versioned schema migrations
     runMigrations(dbInstance);
 
-    // Diagnostic: audit anomalies table content at startup to inspect stale records
+    // Diagnostic: audit anomalies table content summary at startup
     if (process.env.NODE_ENV !== 'test') {
       try {
-        const rawAnomalies = dbInstance.prepare(`SELECT id, game_id, offer_id, anomaly_type, score, detected_at, is_dismissed FROM anomalies`).all();
-        if (rawAnomalies.length > 0) {
-          console.log(`[Data Safety] Startup anomalies table audit (${rawAnomalies.length} entries):`, JSON.stringify(rawAnomalies));
+        const counts = dbInstance.prepare(`
+          SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN is_dismissed = 0 THEN 1 ELSE 0 END) as active,
+            SUM(CASE WHEN is_dismissed = 1 THEN 1 ELSE 0 END) as dismissed
+          FROM anomalies
+        `).get() as any;
+        if (counts && counts.total > 0) {
+          logInfo(`[Data Safety] Startup anomalies audit complete | totalEntries=${counts.total} active=${counts.active || 0} dismissed=${counts.dismissed || 0}`);
         }
       } catch {}
     }
