@@ -35,7 +35,8 @@ export type PriceRiskFlag =
   | 'EXTREME_MEDIAN_OUTLIER'
   | 'LONE_BOTTOM_OUTLIER'
   | 'HISTORICAL_LOW_DISCREPANCY'
-  | 'SOURCE_OWN_HISTORY_BREAK';
+  | 'SOURCE_OWN_HISTORY_BREAK'
+  | 'SOURCE_OWN_HISTORY_BREAK_CORROBORATED';
 
 export interface PriceEvaluation {
   event: PriceEventType;

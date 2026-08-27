@@ -737,5 +737,87 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(signal.decision).toBe('PROVISIONAL');
       expect(signal.badgeLabel).toBe('Flagged Anomaly');
     });
+
+    it('13. market-wide sale (Terminator Resistance case: history €25-30, current €8.15, peers €7.35-8.85) is NOT anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 8.15,
+        basePriceEur: 39.99,
+        sourceHistoryEur: [39.99, 29.99, 19.99, 24.99],
+        marketPricesEur: [7.35, 7.99, 8.28, 8.68, 8.71, 8.85],
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).toBe('SAFE');
+    });
+
+    it('14. uncorroborated own-history break (history €25-30, current €3.00, peers €27-29) IS anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 3.00,
+        basePriceEur: 39.99,
+        sourceHistoryEur: [29.99, 29.99, 29.99, 29.99],
+        marketPricesEur: [27.00, 28.00, 29.00],
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1
+      });
+
+      expect(res.isAnomaly).toBe(true);
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+    });
+
+    it('15. legitimate market-wide deep discount (MSRP €30, current €8.00, peers €8.50-12.00) is NOT anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 8.00,
+        basePriceEur: 30.00,
+        marketPricesEur: [8.50, 9.00, 10.00, 12.00],
+        isOfficialMerchant: true,
+        sourceAgreementCount: 2
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).toBe('SAFE');
+    });
+
+    it('16. true lone outlier (current €3.00 vs peers €27-29) IS anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 3.00,
+        basePriceEur: 40.00,
+        marketPricesEur: [27.00, 28.00, 29.00],
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1
+      });
+
+      expect(res.isAnomaly).toBe(true);
+      expect(res.riskLevel).toBe('HIGH');
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+    });
+
+    it('17. non-cheapest offer (€14.90 vs market €3.80-8.00) is NOT pricing error anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 14.90,
+        basePriceEur: 40.00,
+        marketPricesEur: [3.80, 4.10, 5.00, 8.00],
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).toBe('SAFE');
+    });
+
+    it('18. keyshop offer at €8.15 in market-wide sale (Steam €7.35) is NOT anomaly merely because keyshop', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 8.15,
+        basePriceEur: 40.00,
+        marketPricesEur: [7.35, 7.99, 8.28],
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).toBe('SAFE');
+    });
   });
 });
