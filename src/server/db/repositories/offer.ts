@@ -50,7 +50,7 @@ export const offerRepo = {
       const gameInfo = prepareStmt(`SELECT * FROM games WHERE id = ?`).get(data.gameId) as any;
       const merchantInfo = prepareStmt(`SELECT name, is_official, trust_score FROM merchants WHERE id = ?`).get(data.merchantId) as any;
       
-      const otherPricesRows = prepareStmt(`SELECT price_eur FROM offers WHERE game_id = ? AND is_valid = 1 AND merchant_id != ?`).all(data.gameId, data.merchantId) as any[];
+      const otherPricesRows = prepareStmt(`SELECT price_eur FROM offers WHERE game_id = ? AND is_valid = 1 AND merchant_id != ? AND product_type = ?`).all(data.gameId, data.merchantId, data.productType) as any[];
       const marketPrices = otherPricesRows.map(p => Number(p.price_eur));
 
       let sourceCount = 1;

@@ -85,48 +85,61 @@ export function calculatePriceRisk(
   const msrp = basePriceEur || originalPriceEur || 0;
   let rawSeverity = 0.0;
 
+  const validPeers = marketPricesEur.filter(p => p > 0);
+  const allLiveOffers = [currentPriceEur, ...validPeers].sort((a, b) => a - b);
+
+  // Primary Candidate Scoping: Only the cheapest relevant offer (or near-cheapest within 2% of lowest)
+  // is evaluated for pricing-error anomalies. Non-cheapest offers cannot trigger HIGH pricing anomalies.
+  const isCheapestCandidate = (allLiveOffers.length > 0 && currentPriceEur <= allLiveOffers[0] * 1.02);
+
+  const hasCorroboratingPeer = validPeers.length > 0 && validPeers.some(p => {
+    const relDiff = Math.abs(p - currentPriceEur) / Math.min(p, currentPriceEur);
+    return relDiff <= 0.40;
+  });
+
   const sourceCheck = evaluateSourceOwnHistoryAnomaly(currentPriceEur, sourceHistoryEur);
 
   if (sourceCheck.applicable) {
     if (sourceCheck.isBreak) {
-      rawSeverity = Math.max(rawSeverity, 0.85);
-      flags.add('SOURCE_OWN_HISTORY_BREAK');
+      if (hasCorroboratingPeer) {
+        // Corroborated market-wide sale (e.g. Steam is €7.35, keyshop is €8.15) -> Downgrade to SAFE
+        rawSeverity = Math.max(rawSeverity, 0.15);
+        flags.add('SOURCE_OWN_HISTORY_BREAK_CORROBORATED');
+      } else if (isCheapestCandidate) {
+        // Uncorroborated break on cheapest candidate -> HIGH risk anomaly
+        rawSeverity = Math.max(rawSeverity, 0.85);
+        flags.add('SOURCE_OWN_HISTORY_BREAK');
+      }
     }
     // When applicable and NOT a break, this source's price is consistent with its own
     // established pattern — suppress the peer-based flags below for this evaluation,
     // since a stable, self-consistent source shouldn't be penalized for differing
     // from a different market segment's peers (e.g. keyshop vs. official store).
-  } else {
+  } else if (isCheapestCandidate) {
     // Fallback: Peer-based anomaly detection when insufficient own history (< 3 observations)
-
     // 1. Sub-euro / extreme ratio drop glitch check (<€1.00 or <5% of MSRP)
     if (currentPriceEur < 1.00 || (msrp > 0 && currentPriceEur < msrp * 0.05)) {
-      const peers = marketPricesEur.filter(p => p > 0);
-      const hasCorroboratingPeer = peers.some(p => (Math.abs(p - currentPriceEur) / currentPriceEur) <= 0.30001);
-
-      if (peers.length === 0 || !hasCorroboratingPeer) {
-        // No other source to compare against, or genuinely a lone outlier — treat as before.
+      if (validPeers.length === 0 || !hasCorroboratingPeer) {
         rawSeverity = Math.max(rawSeverity, 0.85);
         flags.add('SUB_EURO_PREMIUM_GLITCH');
       } else {
-        // At least one other live offer agrees within 30% — likely a real, if steep, price. Downgrade.
         rawSeverity = Math.max(rawSeverity, 0.35);
         flags.add('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
       }
     }
 
-    // 2. Lone bottom outlier check (primary driver of HIGH risk for live market bottom outlier)
-    const allLiveOffers = [currentPriceEur, ...marketPricesEur.filter(p => p > 0)].sort((a, b) => a - b);
+    // 2. Lone bottom outlier check (primary driver of HIGH risk for live market pricing errors)
     if (allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
       const secondCheapest = allLiveOffers[1];
       if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
-        rawSeverity = Math.max(rawSeverity, 0.85);
-        flags.add('LONE_BOTTOM_OUTLIER');
+        if (!hasCorroboratingPeer) {
+          rawSeverity = Math.max(rawSeverity, 0.85);
+          flags.add('LONE_BOTTOM_OUTLIER');
+        }
       }
     }
 
-    // 3. Market median divergence (capped at 0.35 so it cannot reach HIGH risk on its own)
-    const validPeers = marketPricesEur.filter(p => p > 0);
+    // 3. Market median divergence (capped at 0.35 caution)
     if (validPeers.length >= 2) {
       const sorted = [...validPeers].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
