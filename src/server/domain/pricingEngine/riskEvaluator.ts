@@ -57,7 +57,9 @@ export function calculateRiskEvidenceConfidence(
 }
 
 /**
- * Calculates price risk score (0.00 - 1.00) using a bounded evidence multiplier.
+ * Calculates price risk score (0.00 - 1.00) for Anomaly V2 pricing error detection.
+ * Evaluates peer market divergence, second-lowest price divergence, merchant own-history breaks,
+ * and sub-euro glitch corroboration without penalizing merchant type or static MSRP discount percentage.
  */
 export function calculatePriceRisk(
   input: PriceEvaluationInput,
