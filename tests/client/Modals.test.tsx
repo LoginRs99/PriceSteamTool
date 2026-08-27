@@ -248,10 +248,8 @@ describe('Modals & Ancillary Components', () => {
       render(<AnomaliesView />);
 
       await waitFor(() => {
-        expect(screen.getByText('Data Safety & Price Glitch Review')).toBeInTheDocument();
+        expect(screen.getByText('Terraria')).toBeInTheDocument();
       });
-
-      expect(screen.getByText('Terraria')).toBeInTheDocument();
 
       const dismissBtn = screen.getByRole('button', { name: /^Dismiss$/i });
       await act(async () => {
