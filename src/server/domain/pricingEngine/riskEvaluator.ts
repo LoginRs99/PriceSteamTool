@@ -115,7 +115,8 @@ export function calculatePriceRisk(
     const secondCheapest = allLiveOffers[1];
     if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
       const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
-      if (!isEstablishedOwnPrice) {
+      // If own history is established, require at least 2 peers (multi-source market consensus) to override
+      if (!isEstablishedOwnPrice || validPeers.length >= 2) {
         rawSeverity = Math.max(rawSeverity, 0.90);
         flags.add('LONE_BOTTOM_OUTLIER');
       }
@@ -127,25 +128,19 @@ export function calculatePriceRisk(
     const sorted = [...validPeers].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
-    const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
-    if (!isEstablishedOwnPrice) {
-      if (median >= 1.00 && currentPriceEur < median * 0.25) {
-        rawSeverity = Math.max(rawSeverity, 0.35);
-        flags.add('EXTREME_MEDIAN_OUTLIER');
-      } else if (median >= 1.00 && currentPriceEur < median * 0.40) {
-        rawSeverity = Math.max(rawSeverity, 0.35);
-        flags.add('SOURCE_DISAGREEMENT');
-      }
+    if (median >= 1.00 && currentPriceEur < median * 0.25) {
+      rawSeverity = Math.max(rawSeverity, 0.35);
+      flags.add('EXTREME_MEDIAN_OUTLIER');
+    } else if (median >= 1.00 && currentPriceEur < median * 0.40) {
+      rawSeverity = Math.max(rawSeverity, 0.35);
+      flags.add('SOURCE_DISAGREEMENT');
     }
   }
 
   // 1D. Historical Low Discrepancy (historicalLowEur >= €2.00)
   if (isCheapestCandidate && historicalLowEur && historicalLowEur >= 2.00 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
-    const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
-    if (!isEstablishedOwnPrice) {
-      rawSeverity = Math.max(rawSeverity, 0.50);
-      flags.add('HISTORICAL_LOW_DISCREPANCY');
-    }
+    rawSeverity = Math.max(rawSeverity, 0.50);
+    flags.add('HISTORICAL_LOW_DISCREPANCY');
   }
 
   // 2. Own-History Signal & Peer Corroboration

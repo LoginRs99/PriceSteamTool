@@ -147,7 +147,7 @@ export class CircuitBreakerRegistry {
       info.cooldownUntil = Date.now() + cooldownMs;
       if (info.consecutiveFailures >= 4 || info.state === 'COOLDOWN') {
         info.state = 'PAUSED';
-      } else if (info.consecutiveFailures >= 2) {
+      } else {
         info.state = 'BACKOFF';
       }
       const cooldownIso = new Date(info.cooldownUntil).toISOString();
@@ -186,6 +186,18 @@ export class CircuitBreakerRegistry {
 
   public getState(source: SourceCode): CircuitState {
     return this.getOrCreate(source).state;
+  }
+
+  public getConsecutiveFailures(source: SourceCode): number {
+    return this.getOrCreate(source).consecutiveFailures;
+  }
+
+  public getConsecutiveRateLimits(source: SourceCode): number {
+    return this.getOrCreate(source).consecutiveRateLimits;
+  }
+
+  public getCooldownUntil(source: SourceCode): number | null {
+    return this.getOrCreate(source).cooldownUntil;
   }
 
   public getAllStates(): Record<SourceCode, CircuitState> {

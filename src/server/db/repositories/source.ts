@@ -61,35 +61,36 @@ export const sourceRepo = {
     `).run(state, cooldownUntil || null, consecutiveFailures, consecutiveRateLimits, code);
   },
 
-  incrementCounters(code: SourceCode, status: 'success' | 'failure' | 'ratelimit', errorMessage?: string): void {
+  incrementCounters(code: SourceCode, status: 'success' | 'failure' | 'ratelimit', errorMessage?: string, count: number = 1): void {
     const now = new Date().toISOString();
+    const inc = Math.max(1, count);
     if (status === 'success') {
       prepareStmt(`
-        UPDATE sources 
-        SET request_count = request_count + 1, 
-            success_count = success_count + 1, 
+        UPDATE sources
+        SET request_count = request_count + ?,
+            success_count = success_count + ?,
             last_success_at = ?,
             updated_at = ?
         WHERE code = ?
-      `).run(now, now, code);
+      `).run(inc, inc, now, now, code);
     } else if (status === 'ratelimit') {
       prepareStmt(`
-        UPDATE sources 
-        SET request_count = request_count + 1, 
-            rate_limit_count = rate_limit_count + 1,
+        UPDATE sources
+        SET request_count = request_count + ?,
+            rate_limit_count = rate_limit_count + ?,
             last_error = ?,
             updated_at = ?
         WHERE code = ?
-      `).run(errorMessage || 'Rate limit encountered (429)', now, code);
+      `).run(inc, inc, errorMessage || 'Rate limit encountered (429)', now, code);
     } else {
       prepareStmt(`
-        UPDATE sources 
-        SET request_count = request_count + 1, 
-            failure_count = failure_count + 1,
+        UPDATE sources
+        SET request_count = request_count + ?,
+            failure_count = failure_count + ?,
             last_error = ?,
             updated_at = ?
         WHERE code = ?
-      `).run(errorMessage || 'Request failed', now, code);
+      `).run(inc, inc, errorMessage || 'Request failed', now, code);
     }
   },
 

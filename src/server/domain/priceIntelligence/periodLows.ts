@@ -135,7 +135,11 @@ export function calculatePeriodLows(
   let confirmedAtlEur = game.historicalLowEur;
   let atlSource = game.historicalLowSource || 'Recorded low';
   let atlDate = game.historicalLowDate;
-  let isConfirmed = true;
+  let isConfirmed = (game as any).atlIsConfirmed !== undefined && (game as any).atlIsConfirmed !== null
+    ? Boolean((game as any).atlIsConfirmed)
+    : (game as any).atl_is_confirmed !== undefined && (game as any).atl_is_confirmed !== null
+      ? Boolean((game as any).atl_is_confirmed)
+      : (isKeyshopSourceStr(atlSource) ? false : true);
 
   if (confirmedAtlEur === undefined || confirmedAtlEur === null) {
     if (trustedHistory.length > 0) {

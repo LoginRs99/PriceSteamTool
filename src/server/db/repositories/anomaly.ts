@@ -3,6 +3,8 @@ import { prepareStmt } from '../core.js';
 import type { Anomaly } from '../../../shared/types.js';
 import { logWarn } from '../../utils/logger.js';
 
+export const ANOMALY_RETRIGGER_AFTER_DAYS = 30;
+
 export const anomalyRepo = {
   record(
     gameId: string, 
@@ -53,7 +55,7 @@ export const anomalyRepo = {
 
     // 2. Check if a dismissed anomaly record exists for this offer
     const dismissedExisting = prepareStmt(`
-      SELECT id, anomaly_type, score
+      SELECT id, anomaly_type, score, detected_at
       FROM anomalies
       WHERE game_id = ? AND offer_id = ? AND is_dismissed = 1
       ORDER BY detected_at DESC LIMIT 1
@@ -65,8 +67,19 @@ export const anomalyRepo = {
       const isSameType = (dismissedExisting.anomaly_type === type);
       const isPriceDrop = (previousPriceEur !== undefined && currentPriceEur !== undefined && currentPriceEur < previousPriceEur - 0.005);
 
-      if (isSameType && !isPriceDrop) {
-        // Materially unchanged event -> respect dismissal and do NOT create new active row
+      let isExpiredDismissal = false;
+      if (dismissedExisting.detected_at) {
+        const detectedTime = new Date(dismissedExisting.detected_at).getTime();
+        if (!isNaN(detectedTime)) {
+          const ageDays = (Date.now() - detectedTime) / (1000 * 60 * 60 * 24);
+          if (ageDays >= ANOMALY_RETRIGGER_AFTER_DAYS) {
+            isExpiredDismissal = true;
+          }
+        }
+      }
+
+      if (isSameType && !isPriceDrop && !isExpiredDismissal) {
+        // Materially unchanged event within 30 days -> respect dismissal and do NOT create new active row
         return;
       }
     }

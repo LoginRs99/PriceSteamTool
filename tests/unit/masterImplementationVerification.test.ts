@@ -382,4 +382,235 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
       expect(result.sourcesChecked).not.toContain('allkeyshop');
     });
   });
+
+  // ----------------------------------------------------
+  // 8. P0 — End-to-End Production PriceHistoryEntry Reconstruction & Backfill
+  // ----------------------------------------------------
+  describe('P0: End-to-End Production PriceHistoryEntry Reconstruction', () => {
+    it('persists and reconstructs is_anomaly and risk_level through getPriceHistory and backfillDealScoreStats', async () => {
+      const { backfillDealScoreStats } = await import('../../src/server/db/core.js');
+      const game = gameRepo.upsert({ steamAppId: 8881, title: 'Reconstruction Game', basePriceEur: 69.99 });
+      const merchant = merchantRepo.getOrCreate('steam', 'Steam Store', true);
+
+      // Insert 2 normal rows and 1 anomaly row in SQLite
+      prepareStmt(`
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
+        VALUES (?, ?, ?, 'steam', 69.99, 69.99, 'EUR', 1.0, 0, 'NONE', 50, 0, 'SAFE', '2026-01-01T00:00:00Z')
+      `).run('hist-1', game.id, merchant.id);
+
+      prepareStmt(`
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
+        VALUES (?, ?, ?, 'steam', 49.99, 49.99, 'EUR', 1.0, 28, 'PRICE_DROP', 75, 0, 'SAFE', '2026-02-01T00:00:00Z')
+      `).run('hist-2', game.id, merchant.id);
+
+      prepareStmt(`
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
+        VALUES (?, ?, ?, 'allkeyshop', 0.99, 0.99, 'EUR', 1.0, 98, 'EXTREME_DROP', 99, 1, 'HIGH', '2026-03-01T00:00:00Z')
+      `).run('hist-3', game.id, merchant.id);
+
+      // Verify offerRepo.getPriceHistory preserves metadata
+      const history = offerRepo.getPriceHistory(game.id);
+      expect(history.length).toBe(3);
+      const glitch = history.find(h => h.id === 'hist-3')!;
+      expect(glitch.isAnomaly).toBe(true);
+      expect(glitch.riskLevel).toBe('HIGH');
+      expect(glitch.rawCurrency).toBe('EUR');
+
+      // Verify backfill does not drop anomaly flags and ignores glitch for typical sale & period lows
+      backfillDealScoreStats();
+      const updatedGame = gameRepo.getById(game.id)!;
+      expect(updatedGame.typicalSaleMedianEur).toBeGreaterThanOrEqual(49.0);
+      expect(updatedGame.typicalSaleMedianEur).toBeLessThanOrEqual(70.0);
+      expect(updatedGame.low90dEur).not.toBe(0.99);
+      expect(updatedGame.low1yEur).not.toBe(0.99);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 9. P0 — Fully Decoupled Peer-Market Anomaly Signals
+  // ----------------------------------------------------
+  describe('P0: Fully Decoupled Peer-Market vs Own-History Anomaly Signals', () => {
+    it('Case A: detects peer-market anomaly even when own history is stable', () => {
+      // Own history: €5.00, €4.90, €5.10, €5.00 -> current €4.90
+      // Peers: €25, €27, €29
+      const evalCaseA = evaluatePriceMovement({
+        currentPriceEur: 4.90,
+        basePriceEur: 29.99,
+        marketPricesEur: [25.00, 27.00, 29.00],
+        sourceHistoryEur: [5.00, 4.90, 5.10, 5.00],
+        previousPriceEur: 5.00,
+        sourceAgreementCount: 1,
+        independentMerchantCount: 1,
+        isOfficialMerchant: false
+      });
+
+      expect(evalCaseA.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(evalCaseA.riskFlags).toContain('EXTREME_MEDIAN_OUTLIER');
+      expect(evalCaseA.riskLevel).toBe('HIGH');
+      expect(evalCaseA.isAnomaly).toBe(true);
+    });
+
+    it('Case B: detects own-history anomaly when source breaks without peer market', () => {
+      const evalCaseB = evaluatePriceMovement({
+        currentPriceEur: 4.99,
+        basePriceEur: 59.99,
+        marketPricesEur: [], // No peers
+        sourceHistoryEur: [59.99, 54.99, 59.99],
+        previousPriceEur: 59.99,
+        sourceAgreementCount: 1,
+        independentMerchantCount: 1,
+        isOfficialMerchant: false
+      });
+
+      expect(evalCaseB.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(evalCaseB.riskLevel).toBe('HIGH');
+      expect(evalCaseB.isAnomaly).toBe(true);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 10. P0 — Freshness-Aware Game-Level Best Deal & Peer Market
+  // ----------------------------------------------------
+  describe('P0: Freshness-Aware Game Best Deal & Peer Market', () => {
+    it('recomputeBestDealForGame prioritizes fresh offers over stale cheaper offers', () => {
+      const game = gameRepo.upsert({ steamAppId: 9901, title: 'Freshness Best Deal Game', basePriceEur: 49.99 });
+      const merchantA = merchantRepo.getOrCreate('storeA', 'Store A', true);
+      const merchantB = merchantRepo.getOrCreate('storeB', 'Store B', true);
+
+      const staleDate = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString();
+      const freshDate = new Date().toISOString();
+
+      // Offer A: Stale €5.00
+      prepareStmt(`
+        INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, risk_level, risk_score, risk_flags, evaluation_confidence, is_anomaly, anomaly_score, fetched_at, last_observed_at, created_at, updated_at)
+        VALUES ('off-stale-5', ?, ?, 'STEAM_KEY', 'GLOBAL', 5.00, 'https://storeA.com', 1, 0, 'NONE', 'SAFE', 0.0, '[]', 1.0, 0, 0.0, ?, ?, ?, ?)
+      `).run(game.id, merchantA.id, staleDate, staleDate, staleDate, staleDate);
+
+      // Offer B: Fresh €8.00
+      prepareStmt(`
+        INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, risk_level, risk_score, risk_flags, evaluation_confidence, is_anomaly, anomaly_score, fetched_at, last_observed_at, created_at, updated_at)
+        VALUES ('off-fresh-8', ?, ?, 'STEAM_KEY', 'GLOBAL', 8.00, 'https://storeB.com', 1, 0, 'NONE', 'SAFE', 0.0, '[]', 1.0, 0, 0.0, ?, ?, ?, ?)
+      `).run(game.id, merchantB.id, freshDate, freshDate, freshDate, freshDate);
+
+      offerRepo.recomputeBestDealForGame(game.id);
+
+      const best = offerRepo.getOffersForGame(game.id).find(o => o.isBestDeal);
+      expect(best).toBeDefined();
+      expect(best?.id).toBe('off-fresh-8');
+      expect(best?.priceEur).toBe(8.00);
+    });
+
+    it('stale peer is excluded from live market comparison and cannot distort cheapest-candidate policy', () => {
+      const target = { productType: 'STEAM_KEY', regionType: 'GLOBAL' };
+      const staleTime = new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString();
+
+      const isStaleCompatible = isCompatiblePeerOffer(target, {
+        productType: 'STEAM_KEY',
+        regionType: 'GLOBAL',
+        isValid: true,
+        isAnomaly: false,
+        riskLevel: 'SAFE',
+        lastObservedAt: staleTime
+      });
+
+      expect(isStaleCompatible).toBe(false);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 11. P0 — Deal Score Consistency Across Endpoints
+  // ----------------------------------------------------
+  describe('P0: Deal Score Consistency Across Endpoints', () => {
+    it('produces identical deal score and provisional status across game and offer representations', () => {
+      const game = gameRepo.upsert({ steamAppId: 7771, title: 'Consistency Game', basePriceEur: 39.99 });
+      const merchant = merchantRepo.getOrCreate('steam', 'Steam Store', true);
+
+      offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchant.id,
+        productType: 'DIRECT_PURCHASE',
+        regionType: 'GLOBAL',
+        priceEur: 19.99,
+        dealUrl: 'https://store.steampowered.com/app/7771',
+        sourceCode: 'steam'
+      });
+
+      const gameData = gameRepo.getById(game.id)!;
+      const offerData = offerRepo.getOffersForGame(game.id)[0];
+      const singleOffer = offerRepo.getById(offerData.id)!;
+
+      expect(gameData.bestDealScore).toBe(offerData.dealScore);
+      expect(offerData.dealScore).toBe(singleOffer.dealScore);
+      expect(offerData.isProvisional).toBe(singleOffer.isProvisional);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 12. P0 — ATL Confirmation State Preservation
+  // ----------------------------------------------------
+  describe('P0: ATL Confirmation State Preservation', () => {
+    it('preserves explicitly unconfirmed ATL state and does not overwrite it to true', () => {
+      const mockGame: Game = {
+        id: 'g-unconfirmed-atl',
+        steamAppId: 1234,
+        title: 'Unconfirmed ATL Game',
+        slug: 'unconfirmed-atl',
+        basePriceEur: 49.99,
+        historicalLowEur: 15.99,
+        historicalLowSource: 'Kinguin',
+        atlIsConfirmed: false,
+        isDlc: false,
+        isFree: false,
+        hasAnomaly: false,
+        offersCount: 1,
+        createdAt: '2025-01-01T00:00:00Z',
+        updatedAt: '2026-08-27T00:00:00Z'
+      };
+
+      const periodLows = calculatePeriodLows(mockGame, []);
+      expect(periodLows.allTimeLow.isConfirmed).toBe(false);
+      expect(periodLows.allTimeLow.priceEur).toBe(15.99);
+    });
+  });
+
+  // ----------------------------------------------------
+  // 13. P1 — 30-Day Anomaly Retrigger Policy B
+  // ----------------------------------------------------
+  describe('P1: 30-Day Anomaly Retrigger Policy B', () => {
+    it('suppresses recent dismissals (< 30 days) and re-triggers on dismissals >= 30 days', () => {
+      const game = gameRepo.upsert({ steamAppId: 5551, title: 'Policy B Game', basePriceEur: 59.99 });
+      const merchant = merchantRepo.getOrCreate('k4g', 'K4G', false);
+      const offer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchant.id,
+        productType: 'STEAM_KEY',
+        regionType: 'GLOBAL',
+        priceEur: 0.49,
+        dealUrl: 'https://k4g.com/glitch',
+        sourceCode: 'allkeyshop'
+      });
+
+      // 1. Initial anomaly is active
+      const activeAnomalies = anomalyRepo.list(true);
+      expect(activeAnomalies.length).toBe(1);
+
+      // 2. Dismiss the anomaly
+      anomalyRepo.dismiss(activeAnomalies[0].id);
+      expect(anomalyRepo.list(true).length).toBe(0);
+
+      // 3. Trigger same anomaly today -> suppressed
+      anomalyRepo.record(game.id, offer.id, 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Glitch', 0.49, 0.49);
+      expect(anomalyRepo.list(true).length).toBe(0);
+
+      // 4. Age the dismissed record to 35 days ago
+      const oldDate = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+      prepareStmt(`UPDATE anomalies SET detected_at = ? WHERE offer_id = ?`).run(oldDate, offer.id);
+
+      // 5. Trigger again -> re-triggers because dismissal is > 30 days old
+      anomalyRepo.record(game.id, offer.id, 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Glitch', 0.49, 0.49);
+      const retriggered = anomalyRepo.list(true);
+      expect(retriggered.length).toBe(1);
+      expect(retriggered[0].offerId).toBe(offer.id);
+    });
+  });
 });

@@ -14,12 +14,31 @@ import type {
 
 export function isCompatiblePeerOffer(
   target: { productType: string; regionType: string },
-  peer: { productType: string; regionType: string; isValid?: boolean; isAnomaly?: boolean; riskLevel?: string }
+  peer: {
+    productType: string;
+    regionType: string;
+    isValid?: boolean;
+    isAnomaly?: boolean;
+    riskLevel?: string;
+    lastObservedAt?: string;
+    fetchedAt?: string;
+  },
+  nowMs: number = Date.now(),
+  freshnessWindowMs: number = 72 * 60 * 60 * 1000
 ): boolean {
   if (peer.isValid === false) return false;
   if (peer.isAnomaly === true) return false;
   if (peer.riskLevel === 'HIGH') return false;
   if (peer.productType !== target.productType) return false;
+
+  // Stale peer check: observations older than 72 hours cannot participate in live market evaluation
+  const ts = peer.lastObservedAt || peer.fetchedAt;
+  if (ts) {
+    const t = new Date(ts).getTime();
+    if (!isNaN(t) && (nowMs - t) > freshnessWindowMs) {
+      return false;
+    }
+  }
 
   const standardRegions = new Set(['HU', 'EU', 'GLOBAL']);
   const isTargetStandard = standardRegions.has(target.regionType);
@@ -218,7 +237,7 @@ export const offerRepo = {
       const merchantInfo = prepareStmt(`SELECT name, is_official, trust_score FROM merchants WHERE id = ?`).get(data.merchantId) as any;
       
       const otherOffersRows = prepareStmt(`
-        SELECT o.price_eur, o.merchant_id, o.product_type, o.region_type, o.is_valid, o.is_anomaly, o.risk_level
+        SELECT o.price_eur, o.merchant_id, o.product_type, o.region_type, o.is_valid, o.is_anomaly, o.risk_level, o.last_observed_at, o.fetched_at
         FROM offers o
         WHERE o.game_id = ? AND o.merchant_id != ?
       `).all(data.gameId, data.merchantId) as any[];
@@ -230,7 +249,9 @@ export const offerRepo = {
           regionType: row.region_type,
           isValid: Boolean(row.is_valid),
           isAnomaly: Boolean(row.is_anomaly),
-          riskLevel: row.risk_level
+          riskLevel: row.risk_level,
+          lastObservedAt: row.last_observed_at,
+          fetchedAt: row.fetched_at
         }
       ));
 
@@ -253,20 +274,20 @@ export const offerRepo = {
 
       const sourceHistoryRows = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND source_code = ?
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND is_anomaly = 0 AND risk_level != 'HIGH'
         ORDER BY recorded_at ASC
       `).all(data.gameId, data.merchantId, active.sourceCode) as any[];
       const sourceHistory = sourceHistoryRows.map(r => Number(r.price_eur));
 
       const lastMerchantHistory = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? 
+        WHERE game_id = ? AND merchant_id = ? AND is_anomaly = 0 AND risk_level != 'HIGH'
         ORDER BY recorded_at DESC LIMIT 1
       `).get(data.gameId, data.merchantId) as any;
 
       const lastHistory = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND source_code = ? 
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND is_anomaly = 0 AND risk_level != 'HIGH'
         ORDER BY recorded_at DESC LIMIT 1
       `).get(data.gameId, data.merchantId, active.sourceCode) as any;
 
@@ -397,9 +418,14 @@ export const offerRepo = {
           isOfficial: true,
           sourceCode: h.source_code as SourceCode,
           priceEur: Number(h.price_eur),
+          rawPrice: h.raw_price !== null && h.raw_price !== undefined ? Number(h.raw_price) : undefined,
+          rawCurrency: h.raw_currency || undefined,
+          fxRate: h.fx_rate !== null && h.fx_rate !== undefined ? Number(h.fx_rate) : undefined,
           discountPercent: Number(h.discount_percent || 0),
           priceEvent: h.price_event || 'NONE',
           dealScore: h.deal_score ? Number(h.deal_score) : undefined,
+          isAnomaly: Boolean(h.is_anomaly),
+          riskLevel: h.risk_level || 'SAFE',
           recordedAt: h.recorded_at
         }));
 
@@ -411,8 +437,12 @@ export const offerRepo = {
           isOfficial: Boolean(merchantInfo?.is_official),
           sourceCode: active.sourceCode,
           priceEur: active.priceEur,
+          rawPrice: active.rawPrice,
+          rawCurrency: active.rawCurrency,
           discountPercent: active.discountPercent,
           priceEvent: pricingEval.event,
+          isAnomaly: pricingEval.isAnomaly,
+          riskLevel: pricingEval.riskLevel,
           recordedAt: now
         };
 
@@ -572,6 +602,7 @@ export const offerRepo = {
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score,
              g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
              g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur,
+             g.typical_sale_sample_count, g.price_tracking_first_observed_at, g.best_offer_source_count,
              g.atl_is_confirmed, g.atl_is_single_source_low
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
@@ -611,6 +642,11 @@ export const offerRepo = {
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       isConfirmedAtl,
       isSingleSourceLow,
+      sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
+      firstObservedAt: r.price_tracking_first_observed_at || undefined,
+      lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
+      sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
+      isOfficialSource: isOfficial,
       isAnomaly: Boolean(r.is_anomaly),
       riskLevel: r.risk_level || 'SAFE'
     });
@@ -662,6 +698,7 @@ export const offerRepo = {
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official, m.trust_score,
              g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
              g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur,
+             g.typical_sale_sample_count, g.price_tracking_first_observed_at, g.best_offer_source_count,
              g.atl_is_confirmed, g.atl_is_single_source_low
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
@@ -701,6 +738,11 @@ export const offerRepo = {
         historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
         isConfirmedAtl,
         isSingleSourceLow,
+        sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
+        firstObservedAt: r.price_tracking_first_observed_at || undefined,
+        lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
+        sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
+        isOfficialSource: isOfficial,
         isAnomaly: Boolean(r.is_anomaly),
         riskLevel: r.risk_level || 'SAFE'
       });
@@ -735,6 +777,9 @@ export const offerRepo = {
         anomalyReason: r.anomaly_reason || undefined,
         dealScore: dealCalc.score,
         dealTier: dealCalc.tier,
+        confidenceScore: dealCalc.confidenceScore,
+        confidenceTier: dealCalc.confidenceTier,
+        isProvisional: dealCalc.isProvisional,
         sources: sources.map(s => s.source_code as SourceCode),
         sourceAgreementCount: sources.length,
         fetchedAt: r.fetched_at,
@@ -749,11 +794,16 @@ export const offerRepo = {
     prepareStmt(`UPDATE offers SET is_best_deal = 0 WHERE game_id = ?`).run(gameId);
 
     const best = prepareStmt(`
-      SELECT id FROM offers 
-      WHERE game_id = ? AND is_valid = 1 
-      ORDER BY 
+      SELECT id FROM offers
+      WHERE game_id = ? AND is_valid = 1
+      ORDER BY
+        CASE
+          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0
+          ELSE 1
+        END ASC,
         CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
-        price_eur ASC 
+        price_eur ASC,
+        COALESCE(last_observed_at, fetched_at) DESC
       LIMIT 1
     `).get(gameId) as any;
 

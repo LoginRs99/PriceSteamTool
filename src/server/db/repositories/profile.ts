@@ -55,6 +55,21 @@ export const profileRepo = {
     };
   },
 
+  getBySteamId(steamId: string): Profile | null {
+    const row = prepareStmt(`SELECT * FROM profiles WHERE steam_id = ?`).get(steamId) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      steamId: row.steam_id,
+      customUrl: row.custom_url || undefined,
+      avatarUrl: row.avatar_url || undefined,
+      isActive: Boolean(row.is_active),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  },
+
   create(name: string, steamId: string, customUrl?: string, avatarUrl?: string): Profile {
     const id = randomUUID();
     const now = new Date().toISOString();

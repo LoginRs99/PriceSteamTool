@@ -255,7 +255,7 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
       const { allkeyshopQueue } = await import('../../src/server/sync/allkeyshop/index.js');
 
       const orchestrator = new SyncOrchestrator();
-      const profile = profileRepo.create('Force Refresh User', '76561198000000088');
+      const profile = profileRepo.getBySteamId('76561198000000088') || profileRepo.create('Force Refresh User', '76561198000000088');
       const game = gameRepo.upsert({ steamAppId: 301, title: 'Cooldown Game', basePriceEur: 19.99 });
       gameRepo.syncWishlistEntries(profile.id, [{ steamAppId: 301, title: 'Cooldown Game', priority: 1 }]);
 

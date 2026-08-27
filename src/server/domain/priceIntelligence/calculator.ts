@@ -62,7 +62,14 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     allTimeLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
     historicalLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
     isConfirmedAtl: periodLows.allTimeLow.isConfirmed,
-    isSingleSourceLow
+    isSingleSourceLow,
+    sampleCount: history.length > 0 ? history.length : ((game as any).typical_sale_sample_count ?? (game as any).typicalSaleSampleCount),
+    firstObservedAt: (game as any).priceTrackingFirstObservedAt || (game as any).price_tracking_first_observed_at || (history.length > 0 ? history[history.length - 1].recordedAt : undefined),
+    lastObservedAt: bestOffer?.lastObservedAt || (history.length > 0 ? history[0].recordedAt : undefined),
+    sourceCount: bestOffer?.sources?.length ?? (game as any).bestOfferSourceCount ?? (game as any).best_offer_source_count ?? 1,
+    isOfficialSource: bestOffer?.isOfficial ?? (game as any).bestMerchantIsOfficial ?? true,
+    isAnomaly: Boolean(bestOffer?.isAnomaly),
+    riskLevel: bestOffer?.riskLevel || 'SAFE'
   });
 
   const actionSignal = generateActionSignal({

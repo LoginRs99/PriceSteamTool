@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config } from '../config/index.js';
 import { type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { allkeyshopQueue } from '../sync/allkeyshop/index.js';
+import { circuitBreakers } from '../sync/circuitBreaker.js';
 
 interface CatalogGame {
   id: number;
@@ -490,6 +491,12 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         for (let cIdx = 0; cIdx < candidates.length; cIdx++) {
           const matched = candidates[cIdx];
           if (!matched || (!matched.id && !matched.slug)) continue;
+
+          const cbCheck = circuitBreakers.canExecute('allkeyshop');
+          if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
+            console.warn(`[AllKeyShop] Skipping targeted price lookup for "${gameTitle}": source is cooling down.`);
+            return [];
+          }
 
           if (cIdx > 0) {
             await new Promise(r => setTimeout(r, 2000));

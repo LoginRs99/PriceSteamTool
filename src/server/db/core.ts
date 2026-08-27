@@ -16,14 +16,19 @@ let dbInstance: Database.Database | null = null;
 const stmtCache = new Map<string, Database.Statement>();
 
 export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
-  -- Reset and reassign is_best_deal for all games using canonical priority (safe lowest > anomaly fallback)
+  -- Reset and reassign is_best_deal for all games using canonical freshness and priority (fresh safe lowest > stale > anomaly fallback)
   UPDATE offers SET is_best_deal = 0;
   WITH ranked AS (
     SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY game_id 
-      ORDER BY 
+      PARTITION BY game_id
+      ORDER BY
+        CASE
+          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0
+          ELSE 1
+        END ASC,
         CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
-        price_eur ASC
+        price_eur ASC,
+        COALESCE(last_observed_at, fetched_at) DESC
     ) as rn
     FROM offers
     WHERE is_valid = 1
@@ -123,9 +128,14 @@ export function backfillDealScoreStats(): void {
           isOfficial: true,
           sourceCode: h.source_code as SourceCode,
           priceEur: Number(h.price_eur),
+          rawPrice: h.raw_price !== null && h.raw_price !== undefined ? Number(h.raw_price) : undefined,
+          rawCurrency: h.raw_currency || undefined,
+          fxRate: h.fx_rate !== null && h.fx_rate !== undefined ? Number(h.fx_rate) : undefined,
           discountPercent: Number(h.discount_percent || 0),
           priceEvent: h.price_event || 'NONE',
           dealScore: h.deal_score ? Number(h.deal_score) : undefined,
+          isAnomaly: Boolean(h.is_anomaly),
+          riskLevel: h.risk_level || 'SAFE',
           recordedAt: h.recorded_at
         }));
 
