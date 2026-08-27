@@ -573,4 +573,167 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.ownMedian).toBe(0);
     });
   });
+
+  describe('Keyshop Policy Compliance', () => {
+    it('1. ordinary keyshop price (Official 10€, Keyshop 9.50€) is not generically penalized', () => {
+      const keyshopRes = evaluatePriceMovement({
+        currentPriceEur: 9.50,
+        basePriceEur: 20.00,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 2,
+        marketPricesEur: [10.00]
+      });
+
+      expect(keyshopRes.riskLevel).toBe('SAFE');
+      expect(keyshopRes.isAnomaly).toBe(false);
+    });
+
+    it('2. corroborated keyshop price remains legitimate and safe', () => {
+      const keyshopRes = evaluatePriceMovement({
+        currentPriceEur: 15.00,
+        basePriceEur: 30.00,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 3,
+        marketPricesEur: [15.50, 16.00]
+      });
+
+      expect(keyshopRes.riskLevel).toBe('SAFE');
+      expect(keyshopRes.isAnomaly).toBe(false);
+    });
+
+    it('3. single-source uncorroborated keyshop can be treated cautiously based on evidence', () => {
+      const keyshopRes = evaluatePriceMovement({
+        currentPriceEur: 10.00,
+        basePriceEur: 59.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1,
+        marketPricesEur: [45.00] // Single source keyshop 10€ vs 45€ peers -> LONE_BOTTOM_OUTLIER
+      });
+
+      expect(keyshopRes.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(keyshopRes.riskLevel).toBe('HIGH');
+    });
+
+    it('4. keyshop status alone does NOT trigger anomaly', () => {
+      const keyshopRes = evaluatePriceMovement({
+        currentPriceEur: 19.99,
+        basePriceEur: 29.99,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 2,
+        marketPricesEur: [20.00]
+      });
+
+      expect(keyshopRes.isAnomaly).toBe(false);
+      expect(keyshopRes.riskLevel).toBe('SAFE');
+    });
+  });
+
+  describe('Anomaly V2 Compliance', () => {
+    it('5. market-wide deep discount (30€ -> 18€, 15€, 14€, 12€) is NOT anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 12.00,
+        basePriceEur: 30.00,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 3,
+        marketPricesEur: [18.00, 15.00, 14.00]
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).not.toBe('HIGH');
+    });
+
+    it('6. lone extreme outlier (30€, 29€, 28€, 27€ vs 3€) IS anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 3.00,
+        basePriceEur: 30.00,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 1,
+        marketPricesEur: [27.00, 28.00, 29.00]
+      });
+
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.isAnomaly).toBe(true);
+      expect(res.riskLevel).toBe('HIGH');
+    });
+
+    it('7. second-lowest divergence is detected (LONE_BOTTOM_OUTLIER)', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 5.00,
+        basePriceEur: 50.00,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 1,
+        marketPricesEur: [25.00] // 5.00 < 25.00 * 0.55
+      });
+
+      expect(res.riskFlags).toContain('LONE_BOTTOM_OUTLIER');
+      expect(res.isAnomaly).toBe(true);
+    });
+
+    it('8. own-history extreme break is detected (SOURCE_OWN_HISTORY_BREAK)', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 1.50,
+        basePriceEur: 30.00,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 1,
+        sourceHistoryEur: [25.00, 27.00, 26.00, 28.00],
+        marketPricesEur: [28.00]
+      });
+
+      expect(res.riskFlags).toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.isAnomaly).toBe(true);
+      expect(res.riskLevel).toBe('HIGH');
+    });
+
+    it('9. multiple corroborated low prices reduce anomaly likelihood', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 8.00,
+        basePriceEur: 40.00,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 3, // 3+ corroborating sources
+        marketPricesEur: [8.50, 9.00]
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).toBe('SAFE');
+    });
+
+    it('10. large MSRP discount alone (60€ -> 4.99€ on official store with 2+ sources) does NOT trigger anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 4.99,
+        basePriceEur: 60.00,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 2,
+        marketPricesEur: [5.49]
+      });
+
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).not.toBe('HIGH');
+    });
+
+    it('11. anomaly does NOT erase underlying Deal Score', () => {
+      const dealCalc = calculateDealScore({
+        priceEur: 3.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 20.00,
+        isAnomaly: true
+      });
+
+      // Deal score is calculated purely from price & median, ignoring anomaly status
+      expect(dealCalc.score).toBeGreaterThanOrEqual(65);
+    });
+
+    it('12. anomalous offer produces PROVISIONAL decision in Action Signal', () => {
+      const signal = generateActionSignal({
+        dealScore: 90,
+        confidenceScore: 70,
+        isProvisional: false,
+        isAnomaly: true,
+        currentPriceEur: 3.00,
+        typicalSaleMedianEur: 30.00
+      });
+
+      expect(signal.decision).toBe('PROVISIONAL');
+      expect(signal.badgeLabel).toBe('Flagged Anomaly');
+    });
+  });
 });

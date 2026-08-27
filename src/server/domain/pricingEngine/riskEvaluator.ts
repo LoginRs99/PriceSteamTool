@@ -118,7 +118,7 @@ export function calculatePriceRisk(
     if (allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
       const secondCheapest = allLiveOffers[1];
       if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
-        rawSeverity = Math.max(rawSeverity, 0.75);
+        rawSeverity = Math.max(rawSeverity, 0.85);
         flags.add('LONE_BOTTOM_OUTLIER');
       }
     }
@@ -181,21 +181,12 @@ export function calculatePriceRisk(
     sourceMultiplier = 0.45;
   }
 
-  // B. Merchant trust dampening
-  let merchantMultiplier = 1.0;
-  if (isOfficialMerchant) {
-    merchantMultiplier = 0.70;
-  } else {
-    merchantMultiplier = Math.max(0.75, 1.15 - merchantTrustScore * 0.35);
-  }
+  // B. Merchant trust dampening (applied uniformly based on trust score)
+  const effectiveTrust = merchantTrustScore ?? (isOfficialMerchant ? 0.95 : 0.85);
+  const merchantMultiplier = Math.max(0.70, 1.15 - effectiveTrust * 0.45);
 
   // Calculate composite risk score
-  let compositeRisk = rawSeverity * sourceMultiplier * merchantMultiplier;
-
-  // Unconfirmed keyshop baseline small buffer if no other peer exists
-  if (!isOfficialMerchant && sourceAgreementCount <= 1 && rawSeverity > 0) {
-    compositeRisk += 0.10;
-  }
+  const compositeRisk = rawSeverity * sourceMultiplier * merchantMultiplier;
 
   const finalScore = Math.max(0.0, Math.min(1.0, Math.round(compositeRisk * 100) / 100));
 
