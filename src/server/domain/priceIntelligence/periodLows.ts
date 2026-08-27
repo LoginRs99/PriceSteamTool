@@ -5,7 +5,7 @@ import type {
   PeriodLowEntry,
   PriceIntelligenceResponse
 } from '../../../shared/types.js';
-import { isTrustedHistoryEntry } from './types.js';
+import { isTrustedHistoryEntry, isKeyshopSourceStr } from './types.js';
 
 /**
  * 1. Rolling Period Lows (7d, 30d, 90d, 1y) & Confirmed ATL
@@ -112,34 +112,20 @@ export function calculatePeriodLows(
     };
   };
 
-  // Helper to check if source is a known keyshop/marketplace aggregator
-  const isKeyshopSourceStr = (source?: string): boolean => {
-    if (!source) return false;
-    const s = source.toLowerCase();
-    return (
-      s.includes('allkeyshop') ||
-      s.includes('kinguin') ||
-      s.includes('g2a') ||
-      s.includes('eneba') ||
-      s.includes('gamivo') ||
-      s.includes('cdkeys') ||
-      s.includes('keyshop') ||
-      s.includes('marketplace') ||
-      s.includes('k4g') ||
-      s.includes('driffle') ||
-      s.includes('instant-gaming')
-    );
-  };
-
   // Confirmed ATL calculation
   let confirmedAtlEur = game.historicalLowEur;
   let atlSource = game.historicalLowSource || 'Recorded low';
   let atlDate = game.historicalLowDate;
-  let isConfirmed = (game as any).atlIsConfirmed !== undefined && (game as any).atlIsConfirmed !== null
-    ? Boolean((game as any).atlIsConfirmed)
-    : (game as any).atl_is_confirmed !== undefined && (game as any).atl_is_confirmed !== null
-      ? Boolean((game as any).atl_is_confirmed)
-      : (isKeyshopSourceStr(atlSource) ? false : true);
+  let isConfirmed = false;
+
+  if ((game as any).atlIsConfirmed !== undefined && (game as any).atlIsConfirmed !== null) {
+    isConfirmed = Boolean((game as any).atlIsConfirmed);
+  } else if ((game as any).atl_is_confirmed !== undefined && (game as any).atl_is_confirmed !== null) {
+    isConfirmed = Boolean((game as any).atl_is_confirmed);
+  } else if (confirmedAtlEur !== undefined && confirmedAtlEur !== null) {
+    // If no explicit confirmation flag was persisted, only non-keyshop/store fronts are tentatively confirmed
+    isConfirmed = !isKeyshopSourceStr(atlSource);
+  }
 
   if (confirmedAtlEur === undefined || confirmedAtlEur === null) {
     if (trustedHistory.length > 0) {
@@ -163,16 +149,18 @@ export function calculatePeriodLows(
       isConfirmed = false;
     }
   } else {
-    // If ATL source points to an unverified keyshop/grey-market aggregator, check for historical corroboration
-    if (isKeyshopSourceStr(atlSource)) {
+    // If ATL source points to a keyshop or ATL was unconfirmed, check if genuine corroboration is met in trusted history
+    if (isKeyshopSourceStr(atlSource) || !isConfirmed) {
       const minP = confirmedAtlEur * 0.85;
       const maxP = confirmedAtlEur * 1.15;
       const corroboratingHistory = trustedHistory.filter(h =>
         h.priceEur >= minP &&
         h.priceEur <= maxP &&
-        (h.isOfficial === true || h.merchantName !== atlSource)
+        (h.isOfficial === true || (h.merchantName && h.merchantName !== atlSource))
       );
-      if (corroboratingHistory.length === 0) {
+      if (corroboratingHistory.length > 0) {
+        isConfirmed = true;
+      } else if (isKeyshopSourceStr(atlSource)) {
         isConfirmed = false;
       }
     }

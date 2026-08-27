@@ -5,6 +5,7 @@ import { anomalyRepo } from './anomaly.js';
 import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/pricingEngine.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
+import { isKeyshopSourceStr } from '../../domain/priceIntelligence/types.js';
 import type { 
   Game, 
   Offer, 
@@ -459,6 +460,8 @@ export const offerRepo = {
           historicalLowEur: gameInfo.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
           historicalLowDate: gameInfo.historical_low_date || undefined,
           historicalLowSource: gameInfo.historical_low_source || undefined,
+          atlIsConfirmed: gameInfo.atl_is_confirmed !== null && gameInfo.atl_is_confirmed !== undefined ? Boolean(gameInfo.atl_is_confirmed) : undefined,
+          atlIsSingleSourceLow: gameInfo.atl_is_single_source_low !== null && gameInfo.atl_is_single_source_low !== undefined ? Boolean(gameInfo.atl_is_single_source_low) : undefined,
           isDlc: Boolean(gameInfo.is_dlc),
           isFree: Boolean(gameInfo.is_free),
           hasAnomaly: false,
@@ -624,10 +627,10 @@ export const offerRepo = {
     const isOfficial = Boolean(r.is_official);
     const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
       ? Boolean(r.atl_is_confirmed)
-      : true;
+      : (r.historical_low_source ? (!isKeyshopSourceStr(r.historical_low_source) && (r.historical_low_source === 'Steam' || r.historical_low_source === 'ITAD' || r.historical_low_source.includes('Official') || r.historical_low_source.includes('CheapShark') || r.historical_low_source.includes('GG.deals'))) : false);
     const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
       ? Boolean(r.atl_is_single_source_low)
-      : false;
+      : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
 
     const dealCalc = calculateDealScore({
       priceEur: Number(r.price_eur),
@@ -651,6 +654,9 @@ export const offerRepo = {
       riskLevel: r.risk_level || 'SAFE'
     });
 
+    const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
+    const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= 72 * 60 * 60 * 1000 : false;
+
     return {
       id: r.id,
       gameId: r.game_id,
@@ -671,6 +677,7 @@ export const offerRepo = {
       voucherCode: r.voucher_code || undefined,
       dealUrl: r.deal_url,
       isBestDeal: Boolean(r.is_best_deal),
+      isFresh,
       isValid: Boolean(r.is_valid),
       priceEvent: r.price_event || 'NONE',
       riskLevel: r.risk_level || 'SAFE',
@@ -704,7 +711,15 @@ export const offerRepo = {
       JOIN merchants m ON o.merchant_id = m.id
       LEFT JOIN games g ON o.game_id = g.id
       WHERE o.game_id = ?
-      ORDER BY o.is_valid DESC, o.price_eur ASC
+      ORDER BY
+        o.is_valid DESC,
+        CASE
+          WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= 72 THEN 0
+          ELSE 1
+        END ASC,
+        CASE WHEN o.is_anomaly = 1 OR o.risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
+        o.price_eur ASC,
+        COALESCE(o.last_observed_at, o.fetched_at) DESC
     `).all(gameId) as any[];
 
     return rows.map(r => {
@@ -720,10 +735,10 @@ export const offerRepo = {
       const isOfficial = Boolean(r.is_official);
       const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
         ? Boolean(r.atl_is_confirmed)
-        : true;
+        : (r.historical_low_source ? (!isKeyshopSourceStr(r.historical_low_source) && (r.historical_low_source === 'Steam' || r.historical_low_source === 'ITAD' || r.historical_low_source.includes('Official') || r.historical_low_source.includes('CheapShark') || r.historical_low_source.includes('GG.deals'))) : false);
       const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
         ? Boolean(r.atl_is_single_source_low)
-        : false;
+        : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
 
       const dealCalc = calculateDealScore({
         priceEur: Number(r.price_eur),
@@ -747,6 +762,9 @@ export const offerRepo = {
         riskLevel: r.risk_level || 'SAFE'
       });
 
+      const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
+      const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= 72 * 60 * 60 * 1000 : false;
+
       return {
         id: r.id,
         gameId: r.game_id,
@@ -767,6 +785,7 @@ export const offerRepo = {
         voucherCode: r.voucher_code || undefined,
         dealUrl: r.deal_url,
         isBestDeal: Boolean(r.is_best_deal),
+        isFresh,
         isValid: Boolean(r.is_valid),
         priceEvent: r.price_event || 'NONE',
         riskLevel: r.risk_level || 'SAFE',

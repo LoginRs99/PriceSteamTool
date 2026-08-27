@@ -25,3 +25,21 @@ export function isTrustedHistoryEntry(entry: PriceHistoryEntry): boolean {
   }
   return true;
 }
+
+export function isKeyshopSourceStr(source?: string): boolean {
+  if (!source) return false;
+  const s = source.toLowerCase();
+  return (
+    s.includes('allkeyshop') ||
+    s.includes('kinguin') ||
+    s.includes('g2a') ||
+    s.includes('eneba') ||
+    s.includes('gamivo') ||
+    s.includes('cdkeys') ||
+    s.includes('keyshop') ||
+    s.includes('marketplace') ||
+    s.includes('k4g') ||
+    s.includes('driffle') ||
+    s.includes('instant-gaming')
+  );
+}

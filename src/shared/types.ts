@@ -133,6 +133,8 @@ export interface Game {
   bestDealUrl?: string;
   bestPriceEvent?: PriceEventType;
   bestRiskLevel?: PriceRiskLevel;
+  bestLastObservedAt?: string;
+  bestIsFresh?: boolean;
   bestDealScore?: number;
   bestDealTier?: DealScoreTier;
   bestConfidenceScore?: number;
@@ -203,6 +205,7 @@ export interface Offer {
   isProvisional?: boolean;
   
   isBestDeal: boolean;
+  isFresh?: boolean;
   sources: SourceCode[];
   sourceAgreementCount?: number;
   fetchedAt: string;

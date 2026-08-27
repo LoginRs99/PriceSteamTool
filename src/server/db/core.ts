@@ -74,7 +74,7 @@ export function backfillDealScoreStats(): void {
   try {
     const db = getDb();
     const uncalculatedGames = prepareStmt(`
-      SELECT g.id, g.steam_app_id, g.title, g.slug, g.base_price_eur, g.historical_low_eur, g.historical_low_date, g.historical_low_source, g.is_dlc, g.is_free, g.created_at, g.updated_at
+      SELECT g.id, g.steam_app_id, g.title, g.slug, g.base_price_eur, g.historical_low_eur, g.historical_low_date, g.historical_low_source, g.atl_is_confirmed, g.atl_is_single_source_low, g.is_dlc, g.is_free, g.created_at, g.updated_at
       FROM games g
       WHERE g.deal_score_stats_updated_at IS NULL 
          OR g.price_tracking_first_observed_at IS NULL 
@@ -187,6 +187,8 @@ export function backfillDealScoreStats(): void {
           historicalLowEur: g.historical_low_eur ? Number(g.historical_low_eur) : undefined,
           historicalLowDate: g.historical_low_date || undefined,
           historicalLowSource: g.historical_low_source || undefined,
+          atlIsConfirmed: g.atl_is_confirmed !== null && g.atl_is_confirmed !== undefined ? Boolean(g.atl_is_confirmed) : undefined,
+          atlIsSingleSourceLow: g.atl_is_single_source_low !== null && g.atl_is_single_source_low !== undefined ? Boolean(g.atl_is_single_source_low) : undefined,
           isDlc: Boolean(g.is_dlc),
           isFree: Boolean(g.is_free),
           hasAnomaly: false,

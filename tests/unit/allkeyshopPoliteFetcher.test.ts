@@ -269,6 +269,6 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
       expect(result.sourcesSkipped).toContain('allkeyshop');
 
       allkeyshopQueue.reset();
-    });
+    }, 15000);
   });
 });

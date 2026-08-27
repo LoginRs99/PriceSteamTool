@@ -385,8 +385,4 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
       }
     });
   });
-
-  afterAll(() => {
-    closeDb();
-  });
 });

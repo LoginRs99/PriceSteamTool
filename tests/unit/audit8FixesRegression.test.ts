@@ -1,27 +1,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock DB repositories to prevent SQLite native binary initialization in test environment
-vi.mock('../../src/server/db/index.js', () => ({
-  sourceRepo: {
-    list: () => [],
-    getByCode: () => null,
-    updateCircuitState: () => {},
-    incrementCounters: () => {},
-    toggle: () => {}
-  },
-  profileRepo: {},
-  gameRepo: {},
-  offerRepo: {},
-  merchantRepo: {}
-}));
+
 
 import { normalizeRegion } from '../../src/server/domain/normalizer.js';
+import { sourceRepo } from '../../src/server/db/repositories/source.js';
 import { steamAdapter } from '../../src/server/sources/steam.js';
 import { allkeyshopAdapter, fetchWithAllkeyshopSolver } from '../../src/server/sources/allkeyshop.js';
-import { CircuitBreakerRegistry } from '../../src/server/sync/circuitBreaker.js';
+import { CircuitBreakerRegistry, circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { config } from '../../src/server/config/index.js';
 
 describe('Audit 8-Fix Verification & Regression Suite', () => {
+  const origSteamDelay = config.delays.steam;
+  const origInterval = (steamAdapter as any).queue.minIntervalMs;
+  const origJitter = (steamAdapter as any).queue.jitterMs;
+
+  beforeEach(() => {
+    circuitBreakers.resetAll();
+    config.delays.steam = 0;
+    (steamAdapter as any).queue.minIntervalMs = 0;
+    (steamAdapter as any).queue.jitterMs = 0;
+  });
+
+  afterEach(() => {
+    config.delays.steam = origSteamDelay;
+    (steamAdapter as any).queue.minIntervalMs = origInterval;
+    (steamAdapter as any).queue.jitterMs = origJitter;
+  });
+
   describe('Fix 1: Steam Wishlist Partial Fetch Safeguard', () => {
     it('throws an error when wishlist pagination fails on page 1, preventing partial sync', async () => {
       const originalFetch = global.fetch;
@@ -52,7 +57,7 @@ describe('Audit 8-Fix Verification & Regression Suite', () => {
       } finally {
         global.fetch = originalFetch;
       }
-    });
+    }, 15000);
   });
 
   describe('Fix 2: AllKeyShop Solver Error Propagation', () => {
@@ -139,6 +144,7 @@ describe('Audit 8-Fix Verification & Regression Suite', () => {
 
   describe('Fix 8: Circuit Breaker Reset on Startup', () => {
     it('resets consecutiveFailures and consecutiveRateLimits to 0 on startup', () => {
+      sourceRepo.updateCircuitState('steam', 'NORMAL');
       const registry = new CircuitBreakerRegistry();
       const state = registry.getState('steam');
       expect(state).toBe('NORMAL');

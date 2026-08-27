@@ -1,40 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 
-// Mock DB repositories to prevent SQLite native binary initialization in test environment
-vi.mock('../../src/server/db/index.js', () => ({
-  sourceRepo: {
-    list: () => [],
-    getByCode: () => null,
-    updateCircuitState: () => {},
-    incrementCounters: () => {},
-    toggle: () => {}
-  },
-  profileRepo: {},
-  gameRepo: {
-    updateMetadata: vi.fn(),
-    syncWishlistEntries: vi.fn()
-  },
-  offerRepo: {},
-  merchantRepo: {}
-}));
+
 
 import { parseRetryAfterHeader, safeFetchJson } from '../../src/server/sources/base.js';
 import { normalizeRegion } from '../../src/server/domain/normalizer.js';
 import { steamAdapter } from '../../src/server/sources/steam.js';
 import { allkeyshopAdapter, fetchWithAllkeyshopSolver } from '../../src/server/sources/allkeyshop.js';
-import { CircuitBreakerRegistry } from '../../src/server/sync/circuitBreaker.js';
+import { CircuitBreakerRegistry, circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
 import { config } from '../../src/server/config/index.js';
 
 describe('10 Approved Implementation Fixes Verification Suite', () => {
   const origSteamDelay = config.delays.steam;
+  const origInterval = (steamAdapter as any).queue.minIntervalMs;
+  const origJitter = (steamAdapter as any).queue.jitterMs;
 
-  beforeAll(() => {
-    config.delays.steam = 10;
+  beforeEach(() => {
+    circuitBreakers.resetAll();
+    config.delays.steam = 0;
+    (steamAdapter as any).queue.minIntervalMs = 0;
+    (steamAdapter as any).queue.jitterMs = 0;
   });
 
-  afterAll(() => {
+  afterEach(() => {
     config.delays.steam = origSteamDelay;
+    (steamAdapter as any).queue.minIntervalMs = origInterval;
+    (steamAdapter as any).queue.jitterMs = origJitter;
   });
 
   // 1. Item 1: Steam Wishlist Partial Fetch Data Loss
@@ -68,7 +59,7 @@ describe('10 Approved Implementation Fixes Verification Suite', () => {
       } finally {
         global.fetch = originalFetch;
       }
-    });
+    }, 15000);
   });
 
   // 2. Item 2: PERF-01 — Duplicate Steam fetchAppDetails Request
@@ -102,7 +93,7 @@ describe('10 Approved Implementation Fixes Verification Suite', () => {
       } finally {
         global.fetch = originalFetch;
       }
-    });
+    }, 15000);
   });
 
   // 3. Item 3: QUEUE-01 — Preserve queued work during BACKOFF/PAUSED

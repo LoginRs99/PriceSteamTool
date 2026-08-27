@@ -4,6 +4,7 @@ import { offerRepo } from './offer.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { generateActionSignal } from '../../domain/actionSignal.js';
 import { generatePriceIntelligence } from '../../domain/priceIntelligence.js';
+import { isKeyshopSourceStr } from '../../domain/priceIntelligence/types.js';
 import type { 
   Game, 
   WishlistFilterOptions, 
@@ -312,14 +313,17 @@ export const gameRepo = {
   },
 
   updateHistoricalLow(gameId: string, priceEur: number, date: string, source: string): void {
+    const isKeyshop = isKeyshopSourceStr(source);
     prepareStmt(`
       UPDATE games 
       SET historical_low_eur = ?, 
           historical_low_date = ?, 
           historical_low_source = ?,
+          atl_is_confirmed = ?,
+          atl_is_single_source_low = ?,
           updated_at = datetime('now')
       WHERE id = ? AND (historical_low_eur IS NULL OR ? < historical_low_eur)
-    `).run(priceEur, date, source, gameId, priceEur);
+    `).run(priceEur, date, source, isKeyshop ? 0 : 1, isKeyshop ? 1 : 0, gameId, priceEur);
   },
 
   updateAllkeyshopCheckState(
@@ -821,10 +825,10 @@ function mapGameRow(r: any): Game {
 
     const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
       ? Boolean(r.atl_is_confirmed)
-      : true;
+      : (r.historical_low_source ? (!isKeyshopSourceStr(r.historical_low_source) && (r.historical_low_source === 'Steam' || r.historical_low_source === 'ITAD' || r.historical_low_source.includes('Official') || r.historical_low_source.includes('CheapShark') || r.historical_low_source.includes('GG.deals'))) : false);
     const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
       ? Boolean(r.atl_is_single_source_low)
-      : false;
+      : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
 
     const dealResult = calculateDealScore({
       priceEur: Number(r.best_price_eur),
@@ -913,6 +917,11 @@ function mapGameRow(r: any): Game {
     bestOfferId: r.best_offer_id || undefined,
     bestPriceEvent: r.best_price_event || undefined,
     bestRiskLevel: r.best_risk_level || undefined,
+    bestLastObservedAt: r.best_last_observed_at || r.last_observed_at || undefined,
+    bestIsFresh: r.best_price_eur !== null && r.best_price_eur !== undefined
+      ? (!isNaN(new Date(r.best_last_observed_at || r.last_observed_at || '').getTime()) &&
+         (Date.now() - new Date(r.best_last_observed_at || r.last_observed_at || '').getTime()) <= 72 * 60 * 60 * 1000)
+      : undefined,
     bestDealScore,
     bestDealTier,
     bestConfidenceScore,
