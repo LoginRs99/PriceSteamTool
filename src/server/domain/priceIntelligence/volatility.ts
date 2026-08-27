@@ -1,4 +1,5 @@
 import type { PriceHistoryEntry, Offer, PriceVolatility } from '../../../shared/types.js';
+import { isTrustedHistoryEntry } from './types.js';
 
 /**
  * 4. Price Volatility (Daily Best Trusted Price series)
@@ -8,11 +9,11 @@ export function calculatePriceVolatility(
   history: PriceHistoryEntry[],
   currentBestOffer?: Offer
 ): PriceVolatility {
-  // Group observations into daily minimums
+  // Group observations into daily minimums from trusted history
   const dailyMap = new Map<string, number>();
 
   for (const h of history) {
-    if (h.priceEur > 0) {
+    if (isTrustedHistoryEntry(h)) {
       const day = h.recordedAt.slice(0, 10);
       const existing = dailyMap.get(day);
       if (existing === undefined || h.priceEur < existing) {
@@ -21,7 +22,7 @@ export function calculatePriceVolatility(
     }
   }
 
-  if (currentBestOffer && currentBestOffer.priceEur > 0) {
+  if (currentBestOffer && currentBestOffer.priceEur > 0 && !currentBestOffer.isAnomaly && currentBestOffer.riskLevel !== 'HIGH') {
     const today = (currentBestOffer.lastObservedAt || currentBestOffer.fetchedAt).slice(0, 10);
     const existing = dailyMap.get(today);
     if (existing === undefined || currentBestOffer.priceEur < existing) {

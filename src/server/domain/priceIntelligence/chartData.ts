@@ -1,10 +1,11 @@
-import type { 
-  PriceHistoryEntry, 
-  Offer, 
+import type {
+  PriceHistoryEntry,
+  Offer,
   Game,
-  PriceChartData, 
+  PriceChartData,
   PriceChartPoint
 } from '../../../shared/types.js';
+import { isTrustedHistoryEntry } from './types.js';
 
 /**
  * Price Chart Data Builder with Lightweight Downsampling
@@ -15,9 +16,9 @@ export function buildPriceChartData(
   currentBestOffer?: Offer,
   typicalSaleMedian?: number | null
 ): PriceChartData {
-  // Create timeline points
+  // Create timeline points from trusted history
   const points: PriceChartPoint[] = history
-    .filter(h => h.priceEur > 0 && !isNaN(new Date(h.recordedAt).getTime()))
+    .filter(h => isTrustedHistoryEntry(h) && !isNaN(new Date(h.recordedAt).getTime()))
     .map(h => ({
       timestamp: h.recordedAt,
       priceEur: Number(h.priceEur.toFixed(2)),

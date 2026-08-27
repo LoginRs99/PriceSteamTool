@@ -123,35 +123,37 @@ function extractYear(text?: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
+let cachedMappings: Record<string, string | number> | null = null;
+
 export function loadCustomMappings(): Record<string, string | number> {
+  if (cachedMappings) return cachedMappings;
   const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
   try {
     if (fs.existsSync(mappingPath)) {
       const content = fs.readFileSync(mappingPath, 'utf8');
-      return JSON.parse(content);
+      cachedMappings = JSON.parse(content);
+      return cachedMappings || {};
     }
   } catch {}
-  return {};
+  cachedMappings = {};
+  return cachedMappings;
 }
 
 export function saveCustomMapping(steamAppId: number | string, value: string | number | null): void {
+  const mappings = { ...loadCustomMappings() };
+  const key = String(steamAppId);
+  if (value === null || value === undefined || value === '') {
+    delete mappings[key];
+  } else {
+    mappings[key] = value;
+  }
+  cachedMappings = mappings;
+
   const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
   try {
     const dataDir = path.dirname(mappingPath);
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
-    }
-    let mappings: Record<string, string | number> = {};
-    if (fs.existsSync(mappingPath)) {
-      try {
-        mappings = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
-      } catch {}
-    }
-    const key = String(steamAppId);
-    if (value === null || value === undefined || value === '') {
-      delete mappings[key];
-    } else {
-      mappings[key] = value;
     }
     fs.writeFileSync(mappingPath, JSON.stringify(mappings, null, 2), 'utf8');
   } catch (err: any) {
@@ -159,13 +161,85 @@ export function saveCustomMapping(steamAppId: number | string, value: string | n
   }
 }
 
+export class AllKeyShopCatalogIndex {
+  private byId = new Map<number, CatalogGame>();
+  private bySlug = new Map<string, CatalogGame>();
+  private byCleanName = new Map<string, CatalogGame[]>();
+  private byPrefix = new Map<string, CatalogGame[]>();
+  private catalogRef: CatalogGame[] = [];
+
+  constructor(catalog: CatalogGame[]) {
+    this.build(catalog);
+  }
+
+  public build(catalog: CatalogGame[]): void {
+    this.byId.clear();
+    this.bySlug.clear();
+    this.byCleanName.clear();
+    this.byPrefix.clear();
+    this.catalogRef = catalog || [];
+
+    for (const g of this.catalogRef) {
+      if (!g) continue;
+      if (g.id) this.byId.set(g.id, g);
+      if (g.slug) this.bySlug.set(g.slug.toLowerCase(), g);
+
+      if (g.name) {
+        const clean = g.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (clean) {
+          const list = this.byCleanName.get(clean);
+          if (list) {
+            list.push(g);
+          } else {
+            this.byCleanName.set(clean, [g]);
+          }
+
+          const pfx = clean.slice(0, 3);
+          if (pfx) {
+            const pList = this.byPrefix.get(pfx);
+            if (pList) {
+              pList.push(g);
+            } else {
+              this.byPrefix.set(pfx, [g]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  public getById(id: number): CatalogGame | undefined {
+    return this.byId.get(id);
+  }
+
+  public getBySlug(slug: string): CatalogGame | undefined {
+    return this.bySlug.get(slug.toLowerCase());
+  }
+
+  public getByCleanName(clean: string): CatalogGame[] {
+    return this.byCleanName.get(clean) || [];
+  }
+
+  public getByPrefix(pfx: string): CatalogGame[] {
+    return this.byPrefix.get(pfx.slice(0, 3)) || [];
+  }
+
+  public get fullCatalog(): CatalogGame[] {
+    return this.catalogRef;
+  }
+}
+
 export function findCandidateGamesInCatalog(
-  catalog: CatalogGame[], 
+  catalogOrIndex: CatalogGame[] | AllKeyShopCatalogIndex,
   gameTitle: string,
   steamAppId?: number,
   releaseDate?: string
 ): CatalogGame[] {
-  if (!catalog || catalog.length === 0) return [];
+  if (!catalogOrIndex) return [];
+
+  const index = catalogOrIndex instanceof AllKeyShopCatalogIndex
+    ? catalogOrIndex
+    : new AllKeyShopCatalogIndex(catalogOrIndex);
 
   // 1. Check custom overrides mapping first (data/allkeyshop_mapping.json)
   const mappings = loadCustomMappings();
@@ -174,18 +248,18 @@ export function findCandidateGamesInCatalog(
 
   if (rawOverride) {
     if (typeof rawOverride === 'number') {
-      const matched = catalog.find(g => g.id === rawOverride);
+      const matched = index.getById(rawOverride);
       if (matched) return [matched];
       return [{ id: rawOverride, name: gameTitle }];
     } else if (typeof rawOverride === 'string') {
       if (/^\d+$/.test(rawOverride)) {
         const idNum = parseInt(rawOverride, 10);
-        const matched = catalog.find(g => g.id === idNum);
+        const matched = index.getById(idNum);
         if (matched) return [matched];
         return [{ id: idNum, name: gameTitle }];
       }
       const slug = rawOverride.replace(/^https?:\/\/[^/]+\/blog\//, '').replace(/\/+$/, '');
-      const matched = catalog.find(g => g.slug === slug || g.name.toLowerCase() === slug.toLowerCase());
+      const matched = index.getBySlug(slug) || index.getByCleanName(slug.toLowerCase().replace(/[^a-z0-9]/g, ''))[0];
       if (matched) return [matched];
       return [{ id: 0, name: gameTitle, slug }];
     }
@@ -200,7 +274,12 @@ export function findCandidateGamesInCatalog(
 
   const candidates: { game: CatalogGame; score: number }[] = [];
 
-  for (const g of catalog) {
+  // Scoped candidate search: check exact matches and prefix bucket
+  const pool = cleanTarget.length >= 3
+    ? index.getByPrefix(cleanTarget)
+    : index.fullCatalog;
+
+  for (const g of pool) {
     if (!g.name) continue;
     const cleanG = g.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     const gNumbers = cleanNumbers(cleanG);
@@ -276,6 +355,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly supportsBatch = false;
 
   private cachedCatalog: CatalogGame[] | null = null;
+  private catalogIndex: AllKeyShopCatalogIndex | null = null;
   private lastCatalogFetch = 0;
   private pendingCatalogLoad: Promise<CatalogGame[]> | null = null;
   private catalogPath = path.join(process.cwd(), 'data', 'allkeyshop_catalog.json');
@@ -291,6 +371,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
     // 1. In-memory cache check
     if (this.cachedCatalog && (now - this.lastCatalogFetch) < CATALOG_TTL_MS) {
+      if (!this.catalogIndex) {
+        this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
+      }
       return this.cachedCatalog;
     }
 
@@ -312,6 +395,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             const data = JSON.parse(raw);
             if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
               this.cachedCatalog = data.games;
+              this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
               this.lastCatalogFetch = stat.mtimeMs;
               return this.cachedCatalog || [];
             }
@@ -327,6 +411,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
         if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
           this.cachedCatalog = data.games;
+          this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
           this.lastCatalogFetch = Date.now();
           const durationSec = ((Date.now() - downloadStartTime) / 1000).toFixed(1);
           console.log(`[AllKeyShop] catalog refreshed | games=${data.games.length} | duration=${durationSec}s`);
@@ -362,13 +447,19 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             const ageHours = Math.round((now - stat.mtimeMs) / 3600000);
             console.warn(`[AllKeyShop] using stale catalog cache | age=${ageHours}h`);
             this.cachedCatalog = data.games;
+            this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
           }
         }
       } catch {}
 
       this.catalogFailureCooldownUntil = now + (60 * 60 * 1000); // 1 hour failure cooldown
 
-      if (this.cachedCatalog) return this.cachedCatalog;
+      if (this.cachedCatalog) {
+        if (!this.catalogIndex) {
+          this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
+        }
+        return this.cachedCatalog;
+      }
       throw new AllKeyShopUnavailableError('AllKeyShop catalog fetch failed and no cache available');
     })();
 
@@ -389,7 +480,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return allkeyshopQueue.enqueue(String(steamAppId), async () => {
       try {
         const catalog = await this.ensureCatalog();
-        const candidates = findCandidateGamesInCatalog(catalog, gameTitle, steamAppId, releaseDate);
+        const searchTarget = this.catalogIndex || catalog;
+        const candidates = findCandidateGamesInCatalog(searchTarget, gameTitle, steamAppId, releaseDate);
         if (candidates.length === 0) {
           return [];
         }

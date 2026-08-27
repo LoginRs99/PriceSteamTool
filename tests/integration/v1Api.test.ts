@@ -13,7 +13,6 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
   });
 
   afterAll(async () => {
-    clearStmtCache();
     await app.close();
   });
 

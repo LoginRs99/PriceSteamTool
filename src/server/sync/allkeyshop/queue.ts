@@ -33,10 +33,15 @@ export class AllKeyShopPoliteQueue {
   private syncFromDb(): void {
     try {
       const dbSrc = sourceRepo.getByCode('allkeyshop');
-      if (dbSrc?.cooldownUntil) {
-        const cTime = new Date(dbSrc.cooldownUntil).getTime();
-        if (!isNaN(cTime) && cTime > Date.now()) {
-          this.cooldownUntilMs = cTime;
+      if (dbSrc) {
+        if (dbSrc.consecutiveFailures) {
+          this.consecutiveFailures = Number(dbSrc.consecutiveFailures);
+        }
+        if (dbSrc.cooldownUntil) {
+          const cTime = new Date(dbSrc.cooldownUntil).getTime();
+          if (!isNaN(cTime) && cTime > Date.now()) {
+            this.cooldownUntilMs = cTime;
+          }
         }
       }
     } catch {}

@@ -7,6 +7,7 @@ export interface PriceEvaluationInput {
   marketPricesEur?: number[];      // Other active store prices for this game
   sourceHistoryEur?: number[];      // Prior observed prices from this exact merchant for this game
   sourceAgreementCount: number;    // Distinct source adapters observing this canonical offer
+  independentMerchantCount?: number; // Distinct independent merchants with compatible market offers
   isOfficialMerchant: boolean;     // Official licensed retailer vs marketplace
   merchantTrustScore?: number;     // 0.0 - 1.0
   gameReleaseDate?: string;        // Release date string (ISO)

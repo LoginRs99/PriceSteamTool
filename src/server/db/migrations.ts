@@ -126,6 +126,16 @@ export const MIGRATIONS: Migration[] = [
       try { db.exec("ALTER TABLE price_history ADD COLUMN raw_currency TEXT DEFAULT 'EUR'"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
       try { db.exec("ALTER TABLE price_history ADD COLUMN fx_rate REAL DEFAULT 1.0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
     }
+  },
+  {
+    name: '012_add_price_history_anomaly_and_source_cooldown_columns',
+    up: (db) => {
+      try { db.exec("ALTER TABLE price_history ADD COLUMN is_anomaly INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE price_history ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'SAFE'"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE sources ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE sources ADD COLUMN consecutive_rate_limits INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_trusted ON price_history(game_id, is_anomaly, risk_level)");
+    }
   }
 ];
 

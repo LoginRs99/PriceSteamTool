@@ -25,8 +25,8 @@ export class CircuitBreakerRegistry {
         const cooldownTime = s.cooldownUntil ? new Date(s.cooldownUntil).getTime() : null;
         this.states.set(s.code, {
           state: s.state,
-          consecutiveFailures: 0,
-          consecutiveRateLimits: 0,
+          consecutiveFailures: s.consecutiveFailures || 0,
+          consecutiveRateLimits: s.consecutiveRateLimits || 0,
           cooldownUntil: cooldownTime,
           lastFailureTime: null,
           lastSuccessTime: s.lastSuccessAt ? new Date(s.lastSuccessAt).getTime() : null,
@@ -66,7 +66,7 @@ export class CircuitBreakerRegistry {
     if (info.state === 'BACKOFF') {
       if (info.cooldownUntil && now >= info.cooldownUntil) {
         info.state = 'COOLDOWN'; // probe
-        sourceRepo.updateCircuitState(source, 'COOLDOWN');
+        sourceRepo.updateCircuitState(source, 'COOLDOWN', undefined, info.consecutiveFailures, info.consecutiveRateLimits);
         return { allowed: true };
       }
       const remainingSecs = info.cooldownUntil ? Math.max(1, Math.ceil((info.cooldownUntil - now) / 1000)) : 0;
@@ -76,7 +76,7 @@ export class CircuitBreakerRegistry {
     if (info.state === 'PAUSED') {
       if (info.cooldownUntil && now >= info.cooldownUntil) {
         info.state = 'COOLDOWN'; // single probe attempt
-        sourceRepo.updateCircuitState(source, 'COOLDOWN');
+        sourceRepo.updateCircuitState(source, 'COOLDOWN', undefined, info.consecutiveFailures, info.consecutiveRateLimits);
         return { allowed: true };
       }
       const remainingSecs = info.cooldownUntil ? Math.max(1, Math.ceil((info.cooldownUntil - now) / 1000)) : 0;
@@ -98,7 +98,7 @@ export class CircuitBreakerRegistry {
     info.cooldownUntil = null;
     info.lastSuccessTime = Date.now();
     
-    sourceRepo.updateCircuitState(source, 'NORMAL');
+    sourceRepo.updateCircuitState(source, 'NORMAL', undefined, 0, 0);
     sourceRepo.incrementCounters(source, 'success');
   }
 
@@ -116,7 +116,7 @@ export class CircuitBreakerRegistry {
         info.state = 'BACKOFF';
       }
       const cooldownIso = new Date(info.cooldownUntil).toISOString();
-      sourceRepo.updateCircuitState(source, info.state, cooldownIso);
+      sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
       sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`);
       return;
     }
@@ -131,7 +131,8 @@ export class CircuitBreakerRegistry {
       info.state = 'BACKOFF';
     }
 
-    sourceRepo.updateCircuitState(source, info.state, new Date(info.cooldownUntil).toISOString());
+    const cooldownIso = new Date(info.cooldownUntil).toISOString();
+    sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
     sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`);
   }
 
@@ -150,7 +151,7 @@ export class CircuitBreakerRegistry {
         info.state = 'BACKOFF';
       }
       const cooldownIso = new Date(info.cooldownUntil).toISOString();
-      sourceRepo.updateCircuitState(source, info.state, cooldownIso);
+      sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
       sourceRepo.incrementCounters(source, 'failure', errMsg);
       return;
     }
@@ -168,7 +169,7 @@ export class CircuitBreakerRegistry {
     }
 
     const cooldownIso = info.cooldownUntil ? new Date(info.cooldownUntil).toISOString() : undefined;
-    sourceRepo.updateCircuitState(source, info.state, cooldownIso);
+    sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
     sourceRepo.incrementCounters(source, 'failure', errMsg);
   }
 

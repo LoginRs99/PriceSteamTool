@@ -94,12 +94,13 @@ export function calculatePriceRisk(
   });
 
   const allLiveOffers = [currentPriceEur, ...peers].sort((a, b) => a - b);
-  const isCheapestCandidate = (allLiveOffers.length > 0 && currentPriceEur <= allLiveOffers[0] * 1.02);
+  const minLiveOffer = allLiveOffers.length > 0 ? allLiveOffers[0] : currentPriceEur;
+  const isCheapestCandidate = currentPriceEur <= minLiveOffer * 1.02;
 
-  // 1. Peer-Market Anomaly Signals
+  // 1. Peer-Market Anomaly Signals (strictly guarded by cheapest-candidate policy)
 
   // 1A. Sub-euro / extreme ratio drop glitch check (<€1.00 or <5% of MSRP)
-  if (currentPriceEur < 1.00 || (msrp > 0 && currentPriceEur < msrp * 0.05)) {
+  if (isCheapestCandidate && (currentPriceEur < 1.00 || (msrp > 0 && currentPriceEur < msrp * 0.05))) {
     if (peers.length === 0 || !hasCorroboratingPeer) {
       rawSeverity = Math.max(rawSeverity, 0.85);
       flags.add('SUB_EURO_PREMIUM_GLITCH');
@@ -110,7 +111,7 @@ export function calculatePriceRisk(
   }
 
   // 1B. Lone bottom outlier check (primary driver of HIGH risk for live market bottom outlier)
-  if (allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
+  if (isCheapestCandidate && allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
     const secondCheapest = allLiveOffers[1];
     if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
       const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
@@ -122,7 +123,7 @@ export function calculatePriceRisk(
   }
 
   // 1C. Market median divergence (capped at 0.35 so it cannot reach HIGH risk on its own)
-  if (validPeers.length >= 2) {
+  if (isCheapestCandidate && validPeers.length >= 2) {
     const sorted = [...validPeers].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
@@ -139,7 +140,7 @@ export function calculatePriceRisk(
   }
 
   // 1D. Historical Low Discrepancy (historicalLowEur >= €2.00)
-  if (historicalLowEur && historicalLowEur >= 2.00 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
+  if (isCheapestCandidate && historicalLowEur && historicalLowEur >= 2.00 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
     const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
     if (!isEstablishedOwnPrice) {
       rawSeverity = Math.max(rawSeverity, 0.50);
@@ -162,7 +163,7 @@ export function calculatePriceRisk(
 
   // 4. Fresh release anomaly check
   let isFreshRelease = false;
-  if (gameReleaseDate) {
+  if (gameReleaseDate && isCheapestCandidate) {
     const releaseTime = new Date(gameReleaseDate).getTime();
     if (!isNaN(releaseTime)) {
       const ageDays = (Date.now() - releaseTime) / (1000 * 3600 * 24);
@@ -188,12 +189,15 @@ export function calculatePriceRisk(
   // Apply Multi-Signal Corroboration & Trust Multipliers
   // ----------------------------------------------------
 
-  // A. Source agreement dampening
-  let sourceMultiplier = 1.0;
-  if (sourceAgreementCount >= 3) {
-    sourceMultiplier = 0.20; // 3+ independent sources heavily dampens glitch risk
-  } else if (sourceAgreementCount === 2) {
-    sourceMultiplier = 0.45;
+  // A. Independent merchant vs source aggregator agreement dampening
+  const merchantCount = input.independentMerchantCount ?? (hasCorroboratingPeer ? 2 : 1);
+  let corroborationMultiplier = 1.0;
+  if (merchantCount >= 3) {
+    corroborationMultiplier = 0.20; // 3+ distinct merchants confirms market price level
+  } else if (merchantCount === 2) {
+    corroborationMultiplier = 0.45; // 2 distinct merchants
+  } else if (sourceAgreementCount >= 2 && isOfficialMerchant) {
+    corroborationMultiplier = 0.80; // multiple scrapers observing an official store
   }
 
   // B. Merchant trust dampening
@@ -201,7 +205,7 @@ export function calculatePriceRisk(
   const merchantMultiplier = Math.max(0.70, 1.15 - effectiveTrust * 0.45);
 
   // Calculate composite risk score
-  const compositeRisk = rawSeverity * sourceMultiplier * merchantMultiplier;
+  const compositeRisk = rawSeverity * corroborationMultiplier * merchantMultiplier;
 
   const finalScore = Math.max(0.0, Math.min(1.0, Math.round(compositeRisk * 100) / 100));
 

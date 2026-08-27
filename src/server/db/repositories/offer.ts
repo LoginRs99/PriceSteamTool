@@ -12,6 +12,26 @@ import type {
   PriceHistoryEntry 
 } from '../../../shared/types.js';
 
+export function isCompatiblePeerOffer(
+  target: { productType: string; regionType: string },
+  peer: { productType: string; regionType: string; isValid?: boolean; isAnomaly?: boolean; riskLevel?: string }
+): boolean {
+  if (peer.isValid === false) return false;
+  if (peer.isAnomaly === true) return false;
+  if (peer.riskLevel === 'HIGH') return false;
+  if (peer.productType !== target.productType) return false;
+
+  const standardRegions = new Set(['HU', 'EU', 'GLOBAL']);
+  const isTargetStandard = standardRegions.has(target.regionType);
+  const isPeerStandard = standardRegions.has(peer.regionType);
+
+  if (isTargetStandard && !isPeerStandard) return false;
+  if (!isTargetStandard && isPeerStandard) return false;
+  if (!isTargetStandard && !isPeerStandard && target.regionType !== peer.regionType) return false;
+
+  return true;
+}
+
 export const offerRepo = {
   upsertOffer(data: {
     gameId: string;
@@ -151,11 +171,23 @@ export const offerRepo = {
         };
       }).filter(c => c.isValid);
 
-      // Deterministic active offer rule:
-      // 1. Lowest valid comparable price wins
-      // 2. Fresher observation timestamp wins
-      // 3. Alphabetical source_code tie-break
-      candidates.sort((a, b) => {
+      // Deterministic active offer rule with freshness awareness:
+      // 1. Fresh observations (within 72h) beat stale observations
+      // 2. Lowest valid comparable price wins
+      // 3. Fresher observation timestamp wins
+      // 4. Alphabetical source_code tie-break
+      const nowMs = new Date(now).getTime();
+      const FRESHNESS_WINDOW_MS = 72 * 60 * 60 * 1000; // 72 hours
+
+      const freshCandidates = candidates.filter(c => {
+        const obsTime = new Date(c.observedAt).getTime();
+        return !isNaN(obsTime) && (nowMs - obsTime) <= FRESHNESS_WINDOW_MS;
+      });
+
+      const eligiblePool = freshCandidates.length > 0 ? freshCandidates : candidates;
+      const isStaleObservation = freshCandidates.length === 0 && candidates.length > 0;
+
+      eligiblePool.sort((a, b) => {
         if (Math.abs(a.priceEur - b.priceEur) >= 0.005) {
           return a.priceEur - b.priceEur;
         }
@@ -167,7 +199,7 @@ export const offerRepo = {
         return a.sourceCode.localeCompare(b.sourceCode);
       });
 
-      const active: CandidateObs = candidates.length > 0 ? candidates[0] : {
+      const active: CandidateObs = eligiblePool.length > 0 ? eligiblePool[0] : {
         sourceCode: data.sourceCode,
         priceEur: data.priceEur,
         rawPrice: data.rawPrice,
@@ -185,10 +217,39 @@ export const offerRepo = {
       const gameInfo = prepareStmt(`SELECT * FROM games WHERE id = ?`).get(data.gameId) as any;
       const merchantInfo = prepareStmt(`SELECT name, is_official, trust_score FROM merchants WHERE id = ?`).get(data.merchantId) as any;
       
-      const otherPricesRows = prepareStmt(`SELECT price_eur FROM offers WHERE game_id = ? AND is_valid = 1 AND merchant_id != ?`).all(data.gameId, data.merchantId) as any[];
-      const marketPrices = otherPricesRows.map(p => Number(p.price_eur));
+      const otherOffersRows = prepareStmt(`
+        SELECT o.price_eur, o.merchant_id, o.product_type, o.region_type, o.is_valid, o.is_anomaly, o.risk_level
+        FROM offers o
+        WHERE o.game_id = ? AND o.merchant_id != ?
+      `).all(data.gameId, data.merchantId) as any[];
 
-      const sourceCount = allObservations.length;
+      const compatiblePeers = otherOffersRows.filter(row => isCompatiblePeerOffer(
+        { productType: data.productType, regionType: data.regionType },
+        {
+          productType: row.product_type,
+          regionType: row.region_type,
+          isValid: Boolean(row.is_valid),
+          isAnomaly: Boolean(row.is_anomaly),
+          riskLevel: row.risk_level
+        }
+      ));
+
+      const marketPrices = compatiblePeers.map(p => Number(p.price_eur));
+      const distinctSources = new Set(allObservations.map(o => o.source_code));
+      const distinctSourceCount = distinctSources.size;
+
+      // Count distinct independent merchants with compatible prices (within 30% of active price)
+      const corroboratingMerchants = new Set<string>();
+      for (const peer of compatiblePeers) {
+        const peerPrice = Number(peer.price_eur);
+        if (peerPrice > 0) {
+          const relDiff = Math.abs(peerPrice - active.priceEur) / Math.min(peerPrice, active.priceEur);
+          if (relDiff <= 0.30) {
+            corroboratingMerchants.add(peer.merchant_id);
+          }
+        }
+      }
+      const independentMerchantCount = corroboratingMerchants.size + 1; // +1 for current merchant
 
       const sourceHistoryRows = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency FROM price_history 
@@ -217,10 +278,14 @@ export const offerRepo = {
         previousPriceEur: lastHistory?.price_eur ? Number(lastHistory.price_eur) : undefined,
         marketPricesEur: marketPrices,
         sourceHistoryEur: sourceHistory,
-        sourceAgreementCount: Math.max(1, sourceCount),
+        sourceAgreementCount: Math.max(1, distinctSourceCount),
+        independentMerchantCount,
         isOfficialMerchant: merchantInfo ? Boolean(merchantInfo.is_official) : true,
         merchantTrustScore: merchantInfo?.trust_score ? Number(merchantInfo.trust_score) : 1.0,
-        gameReleaseDate: gameInfo?.release_date || undefined
+        gameReleaseDate: gameInfo?.release_date || undefined,
+        productType: data.productType,
+        regionConfidence: data.regionConfidence,
+        isStaleObservation
       };
 
       const pricingEval = evaluatePriceMovement(evalInput);
@@ -396,7 +461,7 @@ export const offerRepo = {
           dealScore: 0,
           dealTier: 'Fair',
           sources: [active.sourceCode],
-          sourceAgreementCount: sourceCount,
+          sourceAgreementCount: distinctSourceCount,
           fetchedAt: now,
           lastObservedAt: active.observedAt || now,
           createdAt: now,
@@ -432,7 +497,7 @@ export const offerRepo = {
           atlConfirmed,
           atlSingleSource,
           now,
-          Math.max(1, sourceCount),
+          Math.max(1, distinctSourceCount),
           now,
           data.gameId
         );
@@ -459,8 +524,8 @@ export const offerRepo = {
           : 1.0;
 
         prepareStmt(`
-          INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, recorded_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           randomUUID(), 
           data.gameId, 
@@ -473,6 +538,8 @@ export const offerRepo = {
           active.discountPercent, 
           pricingEval.event, 
           dealCalc.score, 
+          pricingEval.isAnomaly ? 1 : 0,
+          pricingEval.riskLevel,
           now
         );
       }
@@ -717,9 +784,14 @@ export const offerRepo = {
       isOfficial: Boolean(r.is_official),
       sourceCode: r.source_code as SourceCode,
       priceEur: Number(r.price_eur),
+      rawPrice: r.raw_price !== null && r.raw_price !== undefined ? Number(r.raw_price) : undefined,
+      rawCurrency: r.raw_currency || undefined,
+      fxRate: r.fx_rate !== null && r.fx_rate !== undefined ? Number(r.fx_rate) : undefined,
       discountPercent: r.discount_percent ? Number(r.discount_percent) : undefined,
       priceEvent: r.price_event || undefined,
       dealScore: r.deal_score !== null && r.deal_score !== undefined ? Number(r.deal_score) : undefined,
+      isAnomaly: Boolean(r.is_anomaly),
+      riskLevel: r.risk_level || 'SAFE',
       recordedAt: r.recorded_at
     }));
   },

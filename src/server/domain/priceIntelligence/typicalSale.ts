@@ -1,4 +1,5 @@
 import type { PriceHistoryEntry, TypicalSalePrice } from '../../../shared/types.js';
+import { isTrustedHistoryEntry } from './types.js';
 
 /**
  * 2. Typical Sale Price with Statistical IQR Outlier Protection
@@ -16,10 +17,10 @@ export function calculateTypicalSalePrice(
     };
   }
 
-  // Filter candidate sale points: discount >= 15% OR price <= 85% of MSRP
+  // Filter candidate sale points from trusted history: discount >= 15% OR price <= 85% of MSRP
   const saleThreshold = basePriceEur * 0.85;
   const candidates = history
-    .filter(h => h.priceEur > 0 && (h.priceEur <= saleThreshold || (h.discountPercent && h.discountPercent >= 15)))
+    .filter(h => isTrustedHistoryEntry(h) && (h.priceEur <= saleThreshold || (h.discountPercent && h.discountPercent >= 15)))
     .map(h => h.priceEur);
 
   if (candidates.length === 0) {

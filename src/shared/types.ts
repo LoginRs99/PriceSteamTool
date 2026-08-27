@@ -229,10 +229,15 @@ export interface PriceHistoryEntry {
   merchantName?: string;
   sourceCode: SourceCode;
   priceEur: number;
+  rawPrice?: number;
+  rawCurrency?: string;
+  fxRate?: number;
   discountPercent?: number;
   priceEvent?: PriceEventType;
   dealScore?: number;
   isOfficial?: boolean;
+  isAnomaly?: boolean;
+  riskLevel?: PriceRiskLevel;
   recordedAt: string;
 }
 
@@ -245,6 +250,8 @@ export interface SourceStatus {
   successCount: number;
   failureCount: number;
   rateLimitCount: number;
+  consecutiveFailures?: number;
+  consecutiveRateLimits?: number;
   lastRequestAt?: string;
   lastSuccessAt?: string;
   lastError?: string;

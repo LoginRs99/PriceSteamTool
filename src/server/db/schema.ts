@@ -155,6 +155,8 @@ CREATE TABLE IF NOT EXISTS price_history (
   discount_percent INTEGER,
   price_event TEXT,
   deal_score INTEGER,
+  is_anomaly INTEGER NOT NULL DEFAULT 0,
+  risk_level TEXT NOT NULL DEFAULT 'SAFE',
   recorded_at TEXT NOT NULL
 );
 
@@ -172,6 +174,8 @@ CREATE TABLE IF NOT EXISTS sources (
   success_count INTEGER NOT NULL DEFAULT 0,
   failure_count INTEGER NOT NULL DEFAULT 0,
   rate_limit_count INTEGER NOT NULL DEFAULT 0,
+  consecutive_failures INTEGER NOT NULL DEFAULT 0,
+  consecutive_rate_limits INTEGER NOT NULL DEFAULT 0,
   last_success_at TEXT,
   last_error TEXT,
   cooldown_until TEXT,

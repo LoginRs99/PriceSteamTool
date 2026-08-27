@@ -1,4 +1,5 @@
 import type { PriceHistoryEntry, SaleFrequency } from '../../../shared/types.js';
+import { isTrustedHistoryEntry } from './types.js';
 
 /**
  * 3. Sale Event Grouping & Drop Frequency
@@ -21,9 +22,9 @@ export function groupSaleEvents(
   const saleThreshold = basePriceEur * 0.85;
   const normalThreshold = basePriceEur * 0.90;
 
-  // Sort history ascending by time
+  // Sort trusted history ascending by time
   const sorted = [...history]
-    .filter(h => !isNaN(new Date(h.recordedAt).getTime()))
+    .filter(h => isTrustedHistoryEntry(h) && !isNaN(new Date(h.recordedAt).getTime()))
     .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
 
   interface SaleEvent {

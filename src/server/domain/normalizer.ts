@@ -75,13 +75,21 @@ const RESTRICTED_WORDS = [
   /\b(australia|new\s*zealand)\b/i,
 ];
 
-// EU / EEA / European Union countries
-const EU_COUNTRIES = new Set([
+// The 27 EU Member States
+export const EU_MEMBER_STATES = new Set([
   'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 
   'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 
-  'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK', 'NO', 'IS', 'LI', 
-  'CH', 'GB', 'UK', 'EU', 'EEA'
+  'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'
 ]);
+
+// Non-EU EEA Countries
+export const EEA_COUNTRIES = new Set([
+  'NO', 'IS', 'LI'
+]);
+
+// Non-EU European nations that have separate region locking
+export const UK_COUNTRY_CODES = new Set(['GB', 'UK']);
+export const SWISS_COUNTRY_CODES = new Set(['CH']);
 
 /**
  * Validates and classifies product type.
@@ -133,13 +141,14 @@ export function normalizeProductType(rawType: string = '', merchantOrStoreName?:
 
 /**
  * Normalizes region strings and ensures Hungary / EU / Global activation compatibility.
+ * Strictly distinguishes EU/EEA from non-EU regions (UK, Switzerland) and rejects non-compatible locks.
  */
 export function normalizeRegion(rawRegion: string = '', rawCountry: string = ''): NormalizedRegion {
   const regionUpper = rawRegion.trim().toUpperCase();
   const countryUpper = rawCountry.trim().toUpperCase();
   const combined = `${rawRegion} ${rawCountry}`.trim();
 
-  // 1. Direct match on ISO codes if provided
+  // 1. Direct match on restricted ISO codes
   if (RESTRICTED_COUNTRY_CODES.has(regionUpper) || RESTRICTED_COUNTRY_CODES.has(countryUpper)) {
     return {
       regionType: 'RESTRICTED',
@@ -150,6 +159,29 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     };
   }
 
+  // 2. UK Specific check (UK is not EU and UK-only keys cannot activate in Hungary)
+  if (UK_COUNTRY_CODES.has(regionUpper) || UK_COUNTRY_CODES.has(countryUpper) || /\b(united\s*kingdom|great\s*britain|uk\s*only|gb\s*only)\b/i.test(combined)) {
+    return {
+      regionType: 'RESTRICTED',
+      regionCode: 'GB',
+      regionConfidence: 0.0,
+      isValid: false,
+      rejectReason: 'UK-locked region offer is not compatible with Hungary activation'
+    };
+  }
+
+  // 3. Switzerland Specific check (Switzerland is not EU/EEA and Swiss-only keys are restricted)
+  if (SWISS_COUNTRY_CODES.has(regionUpper) || SWISS_COUNTRY_CODES.has(countryUpper) || /\b(switzerland|swiss|ch\s*only)\b/i.test(combined)) {
+    return {
+      regionType: 'RESTRICTED',
+      regionCode: 'CH',
+      regionConfidence: 0.0,
+      isValid: false,
+      rejectReason: 'Switzerland-locked region offer is not compatible with Hungary activation'
+    };
+  }
+
+  // 4. Hungary Direct Match
   if (countryUpper === 'HU' || regionUpper === 'HU' || /\b(hu|hungary)\b/i.test(combined)) {
     return {
       regionType: 'HU',
@@ -159,16 +191,22 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     };
   }
 
-  if (EU_COUNTRIES.has(regionUpper) || EU_COUNTRIES.has(countryUpper) || /\b(eu|europe|eea|emea|european\s*union)\b/i.test(combined)) {
+  // 5. EU Member States & EEA Countries or broad European Union / Europe activation scope
+  if (
+    EU_MEMBER_STATES.has(regionUpper) || EU_MEMBER_STATES.has(countryUpper) ||
+    EEA_COUNTRIES.has(regionUpper) || EEA_COUNTRIES.has(countryUpper) ||
+    regionUpper === 'EU' || regionUpper === 'EEA' ||
+    /\b(eu|europe|eea|emea|european\s*union)\b/i.test(combined)
+  ) {
     return {
       regionType: 'EU',
-      regionCode: regionUpper || 'EU',
+      regionCode: regionUpper || countryUpper || 'EU',
       regionConfidence: 1.0,
       isValid: true
     };
   }
 
-  // 2. Global / Worldwide / Region Free / ROW
+  // 6. Global / Worldwide / Region Free / ROW
   if (/\b(global|worldwide|ww|region\s*free|row)\b/i.test(combined) || combined === '') {
     return {
       regionType: 'GLOBAL',
@@ -178,7 +216,7 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     };
   }
 
-  // 3. Check for restricted full words (e.g. "United States", "Egypt", "Turkey", "Russia")
+  // 7. Check for restricted full words (e.g. "United States", "Egypt", "Turkey", "Russia")
   for (const pattern of RESTRICTED_WORDS) {
     if (pattern.test(combined)) {
       return {

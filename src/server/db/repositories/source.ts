@@ -14,6 +14,8 @@ export const sourceRepo = {
       successCount: Number(r.success_count),
       failureCount: Number(r.failure_count),
       rateLimitCount: Number(r.rate_limit_count),
+      consecutiveFailures: Number(r.consecutive_failures || 0),
+      consecutiveRateLimits: Number(r.consecutive_rate_limits || 0),
       lastSuccessAt: r.last_success_at || undefined,
       lastError: r.last_error || undefined,
       cooldownUntil: r.cooldown_until || undefined
@@ -33,18 +35,30 @@ export const sourceRepo = {
       successCount: Number(r.success_count),
       failureCount: Number(r.failure_count),
       rateLimitCount: Number(r.rate_limit_count),
+      consecutiveFailures: Number(r.consecutive_failures || 0),
+      consecutiveRateLimits: Number(r.consecutive_rate_limits || 0),
       lastSuccessAt: r.last_success_at || undefined,
       lastError: r.last_error || undefined,
       cooldownUntil: r.cooldown_until || undefined
     };
   },
 
-  updateCircuitState(code: SourceCode, state: CircuitState, cooldownUntil?: string): void {
+  updateCircuitState(
+    code: SourceCode,
+    state: CircuitState,
+    cooldownUntil?: string,
+    consecutiveFailures: number = 0,
+    consecutiveRateLimits: number = 0
+  ): void {
     prepareStmt(`
-      UPDATE sources 
-      SET state = ?, cooldown_until = ?, updated_at = datetime('now') 
+      UPDATE sources
+      SET state = ?,
+          cooldown_until = ?,
+          consecutive_failures = ?,
+          consecutive_rate_limits = ?,
+          updated_at = datetime('now')
       WHERE code = ?
-    `).run(state, cooldownUntil || null, code);
+    `).run(state, cooldownUntil || null, consecutiveFailures, consecutiveRateLimits, code);
   },
 
   incrementCounters(code: SourceCode, status: 'success' | 'failure' | 'ratelimit', errorMessage?: string): void {

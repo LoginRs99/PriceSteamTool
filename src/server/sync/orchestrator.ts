@@ -796,7 +796,10 @@ export class SyncOrchestrator {
    * Refreshes pricing for a single specific game across active fast sources
    * (Steam, ITAD, CheapShark, GG.deals) with asynchronous background AllKeyShop enrichment.
    */
-  public async refreshGame(gameId: string, options?: { includeKeyshops?: boolean }): Promise<{
+  public async refreshGame(
+    gameId: string,
+    options?: { sources?: SourceCode[]; includeKeyshops?: boolean }
+  ): Promise<{
     success: boolean;
     game: any;
     offers: any[];
@@ -819,7 +822,12 @@ export class SyncOrchestrator {
       return s ? Boolean(s.isEnabled) : true;
     };
 
-    const fastSources: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+    const requestedSources = options?.sources;
+    const allFastSources: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+    const fastSources = requestedSources
+      ? allFastSources.filter(s => requestedSources.includes(s))
+      : allFastSources;
+
     const sourcesChecked: SourceCode[] = [];
     const sourcesFailed: SourceCode[] = [];
     const sourcesSkipped: SourceCode[] = [];
@@ -857,7 +865,6 @@ export class SyncOrchestrator {
           }
 
           circuitBreakers.recordSuccess(sourceCode);
-          sourceRepo.incrementCounters(sourceCode, 'success');
 
           for (const offer of offers) {
             this.ingestOffer(gameId, sourceCode, offer, game.basePriceEur);
@@ -865,7 +872,6 @@ export class SyncOrchestrator {
         } catch (err: any) {
           logWarn(`[Force Refresh] Source ${sourceCode} failed for game "${game.title}": ${err.message}`);
           circuitBreakers.recordFailure(sourceCode, err);
-          sourceRepo.incrementCounters(sourceCode, 'failure', err.message);
           sourcesFailed.push(sourceCode);
         }
       })();
@@ -880,7 +886,10 @@ export class SyncOrchestrator {
     offerRepo.recomputeBestDealForGame(gameId);
 
     // Non-blocking background AllKeyShop enrichment
-    const includeKeyshops = options?.includeKeyshops ?? true;
+    const includeKeyshops = requestedSources
+      ? requestedSources.includes('allkeyshop')
+      : (options?.includeKeyshops ?? true);
+
     if (includeKeyshops && isSourceEnabled('allkeyshop')) {
       const cbCheck = circuitBreakers.canExecute('allkeyshop');
       if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
@@ -891,10 +900,16 @@ export class SyncOrchestrator {
         (async () => {
           try {
             logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
-            const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title);
+            const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title, game.itadId, game.releaseDate);
+            let lowestAksPrice: number | null = null;
             for (const offer of aksOffers) {
               this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+              if (offer.priceEur > 0 && (lowestAksPrice === null || offer.priceEur < lowestAksPrice)) {
+                lowestAksPrice = offer.priceEur;
+              }
             }
+            const nowIso = new Date().toISOString();
+            gameRepo.updateAllkeyshopCheckState(gameId, nowIso, lowestAksPrice, 24, 0);
             offerRepo.recomputeBestDealForGame(gameId);
             logInfo(`[Force Refresh] Background AllKeyShop enrichment complete for "${game.title}" (${aksOffers.length} offers).`);
           } catch (aksErr: any) {

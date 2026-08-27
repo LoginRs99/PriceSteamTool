@@ -15,20 +15,40 @@ export const anomalyRepo = {
   ): void {
     const now = new Date().toISOString();
     
-    // 1. Check if an active (non-dismissed) anomaly record exists for this offer
-    const activeExisting = prepareStmt(`
-      SELECT id FROM anomalies 
-      WHERE game_id = ? AND offer_id = ? AND is_dismissed = 0
-    `).get(gameId, offerId) as any;
+    // 1. Check if an active (non-dismissed) anomaly record exists for this game
+    const activeGameAnomaly = prepareStmt(`
+      SELECT a.id, a.offer_id, o.price_eur
+      FROM anomalies a
+      LEFT JOIN offers o ON a.offer_id = o.id
+      WHERE a.game_id = ? AND a.is_dismissed = 0
+    `).get(gameId) as any;
 
-    if (activeExisting) {
-      // Update active anomaly record in-place
-      prepareStmt(`
-        UPDATE anomalies 
-        SET score = ?, reason = ?, anomaly_type = ?, detected_at = ? 
-        WHERE id = ?
-      `).run(score, reason, type, now, activeExisting.id);
-      return;
+    if (activeGameAnomaly) {
+      const activePrice = activeGameAnomaly.price_eur !== null && activeGameAnomaly.price_eur !== undefined
+        ? Number(activeGameAnomaly.price_eur)
+        : Infinity;
+      const newPrice = currentPriceEur ?? Infinity;
+
+      if (activeGameAnomaly.offer_id === offerId) {
+        // Update active anomaly record in-place for same offer
+        prepareStmt(`
+          UPDATE anomalies
+          SET score = ?, reason = ?, anomaly_type = ?, detected_at = ?
+          WHERE id = ?
+        `).run(score, reason, type, now, activeGameAnomaly.id);
+        return;
+      } else if (newPrice < activePrice - 0.005) {
+        // New offer is a cheaper / primary deal anomaly -> replace the existing active game anomaly
+        prepareStmt(`
+          UPDATE anomalies
+          SET offer_id = ?, score = ?, reason = ?, anomaly_type = ?, detected_at = ?
+          WHERE id = ?
+        `).run(offerId, score, reason, type, now, activeGameAnomaly.id);
+        return;
+      } else {
+        // Existing active anomaly is cheaper -> do not create duplicate secondary anomaly row
+        return;
+      }
     }
 
     // 2. Check if a dismissed anomaly record exists for this offer

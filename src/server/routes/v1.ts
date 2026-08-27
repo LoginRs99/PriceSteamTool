@@ -129,16 +129,18 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
     }
 
     const schema = z.object({
+      sources: z.array(z.enum(['steam', 'itad', 'cheapshark', 'ggdeals', 'allkeyshop'])).optional(),
       includeKeyshops: z.boolean().optional()
     }).optional();
 
     const parsed = schema.safeParse(request.body);
+    const sources = parsed.success ? parsed.data?.sources : undefined;
     const includeKeyshops = parsed.success && parsed.data?.includeKeyshops !== undefined 
       ? parsed.data.includeKeyshops 
       : true;
 
     try {
-      const result = await syncOrchestrator.refreshGame(game.id, { includeKeyshops });
+      const result = await syncOrchestrator.refreshGame(game.id, { sources, includeKeyshops });
       return result;
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });

@@ -1,10 +1,11 @@
-import type { 
-  PriceHistoryEntry, 
-  Offer, 
+import type {
+  PriceHistoryEntry,
+  Offer,
   Game,
   PeriodLowEntry,
   PriceIntelligenceResponse
 } from '../../../shared/types.js';
+import { isTrustedHistoryEntry } from './types.js';
 
 /**
  * 1. Rolling Period Lows (7d, 30d, 90d, 1y) & Confirmed ATL
@@ -19,7 +20,7 @@ export function calculatePeriodLows(
   const nowMs = now.getTime();
 
   // Filter trusted history points (non-anomaly, valid)
-  const trustedHistory = history.filter(h => h.priceEur > 0);
+  const trustedHistory = history.filter(isTrustedHistoryEntry);
 
   // Find oldest timestamp in history
   let oldestTimestampMs = nowMs;
