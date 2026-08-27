@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { evaluatePriceMovement, evaluateSourceOwnHistoryAnomaly } from '../../src/server/domain/pricingEngine.js';
+import { calculateDealScore } from '../../src/server/domain/dealScore.js';
+import { generateActionSignal } from '../../src/server/domain/actionSignal.js';
 
 describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
   // -------------------------------------------------------------
@@ -60,7 +62,7 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
     });
 
     expect(res.event).toBe('EXTREME_DROP');
-    expect(res.riskLevel).toBe('MEDIUM'); // Correctly elevated to caution due to single source
+    expect(res.riskLevel).toBe('HIGH'); // Single source sub-euro drop is flagged as potential glitch anomaly
     expect(res.riskFlags).toContain('SUB_EURO_PREMIUM_GLITCH');
   });
 

@@ -89,7 +89,7 @@ export function calculatePriceRisk(
 
   if (sourceCheck.applicable) {
     if (sourceCheck.isBreak) {
-      rawSeverity = Math.max(rawSeverity, 0.80);
+      rawSeverity = Math.max(rawSeverity, 0.85);
       flags.add('SOURCE_OWN_HISTORY_BREAK');
     }
     // When applicable and NOT a break, this source's price is consistent with its own
@@ -193,11 +193,11 @@ export function calculatePriceRisk(
   const finalScore = Math.max(0.0, Math.min(1.0, Math.round(compositeRisk * 100) / 100));
 
   let riskLevel: PriceRiskLevel = 'SAFE';
-  if (finalScore >= 0.70) {
+  if (finalScore >= 0.60) {
     riskLevel = 'HIGH';
-  } else if (finalScore >= 0.45) {
+  } else if (finalScore >= 0.35) {
     riskLevel = 'MEDIUM';
-  } else if (finalScore >= 0.20) {
+  } else if (finalScore >= 0.15) {
     riskLevel = 'LOW';
   } else {
     riskLevel = 'SAFE';
