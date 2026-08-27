@@ -118,6 +118,14 @@ export const MIGRATIONS: Migration[] = [
       `);
       db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
     }
+  },
+  {
+    name: '011_add_price_history_currency_and_fx_columns',
+    up: (db) => {
+      try { db.exec("ALTER TABLE price_history ADD COLUMN raw_price REAL"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE price_history ADD COLUMN raw_currency TEXT DEFAULT 'EUR'"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE price_history ADD COLUMN fx_rate REAL DEFAULT 1.0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+    }
   }
 ];
 

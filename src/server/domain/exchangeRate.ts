@@ -90,6 +90,10 @@ export class ExchangeRateService {
    * Optionally updates rates from a public exchange rate endpoint
    */
   public async refreshRates(): Promise<void> {
+    if (process.env.NODE_ENV === 'test' && !process.env.TEST_ALLOW_LIVE_FX) {
+      return;
+    }
+
     const now = Date.now();
     if (this.lastFetched > 0 && now - this.lastFetched < this.cacheTtlMs) {
       return;
@@ -117,6 +121,15 @@ export class ExchangeRateService {
     } catch {
       // Graceful fallback to static reliable rates
     }
+  }
+
+  /**
+   * Resets all rates to default fallback values
+   */
+  public resetRates(): void {
+    this.ratesToEur.clear();
+    this.initFallbackRates();
+    this.lastFetched = 0;
   }
 
   /**
