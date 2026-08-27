@@ -27,6 +27,15 @@ import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
 import { config } from '../../src/server/config/index.js';
 
 describe('10 Approved Implementation Fixes Verification Suite', () => {
+  const origSteamDelay = config.delays.steam;
+
+  beforeAll(() => {
+    config.delays.steam = 10;
+  });
+
+  afterAll(() => {
+    config.delays.steam = origSteamDelay;
+  });
 
   // 1. Item 1: Steam Wishlist Partial Fetch Data Loss
   describe('Item 1: Steam Wishlist Partial Fetch Data Loss', () => {

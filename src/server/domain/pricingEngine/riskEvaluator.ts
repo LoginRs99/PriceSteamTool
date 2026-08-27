@@ -115,7 +115,7 @@ export function calculatePriceRisk(
     if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
       const isEstablishedOwnPrice = sourceCheck.applicable && !sourceCheck.isBreak;
       if (!isEstablishedOwnPrice) {
-        rawSeverity = Math.max(rawSeverity, 0.75);
+        rawSeverity = Math.max(rawSeverity, 0.90);
         flags.add('LONE_BOTTOM_OUTLIER');
       }
     }
@@ -149,14 +149,14 @@ export function calculatePriceRisk(
 
   // 2. Own-History Signal & Peer Corroboration
   if (sourceCheck.applicable && sourceCheck.isBreak) {
+    flags.add('SOURCE_OWN_HISTORY_BREAK');
     if (hasCorroboratingPeer) {
       // Legitimate market-wide sale: peer market corroborates the new price level
       rawSeverity = Math.max(rawSeverity, 0.15);
       flags.add('SOURCE_OWN_HISTORY_BREAK_CORROBORATED');
     } else if (isCheapestCandidate) {
       // Lone break from established history without live peer corroboration on cheapest candidate
-      rawSeverity = Math.max(rawSeverity, 0.85);
-      flags.add('SOURCE_OWN_HISTORY_BREAK');
+      rawSeverity = Math.max(rawSeverity, 0.90);
     }
   }
 

@@ -633,9 +633,17 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       const origSolverUrl = config.allkeyshopSolverUrl;
       const origFetch = global.fetch;
 
+      const fs = await import('node:fs');
+      const origExistsSync = fs.default.existsSync;
+
       try {
         config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
         let requestedUrl = '';
+
+        fs.default.existsSync = ((p: any) => {
+          if (String(p).includes('allkeyshop_catalog.json')) return false;
+          return origExistsSync(p);
+        }) as any;
 
         global.fetch = (async (url: any, options: any) => {
           const body = JSON.parse(options.body);
@@ -667,6 +675,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         expect(catalog.length).toBeGreaterThanOrEqual(2);
         expect(catalog.some(g => g.id === 101 && g.name === 'Borderlands')).toBe(true);
       } finally {
+        fs.default.existsSync = origExistsSync;
         config.allkeyshopSolverUrl = origSolverUrl;
         global.fetch = origFetch;
       }
