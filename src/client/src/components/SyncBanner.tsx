@@ -86,7 +86,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
               <span>{s.processed}/{s.total || progress.totalGames}</span>
               {s.offersFound > 0 && (
                 <span style={{ color: 'var(--accent-primary)', marginLeft: 4 }}>
-                  ({s.offersFound} deals)
+                  ({s.offersFound} {s.offersFound === 1 ? 'offer' : 'offers'}{s.processed > s.offersFound ? ` • ${s.processed - s.offersFound} unpriced` : ''})
                 </span>
               )}
               {s.state !== 'NORMAL' && (
