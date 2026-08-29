@@ -11,7 +11,7 @@ import {
   AKS_FAILURE_SCHEDULE_MS, 
   MAX_FAILURE_BACKOFF_MS 
 } from '../../src/server/sync/allkeyshop/backoff.js';
-import { AllKeyShopPoliteQueue } from '../../src/server/sync/allkeyshop/queue.js';
+import { AllKeyShopPoliteQueue, allkeyshopQueue } from '../../src/server/sync/allkeyshop/queue.js';
 import { AllKeyShopSourceAdapter } from '../../src/server/sources/allkeyshop.js';
 import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { config } from '../../src/server/config/index.js';
@@ -152,8 +152,19 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
       queue.jitterMaxMs = 0;
       (queue as any).currentDelayMs = 5;
 
-      // Put queue in a 50ms test cooldown
-      (queue as any).cooldownUntilMs = Date.now() + 50;
+      const cooldownEnd = Date.now() + 50;
+      vi.spyOn(circuitBreakers, 'canExecute').mockImplementation((src) => {
+        if (src === 'allkeyshop' && Date.now() < cooldownEnd) {
+          return { allowed: false, reason: 'Test cooldown' };
+        }
+        return { allowed: true };
+      });
+      vi.spyOn(circuitBreakers, 'getCooldownUntil').mockImplementation((src) => {
+        if (src === 'allkeyshop' && Date.now() < cooldownEnd) {
+          return cooldownEnd;
+        }
+        return null;
+      });
 
       let taskExecuted = false;
       const taskPromise = queue.enqueue('app-202', async () => {
@@ -259,8 +270,7 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
       const game = gameRepo.upsert({ steamAppId: 301, title: 'Cooldown Game', basePriceEur: 19.99 });
       gameRepo.syncWishlistEntries(profile.id, [{ steamAppId: 301, title: 'Cooldown Game', priority: 1 }]);
 
-      // Put AllKeyShop in cooldown
-      (allkeyshopQueue as any).cooldownUntilMs = Date.now() + 3600_000;
+      // Put AllKeyShop in cooldown via circuitBreakers
       circuitBreakers.recordFailure('allkeyshop', 'Upstream 502');
 
       const result = await orchestrator.refreshGame(game.id, { includeKeyshops: true });
@@ -269,6 +279,89 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
       expect(result.sourcesSkipped).toContain('allkeyshop');
 
       allkeyshopQueue.reset();
+    }, 15000);
+  });
+
+  describe('9. Unified Circuit Breaker (Catalog + Targeted Price Lookup)', () => {
+    it('catalog-fetch failure trips the shared breaker such that subsequent targeted price fetch attempt is blocked without making a new HTTP call', async () => {
+      const adapter = new AllKeyShopSourceAdapter();
+      const origSolver = config.allkeyshopSolverUrl;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+
+        // 1. Mock solver returning 502 for catalog fetch
+        const fetchSpy = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 502,
+          json: async () => ({ status: 'error' })
+        });
+        global.fetch = fetchSpy;
+
+        // Reset circuit breaker to NORMAL
+        circuitBreakers.resetAll();
+        expect(circuitBreakers.canExecute('allkeyshop').allowed).toBe(true);
+
+        // Ensure in-memory and disk catalog do not return early
+        (adapter as any).cachedCatalog = null;
+        const backupDiskPath = `${(adapter as any).catalogPath}.bak`;
+        const hasDiskCatalog = fs.existsSync((adapter as any).catalogPath);
+        if (hasDiskCatalog) {
+          fs.renameSync((adapter as any).catalogPath, backupDiskPath);
+        }
+
+        try {
+          // Attempt catalog fetch -> fails with 502
+          await expect(adapter.ensureCatalog()).rejects.toThrow();
+
+          // 2. Assert shared circuit breaker is now tripped
+          expect(circuitBreakers.canExecute('allkeyshop').allowed).toBe(false);
+          expect(circuitBreakers.getConsecutiveFailures('allkeyshop')).toBe(1);
+          expect(allkeyshopQueue.isCoolingDown).toBe(true);
+
+          const callCountAfterCatalogFailure = fetchSpy.mock.calls.length;
+
+          // 3. Subsequent catalog fetch attempt is immediately blocked by circuit breaker without new HTTP call
+          await expect(adapter.ensureCatalog()).rejects.toThrow('AllKeyShop catalog unavailable');
+          expect(fetchSpy.mock.calls.length).toBe(callCountAfterCatalogFailure);
+
+          // 4. Targeted price lookup guard also sees breaker tripped
+          const cbCheck = circuitBreakers.canExecute('allkeyshop');
+          expect(cbCheck.allowed).toBe(false);
+          expect(allkeyshopQueue.isCoolingDown).toBe(true);
+        } finally {
+          if (hasDiskCatalog && fs.existsSync(backupDiskPath)) {
+            fs.renameSync(backupDiskPath, (adapter as any).catalogPath);
+          }
+        }
+      } finally {
+        config.allkeyshopSolverUrl = origSolver;
+        circuitBreakers.resetAll();
+      }
+    });
+
+    it('adaptive per-request delay pacing in queue adapts dynamically based on response duration', async () => {
+      const queue = new AllKeyShopPoliteQueue();
+      queue.minDelayMs = 1000;
+      queue.maxDelayMs = 10000;
+      queue.jitterMaxMs = 0;
+      (queue as any).currentDelayMs = 5000;
+
+      // 1. Fast task (< 1s) -> decreases delay by 250ms
+      await queue.enqueue('fast-task', async () => {
+        await new Promise(r => setTimeout(r, 10));
+        return 'fast';
+      }, 'Fast Game');
+
+      expect(queue.getMetrics().currentDelayMs).toBe(4750);
+
+      // 2. Slow task (> 3s) -> increases delay by 1000ms
+      await queue.enqueue('slow-task', async () => {
+        await new Promise(r => setTimeout(r, 3100));
+        return 'slow';
+      }, 'Slow Game');
+
+      expect(queue.getMetrics().currentDelayMs).toBe(5750);
     }, 15000);
   });
 });

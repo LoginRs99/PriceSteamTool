@@ -6,7 +6,6 @@ import {
   computeNextPacingDelay, 
   calculateBoundedJitter 
 } from './adaptivePacing.js';
-import { computeFailureCooldown } from './backoff.js';
 import type { AllKeyShopMetrics, AllKeyShopQueueTask } from './types.js';
 
 export class AllKeyShopPoliteQueue {
@@ -18,7 +17,6 @@ export class AllKeyShopPoliteQueue {
   public maxDelayMs = 30000;
   public jitterMaxMs = config.allkeyshopJitterMs ?? 500;
   private currentDelayMs = AKS_BASE_DELAY_MS;
-  private cooldownUntilMs: number | null = null;
   private lastExecutionTime = 0;
   private activeRequestKey: string | null = null;
   private lastSuccessTimeMs: number | null = null;
@@ -76,19 +74,15 @@ export class AllKeyShopPoliteQueue {
   }
 
   public get isCoolingDown(): boolean {
-    if (this.cooldownUntilMs !== null && Date.now() < this.cooldownUntilMs) return true;
     const cbCheck = circuitBreakers.canExecute('allkeyshop');
     return !cbCheck.allowed;
   }
 
   public getCooldownRemainingSec(): number {
     const now = Date.now();
-    let maxCooldown = this.cooldownUntilMs || 0;
     const cbCooldown = circuitBreakers.getCooldownUntil('allkeyshop');
-    if (cbCooldown && cbCooldown > maxCooldown) {
-      maxCooldown = cbCooldown;
-    }
-    const diff = maxCooldown - now;
+    if (!cbCooldown) return 0;
+    const diff = cbCooldown - now;
     return diff > 0 ? Math.ceil(diff / 1000) : 0;
   }
 
@@ -97,7 +91,7 @@ export class AllKeyShopPoliteQueue {
   }
 
   public getMetrics(): AllKeyShopMetrics {
-    const cooldownUntil = this.cooldownUntilMs || circuitBreakers.getCooldownUntil('allkeyshop');
+    const cooldownUntil = circuitBreakers.getCooldownUntil('allkeyshop');
     return {
       currentDelayMs: this.currentDelayMs,
       consecutiveFailures: this.consecutiveFailures,
@@ -113,7 +107,6 @@ export class AllKeyShopPoliteQueue {
   public reset(): void {
     this.currentDelayMs = this.minDelayMs;
     this.wasInCooldown = false;
-    this.cooldownUntilMs = null;
     circuitBreakers.reset('allkeyshop');
   }
 
@@ -152,15 +145,7 @@ export class AllKeyShopPoliteQueue {
     while (this.queue.length > 0) {
       const now = Date.now();
 
-      // Check failure backoff cooldown
-      if (this.cooldownUntilMs && now < this.cooldownUntilMs) {
-        this.wasInCooldown = true;
-        const waitMs = Math.max(50, this.cooldownUntilMs - now);
-        await new Promise(r => setTimeout(r, waitMs));
-        continue;
-      }
-
-      // Check circuit breaker status & deadline
+      // Check circuit breaker status & deadline (single authority)
       const cbCheck = circuitBreakers.canExecute('allkeyshop');
       if (!cbCheck.allowed) {
         this.wasInCooldown = true;

@@ -360,7 +360,6 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private lastCatalogFetch = 0;
   private pendingCatalogLoad: Promise<CatalogGame[]> | null = null;
   private catalogPath = path.join(process.cwd(), 'data', 'allkeyshop_catalog.json');
-  private catalogFailureCooldownUntil = 0;
 
   public isEnabled(): boolean {
     return config.allkeyshopEnabled;
@@ -378,8 +377,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       return this.cachedCatalog;
     }
 
-    if (!this.cachedCatalog && now < this.catalogFailureCooldownUntil) {
-      throw new AllKeyShopUnavailableError('AllKeyShop catalog unavailable (solver cooldown active)');
+    const cbCheck = circuitBreakers.canExecute('allkeyshop');
+    if (!cbCheck.allowed) {
+      throw new AllKeyShopUnavailableError(`AllKeyShop catalog unavailable (${cbCheck.reason || 'source is cooling down'})`);
     }
 
     if (this.pendingCatalogLoad) {
@@ -417,6 +417,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const durationSec = ((Date.now() - downloadStartTime) / 1000).toFixed(1);
           console.log(`[AllKeyShop] catalog refreshed | games=${data.games.length} | duration=${durationSec}s`);
           allkeyshopQueue.recordCatalogRefresh();
+          circuitBreakers.recordSuccess('allkeyshop');
 
           try {
             const dataDir = path.dirname(this.catalogPath);
@@ -432,10 +433,17 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           return this.cachedCatalog || [];
         } else {
           console.warn('[AllKeyShop] Catalog response malformed or empty games array.');
+          circuitBreakers.recordFailure('allkeyshop', 'Catalog response malformed or empty games array');
         }
       } catch (err: any) {
         console.warn('Failed to download AllKeyShop catalog:', err.message);
-        allkeyshopQueue.recordExternalFailure(err);
+        const status = err?.status || err?.response?.status || (err?.message?.includes('429') ? 429 : 502);
+        const retryAfter = err?.retryAfterSec;
+        if (status === 429) {
+          circuitBreakers.recordRateLimit('allkeyshop', retryAfter || 30);
+        } else {
+          circuitBreakers.recordFailure('allkeyshop', err);
+        }
       }
 
       // 4. Stale fallback from disk if available
@@ -452,8 +460,6 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           }
         }
       } catch {}
-
-      this.catalogFailureCooldownUntil = now + (60 * 60 * 1000); // 1 hour failure cooldown
 
       if (this.cachedCatalog) {
         if (!this.catalogIndex) {

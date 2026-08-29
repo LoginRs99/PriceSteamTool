@@ -177,24 +177,34 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
   // ----------------------------------------------------
   describe('P0: Market Peer Comparison Compatibility & Cheapest Candidate Policy', () => {
     it('isCompatiblePeerOffer strictly separates incompatible products, regions, and anomalies', () => {
-      const target = { productType: 'STEAM_KEY', regionType: 'GLOBAL' };
+      // Hierarchical region compatibility:
+      // GLOBAL target only accepts GLOBAL peer
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(false);
 
-      // Compatible peers
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
+      // EU target accepts GLOBAL and EU peers, but not HU-only
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'EU' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'EU' }, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'EU' }, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(false);
+
+      // HU target accepts GLOBAL, EU, and HU peers
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'HU' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'HU' }, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'HU' }, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true, isAnomaly: false, riskLevel: 'SAFE' })).toBe(true);
 
       // Incompatible product types
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_GIFT', regionType: 'GLOBAL', isValid: true })).toBe(false);
-      expect(isCompatiblePeerOffer(target, { productType: 'DIRECT_PURCHASE', regionType: 'GLOBAL', isValid: true })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_GIFT', regionType: 'GLOBAL', isValid: true })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'DIRECT_PURCHASE', regionType: 'GLOBAL', isValid: true })).toBe(false);
 
-      // Incompatible regions
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'RESTRICTED', isValid: true })).toBe(false);
+      // Incompatible regions (RESTRICTED)
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'RESTRICTED', isValid: true })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'RESTRICTED' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true })).toBe(false);
 
       // Incompatible anomaly / risk
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, isAnomaly: true })).toBe(false);
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, riskLevel: 'HIGH' })).toBe(false);
-      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: false })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, isAnomaly: true })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true, riskLevel: 'HIGH' })).toBe(false);
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: false })).toBe(false);
     });
 
     it('enforces cheapest-candidate policy: non-cheapest offers cannot trigger pricing error anomalies', () => {

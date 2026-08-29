@@ -43,3 +43,36 @@ export function isKeyshopSourceStr(source?: string): boolean {
     s.includes('instant-gaming')
   );
 }
+
+/**
+ * Returns true only for direct official storefronts (the seller IS the platform).
+ * The Steam store is the only source in this codebase that qualifies.
+ * Source values that reach here: SourceCode 'steam', free-text 'Steam', 'Steam Store'.
+ */
+export function isOfficialStoreSource(source?: string): boolean {
+  if (!source) return false;
+  const s = source.toLowerCase().trim();
+  // Match the SourceCode 'steam' and any free-text variants written by callers
+  return s === 'steam' || s === 'steam store' || s.startsWith('steam store');
+}
+
+/**
+ * Returns true for price aggregators that surface third-party storefront prices
+ * but are NOT the direct seller (CheapShark, ITAD, GG.deals).
+ * An aggregator-sourced ATL is NOT confirmed on its own — it requires corroboration.
+ * Source values: SourceCode 'cheapshark'/'itad'/'ggdeals', free-text 'CheapShark',
+ *   'ITAD (...)', 'GG.deals (Official)', etc.
+ */
+export function isAggregatorSource(source?: string): boolean {
+  if (!source) return false;
+  const s = source.toLowerCase();
+  return (
+    s === 'cheapshark' ||
+    s.startsWith('cheapshark') ||
+    s === 'itad' ||
+    s.startsWith('itad') ||
+    s === 'ggdeals' ||
+    s.startsWith('ggdeals') ||
+    s.startsWith('gg.deals')
+  );
+}

@@ -197,3 +197,133 @@ describe('All-Time Low (ATL) Confirmation State Integrity Suite', () => {
     expect(intelligence.periodLows.allTimeLow.isConfirmed).toBe(false);
   });
 });
+
+describe('ATL Source-Category Classification (isOfficialStoreSource / isAggregatorSource)', () => {
+  beforeEach(() => {
+    const db = getDb();
+    db.exec(`
+      DELETE FROM source_observations;
+      DELETE FROM price_history;
+      DELETE FROM anomalies;
+      DELETE FROM offers;
+      DELETE FROM wishlist_entries;
+      DELETE FROM profiles;
+      DELETE FROM games;
+      DELETE FROM merchants;
+    `);
+  });
+
+  it('Steam ATL alone: updateHistoricalLow("steam") sets atl_is_confirmed = 1 (confirmed)', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 2001, title: 'Steam ATL Game', basePriceEur: 29.99 });
+    const game = gameRepo.getBySteamAppId(2001)!;
+
+    gameRepo.updateHistoricalLow(game.id, 9.99, now, 'steam');
+
+    const updated = gameRepo.getById(game.id)!;
+    expect(updated.historicalLowEur).toBe(9.99);
+    expect(updated.atlIsConfirmed).toBe(true);
+
+    const periodLows = calculatePeriodLows(updated, []);
+    expect(periodLows.allTimeLow.isConfirmed).toBe(true);
+  });
+
+  it('CheapShark ATL alone: updateHistoricalLow("CheapShark") sets atl_is_confirmed = 0 (NOT confirmed)', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 2002, title: 'CheapShark ATL Game', basePriceEur: 29.99 });
+    const game = gameRepo.getBySteamAppId(2002)!;
+
+    // 'CheapShark' is the exact string passed by cheapshark.ts source adapter
+    gameRepo.updateHistoricalLow(game.id, 7.49, now, 'CheapShark');
+
+    const updated = gameRepo.getById(game.id)!;
+    expect(updated.historicalLowEur).toBe(7.49);
+    expect(updated.atlIsConfirmed).toBe(false);
+
+    const periodLows = calculatePeriodLows(updated, []);
+    expect(periodLows.allTimeLow.isConfirmed).toBe(false);
+  });
+
+  it('ITAD ATL alone: updateHistoricalLow("ITAD (Steam)") sets atl_is_confirmed = 0 (NOT confirmed)', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 2003, title: 'ITAD ATL Game', basePriceEur: 49.99 });
+    const game = gameRepo.getBySteamAppId(2003)!;
+
+    // ITAD adapter passes 'ITAD (ShopName)' — aggregator, not a storefront
+    gameRepo.updateHistoricalLow(game.id, 12.49, now, 'ITAD (Steam)');
+
+    const updated = gameRepo.getById(game.id)!;
+    expect(updated.historicalLowEur).toBe(12.49);
+    expect(updated.atlIsConfirmed).toBe(false);
+
+    const periodLows = calculatePeriodLows(updated, []);
+    expect(periodLows.allTimeLow.isConfirmed).toBe(false);
+  });
+
+  it('GG.deals ATL alone: updateHistoricalLow("GG.deals (Official)") sets atl_is_confirmed = 0 (NOT confirmed)', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 2004, title: 'GGDeals ATL Game', basePriceEur: 39.99 });
+    const game = gameRepo.getBySteamAppId(2004)!;
+
+    // GG.deals adapter passes 'GG.deals (Official)' — aggregator, not a storefront
+    gameRepo.updateHistoricalLow(game.id, 8.99, now, 'GG.deals (Official)');
+
+    const updated = gameRepo.getById(game.id)!;
+    expect(updated.historicalLowEur).toBe(8.99);
+    expect(updated.atlIsConfirmed).toBe(false);
+
+    const periodLows = calculatePeriodLows(updated, []);
+    expect(periodLows.allTimeLow.isConfirmed).toBe(false);
+  });
+
+  it('AllKeyShop ATL alone: updateHistoricalLow("allkeyshop") sets atl_is_confirmed = 0 (NOT confirmed)', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 2005, title: 'AKS ATL Game', basePriceEur: 39.99 });
+    const game = gameRepo.getBySteamAppId(2005)!;
+
+    gameRepo.updateHistoricalLow(game.id, 3.49, now, 'allkeyshop');
+
+    const updated = gameRepo.getById(game.id)!;
+    expect(updated.historicalLowEur).toBe(3.49);
+    expect(updated.atlIsConfirmed).toBe(false);
+    expect(updated.atlIsSingleSourceLow).toBe(true);
+
+    const periodLows = calculatePeriodLows(updated, []);
+    expect(periodLows.allTimeLow.isConfirmed).toBe(false);
+  });
+
+  it('Keyshop-sourced low becomes confirmed when independently corroborated by a different-category source within ±15%', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 2006, title: 'Corroboration Game', basePriceEur: 49.99 });
+    const game = gameRepo.getBySteamAppId(2006)!;
+
+    // AllKeyShop ATL = €5.00 → unconfirmed on its own
+    gameRepo.updateHistoricalLow(game.id, 5.00, now, 'allkeyshop');
+    const unconfirmedGame = gameRepo.getById(game.id)!;
+    expect(unconfirmedGame.atlIsConfirmed).toBe(false);
+
+    // Independent CheapShark aggregator observation at €5.20 (within 15% of €5.00)
+    // is from a DIFFERENT category (aggregator ≠ keyshop) → satisfies corroboration
+    const history: PriceHistoryEntry[] = [
+      {
+        id: randomUUID(),
+        gameId: game.id,
+        merchantId: randomUUID(),
+        merchantName: 'Fanatical',
+        isOfficial: true,
+        sourceCode: 'cheapshark',
+        priceEur: 5.20,
+        discountPercent: 89,
+        priceEvent: 'MAJOR_DROP',
+        isAnomaly: false,
+        riskLevel: 'SAFE',
+        recordedAt: now
+      }
+    ];
+
+    const periodLows = calculatePeriodLows(unconfirmedGame, history);
+    expect(periodLows.allTimeLow.priceEur).toBe(5.00);
+    expect(periodLows.allTimeLow.isConfirmed).toBe(true);
+  });
+});
+

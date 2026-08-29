@@ -188,4 +188,147 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
       lastObservedAt: staleTime
     }, now)).toBe(false);
   });
+
+  it('Write-time and read-time Deal Score, sampleCount-derived fields, and isProvisional flag are IDENTICAL', () => {
+    const now = new Date();
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
+
+    const game = gameRepo.upsert({
+      steamAppId: 9999,
+      title: 'Consistency Test Game',
+      basePriceEur: 50.0,
+      historicalLowEur: 30.0,
+      historicalLowDate: fiveDaysAgo,
+      historicalLowSource: 'steam'
+    });
+    const merchant = merchantRepo.getOrCreate('steam_store', 'Steam', true);
+
+    // Insert historical price observations so price_history has established depth (sampleCount >= 2)
+    prepareStmt(`
+      INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, price_event, is_anomaly, risk_level, recorded_at)
+      VALUES (?, ?, ?, 'steam', 40.0, 20, 'STANDARD_SALE', 0, 'SAFE', ?)
+    `).run(randomUUID(), game.id, merchant.id, tenDaysAgo);
+
+    prepareStmt(`
+      INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, discount_percent, price_event, is_anomaly, risk_level, recorded_at)
+      VALUES (?, ?, ?, 'steam', 30.0, 40, 'STANDARD_SALE', 0, 'SAFE', ?)
+    `).run(randomUUID(), game.id, merchant.id, fiveDaysAgo);
+
+    // Upsert a new offer via offerRepo.upsertOffer (which executes the write-time dealCalc calculation)
+    const offer = offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchant.id,
+      sourceCode: 'steam',
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 20.0,
+      originalPriceEur: 50.0,
+      dealUrl: 'https://store.steampowered.com/app/9999'
+    });
+
+    // 1. Fetch write-time deal_score recorded in price_history for this new observation
+    const latestHistoryRow = prepareStmt(`
+      SELECT * FROM price_history WHERE game_id = ? ORDER BY recorded_at DESC LIMIT 1
+    `).get(game.id) as any;
+
+    expect(latestHistoryRow).toBeDefined();
+    expect(latestHistoryRow.price_eur).toBe(20.0);
+    const writeTimeScore = latestHistoryRow.deal_score;
+    expect(writeTimeScore).toBeDefined();
+
+    // 2. Fetch read-time offer via getById
+    const readOffer = offerRepo.getById(offer.id)!;
+    expect(readOffer).toBeDefined();
+    expect(readOffer.dealScore).toBe(writeTimeScore);
+
+    // 3. Fetch read-time offer list via getOffersForGame
+    const offerList = offerRepo.getOffersForGame(game.id);
+    expect(offerList.length).toBeGreaterThan(0);
+    const bestOfferInList = offerList.find(o => o.id === offer.id)!;
+    expect(bestOfferInList.dealScore).toBe(writeTimeScore);
+    expect(bestOfferInList.isProvisional).toBe(readOffer.isProvisional);
+    expect(bestOfferInList.confidenceScore).toBe(readOffer.confidenceScore);
+
+    // 4. Fetch read-time game via gameRepo.getById
+    const readGame = gameRepo.getById(game.id)!;
+    expect(readGame).toBeDefined();
+    expect(readGame.bestDealScore).toBe(writeTimeScore);
+    expect(readGame.bestIsProvisional).toBe(readOffer.isProvisional);
+    expect(readGame.bestConfidenceScore).toBe(readOffer.confidenceScore);
+    expect(readGame.typicalSaleSampleCount).toBeDefined();
+    expect(readGame.typicalSaleSampleCount).toBeGreaterThanOrEqual(3);
+  });
+
+  describe('Conservative Hierarchical Region Compatibility', () => {
+    it('GLOBAL vs GLOBAL: compatible', () => {
+      const target = { productType: 'STEAM_KEY', regionType: 'GLOBAL' };
+      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true })).toBe(true);
+    });
+
+    it('GLOBAL vs EU: compatible when target is EU (EU buyer accepts GLOBAL key), but incompatible when target is GLOBAL', () => {
+      // EU target accepts GLOBAL peer (GLOBAL key activates everywhere, including EU)
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'EU' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true })).toBe(true);
+      // GLOBAL target rejects EU peer (EU key cannot prove GLOBAL market price)
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true })).toBe(false);
+    });
+
+    it('GLOBAL vs HU: compatible when target is HU (HU buyer accepts GLOBAL key), but incompatible when target is GLOBAL', () => {
+      // HU target accepts GLOBAL peer
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'HU' }, { productType: 'STEAM_KEY', regionType: 'GLOBAL', isValid: true })).toBe(true);
+      // GLOBAL target rejects HU peer (HU-only key cannot prove GLOBAL market price)
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'GLOBAL' }, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true })).toBe(false);
+    });
+
+    it('EU vs HU: compatible when target is HU (HU buyer accepts EU key), but incompatible when target is EU (EU key cannot be substituted by HU-only key)', () => {
+      // HU target accepts EU peer (EU key activates in Hungary)
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'HU' }, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true })).toBe(true);
+      // EU target rejects HU peer (HU-locked key cannot be activated outside Hungary in rest of EU)
+      expect(isCompatiblePeerOffer({ productType: 'STEAM_KEY', regionType: 'EU' }, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true })).toBe(false);
+    });
+
+    it('HU vs HU: compatible', () => {
+      const target = { productType: 'STEAM_KEY', regionType: 'HU' };
+      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'HU', isValid: true })).toBe(true);
+    });
+
+    it('EU vs EU: compatible', () => {
+      const target = { productType: 'STEAM_KEY', regionType: 'EU' };
+      expect(isCompatiblePeerOffer(target, { productType: 'STEAM_KEY', regionType: 'EU', isValid: true })).toBe(true);
+    });
+
+    it('Demonstrating an HU-only low price does NOT get used as a compatible peer for a GLOBAL-region offer during evaluation', () => {
+      const game = gameRepo.upsert({ steamAppId: 8888, title: 'Region Isolation Test Game', basePriceEur: 60.0 });
+      const merchantA = merchantRepo.getOrCreate('merchant_global', 'Global Store', true);
+      const merchantB = merchantRepo.getOrCreate('merchant_hu', 'HU Local Store', false);
+
+      // Merchant B has an HU-only localized cheap key for €5.00
+      offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchantB.id,
+        sourceCode: 'allkeyshop',
+        productType: 'STEAM_KEY',
+        regionType: 'HU',
+        priceEur: 5.0,
+        dealUrl: 'https://hu-store.com'
+      });
+
+      // Merchant A lists a GLOBAL key for €40.00
+      // When upsertOffer evaluates Merchant A's offer, Merchant B's HU offer must NOT be treated as a compatible peer
+      const globalOffer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchantA.id,
+        sourceCode: 'steam',
+        productType: 'STEAM_KEY',
+        regionType: 'GLOBAL',
+        priceEur: 40.0,
+        dealUrl: 'https://global-store.com'
+      });
+
+      // The global offer should remain valid and not be flagged with an anomaly from the HU-locked price
+      expect(globalOffer).toBeDefined();
+      expect(globalOffer.isAnomaly).toBe(false);
+      expect(globalOffer.riskLevel).not.toBe('HIGH');
+    });
+  });
 });

@@ -5,7 +5,8 @@ import { anomalyRepo } from './anomaly.js';
 import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/pricingEngine.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
-import { isKeyshopSourceStr } from '../../domain/priceIntelligence/types.js';
+import { isKeyshopSourceStr, isOfficialStoreSource } from '../../domain/priceIntelligence/types.js';
+import { FRESHNESS_WINDOW_MS } from '../../domain/constants.js';
 import type { 
   Game, 
   Offer, 
@@ -25,7 +26,7 @@ export function isCompatiblePeerOffer(
     fetchedAt?: string;
   },
   nowMs: number = Date.now(),
-  freshnessWindowMs: number = 72 * 60 * 60 * 1000
+  freshnessWindowMs: number = FRESHNESS_WINDOW_MS
 ): boolean {
   if (peer.isValid === false) return false;
   if (peer.isAnomaly === true) return false;
@@ -41,15 +42,21 @@ export function isCompatiblePeerOffer(
     }
   }
 
-  const standardRegions = new Set(['HU', 'EU', 'GLOBAL']);
-  const isTargetStandard = standardRegions.has(target.regionType);
-  const isPeerStandard = standardRegions.has(peer.regionType);
+  // Explicit region compatibility hierarchy:
+  // - GLOBAL key activates anywhere -> valid peer for GLOBAL, EU, and HU offers
+  // - EU key activates within the EU (including Hungary) -> valid peer for EU and HU offers, but NOT GLOBAL
+  // - HU key activates only in Hungary -> valid peer only for HU offers, NOT GLOBAL or EU
+  if (peer.regionType === 'GLOBAL') {
+    return target.regionType === 'GLOBAL' || target.regionType === 'EU' || target.regionType === 'HU';
+  }
+  if (peer.regionType === 'EU') {
+    return target.regionType === 'EU' || target.regionType === 'HU';
+  }
+  if (peer.regionType === 'HU') {
+    return target.regionType === 'HU';
+  }
 
-  if (isTargetStandard && !isPeerStandard) return false;
-  if (!isTargetStandard && isPeerStandard) return false;
-  if (!isTargetStandard && !isPeerStandard && target.regionType !== peer.regionType) return false;
-
-  return true;
+  return false;
 }
 
 export const offerRepo = {
@@ -197,7 +204,6 @@ export const offerRepo = {
       // 3. Fresher observation timestamp wins
       // 4. Alphabetical source_code tie-break
       const nowMs = new Date(now).getTime();
-      const FRESHNESS_WINDOW_MS = 72 * 60 * 60 * 1000; // 72 hours
 
       const freshCandidates = candidates.filter(c => {
         const obsTime = new Date(c.observedAt).getTime();
@@ -501,6 +507,13 @@ export const offerRepo = {
           updatedAt: now
         });
 
+        // Derive firstObservedAt the same way the read path does:
+        // price_tracking_first_observed_at = oldest recorded_at in price_history for this game
+        // (rawHistory is ordered DESC so the last element is the oldest entry).
+        const firstObservedAt = gameInfo?.price_tracking_first_observed_at || (rawHistory.length > 0
+          ? rawHistory[rawHistory.length - 1].recorded_at
+          : now);
+
         // Persist rolling stats
         const atlConfirmed = periodLows.allTimeLow.isConfirmed ? 1 : 0;
         const atlSingleSource = (periodLows.allTimeLow.isConfirmed === false || Boolean(periodLows.low90d.isSingleSourceLow)) ? 1 : 0;
@@ -515,6 +528,7 @@ export const offerRepo = {
               low_1y_eur = ?,
               atl_is_confirmed = ?,
               atl_is_single_source_low = ?,
+              price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
               deal_score_stats_updated_at = ?,
               best_offer_source_count = ?,
               updated_at = ?
@@ -529,6 +543,7 @@ export const offerRepo = {
           periodLows.low1y.priceEur,
           atlConfirmed,
           atlSingleSource,
+          firstObservedAt,
           now,
           Math.max(1, distinctSourceCount),
           now,
@@ -549,7 +564,13 @@ export const offerRepo = {
           isConfirmedAtl: periodLows.allTimeLow.isConfirmed,
           isSingleSourceLow: Boolean(periodLows.allTimeLow.isConfirmed === false || periodLows.low90d.isSingleSourceLow),
           isAnomaly: pricingEval.isAnomaly,
-          riskLevel: pricingEval.riskLevel
+          riskLevel: pricingEval.riskLevel,
+          // Pass the same context fields the read paths use so write-time and read-time scores match
+          sampleCount: typicalSale.sampleCount,
+          sourceCount: Math.max(1, distinctSourceCount),
+          isOfficialSource: Boolean(merchantInfo?.is_official),
+          lastObservedAt: active.observedAt || now,
+          firstObservedAt
         });
 
         const fxRate = active.rawPrice && active.rawPrice > 0 
@@ -627,7 +648,7 @@ export const offerRepo = {
     const isOfficial = Boolean(r.is_official);
     const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
       ? Boolean(r.atl_is_confirmed)
-      : (r.historical_low_source ? (!isKeyshopSourceStr(r.historical_low_source) && (r.historical_low_source === 'Steam' || r.historical_low_source === 'ITAD' || r.historical_low_source.includes('Official') || r.historical_low_source.includes('CheapShark') || r.historical_low_source.includes('GG.deals'))) : false);
+      : (r.historical_low_source ? isOfficialStoreSource(r.historical_low_source) : false);
     const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
       ? Boolean(r.atl_is_single_source_low)
       : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
@@ -655,7 +676,7 @@ export const offerRepo = {
     });
 
     const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
-    const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= 72 * 60 * 60 * 1000 : false;
+    const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
 
     return {
       id: r.id,
@@ -714,7 +735,7 @@ export const offerRepo = {
       ORDER BY
         o.is_valid DESC,
         CASE
-          WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= 72 THEN 0
+          WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= 72 THEN 0 -- keep in sync with FRESHNESS_WINDOW_MS
           ELSE 1
         END ASC,
         CASE WHEN o.is_anomaly = 1 OR o.risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
@@ -735,7 +756,7 @@ export const offerRepo = {
       const isOfficial = Boolean(r.is_official);
       const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
         ? Boolean(r.atl_is_confirmed)
-        : (r.historical_low_source ? (!isKeyshopSourceStr(r.historical_low_source) && (r.historical_low_source === 'Steam' || r.historical_low_source === 'ITAD' || r.historical_low_source.includes('Official') || r.historical_low_source.includes('CheapShark') || r.historical_low_source.includes('GG.deals'))) : false);
+        : (r.historical_low_source ? isOfficialStoreSource(r.historical_low_source) : false);
       const isSingleSourceLow = r.atl_is_single_source_low !== null && r.atl_is_single_source_low !== undefined
         ? Boolean(r.atl_is_single_source_low)
         : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
@@ -763,7 +784,7 @@ export const offerRepo = {
       });
 
       const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
-      const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= 72 * 60 * 60 * 1000 : false;
+      const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
 
       return {
         id: r.id,
@@ -817,7 +838,7 @@ export const offerRepo = {
       WHERE game_id = ? AND is_valid = 1
       ORDER BY
         CASE
-          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0
+          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0 -- keep in sync with FRESHNESS_WINDOW_MS
           ELSE 1
         END ASC,
         CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,

@@ -5,7 +5,7 @@ import type {
   PeriodLowEntry,
   PriceIntelligenceResponse
 } from '../../../shared/types.js';
-import { isTrustedHistoryEntry, isKeyshopSourceStr } from './types.js';
+import { isTrustedHistoryEntry, isKeyshopSourceStr, isOfficialStoreSource } from './types.js';
 
 /**
  * 1. Rolling Period Lows (7d, 30d, 90d, 1y) & Confirmed ATL
@@ -123,8 +123,9 @@ export function calculatePeriodLows(
   } else if ((game as any).atl_is_confirmed !== undefined && (game as any).atl_is_confirmed !== null) {
     isConfirmed = Boolean((game as any).atl_is_confirmed);
   } else if (confirmedAtlEur !== undefined && confirmedAtlEur !== null) {
-    // If no explicit confirmation flag was persisted, only non-keyshop/store fronts are tentatively confirmed
-    isConfirmed = !isKeyshopSourceStr(atlSource);
+    // Last-resort fallback: only direct official storefronts are tentatively confirmed;
+    // aggregators (CheapShark, ITAD, GG.deals), keyshops, and unknown sources are not.
+    isConfirmed = isOfficialStoreSource(atlSource);
   }
 
   if (confirmedAtlEur === undefined || confirmedAtlEur === null) {
@@ -149,8 +150,9 @@ export function calculatePeriodLows(
       isConfirmed = false;
     }
   } else {
-    // If ATL source points to a keyshop or ATL was unconfirmed, check if genuine corroboration is met in trusted history
-    if (isKeyshopSourceStr(atlSource) || !isConfirmed) {
+    // If the ATL was not confirmed on its own (keyshop, aggregator, or unknown source),
+    // check if independent corroboration exists within a ±15% price band from a DIFFERENT source.
+    if (!isConfirmed) {
       const minP = confirmedAtlEur * 0.85;
       const maxP = confirmedAtlEur * 1.15;
       const corroboratingHistory = trustedHistory.filter(h =>
@@ -160,8 +162,6 @@ export function calculatePeriodLows(
       );
       if (corroboratingHistory.length > 0) {
         isConfirmed = true;
-      } else if (isKeyshopSourceStr(atlSource)) {
-        isConfirmed = false;
       }
     }
   }
