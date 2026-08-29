@@ -1,53 +1,69 @@
 :root {
-  --bg-base: #080a0f;
-  --bg-surface: #0e131f;
-  --bg-surface-elevated: #151d2e;
-  --bg-surface-hover: #1c273e;
-  --bg-glass: rgba(14, 19, 31, 0.85);
+  /* Ticker Design System Spec — Ground Truth */
+  --bg-void: #0a0b0e;
+  --surface: #14161d;
+  --surface-hover: #1a1d26;
+  --line: #262b36;
+  --line-strong: #333a4a;
+  --ink: #f4f4f5;
+  --dim: #6b7280;
+  --dim-2: #4b5563;
+  --down: #22d3a5;
+  --down-dim: rgba(34, 211, 165, 0.12);
+  --up: #f2495c;
+  --up-dim: rgba(242, 73, 92, 0.12);
+  --signal: #fbbf24;
+  --signal-dim: rgba(251, 191, 36, 0.12);
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'Inter', -apple-system, sans-serif;
 
-  --border-subtle: #1e293b;
-  --border-active: #334155;
-  --border-focus: #10b981;
+  /* Aliased / structural tokens */
+  --bg-base: var(--bg-void);
+  --bg-surface: var(--surface);
+  --bg-surface-elevated: #181a23;
+  --bg-surface-hover: var(--surface-hover);
+  --bg-glass: rgba(20, 22, 29, 0.88);
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-dim: #475569;
+  --border-subtle: var(--line);
+  --border-active: var(--line-strong);
+  --border-focus: var(--down);
 
-  --accent-primary: #10b981;
-  --accent-primary-hover: #059669;
-  --accent-primary-dim: rgba(16, 185, 129, 0.15);
+  --text-primary: var(--ink);
+  --text-secondary: var(--dim);
+  --text-muted: var(--dim);
+  --text-dim: var(--dim-2);
+
+  --accent-primary: var(--down);
+  --accent-primary-hover: #1cb88f;
+  --accent-primary-dim: var(--down-dim);
   
-  --accent-gold: #f59e0b;
-  --accent-gold-dim: rgba(245, 158, 11, 0.15);
+  --accent-gold: var(--signal);
+  --accent-gold-dim: var(--signal-dim);
 
-  --accent-danger: #ef4444;
-  --accent-danger-dim: rgba(239, 68, 68, 0.15);
+  --accent-danger: var(--up);
+  --accent-danger-dim: var(--up-dim);
 
-  --accent-blue: #3b82f6;
-  --accent-blue-dim: rgba(59, 130, 246, 0.15);
+  --accent-blue: #38bdf8;
+  --accent-blue-dim: rgba(56, 189, 248, 0.15);
 
-  --accent-purple: #8b5cf6;
-  --accent-purple-dim: rgba(139, 92, 246, 0.15);
+  --accent-purple: #a78bfa;
+  --accent-purple-dim: rgba(167, 139, 250, 0.15);
 
-  --glow-primary: 0 0 20px rgba(16, 185, 129, 0.25);
-  --glow-exceptional: 0 0 20px rgba(139, 92, 246, 0.35);
-  --glow-atl: 0 0 16px rgba(245, 158, 11, 0.35);
+  --glow-primary: 0 0 16px rgba(34, 211, 165, 0.2);
+  --glow-exceptional: 0 0 16px rgba(167, 139, 250, 0.25);
+  --glow-atl: 0 0 16px rgba(251, 191, 36, 0.25);
 
   --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.7);
-
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.8);
 }
 
 * {
@@ -2369,3 +2385,88 @@ input:checked + .toggle-slider:before {
     animation: none !important;
   }
 }
+
+/* ==========================================================================
+   Ticker Trading Terminal Design System Primitives & Shimmer
+   ========================================================================== */
+
+@keyframes tickerShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--line-strong) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: tickerShimmer 1.4s linear infinite;
+  border-radius: var(--radius-sm);
+}
+
+.ticker-num {
+  font-family: var(--font-mono) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.ticker-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ticker-flag-atl {
+  background: var(--signal-dim);
+  color: var(--signal);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.ticker-flag-down {
+  background: var(--down-dim);
+  color: var(--down);
+  border: 1px solid rgba(34, 211, 165, 0.35);
+}
+
+.ticker-flag-up {
+  background: var(--up-dim);
+  color: var(--up);
+  border: 1px solid rgba(242, 73, 92, 0.35);
+}
+
+.ticker-flag-dim {
+  background: rgba(107, 114, 128, 0.15);
+  color: var(--dim);
+  border: 1px solid var(--line);
+}
+
+.ticker-score-rail {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 4;
+}
+
+.ticker-sparkline-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
