@@ -115,8 +115,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
         >
           <defs>
             <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="var(--down)" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="var(--down)" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -130,14 +130,14 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
                   y1={y} 
                   x2={width - padRight} 
                   y2={y} 
-                  stroke="rgba(255, 255, 255, 0.07)" 
+                  stroke="var(--line)" 
                   strokeDasharray="2 2"
                 />
                 <text 
                   x={padLeft - 8} 
                   y={y + 4} 
                   textAnchor="end" 
-                  fill="var(--text-muted)" 
+                  fill="var(--dim)" 
                   fontSize="10"
                   fontFamily="var(--font-mono)"
                 >
@@ -154,7 +154,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
               y1={getY(basePriceEur)}
               x2={width - padRight}
               y2={getY(basePriceEur)}
-              stroke="rgba(148, 163, 184, 0.4)"
+              stroke="var(--dim-2)"
               strokeDasharray="4 4"
               strokeWidth="1.2"
             />
@@ -167,9 +167,10 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
               y1={getY(typicalSaleMedianEur)}
               x2={width - padRight}
               y2={getY(typicalSaleMedianEur)}
-              stroke="rgba(56, 189, 248, 0.5)"
+              stroke="var(--accent-blue)"
               strokeDasharray="3 3"
               strokeWidth="1.2"
+              strokeOpacity="0.6"
             />
           )}
 
@@ -180,9 +181,10 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
               y1={getY(historicalLowEur)}
               x2={width - padRight}
               y2={getY(historicalLowEur)}
-              stroke="rgba(245, 158, 11, 0.6)"
+              stroke="var(--signal)"
               strokeDasharray="4 4"
               strokeWidth="1.2"
+              strokeOpacity="0.7"
             />
           )}
 
@@ -190,7 +192,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
           <path d={areaD} fill="url(#priceGradient)" />
 
           {/* Price line */}
-          <path d={pathD} fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinejoin="round" />
+          <path d={pathD} fill="none" stroke="var(--down)" strokeWidth="2.2" strokeLinejoin="round" />
 
           {/* Interactive point markers */}
           {points.map((p, idx) => {
@@ -213,8 +215,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
                   cx={cx} 
                   cy={cy} 
                   r={isHovered ? 5 : isKeyDrop ? 4 : 2.5} 
-                  fill={isKeyDrop ? '#f59e0b' : '#10b981'}
-                  stroke="#0e131f"
+                  fill={isKeyDrop ? 'var(--signal)' : 'var(--down)'}
+                  stroke="var(--surface)"
                   strokeWidth="1.5"
                 />
               </g>
@@ -225,7 +227,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
           <text 
             x={padLeft} 
             y={height - 10} 
-            fill="var(--text-muted)" 
+            fill="var(--dim)" 
             fontSize="10"
             fontFamily="var(--font-mono)"
           >
@@ -236,7 +238,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
             x={width - padRight} 
             y={height - 10} 
             textAnchor="end"
-            fill="var(--text-muted)" 
+            fill="var(--dim)" 
             fontSize="10"
             fontFamily="var(--font-mono)"
           >
