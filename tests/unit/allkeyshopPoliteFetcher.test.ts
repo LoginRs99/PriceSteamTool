@@ -363,5 +363,79 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
 
       expect(queue.getMetrics().currentDelayMs).toBe(5750);
     }, 15000);
+
+    it('ensureCatalogQueued serializes catalog downloads through the queue and prevents concurrent network requests during in-flight price fetches', async () => {
+      const adapter = new AllKeyShopSourceAdapter();
+      const origSolver = config.allkeyshopSolverUrl;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        allkeyshopQueue.minDelayMs = 5;
+        allkeyshopQueue.jitterMaxMs = 0;
+        (allkeyshopQueue as any).currentDelayMs = 5;
+
+        // Reset state & memory/disk caches
+        circuitBreakers.resetAll();
+        (adapter as any).cachedCatalog = null;
+        (adapter as any).lastCatalogFetch = 0;
+        const backupDiskPath = `${(adapter as any).catalogPath}.bak_test`;
+        const hasDiskCatalog = fs.existsSync((adapter as any).catalogPath);
+        if (hasDiskCatalog) {
+          fs.renameSync((adapter as any).catalogPath, backupDiskPath);
+        }
+
+        let activeNetworkCalls = 0;
+        let maxConcurrentNetworkCalls = 0;
+
+        global.fetch = vi.fn().mockImplementation(async () => {
+          activeNetworkCalls++;
+          maxConcurrentNetworkCalls = Math.max(maxConcurrentNetworkCalls, activeNetworkCalls);
+          
+          await new Promise(r => setTimeout(r, 50)); // Simulate in-flight duration
+          
+          activeNetworkCalls--;
+
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              status: 'ok',
+              solution: {
+                status: 200,
+                response: JSON.stringify({
+                  status: 'success',
+                  games: [{ id: 730, name: 'Counter-Strike 2', slug: 'counter-strike-2' }]
+                })
+              }
+            })
+          };
+        });
+
+        try {
+          // 1. Dispatch a long-running targeted price fetch task into queue
+          const pricePromise = adapter.fetchPricesForGame(730, 'Counter-Strike 2');
+
+          // 2. While price fetch is in flight, dispatch route-level catalog access
+          const catalogPromise = adapter.ensureCatalogQueued();
+
+          const [offers, catalog] = await Promise.all([pricePromise, catalogPromise]);
+
+          // Both tasks complete successfully
+          expect(Array.isArray(catalog)).toBe(true);
+          expect(catalog.length).toBeGreaterThan(0);
+
+          // Network calls were strictly serialized: never > 1 concurrently active
+          expect(maxConcurrentNetworkCalls).toBe(1);
+        } finally {
+          if (hasDiskCatalog && fs.existsSync(backupDiskPath)) {
+            fs.renameSync(backupDiskPath, (adapter as any).catalogPath);
+          }
+        }
+      } finally {
+        config.allkeyshopSolverUrl = origSolver;
+        circuitBreakers.resetAll();
+        allkeyshopQueue.reset();
+      }
+    });
   });
 });

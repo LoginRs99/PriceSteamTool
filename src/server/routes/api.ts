@@ -464,7 +464,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     const { allkeyshopAdapter, findCandidateGamesInCatalog, loadCustomMappings } = await import('../sources/allkeyshop.js');
-    const catalog = await allkeyshopAdapter.ensureCatalog();
+    const catalog = await allkeyshopAdapter.ensureCatalogQueued();
     const mappings = loadCustomMappings();
     const currentOverride = mappings[String(game.steamAppId)] || mappings[game.title] || null;
 

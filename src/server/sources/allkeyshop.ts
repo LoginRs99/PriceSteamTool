@@ -365,6 +365,21 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return config.allkeyshopEnabled;
   }
 
+  public async ensureCatalogQueued(): Promise<CatalogGame[]> {
+    const now = Date.now();
+    const CATALOG_TTL_MS = 48 * 60 * 60 * 1000; // 48h cache TTL
+
+    // If already cached in memory, return immediately without queue overhead
+    if (this.cachedCatalog && (now - this.lastCatalogFetch) < CATALOG_TTL_MS) {
+      if (!this.catalogIndex) {
+        this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
+      }
+      return this.cachedCatalog;
+    }
+
+    return allkeyshopQueue.enqueue('__catalog__', () => this.ensureCatalog(), 'Catalog Sync');
+  }
+
   public async ensureCatalog(): Promise<CatalogGame[]> {
     const now = Date.now();
     const CATALOG_TTL_MS = 48 * 60 * 60 * 1000; // 48h cache TTL
