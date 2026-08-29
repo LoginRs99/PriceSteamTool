@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ShieldCheck, Info, Gamepad2, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
+import { Sparkline } from './Sparkline.js';
+import { TickerFlag } from './TickerFlag.js';
+import { AlertTriangle, ShieldCheck, Info, Gamepad2, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -21,22 +23,35 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isFree = game.isFree || game.bestPriceEur === 0;
   
-  // Deal Score
+  // Deal Score & Rail Color
   const dealScore = game.bestDealScore ?? 0;
   const dealTier = game.bestDealTier || 'Fair';
-  const isProvisional = Boolean(game.bestIsProvisional);
 
-  const tierColor = 
-    dealTier === 'Exceptional' ? '#8b5cf6' : 
-    dealTier === 'Great' ? '#10b981' : 
-    dealTier === 'Good' ? '#06b6d4' :
-    dealTier === 'Fair' ? '#3b82f6' : '#64748b';
-
-  // Primary event flags
-  const isConfirmedATL = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW';
+  // Rail color by tier / status
+  const isConfirmedATL = (game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW') && !game.bestIsProvisional;
   const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
-  const isTargetHit = game.targetPriceEur !== undefined && hasBestDeal && game.bestPriceEur! <= game.targetPriceEur;
-  const isTargetPending = game.targetPriceEur !== undefined && (!hasBestDeal || game.bestPriceEur! > game.targetPriceEur);
+
+  const railColor = isHighRisk 
+    ? 'var(--up)' 
+    : isConfirmedATL 
+    ? 'var(--signal)' 
+    : dealTier === 'Exceptional' || dealTier === 'Great' 
+    ? 'var(--down)' 
+    : dealTier === 'Good' 
+    ? 'var(--accent-blue)' 
+    : 'var(--dim)';
+
+  const tierBadgeBg = 
+    dealTier === 'Exceptional' ? 'rgba(167, 139, 250, 0.2)' : 
+    dealTier === 'Great' ? 'var(--down-dim)' : 
+    dealTier === 'Good' ? 'rgba(56, 189, 248, 0.15)' :
+    'rgba(107, 114, 128, 0.15)';
+
+  const tierBadgeColor = 
+    dealTier === 'Exceptional' ? 'var(--accent-purple)' : 
+    dealTier === 'Great' ? 'var(--down)' : 
+    dealTier === 'Good' ? 'var(--accent-blue)' :
+    'var(--dim)';
 
   // Real context savings
   const savingVsMedian = game.bestSavingVsMedianEur;
@@ -59,7 +74,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
   return (
     <div className="game-card" onClick={onClick}>
       {/* Cover Image Container */}
-      <div className="game-card-image-wrap">
+      <div className="game-card-image-wrap" style={{ position: 'relative', overflow: 'hidden' }}>
         {!imgError ? (
           <img 
             src={imageUrl} 
@@ -85,8 +100,8 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
               flexDirection: 'column',
               alignItems: 'center', 
               justifyContent: 'center', 
-              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-              color: 'var(--text-muted)',
+              background: 'linear-gradient(135deg, var(--surface-hover) 0%, var(--surface) 100%)',
+              color: 'var(--dim)',
               gap: 6
             }}
           >
@@ -97,43 +112,56 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           </div>
         )}
 
-        {/* Top-Left Ribbon Cluster: Discount, ATL, Target Price */}
-        <div className="deal-badge-cluster">
-          {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
-            <div className="deal-ribbon-badge deal-ribbon-discount">
-              -{game.bestDiscountPercent}%
-            </div>
-          )}
-
-          {isConfirmedATL && !isProvisional && (
-            <div className="deal-ribbon-badge deal-ribbon-atl" title="Confirmed All-Time Low price">
-              <Flame size={11} />
-              <span>ATL</span>
-            </div>
-          )}
-
-          {isTargetHit && (
-            <div className="deal-ribbon-badge deal-ribbon-target" title={`Target price (€${game.targetPriceEur!.toFixed(2)}) reached!`}>
-              <span>🎯 HIT</span>
-            </div>
-          )}
-
-          {isTargetPending && (
-            <div className="deal-ribbon-badge deal-ribbon-target-pending" title={`Target alert set at €${game.targetPriceEur!.toFixed(2)} (Current best: ${hasBestDeal ? `€${game.bestPriceEur!.toFixed(2)}` : 'N/A'})`}>
-              <span>🎯 €{game.targetPriceEur!.toFixed(2)}</span>
-            </div>
-          )}
+        {/* Mini Sparkline Overlay at bottom of image */}
+        <div 
+          style={{ 
+            position: 'absolute', 
+            bottom: 3, 
+            left: 0, 
+            right: 0, 
+            height: 26, 
+            background: 'linear-gradient(to top, rgba(10, 11, 14, 0.85) 0%, transparent 100%)', 
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'flex-end',
+            paddingBottom: 2
+          }}
+        >
+          <Sparkline game={game} width="100%" height={22} />
         </div>
 
-        {/* Top-Right: Unified Deal Score & Store Pill */}
+        {/* 3px Bottom Color Rail */}
+        <div 
+          className="ticker-score-rail" 
+          style={{ backgroundColor: railColor }} 
+        />
+
+        {/* Top-Left: Single Priority Flag (ATL > Target Hit > Discount) */}
+        <div className="deal-badge-cluster" style={{ position: 'absolute', top: 8, left: 8, zIndex: 3 }}>
+          <TickerFlag game={game} />
+        </div>
+
+        {/* Top-Right: Deal Score & Tier Pill */}
         {hasBestDeal && (
           <div 
-            className={`deal-score-badge ${dealTier === 'Exceptional' ? 'glow-pulse-exceptional' : ''}`}
+            className="deal-score-badge"
             style={{ 
-              background: dealScore > 0 ? tierColor : 'rgba(30, 41, 59, 0.88)', 
-              boxShadow: dealTier === 'Exceptional' ? 'var(--glow-exceptional)' : dealTier === 'Great' ? '0 0 10px rgba(16, 185, 129, 0.35)' : undefined,
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              background: tierBadgeBg, 
+              color: tierBadgeColor,
+              border: `1px solid ${tierBadgeColor}44`,
+              borderRadius: 'var(--radius-sm)',
+              padding: '2px 7px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.72rem',
+              fontWeight: 700,
               zIndex: 3,
-              cursor: onExplain && dealScore > 0 ? 'pointer' : 'default'
+              cursor: onExplain && dealScore > 0 ? 'pointer' : 'default',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
             }}
             title={`Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
             onClick={(e) => {
@@ -145,11 +173,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           >
             {dealScore > 0 ? (
               <>
-                <span className="deal-score-num">{dealScore}</span>
+                <span className="deal-score-num ticker-num">{dealScore}</span>
                 <span className="deal-score-tier-label">{dealTier}</span>
               </>
             ) : (
-              <span className="deal-score-tier-label" style={{ padding: '0 4px' }}>
+              <span className="deal-score-tier-label">
                 {game.bestMerchantName || 'Best Deal'}
               </span>
             )}
@@ -220,17 +248,17 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           </h3>
 
           {/* Context Line: Explain savings vs typical sale or historical low */}
-          <div className="hist-context-line" style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 3 }}>
+          <div className="hist-context-line" style={{ fontSize: '0.78rem', color: 'var(--dim)', marginTop: 3 }}>
             {savingVsMedian && savingVsMedian > 0 && typicalMedian ? (
-              <span style={{ color: '#10b981', fontWeight: 600 }}>
+              <span style={{ color: 'var(--down)', fontWeight: 600 }}>
                 €{savingVsMedian.toFixed(2)} below typical (€{typicalMedian.toFixed(2)})
               </span>
             ) : isConfirmedATL ? (
-              <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+              <span style={{ color: 'var(--signal)', fontWeight: 600 }}>
                 ★ Matches All-Time Low
               </span>
             ) : game.historicalLowEur !== undefined ? (
-              <span>Hist. Low: €{game.historicalLowEur.toFixed(2)}</span>
+              <span className="ticker-num">Hist. Low: €{game.historicalLowEur.toFixed(2)}</span>
             ) : (
               <span>Standard catalog price</span>
             )}
@@ -241,11 +269,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
         <div className="game-meta-row" style={{ marginTop: 'auto', paddingTop: 8 }}>
           <div className="price-block">
             {game.basePriceEur && game.bestPriceEur && game.basePriceEur > game.bestPriceEur && (
-              <span className="original-price">
+              <span className="original-price ticker-num" style={{ color: 'var(--dim-2)' }}>
                 €{game.basePriceEur.toFixed(2)}
               </span>
             )}
-            <span className={`best-price ${(game.bestDiscountPercent || 0) > 0 ? 'on-sale' : ''}`}>
+            <span className={`best-price ticker-num ${(game.bestDiscountPercent || 0) > 0 ? 'on-sale' : ''}`}>
               {isFree ? 'FREE' : hasBestDeal ? `€${game.bestPriceEur!.toFixed(2)}` : '—'}
             </span>
             {hasBestDeal && game.bestIsFresh === false && (

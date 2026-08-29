@@ -38,16 +38,7 @@ export const TickerFlag: React.FC<TickerFlagProps> = ({ game, className = '', st
     );
   }
 
-  // Priority 3: Discount Percentage
-  if (discount > 0) {
-    return (
-      <span className={`ticker-flag ticker-flag-down ${className}`} style={style}>
-        -{discount}%
-      </span>
-    );
-  }
-
-  // Fallback: Target Pending
+  // Priority 3: Target Pending
   if (isTargetPending) {
     return (
       <span
@@ -56,6 +47,15 @@ export const TickerFlag: React.FC<TickerFlagProps> = ({ game, className = '', st
         title={`Target alert set at €${game.targetPriceEur!.toFixed(2)}`}
       >
         <span>🎯 €{game.targetPriceEur!.toFixed(2)}</span>
+      </span>
+    );
+  }
+
+  // Priority 4: Discount Percentage
+  if (discount > 0) {
+    return (
+      <span className={`ticker-flag ticker-flag-down ${className}`} style={style}>
+        -{discount}%
       </span>
     );
   }
