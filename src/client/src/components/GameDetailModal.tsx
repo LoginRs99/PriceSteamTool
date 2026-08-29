@@ -14,6 +14,7 @@ import { IntelMetricsGrid } from './detail/IntelMetricsGrid.js';
 import { OffersTable } from './detail/OffersTable.js';
 import { AllKeyShopMatchSelector } from './detail/AllKeyShopMatchSelector.js';
 import { PriceHistoryTable } from './detail/PriceHistoryTable.js';
+import { GameDetailSkeleton } from './skeletons/GameDetailSkeleton.js';
 
 interface GameDetailModalProps {
   gameId: string;
@@ -52,13 +53,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
   } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated);
 
   if (loading || !data) {
-    return (
-      <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Loading game details">
-        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ padding: 40, textAlign: 'center' }}>
-          <p>Loading price intelligence & deal history...</p>
-        </div>
-      </div>
-    );
+    return <GameDetailSkeleton onClose={onClose} />;
   }
 
   const { game, offers, history, intelligence } = data;

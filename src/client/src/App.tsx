@@ -19,6 +19,7 @@ import { AnomaliesView } from './components/AnomaliesView.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
 import { ScoreExplainModal } from './components/ScoreExplainModal.js';
+import { GameCardSkeleton, CompactListSkeleton, DenseTableSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -218,9 +219,15 @@ export const App: React.FC = () => {
               />
 
               {loading && games.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-                  <p>Loading wishlist games...</p>
-                </div>
+                viewMode === 'grid' ? (
+                  <div className="games-grid">
+                    <GameCardSkeleton count={8} />
+                  </div>
+                ) : viewMode === 'list' ? (
+                  <CompactListSkeleton rows={8} />
+                ) : (
+                  <DenseTableSkeleton rows={8} />
+                )
               ) : !loading && games.length === 0 ? (
                 <div className="empty-state">
                   <Gamepad2 size={40} color="var(--text-muted)" />
