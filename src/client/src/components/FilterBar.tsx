@@ -99,8 +99,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <span>Filters</span>
             {activeFilterCount > 0 && (
               <span style={{
-                background: 'var(--accent-primary)',
-                color: '#042f2e',
+                background: 'var(--down)',
+                color: '#0a0b0e',
                 borderRadius: '50%',
                 width: 18,
                 height: 18,

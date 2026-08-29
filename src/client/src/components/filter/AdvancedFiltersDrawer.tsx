@@ -12,30 +12,30 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
 }) => {
   return (
     <div className="advanced-filters-panel" style={{
-      background: 'var(--bg-surface-elevated)',
+      background: 'var(--surface)',
       padding: '16px 20px',
       borderRadius: 'var(--radius-md)',
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
       gap: 20,
       alignItems: 'flex-start',
-      border: '1px solid var(--border-subtle)',
-      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
+      border: '1px solid var(--line)',
+      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)'
     }}>
       {/* Min Deal Score Slider */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--dim)' }}>
             Minimum Deal Score
           </label>
-          <span style={{
+          <span className="ticker-num" style={{
             fontSize: 12,
             fontWeight: 700,
-            color: (filters.minDealScore || 0) >= 85 ? '#8b5cf6' : (filters.minDealScore || 0) >= 70 ? '#10b981' : 'var(--text-primary)',
-            background: 'var(--bg-surface)',
+            color: (filters.minDealScore || 0) >= 85 ? 'var(--accent-purple)' : (filters.minDealScore || 0) >= 70 ? 'var(--down)' : 'var(--ink)',
+            background: 'var(--bg-void)',
             padding: '2px 8px',
-            borderRadius: 10,
-            border: '1px solid var(--border-subtle)'
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--line)'
           }}>
             {filters.minDealScore ? `${filters.minDealScore} / 100` : 'Any Score'}
           </span>
@@ -47,13 +47,13 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
           step="5"
           value={filters.minDealScore || 0}
           onChange={(e) => onFilterChange({ minDealScore: parseInt(e.target.value, 10) || undefined, page: 1 })}
-          style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: '100%' }}
+          style={{ accentColor: 'var(--down)', cursor: 'pointer', width: '100%' }}
         />
       </div>
 
       {/* Price Range Filter */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--dim)' }}>
           Price Range (€ EUR)
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

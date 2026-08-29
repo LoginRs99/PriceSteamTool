@@ -54,10 +54,10 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
       <button
         className={`pill-btn ${currentPill === 'buy_recommendations' ? 'active' : ''}`}
         onClick={() => onPillSelect('buy_recommendations')}
-        style={{ borderColor: currentPill === 'buy_recommendations' ? '#10b981' : undefined }}
+        style={{ borderColor: currentPill === 'buy_recommendations' ? 'var(--down)' : undefined }}
       >
-        <Sparkles size={13} color="#10b981" />
-        <span style={{ color: currentPill === 'buy_recommendations' ? '#10b981' : undefined, fontWeight: 700 }}>
+        <Sparkles size={13} color="var(--down)" />
+        <span style={{ color: currentPill === 'buy_recommendations' ? 'var(--down)' : undefined, fontWeight: 700 }}>
           🔥 Buy Recommendations
         </span>
       </button>
