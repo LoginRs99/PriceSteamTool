@@ -5,12 +5,12 @@ export default defineConfig({
   plugins: [react()],
   test: {
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true
-      }
+    forks: {
+      singleFork: true
     },
     fileParallelism: false,
+    clearMocks: true,
+    restoreMocks: true,
     projects: [
       {
         plugins: [react()],
@@ -20,13 +20,14 @@ export default defineConfig({
           include: ['tests/unit/**', 'tests/integration/**'],
           environment: 'node',
           pool: 'forks',
-          poolOptions: {
-            forks: {
-              singleFork: true
-            }
+          forks: {
+            singleFork: true
           },
           fileParallelism: false,
           isolate: false,
+          clearMocks: true,
+          restoreMocks: true,
+          mockReset: true,
           setupFiles: ['./tests/setup.ts'],
           env: {
             NODE_ENV: 'test',

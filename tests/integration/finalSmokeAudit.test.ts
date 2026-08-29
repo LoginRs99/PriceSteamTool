@@ -164,6 +164,7 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response(JSON.stringify({ ok: true }), { status: 200 })
       );
+      fetchSpy.mockClear();
 
       // Create games in DB for foreign key constraint in notifications_log
       const gDbA = gameRepo.upsert({ steamAppId: 201, title: 'Case A High Score High Conf' });

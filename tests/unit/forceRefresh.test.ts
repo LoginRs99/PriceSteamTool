@@ -10,6 +10,7 @@ import { allkeyshopAdapter } from '../../src/server/sources/allkeyshop.js';
 
 describe('Per-Game Force Refresh — P1 Suite', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     circuitBreakers.resetAll();
     const db = getDb();
     db.exec(`
