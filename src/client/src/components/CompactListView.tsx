@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame, AlertTriangle, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Sparkline } from './Sparkline.js';
+import { TickerFlag } from './TickerFlag.js';
+import { ShieldCheck, ExternalLink } from 'lucide-react';
 
 interface CompactListViewProps {
   games: Game[];
@@ -16,15 +18,19 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
         const isFree = game.isFree || game.bestPriceEur === 0;
         const dealScore = game.bestDealScore ?? 0;
         const dealTier = game.bestDealTier || 'Fair';
-        const isProvisional = Boolean(game.bestIsProvisional);
 
         const tierColor = 
-          dealTier === 'Exceptional' ? '#8b5cf6' : 
-          dealTier === 'Great' ? '#10b981' : 
-          dealTier === 'Good' ? '#06b6d4' :
-          dealTier === 'Fair' ? '#3b82f6' : '#64748b';
+          dealTier === 'Exceptional' ? 'var(--accent-purple)' : 
+          dealTier === 'Great' ? 'var(--down)' : 
+          dealTier === 'Good' ? 'var(--accent-blue)' :
+          'var(--dim)';
 
-        const isConfirmedATL = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW';
+        const tierBg = 
+          dealTier === 'Exceptional' ? 'rgba(167, 139, 250, 0.15)' : 
+          dealTier === 'Great' ? 'var(--down-dim)' : 
+          dealTier === 'Good' ? 'rgba(56, 189, 248, 0.15)' :
+          'rgba(107, 114, 128, 0.15)';
+
         const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
 
         const imageUrl = game.capsuleImage || 
@@ -40,7 +46,7 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
             {/* Priority & Thumb */}
             <div className="compact-left">
               {game.priority !== undefined && (
-                <span className="compact-priority">#{game.priority}</span>
+                <span className="compact-priority ticker-num">#{game.priority}</span>
               )}
               <img 
                 src={imageUrl} 
@@ -61,36 +67,31 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
               <div className="compact-title-wrap">
                 <span className="compact-title" title={game.title}>{game.title}</span>
                 <div className="compact-tags">
-                  {game.actionSignal && !isHighRisk && (
-                    <span 
-                      className="tag-pill"
-                      style={{ 
-                        background: `${game.actionSignal.badgeColor}22`, 
-                        color: game.actionSignal.badgeColor,
-                        border: `1px solid ${game.actionSignal.badgeColor}55`,
-                        fontWeight: 700
-                      }}
-                      title={`${game.actionSignal.badgeLabel}: ${game.actionSignal.primaryReason}`}
-                    >
-                      {game.actionSignal.badgeLabel}
-                    </span>
-                  )}
-                  {isConfirmedATL && !isHighRisk && !isProvisional && (
-                    <span className="tag-pill tag-atl"><Flame size={10} /> ATL</span>
-                  )}
-                  {isHighRisk && (
-                    <span className="tag-pill tag-risk"><AlertTriangle size={10} /> High Risk</span>
-                  )}
+                  <TickerFlag game={game} />
                 </div>
               </div>
+            </div>
+
+            {/* Sparkline Column */}
+            <div className="compact-sparkline-wrap" style={{ width: 100, display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+              <Sparkline game={game} width={100} height={20} />
             </div>
 
             {/* Middle: Store & Deal Score */}
             <div className="compact-mid">
               {hasBestDeal && dealScore > 0 && !isHighRisk && (
                 <span 
-                  className="compact-score-pill"
-                  style={{ background: tierColor, cursor: 'pointer' }}
+                  className="compact-score-pill ticker-num"
+                  style={{ 
+                    background: tierBg, 
+                    color: tierColor, 
+                    border: `1px solid ${tierColor}44`,
+                    cursor: 'pointer',
+                    padding: '2px 7px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontWeight: 700,
+                    fontSize: '0.75rem'
+                  }}
                   title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
                   onClick={(e) => {
                     if (onExplain) {
@@ -105,7 +106,7 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
 
               {game.bestMerchantName && (
                 <span className="compact-merchant" title={game.bestMerchantName}>
-                  {game.bestMerchantIsOfficial && <ShieldCheck size={13} color="#10b981" />}
+                  {game.bestMerchantIsOfficial && <ShieldCheck size={13} color="var(--down)" />}
                   <span>{game.bestMerchantName}</span>
                 </span>
               )}
@@ -119,10 +120,7 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                 ) : hasBestDeal ? (
                   <>
                     <div className="compact-price-main">
-                      <span className="compact-price">€{game.bestPriceEur?.toFixed(2)}</span>
-                      {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
-                        <span className="compact-discount">-{game.bestDiscountPercent}%</span>
-                      )}
+                      <span className="compact-price ticker-num">€{game.bestPriceEur?.toFixed(2)}</span>
                       {game.bestIsFresh === false && (
                         <span 
                           className="stale-badge" 
@@ -132,8 +130,8 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                             padding: '1px 5px', 
                             borderRadius: 4, 
                             background: 'rgba(148, 163, 184, 0.18)', 
-                            color: 'var(--text-muted)', 
-                            border: '1px solid rgba(148, 163, 184, 0.3)',
+                            color: 'var(--dim)', 
+                            border: '1px solid var(--line)',
                             marginLeft: 4
                           }}
                           title="Stale fallback price (last observed >72h ago)"
@@ -143,11 +141,11 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                       )}
                     </div>
                     {game.basePriceEur && game.basePriceEur > (game.bestPriceEur || 0) && (
-                      <span className="compact-msrp">€{game.basePriceEur.toFixed(2)}</span>
+                      <span className="compact-msrp ticker-num" style={{ color: 'var(--dim-2)' }}>€{game.basePriceEur.toFixed(2)}</span>
                     )}
                   </>
                 ) : (
-                  <span className="compact-untracked">€{game.basePriceEur?.toFixed(2) || '—'}</span>
+                  <span className="compact-untracked ticker-num">€{game.basePriceEur?.toFixed(2) || '—'}</span>
                 )}
               </div>
 
