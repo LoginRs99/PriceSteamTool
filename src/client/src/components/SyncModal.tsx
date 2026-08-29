@@ -72,7 +72,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 580 }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <RefreshCw size={20} color="#10b981" />
+            <RefreshCw size={20} color="var(--down)" />
             <h2 id="sync-modal-title" style={{ fontSize: 18, fontWeight: 800 }}>Synchronize Wishlist & Prices</h2>
           </div>
           <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
@@ -83,7 +83,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
         <div className="modal-body">
           {/* Sync Mode Selection */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--dim)' }}>
               1. Synchronization Strategy
             </label>
 
@@ -99,16 +99,16 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
                 style={{
                   padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
-                  border: `2px solid ${!forceRefresh ? '#10b981' : 'var(--border-subtle)'}`,
-                  background: !forceRefresh ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-surface-elevated)',
+                  border: `2px solid ${!forceRefresh ? 'var(--down)' : 'var(--line)'}`,
+                  background: !forceRefresh ? 'var(--down-dim)' : 'var(--surface)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 14, color: !forceRefresh ? '#34d399' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: !forceRefresh ? 'var(--down)' : 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>🟢 Resume / Smart Cache</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4, lineHeight: 1.4 }}>
                   Only refreshes missing items or prices older than 6h. Instantly skips already-fetched games.
                 </div>
               </div>
@@ -118,16 +118,16 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
                 style={{
                   padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
-                  border: `2px solid ${forceRefresh ? '#f59e0b' : 'var(--border-subtle)'}`,
-                  background: forceRefresh ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-surface-elevated)',
+                  border: `2px solid ${forceRefresh ? 'var(--signal)' : 'var(--line)'}`,
+                  background: forceRefresh ? 'var(--signal-dim)' : 'var(--surface)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 14, color: forceRefresh ? '#fbbf24' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: forceRefresh ? 'var(--signal)' : 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>🔄 Force Full Refresh</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4, lineHeight: 1.4 }}>
                   Overwrites cache and re-queries every single wishlist item from scratch.
                 </div>
               </div>

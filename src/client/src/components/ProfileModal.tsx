@@ -83,20 +83,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     alignItems: 'center',
                     padding: '12px 16px',
                     borderRadius: 'var(--radius-md)',
-                    background: isActive ? 'var(--accent-primary-dim)' : 'var(--bg-surface-elevated)',
-                    border: `1px solid ${isActive ? 'var(--accent-primary)' : 'var(--border-subtle)'}`
+                    background: isActive ? 'var(--down-dim)' : 'var(--surface)',
+                    border: `1px solid ${isActive ? 'var(--down)' : 'var(--line)'}`
                   }}
                 >
                   <div>
                     <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
                       {p.name}
                       {isActive && (
-                        <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--accent-primary)', color: '#042f2e', borderRadius: 4, fontWeight: 800 }}>
+                        <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--down)', color: '#0a0b0e', borderRadius: 'var(--radius-sm)', fontWeight: 800 }}>
                           ACTIVE
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: 'var(--dim)', marginTop: 2 }}>
                       SteamID: {p.steamId} • {p.gameCount || 0} games
                     </div>
                   </div>
@@ -114,7 +114,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     )}
                     <button 
                       className="btn btn-outline" 
-                      style={{ padding: 6, color: '#f87171' }}
+                      style={{ padding: 6, color: 'var(--up)' }}
                       onClick={() => handleDelete(p.id)}
                       title="Delete profile"
                     >
@@ -127,13 +127,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
 
           {/* Add Profile Form */}
-          <form onSubmit={handleCreate} style={{ marginTop: 10, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+          <form onSubmit={handleCreate} style={{ marginTop: 10, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
             <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <UserPlus size={16} /> Add Steam Account
             </h4>
 
             {error && (
-              <div style={{ padding: '8px 12px', background: 'var(--accent-danger-dim)', border: '1px solid var(--accent-danger)', borderRadius: 6, color: '#f87171', fontSize: 13, marginBottom: 12 }}>
+              <div style={{ padding: '8px 12px', background: 'var(--up-dim)', border: '1px solid var(--up)', borderRadius: 6, color: 'var(--up)', fontSize: 13, marginBottom: 12 }}>
                 {error}
               </div>
             )}

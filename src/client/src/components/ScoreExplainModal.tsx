@@ -23,10 +23,10 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
   const isProvisional = Boolean(game.bestIsProvisional);
 
   const tierColor = 
-    tier === 'Exceptional' ? '#8b5cf6' : 
-    tier === 'Great' ? '#10b981' : 
-    tier === 'Good' ? '#06b6d4' :
-    tier === 'Fair' ? '#3b82f6' : '#64748b';
+    tier === 'Exceptional' ? 'var(--accent-purple)' : 
+    tier === 'Great' ? 'var(--down)' : 
+    tier === 'Good' ? 'var(--accent-blue)' :
+    'var(--dim)';
 
   const currentPrice = game.bestPriceEur ?? 0;
   const medianPrice = game.typicalSaleMedianEur ?? game.basePriceEur ?? currentPrice;
@@ -44,35 +44,35 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             <HelpCircle size={22} color={tierColor} />
             <div>
               <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Deal Score Breakdown</h2>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{game.title}</span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--dim)' }}>{game.title}</span>
             </div>
           </div>
-          <button className="icon-button" onClick={onClose}>
+          <button className="icon-button" onClick={onClose} aria-label="Close modal">
             <X size={20} />
           </button>
         </div>
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Top Deal Score Card */}
-          <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, borderLeft: `4px solid ${tierColor}` }}>
-            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>
+          <div style={{ background: 'var(--surface)', padding: '14px 16px', borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${tierColor}`, border: '1px solid var(--line)' }}>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)', marginBottom: 4 }}>
               Deal Score (Price Quality)
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: '2rem', fontWeight: 800, color: tierColor }}>{score}</span>
+              <span className="ticker-num" style={{ fontSize: '2rem', fontWeight: 800, color: tierColor }}>{score}</span>
               <span style={{ fontSize: '1rem', fontWeight: 600, color: tierColor }}>/ 100</span>
             </div>
             <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: 4 }}>
               Tier: <span style={{ color: tierColor }}>{tier}</span>
-              {isProvisional && <span style={{ marginLeft: 6, color: '#f59e0b', fontSize: '0.75rem' }}>(Provisional)</span>}
+              {isProvisional && <span style={{ marginLeft: 6, color: 'var(--signal)', fontSize: '0.75rem' }}>(Provisional)</span>}
             </div>
           </div>
 
           {/* Provisional Guard Warning if active */}
           {isProvisional && (
-            <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: 12, borderRadius: 8, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+            <div style={{ background: 'var(--signal-dim)', border: '1px solid rgba(251, 191, 36, 0.3)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <AlertTriangle size={18} color="var(--signal)" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
                 <strong>Provisional Score Cap (Max 65):</strong> This game has limited historical observations ({sampleCount} recorded sales). Full Exceptional status (85–100) requires at least 3 historical datapoints to prevent false alerts.
               </div>
             </div>
@@ -80,30 +80,30 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
 
           {/* Mathematical Anchor Breakdown */}
           <div>
-            <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
+            <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)', marginBottom: 10 }}>
               Price Comparison Anchors
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: '0.88rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Current Best Price:</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>€{currentPrice.toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                <span style={{ color: 'var(--dim)' }}>Current Best Price:</span>
+                <span className="ticker-num" style={{ fontWeight: 700, color: 'var(--ink)' }}>€{currentPrice.toFixed(2)}</span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: '0.88rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Typical Sale Price (Historical Median):</span>
-                <span style={{ fontWeight: 600 }}>€{medianPrice.toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                <span style={{ color: 'var(--dim)' }}>Typical Sale Price (Historical Median):</span>
+                <span className="ticker-num" style={{ fontWeight: 600 }}>€{medianPrice.toFixed(2)}</span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: '0.88rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Historical Savings vs Typical:</span>
-                <span style={{ fontWeight: 700, color: savingEur > 0 ? '#10b981' : 'inherit' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                <span style={{ color: 'var(--dim)' }}>Historical Savings vs Typical:</span>
+                <span className="ticker-num" style={{ fontWeight: 700, color: savingEur > 0 ? 'var(--down)' : 'inherit' }}>
                   {savingEur > 0 ? `€${savingEur.toFixed(2)} cheaper (${Math.round((savingEur / medianPrice) * 100)}% off typical)` : 'At or above typical sale'}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: '0.88rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Confirmed All-Time Low (ATL):</span>
-                <span style={{ fontWeight: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                <span style={{ color: 'var(--dim)' }}>Confirmed All-Time Low (ATL):</span>
+                <span className="ticker-num" style={{ fontWeight: 600 }}>
                   €{atl.toFixed(2)} {atlDist === 0 ? '★ (Matches Record ATL)' : `(+€${atlDist.toFixed(2)})`}
                 </span>
               </div>

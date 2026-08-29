@@ -73,17 +73,17 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {sources.map(s => {
               const stateColor = s.state === 'NORMAL' 
-                ? '#10b981' 
+                ? 'var(--down)' 
                 : s.state === 'BACKOFF' 
-                ? '#f59e0b' 
-                : '#ef4444';
+                ? 'var(--signal)' 
+                : 'var(--up)';
 
               return (
                 <div
                   key={s.code}
                   style={{
-                    background: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--line)',
                     borderRadius: 'var(--radius-md)',
                     padding: '14px 18px',
                     display: 'flex',
@@ -99,7 +99,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                           fontSize: 11,
                           fontWeight: 700,
                           padding: '2px 8px',
-                          borderRadius: 4,
+                          borderRadius: 'var(--radius-sm)',
                           background: `${stateColor}20`,
                           color: stateColor,
                           border: `1px solid ${stateColor}40`,
@@ -111,7 +111,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                     </div>
 
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
+                      <span style={{ color: 'var(--dim)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
                       <input
                         type="checkbox"
                         checked={s.isEnabled}
@@ -120,27 +120,27 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                     </label>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12, color: 'var(--text-muted)', paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12, color: 'var(--dim)', paddingTop: 6, borderTop: '1px solid var(--line)' }}>
                     <div>
                       <span>Requests: </span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{s.requestCount}</strong>
+                      <strong className="ticker-num" style={{ color: 'var(--ink)' }}>{s.requestCount}</strong>
                     </div>
                     <div>
                       <span>Success: </span>
-                      <strong style={{ color: '#34d399' }}>{s.successCount}</strong>
+                      <strong className="ticker-num" style={{ color: 'var(--down)' }}>{s.successCount}</strong>
                     </div>
                     <div>
                       <span>Failures: </span>
-                      <strong style={{ color: s.failureCount > 0 ? '#f87171' : 'var(--text-muted)' }}>{s.failureCount}</strong>
+                      <strong className="ticker-num" style={{ color: s.failureCount > 0 ? 'var(--up)' : 'var(--dim)' }}>{s.failureCount}</strong>
                     </div>
                     <div>
                       <span>Rate Limits: </span>
-                      <strong style={{ color: s.rateLimitCount > 0 ? '#fbbf24' : 'var(--text-muted)' }}>{s.rateLimitCount}</strong>
+                      <strong className="ticker-num" style={{ color: s.rateLimitCount > 0 ? 'var(--signal)' : 'var(--dim)' }}>{s.rateLimitCount}</strong>
                     </div>
                   </div>
 
                   {s.lastError && (
-                    <div style={{ fontSize: 11, color: '#f87171', marginTop: 4, wordBreak: 'break-all' }}>
+                    <div style={{ fontSize: 11, color: 'var(--up)', marginTop: 4, wordBreak: 'break-all' }}>
                       Last note: {s.lastError}
                     </div>
                   )}

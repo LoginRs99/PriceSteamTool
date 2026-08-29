@@ -88,7 +88,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
                 onClick={handleCopySteamUrl}
                 title="Copy Steam Store URL to clipboard"
               >
-                {copied ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
+                {copied ? <Check size={11} color="var(--down)" /> : <Copy size={11} />}
                 <span>{copied ? 'Copied URL!' : 'Copy Link'}</span>
               </button>
             </div>

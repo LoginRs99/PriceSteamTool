@@ -251,7 +251,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
               />
               <div className="checkbox-content">
                 <div className="checkbox-title">
-                  <Flame size={14} color="#f59e0b" />
+                  <Flame size={14} color="var(--signal)" />
                   <span>Notify for All-Time Low (ATL) only</span>
                 </div>
                 <div className="checkbox-desc">Only send alerts when an offer matches or beats the historical all-time low price</div>
@@ -266,7 +266,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
               />
               <div className="checkbox-content">
                 <div className="checkbox-title">
-                  <Gift size={14} color="#a855f7" />
+                  <Gift size={14} color="var(--accent-purple)" />
                   <span>100% Free Game Promotions</span>
                 </div>
                 <div className="checkbox-desc">Always send an instant alert if a game on your wishlist becomes free (100% off)</div>
