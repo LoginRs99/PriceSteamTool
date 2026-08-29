@@ -12,14 +12,14 @@ export const PeriodLowsBar: React.FC<PeriodLowsBarProps> = ({ periodLows }) => {
   return (
     <div>
       <h4 className="section-subtitle">
-        <Flame size={15} color="#f59e0b" />
+        <Flame size={15} color="var(--signal)" />
         <span>Rolling Period Lows & Confirmed ATL</span>
       </h4>
 
       <div className="period-lows-grid">
         <div className="period-card">
           <span className="period-label">7-Day Low</span>
-          <div className="period-value">
+          <div className="period-value ticker-num">
             {periodLows.low7d.priceEur !== null ? `€${periodLows.low7d.priceEur.toFixed(2)}` : '—'}
           </div>
           <span className="period-meta">
@@ -29,7 +29,7 @@ export const PeriodLowsBar: React.FC<PeriodLowsBarProps> = ({ periodLows }) => {
 
         <div className="period-card">
           <span className="period-label">30-Day Low</span>
-          <div className="period-value">
+          <div className="period-value ticker-num">
             {periodLows.low30d.priceEur !== null ? `€${periodLows.low30d.priceEur.toFixed(2)}` : '—'}
           </div>
           <span className="period-meta">
@@ -39,7 +39,7 @@ export const PeriodLowsBar: React.FC<PeriodLowsBarProps> = ({ periodLows }) => {
 
         <div className="period-card">
           <span className="period-label">90-Day Low</span>
-          <div className="period-value">
+          <div className="period-value ticker-num">
             {periodLows.low90d.priceEur !== null ? `€${periodLows.low90d.priceEur.toFixed(2)}` : '—'}
           </div>
           <span className="period-meta">
@@ -49,7 +49,7 @@ export const PeriodLowsBar: React.FC<PeriodLowsBarProps> = ({ periodLows }) => {
 
         <div className="period-card">
           <span className="period-label">1-Year Low</span>
-          <div className="period-value">
+          <div className="period-value ticker-num">
             {periodLows.low1y.priceEur !== null ? `€${periodLows.low1y.priceEur.toFixed(2)}` : '—'}
           </div>
           <span className="period-meta">
@@ -57,9 +57,9 @@ export const PeriodLowsBar: React.FC<PeriodLowsBarProps> = ({ periodLows }) => {
           </span>
         </div>
 
-        <div className="period-card atl-card">
-          <span className="period-label" style={{ color: '#f59e0b' }}>All-Time Low</span>
-          <div className="period-value" style={{ color: '#f59e0b' }}>
+        <div className="period-card atl-card" style={{ borderColor: 'rgba(251, 191, 36, 0.35)', background: 'var(--signal-dim)' }}>
+          <span className="period-label" style={{ color: 'var(--signal)' }}>All-Time Low</span>
+          <div className="period-value ticker-num" style={{ color: 'var(--signal)' }}>
             €{periodLows.allTimeLow.priceEur.toFixed(2)}
           </div>
           <span className="period-meta">

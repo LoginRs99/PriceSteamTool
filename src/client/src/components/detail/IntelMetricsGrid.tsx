@@ -17,9 +17,9 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
       <div className="intel-card">
         <div className="intel-card-header">
           <span className="intel-label">Typical Sale Price</span>
-          <TrendingDown size={15} color="#38bdf8" />
+          <TrendingDown size={15} color="var(--accent-blue)" />
         </div>
-        <div className="intel-value" style={{ color: '#38bdf8' }}>
+        <div className="intel-value ticker-num" style={{ color: 'var(--accent-blue)' }}>
           {typicalSale?.medianPriceEur !== null ? `€${typicalSale?.medianPriceEur?.toFixed(2)}` : '—'}
         </div>
         <span className="intel-sub">
@@ -32,9 +32,9 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
       <div className="intel-card">
         <div className="intel-card-header">
           <span className="intel-label">Sale Frequency</span>
-          <Calendar size={15} color="#8b5cf6" />
+          <Calendar size={15} color="var(--accent-purple)" />
         </div>
-        <div className="intel-value" style={{ color: '#a78bfa' }}>
+        <div className="intel-value" style={{ color: 'var(--accent-purple)' }}>
           {frequency?.frequencyCategory || 'Rare'}
         </div>
         <span className="intel-sub">
@@ -47,9 +47,9 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
       <div className="intel-card">
         <div className="intel-card-header">
           <span className="intel-label">Price Volatility</span>
-          <Activity size={15} color="#f59e0b" />
+          <Activity size={15} color="var(--dim)" />
         </div>
-        <div className="intel-value" style={{ color: '#f59e0b' }}>
+        <div className="intel-value" style={{ color: 'var(--ink)' }}>
           {volatility?.category || 'Stable'}
         </div>
         <span className="intel-sub">
@@ -62,9 +62,9 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
       <div className="intel-card">
         <div className="intel-card-header">
           <span className="intel-label">Price vs Market</span>
-          <Scale size={15} color="#10b981" />
+          <Scale size={15} color="var(--down)" />
         </div>
-        <div className="intel-value" style={{ color: '#10b981' }}>
+        <div className="intel-value ticker-num" style={{ color: 'var(--down)' }}>
           {marketComp && marketComp.totalCompatibleOffers > 0
             ? `#${marketComp.currentRank} of ${marketComp.totalCompatibleOffers}`
             : '#1 of 1'}

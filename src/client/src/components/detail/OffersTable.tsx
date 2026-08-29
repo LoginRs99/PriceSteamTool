@@ -44,9 +44,16 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                 const score = offer.dealScore ?? 0;
                 const tier = offer.dealTier || 'Fair';
                 const color = 
-                  tier === 'Exceptional' ? '#8b5cf6' : 
-                  tier === 'Great' ? '#10b981' : 
-                  tier === 'Fair' ? '#3b82f6' : '#64748b';
+                  tier === 'Exceptional' ? 'var(--accent-purple)' : 
+                  tier === 'Great' ? 'var(--down)' : 
+                  tier === 'Good' ? 'var(--accent-blue)' :
+                  'var(--dim)';
+
+                const scoreBg = 
+                  tier === 'Exceptional' ? 'rgba(167, 139, 250, 0.15)' : 
+                  tier === 'Great' ? 'var(--down-dim)' : 
+                  tier === 'Good' ? 'rgba(56, 189, 248, 0.15)' :
+                  'rgba(107, 114, 128, 0.15)';
 
                 return (
                   <tr key={offer.id}>
@@ -55,7 +62,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                         {offer.merchantName}
                         {offer.isOfficial && (
                           <span title="Official Authorized Retailer" style={{ display: 'inline-flex', alignItems: 'center' }}>
-                            <ShieldCheck size={14} color="#10b981" />
+                            <ShieldCheck size={14} color="var(--down)" />
                           </span>
                         )}
                       </div>
@@ -63,33 +70,33 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                       {/* Evaluation Flags */}
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                         {offer.priceEvent === 'NEW_HISTORICAL_LOW' && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', borderRadius: 3 }}>
+                          <span className="ticker-flag ticker-flag-atl" style={{ fontSize: 10, padding: '1px 5px' }}>
                             🏆 ALL-TIME LOW
                           </span>
                         )}
                         {offer.priceEvent === 'EXTREME_DROP' && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(139, 92, 246, 0.2)', color: '#a78bfa', borderRadius: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(167, 139, 250, 0.18)', color: 'var(--accent-purple)', borderRadius: 3 }}>
                             🔥 MEGA DEAL
                           </span>
                         )}
                         {offer.priceEvent === 'MAJOR_DROP' && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', borderRadius: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'var(--down-dim)', color: 'var(--down)', borderRadius: 3 }}>
                             ✨ MAJOR DROP
                           </span>
                         )}
                         {offer.riskLevel === 'HIGH' ? (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', borderRadius: 3, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <span className="ticker-flag ticker-flag-up" style={{ fontSize: 10, padding: '1px 5px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             <AlertTriangle size={10} /> HIGH RISK
                           </span>
                         ) : offer.riskLevel === 'MEDIUM' ? (
-                          <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', borderRadius: 3 }}>
+                          <span className="ticker-flag ticker-flag-atl" style={{ fontSize: 10, padding: '1px 5px' }}>
                             ⚠️ CAUTION
                           </span>
                         ) : null}
                       </div>
 
                       {offer.isAnomaly && (
-                        <span style={{ fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                        <span style={{ fontSize: 11, color: 'var(--up)', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                           <AlertTriangle size={11} /> {offer.anomalyReason || 'Anomaly'}
                         </span>
                       )}
@@ -97,33 +104,35 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                     <td>
                       {score > 0 ? (
                         <span 
+                          className="ticker-num"
                           style={{ 
                             fontSize: 11, 
                             fontWeight: 800, 
                             padding: '2px 8px', 
-                            borderRadius: 12, 
-                            background: color, 
-                            color: '#fff',
+                            borderRadius: 'var(--radius-sm)', 
+                            background: scoreBg, 
+                            color: color,
+                            border: `1px solid ${color}44`,
                             display: 'inline-block'
                           }}
                         >
                           {score} • {tier}
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                        <span style={{ color: 'var(--dim)', fontSize: 12 }}>—</span>
                       )}
                     </td>
                     <td>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <div style={{ fontSize: 12, color: 'var(--dim)' }}>
                         {offer.productType.replace('_', ' ')}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--dim-2)' }}>
                         {offer.regionType}
                       </div>
                     </td>
                     <td>
                       <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>€{offer.priceEur.toFixed(2)}</span>
+                        <span className="ticker-num">€{offer.priceEur.toFixed(2)}</span>
                         {offer.isFresh === false && (
                           <span 
                             className="stale-badge"
@@ -133,8 +142,8 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                               padding: '1px 4px', 
                               borderRadius: 3, 
                               background: 'rgba(148, 163, 184, 0.18)', 
-                              color: 'var(--text-muted)',
-                              border: '1px solid rgba(148, 163, 184, 0.3)' 
+                              color: 'var(--dim)',
+                              border: '1px solid var(--line)' 
                             }}
                             title="Stale fallback price (last observed >72h ago)"
                           >
@@ -143,12 +152,12 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                         )}
                       </div>
                       {(offer.discountPercent || 0) > 0 && (
-                        <span style={{ fontSize: 11, color: '#34d399' }}>
+                        <span className="ticker-num" style={{ fontSize: 11, color: 'var(--down)' }}>
                           -{offer.discountPercent}%
                         </span>
                       )}
                       {offer.rawCurrency && offer.rawCurrency !== 'EUR' && offer.rawPrice && (
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                        <div className="ticker-num" style={{ fontSize: 10, color: 'var(--dim-2)' }}>
                           {offer.rawPrice.toFixed(2)} {offer.rawCurrency}
                         </div>
                       )}
