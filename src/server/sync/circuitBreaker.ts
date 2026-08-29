@@ -90,7 +90,7 @@ export class CircuitBreakerRegistry {
     return { allowed: true };
   }
 
-  public recordSuccess(source: SourceCode): void {
+  public recordSuccess(source: SourceCode, requestCount: number = 1): void {
     const info = this.getOrCreate(source);
     info.state = 'NORMAL';
     info.consecutiveFailures = 0;
@@ -99,10 +99,10 @@ export class CircuitBreakerRegistry {
     info.lastSuccessTime = Date.now();
     
     sourceRepo.updateCircuitState(source, 'NORMAL', undefined, 0, 0);
-    sourceRepo.incrementCounters(source, 'success');
+    sourceRepo.incrementCounters(source, 'success', undefined, requestCount);
   }
 
-  public recordRateLimit(source: SourceCode, retryAfterSec: number = 30): void {
+  public recordRateLimit(source: SourceCode, retryAfterSec: number = 30, requestCount: number = 1): void {
     const info = this.getOrCreate(source);
     info.consecutiveRateLimits++;
     info.lastFailureTime = Date.now();
@@ -117,7 +117,7 @@ export class CircuitBreakerRegistry {
       }
       const cooldownIso = new Date(info.cooldownUntil).toISOString();
       sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
-      sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`);
+      sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`, requestCount);
       return;
     }
 
@@ -133,10 +133,10 @@ export class CircuitBreakerRegistry {
 
     const cooldownIso = new Date(info.cooldownUntil).toISOString();
     sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
-    sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`);
+    sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`, requestCount);
   }
 
-  public recordFailure(source: SourceCode, error: string | Error): void {
+  public recordFailure(source: SourceCode, error: string | Error, requestCount: number = 1): void {
     const info = this.getOrCreate(source);
     info.consecutiveFailures++;
     info.lastFailureTime = Date.now();
@@ -152,7 +152,7 @@ export class CircuitBreakerRegistry {
       }
       const cooldownIso = new Date(info.cooldownUntil).toISOString();
       sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
-      sourceRepo.incrementCounters(source, 'failure', errMsg);
+      sourceRepo.incrementCounters(source, 'failure', errMsg, requestCount);
       return;
     }
 
@@ -170,7 +170,7 @@ export class CircuitBreakerRegistry {
 
     const cooldownIso = info.cooldownUntil ? new Date(info.cooldownUntil).toISOString() : undefined;
     sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
-    sourceRepo.incrementCounters(source, 'failure', errMsg);
+    sourceRepo.incrementCounters(source, 'failure', errMsg, requestCount);
   }
 
   public reset(source: SourceCode): void {

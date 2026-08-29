@@ -1,14 +1,8 @@
-/**
- * AllKeyShop Adaptive Latency-Aware Pacing
- * 
- * BASE_DELAY = 5000ms
- * MIN_DELAY = 5000ms
- * MAX_DELAY = 30000ms
- */
+import { config } from '../../config/index.js';
 
-export const AKS_BASE_DELAY_MS = 5000;
-export const AKS_MIN_DELAY_MS = 5000;
-export const AKS_MAX_DELAY_MS = 30000;
+export const AKS_BASE_DELAY_MS = config?.delays?.allkeyshop ?? 2000;
+export const AKS_MIN_DELAY_MS = config?.delays?.allkeyshop ?? 2000;
+export const AKS_MAX_DELAY_MS = Math.max(30000, (config?.delays?.allkeyshop ?? 2000) * 6);
 
 export const AKS_PACING_STEP_DOWN_MS = 250; // Gentle decrease on fast responses
 export const AKS_PACING_STEP_UP_MS = 1000;  // Increase on slow responses

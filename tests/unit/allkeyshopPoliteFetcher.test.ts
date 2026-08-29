@@ -73,10 +73,10 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
     it('decreases delay toward MIN_DELAY on fast response (<1s) and clamps at MIN_DELAY', () => {
       // 8000ms delay with 600ms fast response -> 7750ms
       expect(computeNextPacingDelay(8000, 600)).toBe(7750);
-      // 5100ms delay with 400ms fast response -> 5000ms (clamped at MIN_DELAY_MS)
-      expect(computeNextPacingDelay(5100, 400)).toBe(AKS_MIN_DELAY_MS);
-      // 5000ms delay with 200ms fast response -> remains 5000ms
-      expect(computeNextPacingDelay(5000, 200)).toBe(AKS_MIN_DELAY_MS);
+      // (AKS_MIN_DELAY_MS + 100) delay with 400ms fast response -> clamps at AKS_MIN_DELAY_MS
+      expect(computeNextPacingDelay(AKS_MIN_DELAY_MS + 100, 400)).toBe(AKS_MIN_DELAY_MS);
+      // AKS_MIN_DELAY_MS delay with 200ms fast response -> remains AKS_MIN_DELAY_MS
+      expect(computeNextPacingDelay(AKS_MIN_DELAY_MS, 200)).toBe(AKS_MIN_DELAY_MS);
     });
 
     it('increases delay on slow response (>3s) and clamps at MAX_DELAY', () => {

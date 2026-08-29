@@ -75,14 +75,16 @@ export class PacedSourceQueue {
       this.lastExecutionTime = Date.now();
       try {
         const result = await task.fn();
-        circuitBreakers.recordSuccess(this.sourceCode);
+        const requestCount = Math.max(1, Number((result as any)?.requestCount ?? (result as any)?.pageCount ?? 1));
+        circuitBreakers.recordSuccess(this.sourceCode, requestCount);
         task.resolve(result);
       } catch (err: any) {
+        const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
         if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
           const retryAfter = err?.retryAfterSec ?? 30;
-          circuitBreakers.recordRateLimit(this.sourceCode, retryAfter);
+          circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
         } else {
-          circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure');
+          circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);
         }
         task.reject(err);
       }

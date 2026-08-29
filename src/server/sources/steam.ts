@@ -127,6 +127,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
 
       const targetPath = /^\d+$/.test(steamId64) ? `profiles/${steamId64}` : `id/${steamId64}`;
 
+      let requestsMade = 0;
+
       // 1. Primary Strategy: Paginated wishlistdata (gives full metadata and store prices in batch)
       try {
         while (page < maxPages) {
@@ -137,6 +139,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
           const url = `https://store.steampowered.com/wishlist/${targetPath}/wishlistdata/?p=${page}`;
           let data: any = null;
           try {
+            requestsMade++;
             data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
           } catch (fetchErr: any) {
             if (fetchErr?.status === 429) {
@@ -144,12 +147,20 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
               const backoffMs = Math.max(backoffSec * 1000, 5000);
               await new Promise(r => setTimeout(r, backoffMs));
               try {
+                requestsMade++;
                 data = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
               } catch (retryErr: any) {
-                throw new Error(`Steam wishlist pagination failed on page ${page}: ${retryErr?.message || 'Rate limit 429'}`);
+                const err: any = new Error(`Steam wishlist pagination failed on page ${page}: ${retryErr?.message || 'Rate limit 429'}`);
+                err.requestCount = requestsMade;
+                err.status = retryErr?.status ?? 429;
+                err.retryAfterSec = retryErr?.retryAfterSec;
+                throw err;
               }
             } else {
-              throw new Error(`Steam wishlist pagination failed on page ${page}: ${fetchErr?.message || 'Network error'}`);
+              const err: any = new Error(`Steam wishlist pagination failed on page ${page}: ${fetchErr?.message || 'Network error'}`);
+              err.requestCount = requestsMade;
+              err.status = fetchErr?.status;
+              throw err;
             }
           }
 
@@ -235,6 +246,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
           page++;
         }
 
+        (items as any).requestCount = Math.max(1, requestsMade);
+        (items as any).pageCount = Math.max(1, requestsMade);
         return items;
       } catch (err) {
         // Fall back to IWishlistService if wishlistdata was blocked or failed
@@ -242,11 +255,12 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
 
       // 2. Fallback: IWishlistService Web API
       try {
+        requestsMade++;
         const url = `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${steamId64}`;
         const data: any = await safeFetchJson(url);
         
         if (data?.response?.items && Array.isArray(data.response.items)) {
-          return data.response.items.map((item: any) => ({
+          const resultItems = data.response.items.map((item: any) => ({
             steamAppId: Number(item.appid),
             title: `App ${item.appid}`,
             priority: Number(item.priority ?? 0),
@@ -257,11 +271,18 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             isFree: false,
             discountPercent: 0
           }));
+          (resultItems as any).requestCount = Math.max(1, requestsMade);
+          (resultItems as any).pageCount = Math.max(1, requestsMade);
+          return resultItems;
         }
       } catch (e) {
-        throw new Error(`Failed to fetch Steam Wishlist for ${steamId64}. Ensure the Steam profile & wishlist are set to Public.`);
+        const err: any = new Error(`Failed to fetch Steam Wishlist for ${steamId64}. Ensure the Steam profile & wishlist are set to Public.`);
+        err.requestCount = requestsMade;
+        throw err;
       }
 
+      (items as any).requestCount = Math.max(1, requestsMade);
+      (items as any).pageCount = Math.max(1, requestsMade);
       return items;
     });
   }

@@ -64,15 +64,33 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
           </span>
         </div>
 
-        <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc', margin: '6px 0' }}>
-          €{bestOffer ? bestOffer.priceEur.toFixed(2) : (game.basePriceEur?.toFixed(2) ?? '—')}
+        <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc', margin: '6px 0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <span>€{bestOffer ? bestOffer.priceEur.toFixed(2) : (game.basePriceEur?.toFixed(2) ?? '—')}</span>
+          {(bestOffer?.isFresh === false || (game.bestIsFresh === false && !bestOffer)) && (
+            <span 
+              className="stale-badge"
+              style={{ 
+                fontSize: '0.72rem', 
+                fontWeight: 700, 
+                padding: '2px 7px', 
+                borderRadius: 4, 
+                background: 'rgba(148, 163, 184, 0.18)', 
+                color: 'var(--text-muted)', 
+                border: '1px solid rgba(148, 163, 184, 0.3)',
+                fontFamily: 'inherit'
+              }}
+              title="Stale fallback price (last observed >72h ago)"
+            >
+              Stale Price
+            </span>
+          )}
           {bestOffer && (bestOffer.discountPercent || 0) > 0 && (
-            <span style={{ fontSize: 14, color: 'var(--text-muted)', marginLeft: 8, textDecoration: 'line-through' }}>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', textDecoration: 'line-through' }}>
               €{bestOffer.originalPriceEur?.toFixed(2)}
             </span>
           )}
           {bestOffer?.rawCurrency && bestOffer.rawCurrency !== 'EUR' && bestOffer.rawPrice && (
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8, fontWeight: 400 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>
               ({bestOffer.rawPrice.toFixed(2)} {bestOffer.rawCurrency})
             </span>
           )}

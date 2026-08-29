@@ -122,8 +122,25 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                       </div>
                     </td>
                     <td>
-                      <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                        €{offer.priceEur.toFixed(2)}
+                      <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>€{offer.priceEur.toFixed(2)}</span>
+                        {offer.isFresh === false && (
+                          <span 
+                            className="stale-badge"
+                            style={{ 
+                              fontSize: 10, 
+                              fontWeight: 700, 
+                              padding: '1px 4px', 
+                              borderRadius: 3, 
+                              background: 'rgba(148, 163, 184, 0.18)', 
+                              color: 'var(--text-muted)',
+                              border: '1px solid rgba(148, 163, 184, 0.3)' 
+                            }}
+                            title="Stale fallback price (last observed >72h ago)"
+                          >
+                            Stale
+                          </span>
+                        )}
                       </div>
                       {(offer.discountPercent || 0) > 0 && (
                         <span style={{ fontSize: 11, color: '#34d399' }}>

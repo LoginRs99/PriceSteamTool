@@ -248,6 +248,25 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
             <span className={`best-price ${(game.bestDiscountPercent || 0) > 0 ? 'on-sale' : ''}`}>
               {isFree ? 'FREE' : hasBestDeal ? `€${game.bestPriceEur!.toFixed(2)}` : '—'}
             </span>
+            {hasBestDeal && game.bestIsFresh === false && (
+              <span 
+                className="stale-badge" 
+                style={{ 
+                  fontSize: '0.68rem', 
+                  fontWeight: 700, 
+                  padding: '1px 5px', 
+                  borderRadius: 4, 
+                  background: 'rgba(148, 163, 184, 0.18)', 
+                  color: 'var(--text-muted)', 
+                  border: '1px solid rgba(148, 163, 184, 0.3)',
+                  marginLeft: 4,
+                  verticalAlign: 'middle'
+                }}
+                title="Stale fallback price (last observed >72h ago)"
+              >
+                Stale
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

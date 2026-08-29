@@ -123,6 +123,24 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                       {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
                         <span className="compact-discount">-{game.bestDiscountPercent}%</span>
                       )}
+                      {game.bestIsFresh === false && (
+                        <span 
+                          className="stale-badge" 
+                          style={{ 
+                            fontSize: '0.68rem', 
+                            fontWeight: 700, 
+                            padding: '1px 5px', 
+                            borderRadius: 4, 
+                            background: 'rgba(148, 163, 184, 0.18)', 
+                            color: 'var(--text-muted)', 
+                            border: '1px solid rgba(148, 163, 184, 0.3)',
+                            marginLeft: 4
+                          }}
+                          title="Stale fallback price (last observed >72h ago)"
+                        >
+                          Stale
+                        </span>
+                      )}
                     </div>
                     {game.basePriceEur && game.basePriceEur > (game.bestPriceEur || 0) && (
                       <span className="compact-msrp">€{game.basePriceEur.toFixed(2)}</span>

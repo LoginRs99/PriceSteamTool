@@ -3,6 +3,7 @@ import { sourceRepo } from '../../db/index.js';
 import { config } from '../../config/index.js';
 import { 
   AKS_BASE_DELAY_MS, 
+  AKS_MIN_DELAY_MS, 
   computeNextPacingDelay, 
   calculateBoundedJitter 
 } from './adaptivePacing.js';
@@ -13,10 +14,10 @@ export class AllKeyShopPoliteQueue {
   private queuedKeys = new Map<string, AllKeyShopQueueTask<any>>();
   private inFlightTasks = new Map<string, Promise<any>>();
   private isProcessing = false;
-  public minDelayMs = AKS_BASE_DELAY_MS;
-  public maxDelayMs = 30000;
+  public minDelayMs = config.delays?.allkeyshop ?? AKS_MIN_DELAY_MS;
+  public maxDelayMs = Math.max(30000, (config.delays?.allkeyshop ?? AKS_MIN_DELAY_MS) * 6);
   public jitterMaxMs = config.allkeyshopJitterMs ?? 500;
-  private currentDelayMs = AKS_BASE_DELAY_MS;
+  private currentDelayMs = config.delays?.allkeyshop ?? AKS_BASE_DELAY_MS;
   private lastExecutionTime = 0;
   private activeRequestKey: string | null = null;
   private lastSuccessTimeMs: number | null = null;

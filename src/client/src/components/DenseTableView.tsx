@@ -153,7 +153,26 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                   {isFree ? (
                     <span className="free-badge-sm">FREE</span>
                   ) : hasBestDeal ? (
-                    <span className="price-bold">€{game.bestPriceEur?.toFixed(2)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span className="price-bold">€{game.bestPriceEur?.toFixed(2)}</span>
+                      {game.bestIsFresh === false && (
+                        <span 
+                          className="stale-badge" 
+                          style={{ 
+                            fontSize: '0.65rem', 
+                            fontWeight: 700, 
+                            padding: '1px 4px', 
+                            borderRadius: 3, 
+                            background: 'rgba(148, 163, 184, 0.18)', 
+                            color: 'var(--text-muted)', 
+                            border: '1px solid rgba(148, 163, 184, 0.3)' 
+                          }}
+                          title="Stale fallback price (last observed >72h ago)"
+                        >
+                          Stale
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-dim">No deal</span>
                   )}
