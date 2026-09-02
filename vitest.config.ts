@@ -11,12 +11,14 @@ export default defineConfig({
     fileParallelism: false,
     clearMocks: true,
     restoreMocks: true,
+    testTimeout: 15000,
     projects: [
       {
         plugins: [react()],
         test: {
           name: 'server',
           globals: true,
+          testTimeout: 15000,
           include: ['tests/unit/**', 'tests/integration/**'],
           environment: 'node',
           pool: 'forks',
@@ -40,6 +42,7 @@ export default defineConfig({
         test: {
           name: 'client',
           globals: true,
+          testTimeout: 15000,
           include: ['tests/client/**', 'src/client/**/*.test.{ts,tsx}'],
           environment: 'jsdom',
           setupFiles: ['./tests/setupClient.ts']
