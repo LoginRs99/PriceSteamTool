@@ -40,6 +40,8 @@ services:
       - DISCORD_NOTIFY_ATL_ONLY=${DISCORD_NOTIFY_ATL_ONLY:-false}
       - DISCORD_NOTIFY_FREE_GAMES=${DISCORD_NOTIFY_FREE_GAMES:-true}
       - DISCORD_COOLDOWN_HOURS=${DISCORD_COOLDOWN_HOURS:-24}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - API_TOKEN=${API_TOKEN:-}
     volumes:
       - ./data:/data
     healthcheck:

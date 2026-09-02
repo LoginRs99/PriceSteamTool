@@ -128,7 +128,7 @@ let cachedMappings: Record<string, string | number> | null = null;
 
 export function loadCustomMappings(): Record<string, string | number> {
   if (cachedMappings) return cachedMappings;
-  const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
+  const mappingPath = path.join(config.dataDir, 'allkeyshop_mapping.json');
   try {
     if (fs.existsSync(mappingPath)) {
       const content = fs.readFileSync(mappingPath, 'utf8');
@@ -150,7 +150,7 @@ export function saveCustomMapping(steamAppId: number | string, value: string | n
   }
   cachedMappings = mappings;
 
-  const mappingPath = path.join(process.cwd(), 'data', 'allkeyshop_mapping.json');
+  const mappingPath = path.join(config.dataDir, 'allkeyshop_mapping.json');
   try {
     const dataDir = path.dirname(mappingPath);
     if (!fs.existsSync(dataDir)) {
@@ -359,7 +359,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private catalogIndex: AllKeyShopCatalogIndex | null = null;
   private lastCatalogFetch = 0;
   private pendingCatalogLoad: Promise<CatalogGame[]> | null = null;
-  private catalogPath = path.join(process.cwd(), 'data', 'allkeyshop_catalog.json');
+  private catalogPath = path.join(config.dataDir, 'allkeyshop_catalog.json');
 
   public isEnabled(): boolean {
     return config.allkeyshopEnabled;
