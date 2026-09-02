@@ -537,6 +537,17 @@ export class SyncOrchestrator {
         }
       }
 
+      // Step 7: Cleanup Old Price History (Retention Policy)
+      try {
+        const retentionDays = config.historyRetentionDays || 90;
+        const purgeRes = offerRepo.purgeOldPriceHistory(retentionDays);
+        if (purgeRes.deletedCount > 0) {
+          logInfo(`[Cleanup] Purged ${purgeRes.deletedCount} old price history records (older than ${retentionDays} days).`);
+        }
+      } catch (purgeErr: any) {
+        logWarn(`[Cleanup] Failed to purge old price history: ${purgeErr.message}`);
+      }
+
     } catch (err: any) {
       const duration = Math.round((Date.now() - this.startTime) / 1000);
       this.progress.status = 'FAILED';

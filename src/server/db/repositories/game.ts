@@ -99,6 +99,16 @@ export function buildWishlistFilterClause(
     whereClauses.push(`m.is_official = 0`);
   }
 
+  if (options.priceEvent) {
+    whereClauses.push(`bo.price_event = ?`);
+    params.push(options.priceEvent);
+  }
+
+  if (options.riskLevel) {
+    whereClauses.push(`bo.risk_level = ?`);
+    params.push(options.riskLevel);
+  }
+
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
   return { whereSql, params };
