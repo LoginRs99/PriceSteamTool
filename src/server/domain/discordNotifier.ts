@@ -215,7 +215,12 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
 
     if (bestPrice === undefined || bestPrice === null) continue;
 
-    // 0. High Risk & Anomaly Exclusion Guard
+    // 0. Stale Observation Guard (Never trigger Discord push alerts for stale data)
+    if (game.bestIsFresh === false) {
+      continue;
+    }
+
+    // 0.1 High Risk & Anomaly Exclusion Guard
     if (game.hasAnomaly || game.bestRiskLevel === 'HIGH') {
       continue;
     }

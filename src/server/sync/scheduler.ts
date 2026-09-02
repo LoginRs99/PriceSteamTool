@@ -63,6 +63,11 @@ export function initHistoryPurgeScheduler(): void {
       if (deletedCount > 0) {
         logInfo(`🧹 Purged ${deletedCount} price_history row(s) older than ${config.historyRetentionDays} days.`);
       }
+
+      const { invalidatedCount } = offerRepo.invalidateExpiredOffers();
+      if (invalidatedCount > 0) {
+        logInfo(`🧹 Invalidated ${invalidatedCount} expired offer(s) not observed in >14 days.`);
+      }
     } catch (err: any) {
       logWarn(`History purge error: ${err.message}`);
     }

@@ -475,4 +475,56 @@ describe('Discord Notifier Service', () => {
     expect(resHttp.success).toBe(false);
     expect(resHttp.error).toContain('Invalid Discord Webhook URL');
   });
+
+  it('strictly blocks Discord push alerts for stale observations (bestIsFresh === false)', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/stale-test',
+      isEnabled: true,
+      minDealScore: 70,
+      minConfidence: 30,
+      notifyAtlOnly: false,
+      notifyFreeGames: true,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 8001, title: 'Stale Deal Game', slug: 'stale-deal-game' });
+    const inserted = gameRepo.getBySteamAppId(8001)!;
+
+    const staleGame: Game = {
+      id: inserted.id,
+      steamAppId: 8001,
+      title: 'Stale Deal Game',
+      slug: 'stale-deal-game',
+      isDlc: false,
+      isFree: false,
+      bestPriceEur: 4.99,
+      bestDiscountPercent: 85,
+      bestDealScore: 92, // Outstanding score!
+      bestConfidenceScore: 80,
+      bestIsFresh: false, // STALE OBSERVATION (>72h)
+      bestRiskLevel: 'SAFE',
+      hasAnomaly: false,
+      offersCount: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([staleGame], 'TEST');
+    expect(sentCount).toBe(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Now verify that if it is fresh, it is sent
+    const freshGame: Game = {
+      ...staleGame,
+      bestIsFresh: true
+    };
+    const { sentCount: freshSent } = await sendDealNotifications([freshGame], 'TEST');
+    expect(freshSent).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 });
+

@@ -6,7 +6,7 @@ import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/p
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource } from '../../domain/priceIntelligence/types.js';
-import { FRESHNESS_WINDOW_MS } from '../../domain/constants.js';
+import { FRESHNESS_WINDOW_MS, OFFER_MAX_AGE_DAYS } from '../../domain/constants.js';
 import type { 
   Game, 
   Offer, 
@@ -756,10 +756,6 @@ export const offerRepo = {
       WHERE o.game_id = ?
       ORDER BY
         o.is_valid DESC,
-        CASE
-          WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= 72 THEN 0 -- keep in sync with FRESHNESS_WINDOW_MS
-          ELSE 1
-        END ASC,
         CASE WHEN o.is_anomaly = 1 OR o.risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
         o.price_eur ASC,
         COALESCE(o.last_observed_at, o.fetched_at) DESC
@@ -990,6 +986,21 @@ export const offerRepo = {
     }
 
     return { results, fetchedAt };
+  },
+
+  /**
+   * Invalidates offers that have not been observed in longer than maxAgeDays.
+   * Prevents defunct/zombie offers from lingering forever as valid.
+   */
+  invalidateExpiredOffers(maxAgeDays: number = OFFER_MAX_AGE_DAYS): { invalidatedCount: number } {
+    if (!maxAgeDays || maxAgeDays <= 0) return { invalidatedCount: 0 };
+    const cutoffIso = new Date(Date.now() - maxAgeDays * 24 * 3600 * 1000).toISOString();
+    const result = prepareStmt(`
+      UPDATE offers 
+      SET is_valid = 0, is_best_deal = 0, updated_at = datetime('now')
+      WHERE is_valid = 1 AND COALESCE(last_observed_at, fetched_at) < ?
+    `).run(cutoffIso);
+    return { invalidatedCount: result.changes };
   },
 
   /**

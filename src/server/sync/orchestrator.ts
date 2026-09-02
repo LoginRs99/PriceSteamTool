@@ -537,15 +537,20 @@ export class SyncOrchestrator {
         }
       }
 
-      // Step 7: Cleanup Old Price History (Retention Policy)
+      // Step 7: Cleanup Old Price History (Retention Policy) & Invalidate Expired Offers
       try {
         const retentionDays = config.historyRetentionDays || 90;
         const purgeRes = offerRepo.purgeOldPriceHistory(retentionDays);
         if (purgeRes.deletedCount > 0) {
           logInfo(`[Cleanup] Purged ${purgeRes.deletedCount} old price history records (older than ${retentionDays} days).`);
         }
+
+        const invalidateRes = offerRepo.invalidateExpiredOffers();
+        if (invalidateRes.invalidatedCount > 0) {
+          logInfo(`[Cleanup] Invalidated ${invalidateRes.invalidatedCount} expired offer(s) older than 14 days.`);
+        }
       } catch (purgeErr: any) {
-        logWarn(`[Cleanup] Failed to purge old price history: ${purgeErr.message}`);
+        logWarn(`[Cleanup] Failed to purge old price history / invalidate offers: ${purgeErr.message}`);
       }
 
     } catch (err: any) {
