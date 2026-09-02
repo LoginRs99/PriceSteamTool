@@ -4,9 +4,14 @@ data
 .git
 .gitignore
 .agents
+.gemini
 .env
-.env.local
+.env.*
 *.log
 tests
 scripts
 coverage
+*.md
+LICENSE
+.github
+*.tsbuildinfo

@@ -5,57 +5,61 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install native build tools for compiling better-sqlite3 on Alpine
+# Install build dependencies for compiling native SQLite C/C++ bindings on Alpine
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
+# Copy package manifests
 COPY package*.json tsconfig*.json ./
 
-# Clean install all dependencies
+# Clean install all dependencies (including devDependencies for build)
 RUN npm ci
 
-# Copy source code
+# Copy application source
 COPY src/ ./src/
 
-# Build client (Vite) and server (TypeScript)
+# Compile frontend bundle (Vite) and backend (TypeScript)
 RUN npm run build:client
 RUN npm run build:server
 
-# Remove devDependencies while preserving compiled native modules
+# Prune devDependencies while keeping compiled native modules intact
 RUN npm prune --omit=dev
 
 # ----------------------------------------------------
-# Stage 2: Production Runtime
+# Stage 2: Hardened Minimal Production Runtime
 # ----------------------------------------------------
 FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOST=0.0.0.0
-ENV DATA_DIR=/data
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOST=0.0.0.0 \
+    DATA_DIR=/data
 
-# Install curl for Docker health checks
-RUN apk add --no-cache curl
+# Install tini as init system (PID 1) for signal forwarding & zombie reaping
+RUN apk add --no-cache tini
 
-# Copy production node_modules with compiled native SQLite from builder
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./package.json
+# Copy compiled artifacts and production node_modules from builder stage
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/package.json ./package.json
 
-# Create persistent data volume directory and set non-root permissions
+# Pre-create data directory with unprivileged node user ownership (UID 1000:GID 1000)
 RUN mkdir -p /data && chown -R node:node /data /app
 
-# Run as non-root user
+# Run strictly under unprivileged node user
 USER node
 
+# Declare data volume
 VOLUME ["/data"]
 
 EXPOSE 3000
 
-# Health check
+# Built-in lightweight healthcheck using Alpine's native wget (no heavy external curl required)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
+# Use tini to handle SIGTERM/SIGINT and forward to Node
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/server/index.js"]
+

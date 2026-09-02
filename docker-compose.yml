@@ -8,6 +8,7 @@ services:
       dockerfile: Dockerfile
     container_name: pricetool
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "${PORT:-3000}:3000"
     environment:
@@ -44,9 +45,23 @@ services:
       - API_TOKEN=${API_TOKEN:-}
     volumes:
       - ./data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
