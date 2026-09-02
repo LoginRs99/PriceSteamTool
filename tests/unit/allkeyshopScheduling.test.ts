@@ -22,26 +22,26 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       expect(check2.intervalHours).toBe(48);
       expect(check2.streak).toBe(1);
 
-      // Check 3: Same price €15.00 observed again
+      // Check 3: Same price €15.00 observed again -> reaches ceiling (48h)
       const check3 = computeNextInterval(15.00, 15.00, check2.streak, check2.intervalHours, false);
-      expect(check3.intervalHours).toBe(96);
+      expect(check3.intervalHours).toBe(CEILING_HOURS); // 48
       expect(check3.streak).toBe(2);
 
-      // Check 4: Same price €15.00 observed again -> reaches ceiling (168h / 7 days)
+      // Check 4: Same price €15.00 observed again
       const check4 = computeNextInterval(15.00, 15.00, check3.streak, check3.intervalHours, false);
-      expect(check4.intervalHours).toBe(CEILING_HOURS); // 168
+      expect(check4.intervalHours).toBe(CEILING_HOURS); // 48
       expect(check4.streak).toBe(3);
 
-      // Check 5: Stays at ceiling (max 168h / 7 days)
+      // Check 5: Stays at ceiling
       const check5 = computeNextInterval(15.00, 15.00, check4.streak, check4.intervalHours, false);
-      expect(check5.intervalHours).toBe(CEILING_HOURS); // 168
+      expect(check5.intervalHours).toBe(CEILING_HOURS); // 48
       expect(check5.streak).toBe(4);
     });
 
     it('tolerates tiny sub-5c fluctuations as unchanged price', () => {
       // €15.00 to €15.03 (within 0.05 EUR tolerance)
       const res = computeNextInterval(15.00, 15.03, 1, 48, false);
-      expect(res.intervalHours).toBe(96);
+      expect(res.intervalHours).toBe(48);
       expect(res.streak).toBe(2);
     });
 
@@ -253,8 +253,8 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         g3.allkeyshopCheckIntervalHours ?? 24,
         Boolean(g3.targetPriceEur)
       );
-      // Crucial assertion: interval grows from 48h to 96h!
-      expect(sched3.intervalHours).toBe(96);
+      // Crucial assertion: interval hits ceiling (48)
+      expect(sched3.intervalHours).toBe(48);
       expect(sched3.streak).toBe(2);
     });
   });
