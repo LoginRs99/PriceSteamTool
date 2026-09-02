@@ -29,13 +29,34 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Health & Diagnostics
   // ----------------------------------------------------
-  fastify.get('/api/health', async () => {
+  const healthHandler = async () => {
+    let dbStatus = 'ok';
+    try {
+      const { getDb } = await import('../db/index.js');
+      getDb().prepare('SELECT 1').get();
+    } catch {
+      dbStatus = 'degraded';
+    }
+
+    const { circuitBreakers } = await import('../sync/circuitBreaker.js');
+    const circuitStates = circuitBreakers.getAllStates();
+
     return {
-      status: 'ok',
+      status: dbStatus === 'ok' ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
-      syncRunning: syncOrchestrator.isSyncRunning()
+      database: dbStatus,
+      syncRunning: syncOrchestrator.isSyncRunning(),
+      circuitBreakers: circuitStates,
+      uptimeSeconds: Math.round(process.uptime()),
+      memory: {
+        rssMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
+        heapUsedMb: Math.round(process.memoryUsage().heapUsed / (1024 * 1024))
+      }
     };
-  });
+  };
+
+  fastify.get('/api/health', healthHandler);
+  fastify.get('/health', healthHandler);
 
   // ----------------------------------------------------
   // Profiles API

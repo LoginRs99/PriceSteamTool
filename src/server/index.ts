@@ -55,6 +55,23 @@ export async function createApp(): Promise<FastifyInstance> {
     });
   }
 
+  // Central Error Handler: uniform error responses, never leak internal stack traces in production
+  fastify.setErrorHandler((error: any, request, reply) => {
+    const statusCode = error?.statusCode || 500;
+    if (statusCode >= 500) {
+      request.log.error(error);
+      reply.status(statusCode).send({
+        error: config.isDev ? (error?.message || 'Internal Server Error') : 'Internal Server Error',
+        statusCode
+      });
+    } else {
+      reply.status(statusCode).send({
+        error: error?.message || 'Request Error',
+        statusCode
+      });
+    }
+  });
+
   // Initialize SQLite database schema and backfill stats
   getDb();
   backfillDealScoreStats();
@@ -118,6 +135,15 @@ async function bootstrap() {
 
   process.on('SIGINT', () => handleShutdown('SIGINT'));
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+
+  // Background error isolation guards: prevent unhandled worker rejections from crashing the HTTP server
+  process.on('unhandledRejection', (reason, promise) => {
+    app.log.error({ reason, promise }, '[Process Safety] Unhandled Rejection intercepted');
+  });
+
+  process.on('uncaughtException', (err) => {
+    app.log.error({ err }, '[Process Safety] Uncaught Exception intercepted');
+  });
 
   try {
     await app.listen({ port: config.port, host: config.host });
