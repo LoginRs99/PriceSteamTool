@@ -53,6 +53,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
     dealTier === 'Good' ? 'var(--accent-blue)' :
     'var(--dim)';
 
+  const tierDisplayName = 
+    dealTier === 'Exceptional' ? 'Mega Deal' : 
+    dealTier === 'Great' ? 'Great Deal' : 
+    dealTier === 'Good' ? 'Good Deal' : 
+    dealTier === 'Fair' ? 'Fair' : 'Weak';
+
   // Real context savings
   const savingVsMedian = game.bestSavingVsMedianEur;
   const typicalMedian = game.typicalSaleMedianEur;
@@ -174,7 +180,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
             {dealScore > 0 ? (
               <>
                 <span className="deal-score-num ticker-num">{dealScore}</span>
-                <span className="deal-score-tier-label">{dealTier}</span>
+                <span className="deal-score-tier-label">{tierDisplayName}</span>
               </>
             ) : (
               <span className="deal-score-tier-label">

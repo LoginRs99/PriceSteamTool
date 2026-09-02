@@ -924,5 +924,35 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
       expect(res.summary).toBe('📈 Price Increased');
     });
+
+    it('20. Deep discounts (e.g. Tales of Vesperia €39.99 -> €5.54 matching ATL or €20 -> €3.99 indie) evaluate as EXTREME_DROP (Mega Deal)', () => {
+      // Scenario A: Tales of Vesperia matching ATL (€5.57) at €5.54 with MSRP €39.99 (86% off, saving €34.45)
+      const vesperiaRes = evaluatePriceMovement({
+        currentPriceEur: 5.54,
+        basePriceEur: 39.99,
+        historicalLowEur: 5.57,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 2,
+        marketPricesEur: [5.54, 7.04]
+      });
+
+      expect(vesperiaRes.event).toBe('EXTREME_DROP');
+      expect(vesperiaRes.riskLevel).toBe('SAFE');
+      expect(vesperiaRes.isAnomaly).toBe(false);
+      expect(vesperiaRes.summary).toBe('🔥 Extreme Price Drop');
+
+      // Scenario B: Quality Indie/AA game €19.99 -> €3.99 (80% off, saving €16.00)
+      const indieRes = evaluatePriceMovement({
+        currentPriceEur: 3.99,
+        basePriceEur: 19.99,
+        isOfficialMerchant: true,
+        sourceAgreementCount: 2,
+        marketPricesEur: [3.99, 4.50]
+      });
+
+      expect(indieRes.event).toBe('EXTREME_DROP');
+      expect(indieRes.riskLevel).toBe('SAFE');
+      expect(indieRes.isAnomaly).toBe(false);
+    });
   });
 });

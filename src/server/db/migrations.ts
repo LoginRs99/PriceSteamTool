@@ -144,6 +144,34 @@ export const MIGRATIONS: Migration[] = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id)");
       db.exec("CREATE INDEX IF NOT EXISTS idx_wishlist_game_id ON wishlist_entries(game_id)");
     }
+  },
+  {
+    name: '014_purge_false_high_risk_and_recompute_deals',
+    up: (db) => {
+      // 1. Reset offers that were falsely flagged as HIGH risk due to price increases or high prices
+      db.exec(`
+        UPDATE offers
+        SET risk_level = 'SAFE',
+            risk_score = 0.0,
+            is_anomaly = 0,
+            anomaly_score = 0.0,
+            anomaly_reason = NULL
+        WHERE risk_level = 'HIGH'
+          AND (price_event = 'PRICE_INCREASE' OR price_eur >= 10.0 OR (original_price_eur IS NOT NULL AND price_eur >= original_price_eur));
+      `);
+
+      // 2. Resolve/dismiss corresponding false active anomaly records
+      db.exec(`
+        UPDATE anomalies
+        SET is_dismissed = 1
+        WHERE offer_id IN (
+          SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
+        ) AND is_dismissed = 0;
+      `);
+
+      // 3. Recompute best deal assignment across all games
+      db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
+    }
   }
 ];
 

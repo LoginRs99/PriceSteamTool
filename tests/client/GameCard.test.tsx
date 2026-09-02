@@ -41,7 +41,7 @@ describe('GameCard Component', () => {
     expect(screen.getByRole('heading', { name: 'Cyberpunk 2077' })).toBeInTheDocument();
     expect(screen.getByText('-50%')).toBeInTheDocument();
     expect(screen.getByText('85')).toBeInTheDocument();
-    expect(screen.getByText('Great')).toBeInTheDocument();
+    expect(screen.getByText('Great Deal')).toBeInTheDocument();
     expect(screen.getByText('€29.99')).toBeInTheDocument();
     expect(screen.getByText('€59.99')).toBeInTheDocument();
     expect(screen.getByText('Steam Store')).toBeInTheDocument();

@@ -57,14 +57,14 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
 
           <div className="stat-card" onClick={onFilterMajor} style={{ cursor: 'pointer' }}>
             <div className="stat-card-header">
-              <span className="stat-label">Major Drops</span>
+              <span className="stat-label">Mega & Major Deals</span>
               <TrendingDown size={16} color="#8b5cf6" />
             </div>
             <div className="stat-value" style={{ color: '#a78bfa' }}>
               {stats.majorDropsCount}
             </div>
             <div className="stat-footer">
-              Significant price drops (50%+)
+              50%+ drops or Mega Deals
             </div>
           </div>
 
@@ -152,7 +152,7 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                       style={{ background: tierColor }}
                       title={`Deal Score: ${score}/100 • ${tier}`}
                     >
-                      ★ {score} • {tier}
+                      ★ {score} • {tier === 'Exceptional' ? 'Mega Deal' : tier === 'Great' ? 'Great Deal' : tier === 'Good' ? 'Good Deal' : tier}
                     </span>
                   </div>
 

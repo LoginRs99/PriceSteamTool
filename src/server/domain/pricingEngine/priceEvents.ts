@@ -16,43 +16,71 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
     return 'PRICE_INCREASE';
   }
 
-  // 2. Check for Historical Low
-  if (historicalLowEur !== undefined && historicalLowEur > 0) {
-    if (currentPriceEur < historicalLowEur * 0.98) {
-      // Confirmed if high confidence or multi-source consensus and not high risk
-      if ((sourceAgreementCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH') {
-        return 'NEW_HISTORICAL_LOW';
-      }
-      return 'SUSPECTED_HISTORICAL_LOW';
-    } else if (currentPriceEur <= historicalLowEur * 1.02 && riskLevel !== 'HIGH') {
-      return 'AT_HISTORICAL_LOW';
-    } else if (currentPriceEur <= historicalLowEur * 1.10 && riskLevel !== 'HIGH') {
-      return 'NEAR_HISTORICAL_LOW';
-    }
+  // 2. Check for Historical Low records (new records take precedence)
+  const isNewAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur < historicalLowEur * 0.98;
+  const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH';
+  const isAtAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02 && riskLevel !== 'HIGH';
+  const isNearAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.10 && riskLevel !== 'HIGH';
+
+  // Confirmed new historical low record
+  if (isConfirmedAtl) {
+    return 'NEW_HISTORICAL_LOW';
+  }
+
+  // Suspected unconfirmed new ATL (keyshop outlier or single source)
+  if (isNewAtl) {
+    return 'SUSPECTED_HISTORICAL_LOW';
   }
 
   // 3. Magnitude Evaluation against MSRP / Original price
   const msrp = basePriceEur || originalPriceEur || 0;
-  if (msrp <= 0) {
-    return 'NONE';
-  }
+  const discountPercent = msrp > 0 ? Math.max(0, ((msrp - currentPriceEur) / msrp) * 100) : 0;
+  const absoluteDropEur = msrp > 0 ? Math.max(0, msrp - currentPriceEur) : 0;
 
-  const discountPercent = Math.max(0, ((msrp - currentPriceEur) / msrp) * 100);
-  const absoluteDropEur = Math.max(0, msrp - currentPriceEur);
+  // Mega Deal / Extreme Price Collapse:
+  // - >=75% discount with >=15€ savings or MSRP >= 20€
+  // - >=80% discount with >=10€ savings (great indie / AA deal)
+  // - >=70% discount with >=20€ savings
+  // - At ATL with >=65% discount and >=15€ savings
+  const isExtremeDrop = msrp > 0 && (
+    (discountPercent >= 75 && (absoluteDropEur >= 15 || msrp >= 20)) ||
+    (discountPercent >= 80 && absoluteDropEur >= 10) ||
+    (discountPercent >= 70 && absoluteDropEur >= 20) ||
+    (isAtAtl && discountPercent >= 65 && absoluteDropEur >= 15)
+  );
 
-  // High-value titles (MSRP >= 30€) or large drops
-  if (discountPercent >= 75 && (absoluteDropEur >= 25 || msrp >= 30)) {
+  if (isExtremeDrop) {
     return 'EXTREME_DROP';
   }
 
-  if (discountPercent >= 50 && absoluteDropEur >= 15) {
+  // 4. Matches Historical Low (smaller discounts)
+  if (isAtAtl) {
+    return 'AT_HISTORICAL_LOW';
+  }
+
+  // 5. Major Drop:
+  // - >=50% discount with >=15€ drop, or >=50% discount on MSRP >= 20€
+  // - Near ATL with >=45% discount
+  const isMajorDrop = msrp > 0 && (
+    (discountPercent >= 50 && (absoluteDropEur >= 15 || msrp >= 20)) ||
+    (isNearAtl && discountPercent >= 45)
+  );
+
+  if (isMajorDrop) {
     return 'MAJOR_DROP';
   }
 
+  // 6. Near Historical Low
+  if (isNearAtl) {
+    return 'NEAR_HISTORICAL_LOW';
+  }
+
+  // 7. Significant drop (30%+ discount or €10+ savings)
   if (discountPercent >= 30 || absoluteDropEur >= 10) {
     return 'SIGNIFICANT_DROP';
   }
 
+  // 8. Standard sale (10%+ discount)
   if (discountPercent >= 10) {
     return 'STANDARD_SALE';
   }

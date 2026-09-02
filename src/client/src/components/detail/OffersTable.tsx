@@ -69,7 +69,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                       
                       {/* Evaluation Flags */}
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                        {offer.priceEvent === 'NEW_HISTORICAL_LOW' && (
+                        {(offer.priceEvent === 'NEW_HISTORICAL_LOW' || offer.priceEvent === 'AT_HISTORICAL_LOW') && (
                           <span className="ticker-flag ticker-flag-atl" style={{ fontSize: 10, padding: '1px 5px' }}>
                             🏆 ALL-TIME LOW
                           </span>
@@ -84,18 +84,19 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                             ✨ MAJOR DROP
                           </span>
                         )}
-                        {offer.riskLevel === 'HIGH' ? (
+                        {Boolean(offer.isBestDeal) && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', borderRadius: 3 }}>
+                            ⭐ BEST OFFER
+                          </span>
+                        )}
+                        {offer.riskLevel === 'HIGH' && (
                           <span className="ticker-flag ticker-flag-up" style={{ fontSize: 10, padding: '1px 5px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             <AlertTriangle size={10} /> HIGH RISK
                           </span>
-                        ) : offer.riskLevel === 'MEDIUM' ? (
-                          <span className="ticker-flag ticker-flag-atl" style={{ fontSize: 10, padding: '1px 5px' }}>
-                            ⚠️ CAUTION
-                          </span>
-                        ) : null}
+                        )}
                       </div>
 
-                      {offer.isAnomaly && (
+                      {offer.isAnomaly && offer.riskLevel === 'HIGH' && (
                         <span style={{ fontSize: 11, color: 'var(--up)', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                           <AlertTriangle size={11} /> {offer.anomalyReason || 'Anomaly'}
                         </span>
@@ -116,7 +117,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                             display: 'inline-block'
                           }}
                         >
-                          {score} • {tier}
+                          {score} • {tier === 'Exceptional' ? 'Mega Deal' : tier === 'Great' ? 'Great Deal' : tier === 'Good' ? 'Good Deal' : tier}
                         </span>
                       ) : (
                         <span style={{ color: 'var(--dim)', fontSize: 12 }}>—</span>

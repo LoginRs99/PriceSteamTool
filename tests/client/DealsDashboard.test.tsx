@@ -73,7 +73,7 @@ describe('DealsDashboard Component', () => {
     expect(screen.getByText('6')).toBeInTheDocument();
     expect(screen.getByText('All-Time Lows')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText('Major Drops')).toBeInTheDocument();
+    expect(screen.getByText('Mega & Major Deals')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('On Sale').closest('.stat-card')!);
@@ -82,7 +82,7 @@ describe('DealsDashboard Component', () => {
     fireEvent.click(screen.getByText('All-Time Lows').closest('.stat-card')!);
     expect(filterAtlMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByText('Major Drops').closest('.stat-card')!);
+    fireEvent.click(screen.getByText('Mega & Major Deals').closest('.stat-card')!);
     expect(filterMajorMock).toHaveBeenCalledTimes(1);
   });
 

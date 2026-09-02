@@ -64,7 +64,7 @@ export function buildWishlistFilterClause(
   }
 
   if (options.majorDealsOnly) {
-    whereClauses.push(`bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP')`);
+    whereClauses.push(`(bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') OR bo.discount_percent >= 50 OR (g.base_price_eur IS NOT NULL AND g.base_price_eur > 0 AND bo.price_eur <= g.base_price_eur * 0.5))`);
   }
 
   if (options.allTimeLowOnly || options.historicalLowOnly) {
@@ -367,7 +367,7 @@ export const gameRepo = {
         COUNT(DISTINCT CASE WHEN g.is_free = 1 THEN w.game_id END) as free_games,
         COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.discount_percent > 0 OR (g.base_price_eur > 0 AND bo.price_eur < g.base_price_eur)) THEN w.game_id END) as games_on_sale,
         COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW') THEN w.game_id END) as games_at_historical_low,
-        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') THEN w.game_id END) as major_drops_count,
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') OR bo.discount_percent >= 50 OR (g.base_price_eur > 0 AND bo.price_eur <= g.base_price_eur * 0.5)) THEN w.game_id END) as major_drops_count,
         COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND EXISTS (SELECT 1 FROM offers ho WHERE ho.game_id = w.game_id AND ho.risk_level = 'HIGH' AND ho.is_valid = 1) THEN w.game_id END) as games_with_high_risk,
         AVG(CASE 
           WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.discount_percent > 0 OR (g.base_price_eur > 0 AND bo.price_eur < g.base_price_eur)) THEN 
