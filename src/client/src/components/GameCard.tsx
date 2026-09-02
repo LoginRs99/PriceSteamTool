@@ -210,34 +210,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
           )}
         </div>
 
-        {/* Bottom-Left: Action Signal Pill (Must Buy, Buy, Wait, etc.) */}
-        {game.actionSignal && !isHighRisk && (
-          <div 
-            className="action-signal-pill" 
-            style={{ 
-              position: 'absolute', 
-              bottom: 8, 
-              left: 8, 
-              background: 'rgba(15, 23, 42, 0.92)',
-              backdropFilter: 'blur(8px)',
-              border: `1px solid ${game.actionSignal.badgeColor}88`,
-              color: game.actionSignal.badgeColor,
-              padding: '4px 9px',
-              borderRadius: 6,
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              zIndex: 3,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.6)'
-            }}
-            title={`${game.actionSignal.badgeLabel}: ${game.actionSignal.primaryReason}`}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: game.actionSignal.badgeColor, boxShadow: `0 0 6px ${game.actionSignal.badgeColor}` }} />
-            <span>{game.actionSignal.badgeLabel}</span>
-          </div>
-        )}
+
       </div>
 
       {/* Card Content */}

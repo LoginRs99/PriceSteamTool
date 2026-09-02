@@ -34,24 +34,15 @@ export interface DealScoreInput {
   firstObservedAt?: string;
   lastObservedAt?: string;
   sourceCount?: number;
-  isOfficialSource?: boolean;
   
   // Data Quality & Anomaly Guards (Passed for metadata / UI flags)
   isAnomaly?: boolean;
   riskLevel?: PriceRiskLevel;
 
-  // Legacy compatibility fields (preserved for type safety)
-  isLowSample?: boolean;
+  // Required for Fallback/Edge cases
+  originalPriceEur?: number;
   isConfirmedAtl?: boolean;
   isSingleSourceLow?: boolean;
-  originalPriceEur?: number;
-  discountPercent?: number;
-  priceEvent?: PriceEventType;
-  isOfficialMerchant?: boolean;
-  merchantTrustScore?: number;
-  sourceAgreementCount?: number;
-  riskScore?: number;
-  evaluationConfidence?: number;
 }
 
 export interface DealScoreResult {

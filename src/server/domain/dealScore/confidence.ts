@@ -11,7 +11,6 @@ export function calculateDataConfidence(input: {
   firstObservedAt?: string;
   lastObservedAt?: string;
   sourceCount?: number;
-  isOfficialSource?: boolean;
 }): { confidence: number; tier: ConfidenceTier; factors: Record<string, number> } {
   const n = Math.max(0, input.sampleCount || 0);
 

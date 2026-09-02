@@ -581,7 +581,6 @@ export const offerRepo = {
           typicalSaleMedianEur: typicalSale.medianPriceEur,
           typicalSaleQ1Eur: typicalSale.q1PriceEur,
           typicalSaleQ3Eur: typicalSale.q3PriceEur,
-          isLowSample: typicalSale.isLowConfidence || typicalSale.medianPriceEur === null,
           low90dEur: periodLows.low90d.priceEur,
           low1yEur: periodLows.low1y.priceEur,
           allTimeLowEur: periodLows.allTimeLow.priceEur || (gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined),
@@ -593,7 +592,7 @@ export const offerRepo = {
           // Pass the same context fields the read paths use so write-time and read-time scores match
           sampleCount: typicalSale.sampleCount,
           sourceCount: Math.max(1, distinctSourceCount),
-          isOfficialSource: Boolean(merchantInfo?.is_official),
+
           lastObservedAt: active.observedAt || now,
           firstObservedAt
         });
@@ -684,7 +683,6 @@ export const offerRepo = {
       typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
       typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-      isLowSample: Boolean(r.typical_sale_low_confidence || r.typical_sale_median_eur === null || r.typical_sale_median_eur === undefined),
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
@@ -695,7 +693,6 @@ export const offerRepo = {
       firstObservedAt: r.price_tracking_first_observed_at || undefined,
       lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
       sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
-      isOfficialSource: isOfficial,
       isAnomaly: Boolean(r.is_anomaly),
       riskLevel: r.risk_level || 'SAFE'
     });
@@ -792,8 +789,7 @@ export const offerRepo = {
         typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
         typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
         typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-        isLowSample: Boolean(r.typical_sale_low_confidence || r.typical_sale_median_eur === null || r.typical_sale_median_eur === undefined),
-        low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
+          low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
         low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
         allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
         historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
@@ -803,7 +799,6 @@ export const offerRepo = {
         firstObservedAt: r.price_tracking_first_observed_at || undefined,
         lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
         sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
-        isOfficialSource: isOfficial,
         isAnomaly: Boolean(r.is_anomaly),
         riskLevel: r.risk_level || 'SAFE'
       });

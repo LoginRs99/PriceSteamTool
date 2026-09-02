@@ -56,7 +56,6 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     typicalSaleMedianEur: typicalSale.medianPriceEur,
     typicalSaleQ1Eur: typicalSale.q1PriceEur,
     typicalSaleQ3Eur: typicalSale.q3PriceEur,
-    isLowSample: typicalSale.isLowConfidence || typicalSale.medianPriceEur === null,
     low90dEur: periodLows.low90d.priceEur,
     low1yEur: periodLows.low1y.priceEur,
     allTimeLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
@@ -67,7 +66,6 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     firstObservedAt: (game as any).priceTrackingFirstObservedAt || (game as any).price_tracking_first_observed_at || (history.length > 0 ? history[history.length - 1].recordedAt : undefined),
     lastObservedAt: bestOffer?.lastObservedAt || (history.length > 0 ? history[0].recordedAt : undefined),
     sourceCount: bestOffer?.sources?.length ?? (game as any).bestOfferSourceCount ?? (game as any).best_offer_source_count ?? 1,
-    isOfficialSource: bestOffer?.isOfficial ?? (game as any).bestMerchantIsOfficial ?? true,
     isAnomaly: Boolean(bestOffer?.isAnomaly),
     riskLevel: bestOffer?.riskLevel || 'SAFE'
   });

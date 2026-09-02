@@ -66,8 +66,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     sampleCount,
     firstObservedAt: input.firstObservedAt,
     lastObservedAt: input.lastObservedAt,
-    sourceCount: input.sourceCount ?? 1,
-    isOfficialSource: input.isOfficialSource ?? true
+    sourceCount: input.sourceCount ?? 1
   });
 
   return {

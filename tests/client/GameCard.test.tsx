@@ -102,41 +102,15 @@ describe('GameCard Component', () => {
     expect(screen.getByText('🎯 €20.00')).toBeInTheDocument();
   });
 
-  it('renders action signal pill with reason when actionSignal is present', () => {
-    const signalGame: Game = {
-      ...mockGameBase,
-      actionSignal: {
-        decision: 'STRONG_BUY',
-        badgeLabel: 'Must Buy',
-        badgeColor: '#10b981',
-        primaryReason: 'At historical low with 50% discount',
-        urgency: 'HIGH',
-        timingContext: 'Major seasonal sale'
-      }
-    };
-    render(<GameCard game={signalGame} onClick={() => {}} />);
-
-    expect(screen.getByText('Must Buy')).toBeInTheDocument();
-  });
-
-  it('renders risk flag and suppresses action signal when game has high risk or anomaly', () => {
+  it('renders risk flag when game has high risk or anomaly', () => {
     const riskyGame: Game = {
       ...mockGameBase,
       hasAnomaly: true,
-      bestRiskLevel: 'HIGH',
-      actionSignal: {
-        decision: 'BUY',
-        badgeLabel: 'Buy',
-        badgeColor: '#3b82f6',
-        primaryReason: 'Good deal',
-        urgency: 'LOW',
-        timingContext: 'Standard promo'
-      }
+      bestRiskLevel: 'HIGH'
     };
     render(<GameCard game={riskyGame} onClick={() => {}} />);
-
+    
     expect(screen.getByText('Risk Flag')).toBeInTheDocument();
-    expect(screen.queryByText('Buy')).not.toBeInTheDocument();
   });
 
   it('calls onExplain when info button or score badge is clicked without triggering card onClick', () => {

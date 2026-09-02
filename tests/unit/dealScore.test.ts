@@ -151,7 +151,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         firstObservedAt: halfYearAgo.toISOString(),
         lastObservedAt: now.toISOString(),
         sourceCount: 3,
-        isOfficialSource: true
+
       });
 
       expect(res.confidence).toBeGreaterThanOrEqual(80);
@@ -169,7 +169,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         firstObservedAt: now.toISOString(),
         lastObservedAt: now.toISOString(),
         sourceCount: 1,
-        isOfficialSource: true
+
       });
 
       expect(res.confidence).toBeLessThan(40);
@@ -188,7 +188,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         firstObservedAt: twoHundredDaysAgo.toISOString(),
         lastObservedAt: now.toISOString(),
         sourceCount: 2,
-        isOfficialSource: true
+
       });
       expect(freshRes.confidence).toBe(100);
 
@@ -197,7 +197,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         firstObservedAt: twoHundredDaysAgo.toISOString(),
         lastObservedAt: tenDaysAgo.toISOString(),
         sourceCount: 2,
-        isOfficialSource: true
+
       });
       // Freshness factor drops from 1.0 to 0.55
       expect(staleRes.factors.freshness).toBe(0.55);
@@ -249,7 +249,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         firstObservedAt: yearAgo.toISOString(),
         lastObservedAt: now.toISOString(),
         sourceCount: 3,
-        isOfficialSource: true
+
       });
 
       expect(result.confidenceScore).toBe(100);

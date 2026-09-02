@@ -68,20 +68,3 @@ export function calculateRecordBonus(
   };
 }
 
-// Backward-compatible alias for existing callers
-export function calculateRarityBonus(
-  priceEur: number,
-  allTimeLowEur?: number | null,
-  low90dEur?: number | null,
-  low1yEur?: number | null,
-  isLowSample?: boolean,
-  isConfirmedAtl?: boolean
-): number {
-  const atl = allTimeLowEur ?? low1yEur;
-  const result = calculateRecordBonus(priceEur, null, atl);
-  let bonus = result.recordBonus;
-  if (isConfirmedAtl === false) {
-    bonus = bonus * 0.5;
-  }
-  return Math.round(bonus);
-}

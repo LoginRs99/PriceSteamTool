@@ -838,7 +838,6 @@ function mapGameRow(r: any): Game {
       typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
       typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-      isLowSample: Boolean(r.typical_sale_low_confidence || r.typical_sale_median_eur === null || r.typical_sale_median_eur === undefined),
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
@@ -850,8 +849,7 @@ function mapGameRow(r: any): Game {
       lastObservedAt: r.best_last_observed_at || r.last_observed_at || undefined,
       sourceCount: r.best_offer_source_count !== null && r.best_offer_source_count !== undefined
         ? Number(r.best_offer_source_count)
-        : undefined,
-      isOfficialSource: isOfficial
+        : undefined
     });
 
     bestDealScore = dealResult.score;

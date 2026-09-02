@@ -180,12 +180,10 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
     const dealWithoutAtl = calculateDealScore({
       priceEur: 4.49,
       basePriceEur: 29.99,
-      discountPercent: 85,
-      priceEvent: evalRes.event,
-      isOfficialMerchant: true,
-      sourceAgreementCount: 2,
+
+
       riskLevel: evalRes.riskLevel,
-      evaluationConfidence: evalRes.confidence
+
     });
 
     expect(dealWithoutAtl.score).toBe(25);
@@ -198,13 +196,10 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       typicalSaleMedianEur: 14.99,
       typicalSaleQ1Eur: 12.99,
       typicalSaleQ3Eur: 17.99,
-      discountPercent: 85,
-      priceEvent: 'AT_HISTORICAL_LOW',
       allTimeLowEur: 4.49,
-      isOfficialMerchant: true,
-      sourceAgreementCount: 2,
+
       riskLevel: evalRes.riskLevel,
-      evaluationConfidence: evalRes.confidence
+
     });
 
     expect(dealWithAtl.score).toBeGreaterThanOrEqual(80);
@@ -226,12 +221,9 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
     const deal = calculateDealScore({
       priceEur: 0.49,
       basePriceEur: 59.99,
-      discountPercent: 99,
-      priceEvent: evalRes.event,
-      isOfficialMerchant: false,
-      sourceAgreementCount: 1,
+
+
       riskLevel: evalRes.riskLevel,
-      evaluationConfidence: evalRes.confidence,
       isAnomaly: evalRes.isAnomaly
     });
 
