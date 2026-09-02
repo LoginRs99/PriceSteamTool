@@ -176,7 +176,7 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
       isAnomaly: false,
       riskLevel: 'SAFE',
       lastObservedAt: freshTime
-    }, now)).toBe(true);
+    }, { nowMs: now })).toBe(true);
 
     // Stale peer (> 72h) is strictly excluded
     expect(isCompatiblePeerOffer(target, {
@@ -186,7 +186,7 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
       isAnomaly: false,
       riskLevel: 'SAFE',
       lastObservedAt: staleTime
-    }, now)).toBe(false);
+    }, { nowMs: now })).toBe(false);
   });
 
   it('Write-time and read-time Deal Score, sampleCount-derived fields, and isProvisional flag are IDENTICAL', () => {

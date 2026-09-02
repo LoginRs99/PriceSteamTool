@@ -25,12 +25,22 @@ export function isCompatiblePeerOffer(
     lastObservedAt?: string;
     fetchedAt?: string;
   },
-  nowMs: number = Date.now(),
-  freshnessWindowMs: number = FRESHNESS_WINDOW_MS
+  options: {
+    nowMs?: number;
+    freshnessWindowMs?: number;
+    allowAnomalies?: boolean;
+  } = {}
 ): boolean {
+  const nowMs = options.nowMs ?? Date.now();
+  const freshnessWindowMs = options.freshnessWindowMs ?? FRESHNESS_WINDOW_MS;
+
   if (peer.isValid === false) return false;
-  if (peer.isAnomaly === true) return false;
-  if (peer.riskLevel === 'HIGH') return false;
+  
+  if (!options.allowAnomalies) {
+    if (peer.isAnomaly === true) return false;
+    if (peer.riskLevel === 'HIGH') return false;
+  }
+  
   if (peer.productType !== target.productType) return false;
 
   // Stale peer check: observations older than 72 hours cannot participate in live market evaluation
@@ -259,7 +269,22 @@ export const offerRepo = {
           riskLevel: row.risk_level,
           lastObservedAt: row.last_observed_at,
           fetchedAt: row.fetched_at
-        }
+        },
+        { allowAnomalies: false }
+      ));
+
+      const corroborationPeers = otherOffersRows.filter(row => isCompatiblePeerOffer(
+        { productType: data.productType, regionType: data.regionType },
+        {
+          productType: row.product_type,
+          regionType: row.region_type,
+          isValid: Boolean(row.is_valid),
+          isAnomaly: Boolean(row.is_anomaly),
+          riskLevel: row.risk_level,
+          lastObservedAt: row.last_observed_at,
+          fetchedAt: row.fetched_at
+        },
+        { allowAnomalies: true }
       ));
 
       const marketPrices = compatiblePeers.map(p => Number(p.price_eur));
@@ -268,7 +293,7 @@ export const offerRepo = {
 
       // Count distinct independent merchants with compatible prices (within 30% of active price)
       const corroboratingMerchants = new Set<string>();
-      for (const peer of compatiblePeers) {
+      for (const peer of corroborationPeers) {
         const peerPrice = Number(peer.price_eur);
         if (peerPrice > 0) {
           const relDiff = Math.abs(peerPrice - active.priceEur) / Math.min(peerPrice, active.priceEur);
