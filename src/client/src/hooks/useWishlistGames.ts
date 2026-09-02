@@ -6,6 +6,7 @@ export function useWishlistGames(activeProfileId?: string, initialFilters?: Wish
   const [games, setGames] = useState<Game[]>([]);
   const [totalGames, setTotalGames] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<WishlistFilterOptions>(() => {
     const savedSort = localStorage.getItem('pricetool_sort') as any;
     const savedLimit = parseInt(localStorage.getItem('pricetool_limit') || '50', 10);
@@ -24,20 +25,23 @@ export function useWishlistGames(activeProfileId?: string, initialFilters?: Wish
       setGames([]);
       setTotalGames(0);
       setLoading(false);
+      setError(null);
       return;
     }
 
     const requestId = ++requestCounter.current;
     setLoading(true);
+    setError(null);
     try {
       const res = await api.getWishlistGames({ ...opts, isFreeOnly: false });
       if (requestId === requestCounter.current) {
         setGames(res.games || []);
         setTotalGames(res.total || 0);
       }
-    } catch (e) {
+    } catch (e: any) {
       if (requestId === requestCounter.current) {
         console.error('Failed to load wishlist games:', e);
+        setError(e?.message || 'Failed to load games from server.');
       }
     } finally {
       if (requestId === requestCounter.current) {
@@ -69,6 +73,7 @@ export function useWishlistGames(activeProfileId?: string, initialFilters?: Wish
     setGames,
     totalGames,
     loading,
+    error,
     filters,
     setFilters,
     updateFilters,

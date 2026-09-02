@@ -65,6 +65,7 @@ export const App: React.FC = () => {
     setGames,
     totalGames,
     loading,
+    error: gamesError,
     filters,
     updateFilters,
     loadGames
@@ -217,6 +218,35 @@ export const App: React.FC = () => {
                 onViewModeChange={handleViewModeChange}
                 onFilterChange={updateFilters}
               />
+
+              {gamesError && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  padding: '14px 18px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  color: 'var(--text, #fff)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <AlertTriangle size={20} color="#f87171" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '14px', color: '#fca5a5' }}>
+                      {gamesError}
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => loadGames()}
+                    style={{ fontSize: '13px', padding: '6px 14px', whiteSpace: 'nowrap' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
 
               {loading && games.length === 0 ? (
                 viewMode === 'grid' ? (
