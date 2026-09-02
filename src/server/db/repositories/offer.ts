@@ -970,5 +970,17 @@ export const offerRepo = {
     }
 
     return { results, fetchedAt };
+  },
+
+  /**
+   * Purges price_history rows older than retentionDays.
+   * Does not touch games.historical_low_eur (all-time low) — that lives
+   * separately and is unaffected by this cleanup.
+   */
+  purgeOldPriceHistory(retentionDays: number): { deletedCount: number } {
+    if (!retentionDays || retentionDays <= 0) return { deletedCount: 0 };
+    const cutoffIso = new Date(Date.now() - retentionDays * 24 * 3600 * 1000).toISOString();
+    const result = prepareStmt(`DELETE FROM price_history WHERE recorded_at < ?`).run(cutoffIso);
+    return { deletedCount: result.changes };
   }
 };

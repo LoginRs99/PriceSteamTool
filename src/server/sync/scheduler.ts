@@ -1,9 +1,12 @@
 import { config } from '../config/index.js';
-import { profileRepo } from '../db/index.js';
+import { profileRepo, offerRepo } from '../db/index.js';
 import { syncOrchestrator } from './orchestrator.js';
 import { logInfo, logWarn } from '../utils/logger.js';
 
 let timer: NodeJS.Timeout | null = null;
+let purgeTimer: NodeJS.Timeout | null = null;
+
+const PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // once a day is enough
 
 export function initAutoSyncScheduler(): void {
   if (!config.autoSyncEnabled) {
@@ -45,4 +48,26 @@ export function stopAutoSyncScheduler(): void {
     clearInterval(timer);
     timer = null;
   }
+  if (purgeTimer) {
+    clearInterval(purgeTimer);
+    purgeTimer = null;
+  }
+}
+
+export function initHistoryPurgeScheduler(): void {
+  if (purgeTimer) clearInterval(purgeTimer);
+
+  const runPurge = () => {
+    try {
+      const { deletedCount } = offerRepo.purgeOldPriceHistory(config.historyRetentionDays);
+      if (deletedCount > 0) {
+        logInfo(`🧹 Purged ${deletedCount} price_history row(s) older than ${config.historyRetentionDays} days.`);
+      }
+    } catch (err: any) {
+      logWarn(`History purge error: ${err.message}`);
+    }
+  };
+
+  runPurge(); // run once at startup too
+  purgeTimer = setInterval(runPurge, PURGE_INTERVAL_MS);
 }

@@ -83,13 +83,14 @@ export async function createApp(): Promise<FastifyInstance> {
   return fastify;
 }
 
-import { initAutoSyncScheduler, stopAutoSyncScheduler } from './sync/scheduler.js';
+import { initAutoSyncScheduler, stopAutoSyncScheduler, initHistoryPurgeScheduler } from './sync/scheduler.js';
 
 async function bootstrap() {
   const app = await createApp();
 
   // Initialize automatic periodic background sync scheduler
   initAutoSyncScheduler();
+  initHistoryPurgeScheduler();
 
   // Graceful shutdown
   const handleShutdown = async (signal: string) => {

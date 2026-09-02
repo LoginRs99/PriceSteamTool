@@ -36,9 +36,7 @@ export function calculateDataConfidence(input: {
 
   // 3. Source independence factor
   const sources = Math.max(1, input.sourceCount || 1);
-  let cSources = 0.70;
-  if (sources >= 2) cSources = 1.0;
-  else if (input.isOfficialSource) cSources = 0.85;
+  let cSources = sources >= 2 ? 1.0 : 0.85;
 
   // 4. Freshness factor
   let cFreshness = 0.85;
