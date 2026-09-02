@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS wishlist_entries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wishlist_profile_game ON wishlist_entries(profile_id, game_id);
+CREATE INDEX IF NOT EXISTS idx_wishlist_game_id ON wishlist_entries(game_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_priority ON wishlist_entries(priority);
 CREATE INDEX IF NOT EXISTS idx_wishlist_active_priority ON wishlist_entries(is_active, profile_id, priority);
 
@@ -123,8 +124,11 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
+CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
 CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
+CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level);
+CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
 CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
 
 -- 6. Source Observations Table
@@ -161,6 +165,9 @@ CREATE TABLE IF NOT EXISTS price_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_price_history_trusted ON price_history(game_id, is_anomaly, risk_level);
+CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id);
+
 
 -- 8. Sources Metadata Table
 CREATE TABLE IF NOT EXISTS sources (

@@ -175,7 +175,8 @@ export async function sendTestNotification(webhookUrlOverride?: string): Promise
     const res = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!res.ok) {
@@ -200,8 +201,14 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
   }
 
   let sentCount = 0;
+  const MAX_ALERTS_PER_SYNC = 20; // Safety cap to prevent channel spamming during massive drops
 
   for (const game of deals) {
+    if (sentCount >= MAX_ALERTS_PER_SYNC) {
+      logWarn(`[Discord] Alert safety cap reached (${MAX_ALERTS_PER_SYNC} deals). Suppressing remaining alerts for this sync pass.`);
+      break;
+    }
+
     const isFree = game.isFree || game.bestPriceEur === 0;
     const dealScore = game.bestDealScore ?? 0;
     const bestPrice = game.bestPriceEur;
@@ -378,21 +385,30 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
           username: 'PriceSteamTool',
           avatar_url: 'https://raw.githubusercontent.com/LoginRs99/PriceSteamTool/main/src/client/public/favicon.svg',
           embeds: [embed]
-        })
+        }),
+        signal: AbortSignal.timeout(8000)
       });
 
       if (res.ok) {
         notificationsRepo.logNotification(game.id, bestPrice, dealScore, 'discord');
         sentCount++;
         logInfo(`[Discord] Alert sent for "${game.title}" (€${bestPrice.toFixed(2)}, Score: ${dealScore})`);
+      } else if (res.status === 429) {
+        let retryAfterMs = 2000;
+        try {
+          const body: any = await res.json();
+          if (body?.retry_after) retryAfterMs = Math.ceil(Number(body.retry_after) * 1000) + 100;
+        } catch {}
+        logWarn(`[Discord] Hit rate limit 429. Backing off for ${retryAfterMs}ms`);
+        await new Promise(r => setTimeout(r, retryAfterMs));
       } else {
         const errBody = await res.text();
         logWarn(`[Discord] Failed to send alert for "${game.title}": ${res.status} ${errBody}`);
       }
 
-      // Respect Discord Webhook rate limit (max 5 requests per 2 seconds)
+      // Respect Discord Webhook rate limit (max 5 requests per 2 seconds = 400ms pace)
       if (process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') {
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 450));
       }
     } catch (e: any) {
       logError(`[Discord] Error sending alert for "${game.title}": ${e.message}`);

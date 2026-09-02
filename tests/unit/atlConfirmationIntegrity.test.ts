@@ -325,5 +325,32 @@ describe('ATL Source-Category Classification (isOfficialStoreSource / isAggregat
     expect(periodLows.allTimeLow.priceEur).toBe(5.00);
     expect(periodLows.allTimeLow.isConfirmed).toBe(true);
   });
+
+  it('rejects zero, negative, or NaN prices from corrupting historicalLowEur', () => {
+    const now = new Date().toISOString();
+    gameRepo.upsert({ steamAppId: 3001, title: 'Zero Glitch Game', basePriceEur: 39.99 });
+    const game = gameRepo.getBySteamAppId(3001)!;
+
+    // Set genuine valid low
+    gameRepo.updateHistoricalLow(game.id, 9.99, now, 'steam');
+    expect(gameRepo.getById(game.id)!.historicalLowEur).toBe(9.99);
+
+    // Attempt zero price glitch
+    gameRepo.updateHistoricalLow(game.id, 0, now, 'allkeyshop');
+    expect(gameRepo.getById(game.id)!.historicalLowEur).toBe(9.99);
+
+    // Attempt negative price glitch
+    gameRepo.updateHistoricalLow(game.id, -5.00, now, 'itad');
+    expect(gameRepo.getById(game.id)!.historicalLowEur).toBe(9.99);
+
+    // Attempt NaN price glitch
+    gameRepo.updateHistoricalLow(game.id, NaN, now, 'ggdeals');
+    expect(gameRepo.getById(game.id)!.historicalLowEur).toBe(9.99);
+
+    // Genuine lower drop should succeed
+    gameRepo.updateHistoricalLow(game.id, 7.99, now, 'steam');
+    expect(gameRepo.getById(game.id)!.historicalLowEur).toBe(7.99);
+  });
 });
+
 

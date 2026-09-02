@@ -325,6 +325,9 @@ export const gameRepo = {
   },
 
   updateHistoricalLow(gameId: string, priceEur: number, date: string, source: string): void {
+    if (typeof priceEur !== 'number' || isNaN(priceEur) || priceEur <= 0) {
+      return;
+    }
     const isKeyshop = isKeyshopSourceStr(source);
     const isConfirmed = isOfficialStoreSource(source) ? 1 : 0;
     prepareStmt(`
@@ -335,7 +338,7 @@ export const gameRepo = {
           atl_is_confirmed = ?,
           atl_is_single_source_low = ?,
           updated_at = datetime('now')
-      WHERE id = ? AND (historical_low_eur IS NULL OR ? < historical_low_eur)
+      WHERE id = ? AND (historical_low_eur IS NULL OR (historical_low_eur > 0 AND ? < historical_low_eur))
     `).run(priceEur, date, source, isConfirmed, isKeyshop ? 1 : 0, gameId, priceEur);
   },
 

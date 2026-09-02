@@ -136,6 +136,14 @@ export const MIGRATIONS: Migration[] = [
       try { db.exec("ALTER TABLE sources ADD COLUMN consecutive_rate_limits INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
       db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_trusted ON price_history(game_id, is_anomaly, risk_level)");
     }
+  },
+  {
+    name: '013_add_foreign_key_and_lookup_indexes',
+    up: (db) => {
+      db.exec("CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_wishlist_game_id ON wishlist_entries(game_id)");
+    }
   }
 ];
 
