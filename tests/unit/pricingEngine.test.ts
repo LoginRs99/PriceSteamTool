@@ -906,5 +906,23 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(res.isAnomaly).toBe(false);
       expect(res.riskLevel).toBe('SAFE');
     });
+
+    it('19. keyshop offer jumping from €6.99 to €40.09 (price hike / stock depletion) is SAFE and NOT an anomaly', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 40.09,
+        previousPriceEur: 6.99,
+        basePriceEur: 49.99,
+        marketPricesEur: [5.54, 7.04, 40.09],
+        sourceHistoryEur: [6.99, 7.50, 7.20, 6.80],
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1
+      });
+
+      expect(res.event).toBe('PRICE_INCREASE');
+      expect(res.isAnomaly).toBe(false);
+      expect(res.riskLevel).toBe('SAFE');
+      expect(res.riskFlags).not.toContain('SOURCE_OWN_HISTORY_BREAK');
+      expect(res.summary).toBe('📈 Price Increased');
+    });
   });
 });

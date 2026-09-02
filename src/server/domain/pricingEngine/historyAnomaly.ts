@@ -21,7 +21,7 @@ export function evaluateSourceOwnHistoryAnomaly(
   const scale = Math.max(iqr / 1.349, median * 0.03, 0.01);
 
   const z = (median - currentPriceEur) / scale; // positive = notably cheaper than own history
-  const isBreak = Math.abs(z) > Z_THRESHOLD;
+  const isBreak = z > Z_THRESHOLD;
 
   return { applicable: true, isBreak, zScore: z, ownMedian: median };
 }
