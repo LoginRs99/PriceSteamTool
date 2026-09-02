@@ -92,7 +92,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
     try {
       const xmlUrl = `https://steamcommunity.com/id/${encodeURIComponent(vanitySlug)}/?xml=1`;
       const response = await fetch(xmlUrl, {
-        headers: { 'User-Agent': STEAM_STORE_HEADERS['User-Agent'] }
+        headers: { 'User-Agent': STEAM_STORE_HEADERS['User-Agent'] },
+        signal: AbortSignal.timeout(8000)
       });
       if (response.ok) {
         const text = await response.text();

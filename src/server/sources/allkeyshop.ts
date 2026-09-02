@@ -4,6 +4,7 @@ import { config } from '../config/index.js';
 import { type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { allkeyshopQueue } from '../sync/allkeyshop/index.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
+import { normalizeGameTitle, convertRomanNumerals } from '../domain/normalizer.js';
 
 interface CatalogGame {
   id: number;
@@ -268,7 +269,9 @@ export function findCandidateGamesInCatalog(
 
   const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (!cleanTarget) return [];
+  const normalizedTarget = normalizeGameTitle(gameTitle);
   const targetNumbers = cleanTarget.match(/\d+/g)?.join('') || '';
+  const normalizedNumbers = normalizedTarget.match(/\d+/g)?.join('') || '';
   const steamReleaseYear = extractYear(releaseDate) || extractYear(gameTitle);
 
   const cleanNumbers = (str: string): string => str.match(/\d+/g)?.join('') || '';
@@ -283,7 +286,9 @@ export function findCandidateGamesInCatalog(
   for (const g of pool) {
     if (!g.name) continue;
     const cleanG = g.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normG = normalizeGameTitle(g.name);
     const gNumbers = cleanNumbers(cleanG);
+    const gNormNumbers = cleanNumbers(normG);
     const gYear = extractYear(g.name);
 
     // Filter out mismatched major release years (e.g. Screamer 1995 when Steam release is 2026)
@@ -297,9 +302,9 @@ export function findCandidateGamesInCatalog(
       continue;
     }
 
-    // 2. Exact match
-    if (cleanG === cleanTarget) {
-      candidates.push({ game: g, score: 80 });
+    // 2. Exact match on raw clean name or normalized name (handles Roman numerals & symbols)
+    if (cleanG === cleanTarget || (normalizedTarget && normG === normalizedTarget)) {
+      candidates.push({ game: g, score: 85 });
       continue;
     }
 

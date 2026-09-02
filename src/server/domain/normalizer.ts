@@ -239,6 +239,61 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
   };
 }
 
+/**
+ * Converts common Roman numerals to Arabic numbers at word boundaries
+ */
+export function convertRomanNumerals(title: string): string {
+  if (!title) return '';
+  const romanMap: Record<string, string> = {
+    'viii': '8',
+    'vii': '7',
+    'iii': '3',
+    'iv': '4',
+    'vi': '6',
+    'ix': '9',
+    'ii': '2',
+    'v': '5',
+    'x': '10',
+    'i': '1'
+  };
+
+  return title.replace(/\b(viii|vii|iii|iv|vi|ix|ii|v|x|i)\b/gi, (match) => {
+    return romanMap[match.toLowerCase()] || match;
+  });
+}
+
+/**
+ * Robust title normalizer handling Roman numerals, symbols, editions, and special tags.
+ * Never throws exceptions even on malformed or nullish inputs.
+ */
+export function normalizeGameTitle(rawTitle: string = ''): string {
+  if (typeof rawTitle !== 'string' || !rawTitle.trim()) return '';
+
+  try {
+    let clean = rawTitle
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+      .toLowerCase()
+      .replace(/[™®©]/g, ' ') // strip trademark/copyright symbols
+      .replace(/[:_+\-/\\&|]/g, ' '); // normalize separators to space
+
+    // Canonicalize Roman numerals to digits
+    clean = convertRomanNumerals(clean);
+
+    // Strip common non-game noise words and edition tags
+    clean = clean
+      .replace(/\b(game\s*of\s*the\s*year(\s*edition)?|goty(\s*edition)?)\b/g, ' ')
+      .replace(/\b(definitive|remastered|remaster|deluxe|standard|gold|ultimate|premium|collector'?s?|special|enhanced|anniversary)(\s*edition)?\b/g, ' ')
+      .replace(/\b(edition|director'?s?\s*cut|remake|reboot|bundle|pack|pc)\b/g, ' ');
+
+    // Retain only alphanumeric characters
+    return clean.replace(/[^a-z0-9]/g, '').trim();
+  } catch {
+    // Ultimate fallback for bizarre Unicode inputs
+    return String(rawTitle).toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+}
+
 import { exchangeRateService } from './exchangeRate.js';
 
 /**
@@ -247,4 +302,5 @@ import { exchangeRateService } from './exchangeRate.js';
 export function convertToEur(price: number, currency: string = 'EUR'): number {
   return exchangeRateService.convertToEur(price, currency);
 }
+
 

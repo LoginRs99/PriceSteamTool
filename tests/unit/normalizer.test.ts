@@ -153,4 +153,24 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
       expect(convertToEur(10.00, 'GBP')).toBe(11.70);
     });
   });
+
+  describe('Game Title & Roman Numeral Normalization', () => {
+    it('canonicalizes Roman numerals to digits', async () => {
+      const { normalizeGameTitle } = await import('../../src/server/domain/normalizer.js');
+      expect(normalizeGameTitle('Final Fantasy VII Remake')).toBe('finalfantasy7');
+      expect(normalizeGameTitle('Grand Theft Auto V')).toBe('grandtheftauto5');
+      expect(normalizeGameTitle('The Witcher III: Wild Hunt')).toBe('thewitcher3wildhunt');
+      expect(normalizeGameTitle('Resident Evil VIII: Village')).toBe('residentevil8village');
+    });
+
+    it('strips trademarks, symbols, and edition tags safely without exceptions', async () => {
+      const { normalizeGameTitle } = await import('../../src/server/domain/normalizer.js');
+      expect(normalizeGameTitle('DOOM® Eternal™ (Deluxe Edition)')).toBe('doometernal');
+      expect(normalizeGameTitle('Borderlands: Game of the Year Edition')).toBe('borderlands');
+      expect(normalizeGameTitle('The Elder Scrolls V: Skyrim - Special Edition')).toBe('theelderscrolls5skyrim');
+      expect(normalizeGameTitle(null as any)).toBe('');
+      expect(normalizeGameTitle(undefined as any)).toBe('');
+    });
+  });
 });
+
