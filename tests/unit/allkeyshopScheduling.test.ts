@@ -626,9 +626,14 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
   });
 
   describe('8. AllKeyShop V2 gameNames Catalog & Stale Cache Resilience', () => {
+    let circuitBreakers: any;
+    
+    // Using beforeAll or beforeEach to reset circuit breaker so previous tests don't fail this one
     it('requests the V2 gameNames endpoint with currency=eur and locales=en_GB', async () => {
       const { AllKeyShopSourceAdapter } = await import('../../src/server/sources/allkeyshop.js');
       const { config } = await import('../../src/server/config/index.js');
+      const { circuitBreakers } = await import('../../src/server/sync/circuitBreaker.js');
+      circuitBreakers.reset('allkeyshop');
 
       const origSolverUrl = config.allkeyshopSolverUrl;
       const origFetch = global.fetch;
@@ -684,6 +689,8 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
     it('falls back to existing stale disk cache when remote gameNames returns 503', async () => {
       const { AllKeyShopSourceAdapter } = await import('../../src/server/sources/allkeyshop.js');
       const { config } = await import('../../src/server/config/index.js');
+      const { circuitBreakers } = await import('../../src/server/sync/circuitBreaker.js');
+      circuitBreakers.reset('allkeyshop');
 
       const origSolverUrl = config.allkeyshopSolverUrl;
       const origFetch = global.fetch;
