@@ -27,6 +27,7 @@ export interface WishlistSyncGame {
   allkeyshopUnchangedStreak?: number;
   allkeyshopLastPriceEur?: number;
   targetPriceEur?: number;
+  priority?: number;
 }
 
 export interface WishlistFilterClauseResult {
@@ -577,7 +578,8 @@ export const gameRepo = {
         g.allkeyshop_check_interval_hours,
         g.allkeyshop_unchanged_streak,
         g.allkeyshop_last_price_eur,
-        w.target_price_eur
+        w.target_price_eur,
+        w.priority
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       WHERE w.profile_id = ? AND w.is_active = 1
@@ -603,6 +605,9 @@ export const gameRepo = {
       targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined 
         ? Number(r.target_price_eur) 
         : undefined,
+      priority: r.priority !== null && r.priority !== undefined
+        ? Number(r.priority)
+        : undefined,
     }));
   },
 
@@ -618,7 +623,8 @@ export const gameRepo = {
         g.allkeyshop_check_interval_hours,
         g.allkeyshop_unchanged_streak,
         g.allkeyshop_last_price_eur,
-        w.target_price_eur
+        w.target_price_eur,
+        w.priority
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       LEFT JOIN offers o ON o.game_id = g.id
@@ -646,6 +652,9 @@ export const gameRepo = {
         : undefined,
       targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined 
         ? Number(r.target_price_eur) 
+        : undefined,
+      priority: r.priority !== null && r.priority !== undefined
+        ? Number(r.priority)
         : undefined,
     }));
   },

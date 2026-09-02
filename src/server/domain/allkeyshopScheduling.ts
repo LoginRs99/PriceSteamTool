@@ -43,3 +43,56 @@ export function isAllkeyshopDue(
   const intervalHours = game.allkeyshopCheckIntervalHours ?? FLOOR_HOURS;
   return (now - lastCheckedMs) >= intervalHours * 3600_000;
 }
+
+/**
+ * Computes a priority score for a game to determine enrichment queue order.
+ * Higher score = higher priority to scrape first.
+ *
+ * Factors:
+ * 1. Brand new / never checked games: +10,000 pts (must establish baseline)
+ * 2. Active Target Price: +5,000 pts (user waiting for price drop)
+ * 3. Steam Top 50 Wishlist priority: +3,000 pts (user's most desired games)
+ * 4. Wishlist rank penalty: -priority (e.g. rank 1 loses 1 pt, rank 1000 loses 1000 pts)
+ * 5. Elapsed time overdue bonus: +10 pts per overdue hour
+ */
+export function computeWishlistScrapePriority(
+  game: {
+    allkeyshopLastCheckedAt?: string;
+    allkeyshopCheckIntervalHours?: number;
+    targetPriceEur?: number;
+    priority?: number;
+  },
+  now = Date.now()
+): number {
+  let score = 0;
+
+  // Never checked games should be prioritized
+  if (!game.allkeyshopLastCheckedAt) {
+    score += 10000;
+  }
+
+  // Active target price
+  if (game.targetPriceEur !== undefined && game.targetPriceEur !== null) {
+    score += 5000;
+  }
+
+  // Steam wishlist priority
+  const rank = typeof game.priority === 'number' && game.priority > 0 ? game.priority : 9999;
+  if (rank <= 50) {
+    score += 3000;
+  }
+  score -= rank; // higher wishlist rank = slightly higher score
+
+  // Overdue urgency
+  if (game.allkeyshopLastCheckedAt) {
+    const lastCheckedMs = new Date(game.allkeyshopLastCheckedAt).getTime();
+    if (!isNaN(lastCheckedMs)) {
+      const intervalMs = (game.allkeyshopCheckIntervalHours ?? FLOOR_HOURS) * 3600_000;
+      const overdueHours = Math.max(0, (now - lastCheckedMs - intervalMs) / 3600_000);
+      score += Math.round(overdueHours * 10);
+    }
+  }
+
+  return score;
+}
+

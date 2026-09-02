@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { 
   computeNextInterval, 
   isAllkeyshopDue, 
+  computeWishlistScrapePriority,
   FLOOR_HOURS, 
   CEILING_HOURS, 
   PRICE_TOLERANCE_EUR 
@@ -93,6 +94,44 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       // Checked 100 hours ago with 96h interval
       const lastChecked100h = new Date(now - 100 * 3600_000).toISOString();
       expect(isAllkeyshopDue({ allkeyshopLastCheckedAt: lastChecked100h, allkeyshopCheckIntervalHours: 96 }, now)).toBe(true);
+    });
+  });
+
+  describe('2b. computeWishlistScrapePriority (Intelligent Scrape Prioritization)', () => {
+    const now = 1750000000000;
+
+    it('gives highest score to brand-new never checked games', () => {
+      const neverChecked = computeWishlistScrapePriority({}, now);
+      const existingGame = computeWishlistScrapePriority({
+        allkeyshopLastCheckedAt: new Date(now - 24 * 3600_000).toISOString(),
+        priority: 100
+      }, now);
+      expect(neverChecked).toBeGreaterThan(existingGame);
+    });
+
+    it('gives substantial boost to games with active target prices', () => {
+      const withTarget = computeWishlistScrapePriority({
+        allkeyshopLastCheckedAt: new Date(now - 25 * 3600_000).toISOString(),
+        targetPriceEur: 15.00,
+        priority: 100
+      }, now);
+      const withoutTarget = computeWishlistScrapePriority({
+        allkeyshopLastCheckedAt: new Date(now - 25 * 3600_000).toISOString(),
+        priority: 100
+      }, now);
+      expect(withTarget).toBeGreaterThan(withoutTarget + 4000);
+    });
+
+    it('prioritizes Steam Top 50 games over lower ranked games', () => {
+      const topGame = computeWishlistScrapePriority({
+        allkeyshopLastCheckedAt: new Date(now - 30 * 3600_000).toISOString(),
+        priority: 10
+      }, now);
+      const bottomGame = computeWishlistScrapePriority({
+        allkeyshopLastCheckedAt: new Date(now - 30 * 3600_000).toISOString(),
+        priority: 500
+      }, now);
+      expect(topGame).toBeGreaterThan(bottomGame);
     });
   });
 

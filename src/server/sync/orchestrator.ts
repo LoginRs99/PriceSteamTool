@@ -23,7 +23,7 @@ import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
 import { allkeyshopAdapter } from '../sources/allkeyshop.js';
 import { allkeyshopQueue } from './allkeyshop/index.js';
-import { computeNextInterval, isAllkeyshopDue } from '../domain/allkeyshopScheduling.js';
+import { computeNextInterval, isAllkeyshopDue, computeWishlistScrapePriority } from '../domain/allkeyshopScheduling.js';
 import { exchangeRateService } from '../domain/exchangeRate.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
@@ -581,14 +581,10 @@ export class SyncOrchestrator {
     }
 
     const dueGames = forceRefresh 
-      ? games 
+      ? [...games].sort((a, b) => computeWishlistScrapePriority(b) - computeWishlistScrapePriority(a)) 
       : games
           .filter(g => isAllkeyshopDue(g))
-          .sort((a, b) => {
-            const aTime = a.allkeyshopLastCheckedAt ? new Date(a.allkeyshopLastCheckedAt).getTime() : -Infinity;
-            const bTime = b.allkeyshopLastCheckedAt ? new Date(b.allkeyshopLastCheckedAt).getTime() : -Infinity;
-            return aTime - bTime;
-          });
+          .sort((a, b) => computeWishlistScrapePriority(b) - computeWishlistScrapePriority(a));
     const maxGames = config.allkeyshopMaxGames;
     const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
       ? dueGames.slice(0, maxGames) 
