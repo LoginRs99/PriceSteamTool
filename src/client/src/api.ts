@@ -82,7 +82,7 @@ export const api = {
     return res.json();
   },
 
-  async getBestDeals(limit: number = 12): Promise<{ deals: Game[] }> {
+  async getBestDeals(limit: number = 50): Promise<{ deals: Game[] }> {
     const res = await fetch(`${API_BASE}/wishlist/best-deals?limit=${limit}`);
     return res.json();
   },

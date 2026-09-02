@@ -146,7 +146,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       return { deals: [] };
     }
     const query = request.query as any;
-    const limit = query.limit ? parseInt(query.limit, 10) : 12;
+    const limit = query.limit ? parseInt(query.limit, 10) : 50;
     const deals = gameRepo.getBestDeals(activeProfile.id, limit);
     return { deals };
   };

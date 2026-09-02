@@ -12,7 +12,7 @@ export function useWishlistStats(activeProfileId?: string) {
     try {
       const [s, d] = await Promise.all([
         api.getWishlistStatistics(),
-        api.getBestDeals(12)
+        api.getBestDeals(50)
       ]);
       setStats(s);
       setTopDeals(d.deals || []);
