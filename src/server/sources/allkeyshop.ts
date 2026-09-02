@@ -367,7 +367,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
   public async ensureCatalogQueued(): Promise<CatalogGame[]> {
     const now = Date.now();
-    const CATALOG_TTL_MS = 48 * 60 * 60 * 1000; // 48h cache TTL
+    const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7-day cache TTL
 
     // If already cached in memory, return immediately without queue overhead
     if (this.cachedCatalog && (now - this.lastCatalogFetch) < CATALOG_TTL_MS) {
@@ -382,7 +382,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
   public async ensureCatalog(): Promise<CatalogGame[]> {
     const now = Date.now();
-    const CATALOG_TTL_MS = 48 * 60 * 60 * 1000; // 48h cache TTL
+    const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7-day cache TTL
 
     // 1. In-memory cache check
     if (this.cachedCatalog && (now - this.lastCatalogFetch) < CATALOG_TTL_MS) {
@@ -394,6 +394,13 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
     const cbCheck = circuitBreakers.canExecute('allkeyshop');
     if (!cbCheck.allowed) {
+      // If we already have a cached catalog in memory, continue with it even if circuit breaker is cooling down
+      if (this.cachedCatalog) {
+        if (!this.catalogIndex) {
+          this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
+        }
+        return this.cachedCatalog;
+      }
       throw new AllKeyShopUnavailableError(`AllKeyShop catalog unavailable (${cbCheck.reason || 'source is cooling down'})`);
     }
 
@@ -402,28 +409,51 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     }
 
     this.pendingCatalogLoad = (async (): Promise<CatalogGame[]> => {
-      // 2. Check local disk cache
-      try {
-        if (fs.existsSync(this.catalogPath)) {
-          const stat = fs.statSync(this.catalogPath);
-          if (now - stat.mtimeMs < CATALOG_TTL_MS) {
-            const raw = fs.readFileSync(this.catalogPath, 'utf8');
-            const data = JSON.parse(raw);
-            if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
-              this.cachedCatalog = data.games;
-              this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
-              this.lastCatalogFetch = stat.mtimeMs;
-              return this.cachedCatalog || [];
+      // 2. Check local disk cache or seed fallbacks
+      const candidatePaths = [
+        this.catalogPath,
+        path.join(process.cwd(), 'data', 'allkeyshop_catalog.json'),
+        path.resolve(process.cwd(), '..', 'data', 'allkeyshop_catalog.json')
+      ];
+
+      for (const p of candidatePaths) {
+        try {
+          if (fs.existsSync(p)) {
+            const stat = fs.statSync(p);
+            // If checking our primary catalogPath and it's fresh (< 7 days)
+            if (p === this.catalogPath && (now - stat.mtimeMs < CATALOG_TTL_MS)) {
+              const raw = fs.readFileSync(p, 'utf8');
+              const data = JSON.parse(raw);
+              if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+                this.cachedCatalog = data.games;
+                this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
+                this.lastCatalogFetch = stat.mtimeMs;
+                return this.cachedCatalog || [];
+              }
+            } else if (p !== this.catalogPath && !fs.existsSync(this.catalogPath)) {
+              // Auto-seed primary volume from candidate seed file
+              const raw = fs.readFileSync(p, 'utf8');
+              const data = JSON.parse(raw);
+              if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+                const dataDir = path.dirname(this.catalogPath);
+                if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+                fs.writeFileSync(this.catalogPath, raw, 'utf8');
+                this.cachedCatalog = data.games;
+                this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
+                this.lastCatalogFetch = now;
+                console.log(`[AllKeyShop] Seeded catalog from ${p} (${data.games.length} games).`);
+                return this.cachedCatalog || [];
+              }
             }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
-      // 3. Remote download via FlareSolverr/Byparr
+      // 3. Remote download via FlareSolverr/Byparr (Generous 60s timeout for ~11 MB bulk feed)
       const downloadStartTime = Date.now();
       try {
         const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&v=2&currency=eur&locales=en_GB';
-        const data: any = await fetchWithAllkeyshopSolver(url, 20000);
+        const data: any = await fetchWithAllkeyshopSolver(url, 60000);
 
         if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
           this.cachedCatalog = data.games;
@@ -448,16 +478,21 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           return this.cachedCatalog || [];
         } else {
           console.warn('[AllKeyShop] Catalog response malformed or empty games array.');
-          circuitBreakers.recordFailure('allkeyshop', 'Catalog response malformed or empty games array');
+          // If we already have a catalog in memory, don't trip circuit breaker for individual price queries
+          if (!this.cachedCatalog) {
+            circuitBreakers.recordFailure('allkeyshop', 'Catalog response malformed or empty games array');
+          }
         }
       } catch (err: any) {
         console.warn('Failed to download AllKeyShop catalog:', err.message);
         const status = err?.status || err?.response?.status || (err?.message?.includes('429') ? 429 : 502);
         const retryAfter = err?.retryAfterSec;
-        if (status === 429) {
-          circuitBreakers.recordRateLimit('allkeyshop', retryAfter || 30);
-        } else {
-          circuitBreakers.recordFailure('allkeyshop', err);
+        if (!this.cachedCatalog) {
+          if (status === 429) {
+            circuitBreakers.recordRateLimit('allkeyshop', retryAfter || 30);
+          } else {
+            circuitBreakers.recordFailure('allkeyshop', err);
+          }
         }
       }
 
@@ -472,6 +507,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             console.warn(`[AllKeyShop] using stale catalog cache | age=${ageHours}h`);
             this.cachedCatalog = data.games;
             this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
+            this.lastCatalogFetch = now;
           }
         }
       } catch {}
@@ -480,6 +516,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
         if (!this.catalogIndex) {
           this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
         }
+        // Defer next remote catalog fetch attempt by 12 hours so we don't spam solver on every call
+        this.lastCatalogFetch = now - CATALOG_TTL_MS + (12 * 60 * 60 * 1000);
         return this.cachedCatalog;
       }
       throw new AllKeyShopUnavailableError('AllKeyShop catalog fetch failed and no cache available');
