@@ -2,7 +2,8 @@ import { config } from '../config/index.js';
 import type { 
   SourceCode, 
   SyncProgressUpdate, 
-  SyncStatusResponse 
+  SyncStatusResponse,
+  Offer
 } from '../../shared/types.js';
 import type { NormalizedSourceOffer } from '../sources/base.js';
 import { 
@@ -638,15 +639,23 @@ export class SyncOrchestrator {
 
         let lowestPriceEur: number | null = null;
         let newOffersCount = 0;
+        const freshAksOfferIds: string[] = [];
         try {
           const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId, g.releaseDate);
           for (const offer of offers) {
-            this.ingestOffer(g.id, 'allkeyshop', offer);
+            const saved = this.ingestOffer(g.id, 'allkeyshop', offer);
+            if (saved?.id) {
+              freshAksOfferIds.push(saved.id);
+            }
             this.enrichmentStatus.offersFound++;
             newOffersCount++;
             if (offer.priceEur > 0 && (lowestPriceEur === null || offer.priceEur < lowestPriceEur)) {
               lowestPriceEur = offer.priceEur;
             }
+          }
+          if (offers.length > 0) {
+            offerRepo.invalidateStaleForGameSource(g.id, 'allkeyshop', freshAksOfferIds);
+            offerRepo.recomputeBestDealForGame(g.id);
           }
           this.progress.sourceProgress.allkeyshop.offersFound += newOffersCount;
 
@@ -770,7 +779,7 @@ export class SyncOrchestrator {
     sourceCode: SourceCode, 
     rawOffer: NormalizedSourceOffer,
     knownBasePrice?: number
-  ): void {
+  ): Offer | undefined {
     const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
     if (!productNorm.isValid) return;
 
@@ -784,7 +793,7 @@ export class SyncOrchestrator {
       rawOffer.dealUrl
     );
 
-    offerRepo.upsertOffer({
+    return offerRepo.upsertOffer({
       gameId,
       merchantId: merchant.id,
       productType: productNorm.productType,
@@ -914,11 +923,18 @@ export class SyncOrchestrator {
             logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
             const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title, game.itadId, game.releaseDate);
             let lowestAksPrice: number | null = null;
+            const freshAksOfferIds: string[] = [];
             for (const offer of aksOffers) {
-              this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+              const saved = this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+              if (saved?.id) {
+                freshAksOfferIds.push(saved.id);
+              }
               if (offer.priceEur > 0 && (lowestAksPrice === null || offer.priceEur < lowestAksPrice)) {
                 lowestAksPrice = offer.priceEur;
               }
+            }
+            if (aksOffers.length > 0) {
+              offerRepo.invalidateStaleForGameSource(gameId, 'allkeyshop', freshAksOfferIds);
             }
             const nowIso = new Date().toISOString();
             gameRepo.updateAllkeyshopCheckState(gameId, nowIso, lowestAksPrice, 24, 0);

@@ -172,7 +172,7 @@ describe('GameDetailModal Component (Monolith & Decomposed Regression Tests)', (
     expect(screen.getByText('BUY')).toBeInTheDocument();
     expect(screen.getByText('Strong historical value — match of all-time low')).toBeInTheDocument();
     expect(screen.getByText('Steam Store (AppID: 1245620)')).toBeInTheDocument();
-    expect(screen.getByText('All Available Offers (2)')).toBeInTheDocument();
+    expect(screen.getByText('Available Offers (2)')).toBeInTheDocument();
     expect(screen.getByText('CDKeys')).toBeInTheDocument();
   });
 
