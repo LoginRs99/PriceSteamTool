@@ -8,7 +8,7 @@ interface TickerFlagProps {
   style?: React.CSSProperties;
 }
 
-export const TickerFlag: React.FC<TickerFlagProps> = ({ game, className = '', style }) => {
+const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', style }) => {
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isConfirmedATL = (game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW') && !game.bestIsProvisional;
   const isTargetHit = game.targetPriceEur !== undefined && hasBestDeal && game.bestPriceEur! <= game.targetPriceEur;
@@ -62,4 +62,6 @@ export const TickerFlag: React.FC<TickerFlagProps> = ({ game, className = '', st
 
   return null;
 };
+
+export const TickerFlag = React.memo(TickerFlagComponent);
 

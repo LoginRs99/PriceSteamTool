@@ -10,7 +10,7 @@ interface SparklineProps {
   style?: React.CSSProperties;
 }
 
-export const Sparkline: React.FC<SparklineProps> = ({
+const SparklineComponent: React.FC<SparklineProps> = ({
   points,
   game,
   width = 150,
@@ -104,4 +104,6 @@ export const Sparkline: React.FC<SparklineProps> = ({
     </div>
   );
 };
+
+export const Sparkline = React.memo(SparklineComponent);
 

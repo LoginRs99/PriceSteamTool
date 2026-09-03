@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 interface GameCardSkeletonProps {
   count?: number;
@@ -12,7 +12,7 @@ export const GameCardSkeleton: React.FC<GameCardSkeletonProps> = ({ count = 1 })
           {/* Image Skeleton */}
           <div 
             className="game-card-image-wrap skeleton-shimmer" 
-            style={{ width: '100%', height: 138, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
+            style={{ borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
           />
 
           {/* Body Skeleton */}

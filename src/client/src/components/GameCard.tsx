@@ -10,7 +10,7 @@ interface GameCardProps {
   onExplain?: (game: Game) => void;
 }
 
-export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
+const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
   const [imgError, setImgError] = useState(false);
   const [triedFallback, setTriedFallback] = useState(false);
   const [copiedSteam, setCopiedSteam] = useState(false);
@@ -332,3 +332,5 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onClick, onExplain }) 
     </div>
   );
 };
+
+export const GameCard = React.memo(GameCardComponent);
