@@ -523,6 +523,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     saveCustomMapping(game.steamAppId, parsed.data.override ?? null);
 
     let offersCount = 0;
+    let staleOffersRemoved = 0;
     if (parsed.data.override !== null && allkeyshopAdapter.isEnabled()) {
       try {
         const freshOffers = await allkeyshopAdapter.fetchPricesForGame(
@@ -531,13 +532,14 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
           game.itadId, 
           game.releaseDate
         );
+        const freshOfferIds: string[] = [];
         for (const rawOffer of freshOffers) {
           const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
           if (!productNorm.isValid) continue;
           const regionNorm = normalizeRegion(rawOffer.regionRaw);
           if (!regionNorm.isValid) continue;
           const merchant = merchantRepo.getOrCreate(rawOffer.merchantCode, rawOffer.merchantName, rawOffer.isOfficial, rawOffer.dealUrl);
-          offerRepo.upsertOffer({
+          const savedOffer = offerRepo.upsertOffer({
             gameId: game.id,
             merchantId: merchant.id,
             productType: productNorm.productType,
@@ -554,10 +556,25 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
             isValid: true,
             sourceCode: 'allkeyshop'
           });
+          freshOfferIds.push(savedOffer.id);
           offersCount++;
+        }
+
+        // Drop orphaned AllKeyShop offers from previous (incorrect) match
+        const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', freshOfferIds);
+        staleOffersRemoved = staleRes.invalidatedCount;
+        if (staleOffersRemoved > 0) {
+          offerRepo.recomputeBestDealForGame(game.id);
         }
       } catch (err: any) {
         console.warn('Failed to refresh AllKeyShop prices after override:', err.message);
+      }
+    } else if (parsed.data.override === null) {
+      // If override was cleared, invalidate prior AllKeyShop offers for this game
+      const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', []);
+      staleOffersRemoved = staleRes.invalidatedCount;
+      if (staleOffersRemoved > 0) {
+        offerRepo.recomputeBestDealForGame(game.id);
       }
     }
 
@@ -565,7 +582,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       success: true,
       gameId: game.id,
       override: parsed.data.override ?? null,
-      offersUpdated: offersCount
+      offersUpdated: offersCount,
+      staleOffersRemoved
     };
   });
 };

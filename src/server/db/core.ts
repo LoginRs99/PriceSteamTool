@@ -11,9 +11,12 @@ import type {
 } from '../../shared/types.js';
 
 import { logInfo } from '../utils/logger.js';
+import { FRESHNESS_WINDOW_MS } from '../domain/constants.js';
 
 let dbInstance: Database.Database | null = null;
 const stmtCache = new Map<string, Database.Statement>();
+
+const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000));
 
 export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
   -- Reset and reassign is_best_deal for all games using canonical freshness and priority (fresh safe lowest > stale > anomaly fallback)
@@ -23,7 +26,7 @@ export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
       PARTITION BY game_id
       ORDER BY
         CASE
-          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0
+          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
         CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,

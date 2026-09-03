@@ -290,7 +290,7 @@ describe('10 Approved Implementation Fixes Verification Suite', () => {
   // 10. Item 10: Unknown Region Normalization
   describe('Item 10: Region Normalization Safety', () => {
     it('preserves valid explicit Global / Worldwide / EU / HU regions', () => {
-      const validSamples = ['Global', 'Worldwide', 'WW', 'Region Free', 'ROW', '', 'EU', 'Europe', 'EEA', 'HU', 'Hungary'];
+      const validSamples = ['Global', 'Worldwide', 'WW', 'Region Free', '', 'EU', 'Europe', 'EEA', 'HU', 'Hungary'];
       for (const s of validSamples) {
         const res = normalizeRegion(s);
         expect(res.isValid).toBe(true);

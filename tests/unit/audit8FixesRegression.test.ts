@@ -114,7 +114,7 @@ describe('Audit 8-Fix Verification & Regression Suite', () => {
 
   describe('Fix 5: Region Normalization — Unknown & Restricted Regions', () => {
     it('preserves valid explicit Global regions', () => {
-      const globalSamples = ['Global', 'Worldwide', 'WW', 'Region Free', 'ROW', ''];
+      const globalSamples = ['Global', 'Worldwide', 'WW', 'Region Free', ''];
       for (const s of globalSamples) {
         const res = normalizeRegion(s);
         expect(res.isValid).toBe(true);

@@ -76,7 +76,7 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
 
   describe('Region Normalization', () => {
     it('accepts Global / Worldwide keys', () => {
-      const samples = ['Global', 'Worldwide', 'WW', 'Region Free', 'ROW', ''];
+      const samples = ['Global', 'Worldwide', 'WW', 'Region Free', ''];
       for (const s of samples) {
         const res = normalizeRegion(s);
         expect(res.isValid).toBe(true);
@@ -105,7 +105,7 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
       }
     });
 
-    it('rejects foreign locked keys and ISO codes (US, Egypt, Turkey, Russia, Argentina, Brazil, China, LATAM)', () => {
+    it('rejects foreign locked keys and ISO codes (US, Egypt, Turkey, Russia, Argentina, Brazil, China, LATAM, ROW)', () => {
       const restricted = [
         { reg: 'US', country: '' },
         { reg: 'United States', country: 'US' },
@@ -116,7 +116,9 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
         { reg: 'Brazil', country: 'BR' },
         { reg: 'China', country: 'CN' },
         { reg: 'LATAM Region', country: '' },
-        { reg: 'Asia Only', country: '' }
+        { reg: 'Asia Only', country: '' },
+        { reg: 'ROW', country: '' },
+        { reg: 'Rest of World', country: '' }
       ];
 
       for (const r of restricted) {

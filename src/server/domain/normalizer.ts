@@ -60,7 +60,8 @@ const RESTRICTED_COUNTRY_CODES = new Set([
   'CN', 'CHN',
   'IN', 'IND',
   'AU', 'AUS', 'NZ', 'NZL',
-  'LATAM', 'ASIA', 'SEA'
+  'LATAM', 'ASIA', 'SEA',
+  'ROW'
 ]);
 
 const RESTRICTED_WORDS = [
@@ -73,6 +74,7 @@ const RESTRICTED_WORDS = [
   /\b(china|chinese|asia\s*only|sea\s*only)\b/i,
   /\b(india|indian)\b/i,
   /\b(australia|new\s*zealand)\b/i,
+  /\b(row|rest\s*of\s*world)\b/i,
 ];
 
 // The 27 EU Member States
@@ -206,8 +208,11 @@ export function normalizeRegion(rawRegion: string = '', rawCountry: string = '')
     };
   }
 
-  // 6. Global / Worldwide / Region Free / ROW
-  if (/\b(global|worldwide|ww|region\s*free|row)\b/i.test(combined) || combined === '') {
+  // 6. Global / Worldwide / Region Free
+  // NOTE: "ROW" (Rest of World) is deliberately excluded here — in key reselling,
+  // ROW typically means "everywhere EXCEPT EU/US/UK" and is usually not activatable in Hungary.
+  // It is explicitly rejected as RESTRICTED above.
+  if (/\b(global|worldwide|ww|region\s*free)\b/i.test(combined) || combined === '') {
     return {
       regionType: 'GLOBAL',
       regionCode: 'GLOBAL',

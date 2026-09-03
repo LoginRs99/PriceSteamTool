@@ -10,6 +10,7 @@ interface CatalogGame {
   id: number;
   name: string;
   slug?: string;
+  _matchScore?: number;
 }
 
 interface SolverCookie {
@@ -340,7 +341,7 @@ export function findCandidateGamesInCatalog(
   for (const c of candidates) {
     if (!seenIds.has(c.game.id)) {
       seenIds.add(c.game.id);
-      results.push(c.game);
+      results.push({ ...c.game, _matchScore: c.score });
       if (results.length >= 4) break;
     }
   }
@@ -669,6 +670,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
 
           const offers = Array.from(merchantOffers.values());
           if (offers.length > 0) {
+            const matchScore = matched._matchScore;
+            if (typeof matchScore === 'number' && matchScore < 85) {
+              console.warn(`[AllKeyShop] Low-confidence title match used for "${gameTitle}" -> "${matched.name}" (id=${matched.id}, score=${matchScore}). Verify with allkeyshop_mapping.json if incorrect.`);
+            }
             return offers;
           }
         }

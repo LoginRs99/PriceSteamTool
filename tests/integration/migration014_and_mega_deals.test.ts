@@ -95,4 +95,57 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
     expect(res.riskLevel).toBe('SAFE');
     expect(res.isAnomaly).toBe(false);
   });
+
+  it('invalidateStaleForGameSource immediately invalidates orphaned AllKeyShop offers without affecting other sources', async () => {
+    const { offerRepo, merchantRepo } = await import('../../src/server/db/index.js');
+
+    // Create merchants
+    const mG2a = merchantRepo.getOrCreate('g2a', 'G2A', false, 'https://g2a.com');
+    const mCdkeys = merchantRepo.getOrCreate('cdkeys', 'CDKeys', false, 'https://cdkeys.com');
+
+    // Insert game
+    const { getDb } = await import('../../src/server/db/core.js');
+    const db = getDb();
+    db.exec(`
+      INSERT OR IGNORE INTO games (id, steam_app_id, title, slug, base_price_eur, created_at, updated_at)
+      VALUES ('game-test-stale', 99999, 'Test Stale Cleanup', 'test-stale-cleanup', 29.99, datetime('now'), datetime('now'));
+    `);
+
+    // Offer 1: From AllKeyShop (simulating old wrong match)
+    const off1 = offerRepo.upsertOffer({
+      gameId: 'game-test-stale',
+      merchantId: mG2a.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 4.99,
+      isValid: true,
+      dealUrl: 'https://g2a.com/deal1',
+      sourceCode: 'allkeyshop'
+    });
+
+    // Offer 2: From AllKeyShop (will remain in new match)
+    const off2 = offerRepo.upsertOffer({
+      gameId: 'game-test-stale',
+      merchantId: mCdkeys.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 9.99,
+      isValid: true,
+      dealUrl: 'https://cdkeys.com/deal2',
+      sourceCode: 'allkeyshop'
+    });
+
+    expect(off1.isValid).toBe(true);
+    expect(off2.isValid).toBe(true);
+
+    // Perform invalidateStaleForGameSource keeping only off2
+    const result = offerRepo.invalidateStaleForGameSource('game-test-stale', 'allkeyshop', [off2.id]);
+    expect(result.invalidatedCount).toBe(1);
+
+    // Verify off1 is now invalid, off2 is still valid
+    const check1 = offerRepo.getById(off1.id);
+    const check2 = offerRepo.getById(off2.id);
+    expect(check1?.isValid).toBe(false);
+    expect(check2?.isValid).toBe(true);
+  });
 });

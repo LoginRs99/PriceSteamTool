@@ -14,6 +14,8 @@ import type {
   PriceHistoryEntry 
 } from '../../../shared/types.js';
 
+const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000));
+
 export function isCompatiblePeerOffer(
   target: { productType: string; regionType: string },
   peer: {
@@ -854,7 +856,7 @@ export const offerRepo = {
       WHERE game_id = ? AND is_valid = 1
       ORDER BY
         CASE
-          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0 -- keep in sync with FRESHNESS_WINDOW_MS
+          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
         CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
@@ -1000,6 +1002,29 @@ export const offerRepo = {
       SET is_valid = 0, is_best_deal = 0, updated_at = datetime('now')
       WHERE is_valid = 1 AND COALESCE(last_observed_at, fetched_at) < ?
     `).run(cutoffIso);
+    return { invalidatedCount: result.changes };
+  },
+
+  /**
+   * Invalidates offers for a game that came from a given source (e.g. AllKeyShop)
+   * and are no longer present in a fresh fetch result — e.g. after a manual mapping override,
+   * so orphaned offers from the previous (incorrect) match don't linger as is_valid=1.
+   */
+  invalidateStaleForGameSource(gameId: string, sourceCode: string, keepOfferIds: string[]): { invalidatedCount: number } {
+    if (!gameId || !sourceCode) return { invalidatedCount: 0 };
+    const keepClause = keepOfferIds.length > 0
+      ? `AND o.id NOT IN (${keepOfferIds.map(() => '?').join(',')})`
+      : '';
+    const result = prepareStmt(`
+      UPDATE offers
+      SET is_valid = 0, is_best_deal = 0, updated_at = datetime('now')
+      WHERE id IN (
+        SELECT o.id FROM offers o
+        JOIN source_observations so ON so.offer_id = o.id AND so.source_code = ?
+        WHERE o.game_id = ? AND o.is_valid = 1
+        ${keepClause}
+      )
+    `).run(sourceCode, gameId, ...keepOfferIds);
     return { invalidatedCount: result.changes };
   },
 
