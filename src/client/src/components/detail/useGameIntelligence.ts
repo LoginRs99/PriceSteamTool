@@ -5,7 +5,8 @@ import { api } from '../../api.js';
 export function useGameIntelligence(
   gameId: string,
   onClose: () => void,
-  onTargetPriceUpdated?: (gameId: string, targetPriceEur: number | null) => void
+  onTargetPriceUpdated?: (gameId: string, targetPriceEur: number | null) => void,
+  onGameUpdated?: (gameId: string) => void
 ) {
   const [data, setData] = useState<{ 
     game: Game; 
@@ -69,6 +70,9 @@ export function useGameIntelligence(
         ...updatedDetails,
         intelligence: updatedIntel || undefined
       });
+      if (onGameUpdated) {
+        onGameUpdated(gameId);
+      }
     } catch (err) {
       console.error('Failed to apply AllKeyShop override', err);
     } finally {

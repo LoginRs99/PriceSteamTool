@@ -1006,9 +1006,10 @@ export const offerRepo = {
   },
 
   /**
-   * Invalidates offers for a game that came from a given source (e.g. AllKeyShop)
+   * Invalidates offers for a game that came exclusively from a given source (e.g. AllKeyShop)
    * and are no longer present in a fresh fetch result — e.g. after a manual mapping override,
    * so orphaned offers from the previous (incorrect) match don't linger as is_valid=1.
+   * Offers observed by multiple sources (e.g. Steam + AllKeyShop) are preserved.
    */
   invalidateStaleForGameSource(gameId: string, sourceCode: string, keepOfferIds: string[]): { invalidatedCount: number } {
     if (!gameId || !sourceCode) return { invalidatedCount: 0 };
@@ -1022,9 +1023,13 @@ export const offerRepo = {
         SELECT o.id FROM offers o
         JOIN source_observations so ON so.offer_id = o.id AND so.source_code = ?
         WHERE o.game_id = ? AND o.is_valid = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM source_observations other_so 
+          WHERE other_so.offer_id = o.id AND other_so.source_code != ?
+        )
         ${keepClause}
       )
-    `).run(sourceCode, gameId, ...keepOfferIds);
+    `).run(sourceCode, gameId, sourceCode, ...keepOfferIds);
     return { invalidatedCount: result.changes };
   },
 

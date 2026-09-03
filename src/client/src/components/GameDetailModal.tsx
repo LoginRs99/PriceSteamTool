@@ -20,12 +20,14 @@ interface GameDetailModalProps {
   gameId: string;
   onClose: () => void;
   onTargetPriceUpdated?: (gameId: string, targetPriceEur: number | null) => void;
+  onGameUpdated?: (gameId: string) => void;
 }
 
 export const GameDetailModal: React.FC<GameDetailModalProps> = ({ 
   gameId, 
   onClose, 
-  onTargetPriceUpdated 
+  onTargetPriceUpdated,
+  onGameUpdated
 }) => {
   const {
     data,
@@ -50,7 +52,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
     handleCopyVoucher,
     handleSaveTargetPrice,
     handleClearTargetPrice
-  } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated);
+  } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated, onGameUpdated);
 
   if (loading || !data) {
     return <GameDetailSkeleton onClose={onClose} />;

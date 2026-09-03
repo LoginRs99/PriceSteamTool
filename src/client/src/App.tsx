@@ -473,6 +473,10 @@ export const App: React.FC = () => {
             setGames(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
             setTopDeals(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
           }}
+          onGameUpdated={() => {
+            loadGames();
+            loadStatsAndDeals();
+          }}
         />
       )}
 
