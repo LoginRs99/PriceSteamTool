@@ -56,7 +56,7 @@ VOLUME ["/data"]
 EXPOSE 3000
 
 # Built-in lightweight healthcheck using Alpine's native wget (no heavy external curl required)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=8s --start-period=15s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
 # Use tini to handle SIGTERM/SIGINT and forward to Node

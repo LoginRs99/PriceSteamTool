@@ -6,8 +6,8 @@
   --line: #262b36;
   --line-strong: #333a4a;
   --ink: #f4f4f5;
-  --dim: #6b7280;
-  --dim-2: #4b5563;
+  --dim: #94a3b8;
+  --dim-2: #64748b;
   --down: #22d3a5;
   --down-dim: rgba(34, 211, 165, 0.12);
   --up: #f2495c;
@@ -1872,6 +1872,14 @@ a:focus-visible {
   .modal-intel-content {
     max-width: 95vw;
   }
+  .offers-table {
+    min-width: 600px;
+  }
+  .offers-table th,
+  .offers-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
 }
 
 /* Mobile Devices (<600px) */
@@ -1941,6 +1949,14 @@ a:focus-visible {
   }
   .dense-table th,
   .dense-table td {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .offers-table {
+    min-width: 520px;
+  }
+  .offers-table th,
+  .offers-table td {
     padding: 6px 8px;
     font-size: 11px;
   }

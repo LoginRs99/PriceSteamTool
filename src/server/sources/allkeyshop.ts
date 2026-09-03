@@ -6,11 +6,74 @@ import { allkeyshopQueue } from '../sync/allkeyshop/index.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { normalizeGameTitle, convertRomanNumerals } from '../domain/normalizer.js';
 
-interface CatalogGame {
+export class AllKeyShopUnavailableError extends Error {
+  public status?: number;
+  public retryAfterSec?: number;
+
+  constructor(message: string, status?: number, retryAfterSec?: number) {
+    super(message);
+    this.name = 'AllKeyShopUnavailableError';
+    this.status = status;
+    this.retryAfterSec = retryAfterSec;
+  }
+}
+
+export interface CatalogGame {
   id: number;
   name: string;
   slug?: string;
   _matchScore?: number;
+}
+
+export interface AllKeyShopCatalogApiResponse {
+  status: string;
+  games: CatalogGame[];
+}
+
+export interface AllKeyShopHistoryEntry {
+  merchant_id: number | string;
+  edition?: number | string;
+  region?: number | string;
+  min_discount_price?: number | string;
+  last_price?: number | string;
+  original_price?: number | string;
+  best_discount_code?: string | null;
+  url?: string;
+  start?: string;
+  end?: string;
+}
+
+export interface AllKeyShopPriceApiResponse {
+  history: AllKeyShopHistoryEntry[];
+  merchants?: Record<string, { name: string }>;
+  editions?: Record<string, { name: string }>;
+  regions?: Record<string, { name: string }>;
+  officialMerchants?: number[];
+}
+
+export function validateAllKeyShopPriceResponse(data: unknown): AllKeyShopPriceApiResponse | null {
+  if (!data || typeof data !== 'object') return null;
+  const obj = data as Record<string, unknown>;
+  if (!Array.isArray(obj.history)) return null;
+  return {
+    history: obj.history.filter((h): h is AllKeyShopHistoryEntry => typeof h === 'object' && h !== null),
+    merchants: typeof obj.merchants === 'object' && obj.merchants !== null ? obj.merchants as Record<string, { name: string }> : {},
+    editions: typeof obj.editions === 'object' && obj.editions !== null ? obj.editions as Record<string, { name: string }> : {},
+    regions: typeof obj.regions === 'object' && obj.regions !== null ? obj.regions as Record<string, { name: string }> : {},
+    officialMerchants: Array.isArray(obj.officialMerchants) ? obj.officialMerchants.map(Number).filter(n => !isNaN(n)) : []
+  };
+}
+
+export function validateAllKeyShopCatalog(data: unknown): AllKeyShopCatalogApiResponse | null {
+  if (!data || typeof data !== 'object') return null;
+  const obj = data as Record<string, unknown>;
+  if (obj.status !== 'success' || !Array.isArray(obj.games)) return null;
+  return {
+    status: 'success',
+    games: obj.games.filter((g): g is CatalogGame => 
+      typeof g === 'object' && g !== null && typeof (g as any).id === 'number' && typeof (g as any).name === 'string'
+    )
+  };
 }
 
 interface SolverCookie {
@@ -74,9 +137,17 @@ export async function fetchWithAllkeyshopSolver<T = any>(
 
     if (!res.ok) {
       console.warn(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
-      const err: any = new AllKeyShopUnavailableError(`Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`);
-      err.status = res.status;
-      throw err;
+      let retryAfter: number | undefined;
+      const retryHeader = typeof res.headers?.get === 'function' ? res.headers.get('retry-after') : undefined;
+      if (retryHeader) {
+        const parsed = parseInt(retryHeader, 10);
+        if (!isNaN(parsed) && parsed > 0) retryAfter = parsed;
+      }
+      throw new AllKeyShopUnavailableError(
+        `Byparr / FlareSolverr returned HTTP ${res.status} for ${url}`,
+        res.status,
+        retryAfter
+      );
     }
 
     const data: any = await res.json();
@@ -102,19 +173,29 @@ export async function fetchWithAllkeyshopSolver<T = any>(
       }
     } else {
       const solutionStatus = data?.solution?.status || 500;
+      let retryAfter: number | undefined;
+      const h = data?.solution?.headers;
+      const retryHeader = h?.['retry-after'] || h?.['Retry-After'];
+      if (retryHeader) {
+        const parsed = parseInt(String(retryHeader), 10);
+        if (!isNaN(parsed) && parsed > 0) retryAfter = parsed;
+      }
       console.warn(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
-      const err: any = new AllKeyShopUnavailableError(`Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`);
-      err.status = solutionStatus;
-      throw err;
+      throw new AllKeyShopUnavailableError(
+        `Byparr challenge failed (status ${solutionStatus}): ${data?.message || 'Challenge unsolved'}`,
+        solutionStatus,
+        retryAfter
+      );
     }
   } catch (solverErr: any) {
     if (solverErr instanceof AllKeyShopUnavailableError) {
       throw solverErr;
     }
     console.warn(`Byparr request failed for ${url}: ${solverErr.message}`);
-    const err: any = new AllKeyShopUnavailableError(`Byparr request failed for ${url}: ${solverErr.message}`);
-    err.status = 502;
-    throw err;
+    throw new AllKeyShopUnavailableError(
+      `Byparr request failed for ${url}: ${solverErr.message}`,
+      502
+    );
   }
 
   return null;
@@ -349,13 +430,6 @@ export function findCandidateGamesInCatalog(
   return results;
 }
 
-export class AllKeyShopUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AllKeyShopUnavailableError';
-  }
-}
-
 export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'allkeyshop' as const;
   public readonly name = 'AllKeyShop';
@@ -459,9 +533,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       const downloadStartTime = Date.now();
       try {
         const url = 'https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&v=2&currency=eur&locales=en_GB';
-        const data: any = await fetchWithAllkeyshopSolver(url, 60000);
+        const raw = await fetchWithAllkeyshopSolver<unknown>(url, 60000);
+        const data = validateAllKeyShopCatalog(raw);
 
-        if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+        if (data && data.games.length > 0) {
           this.cachedCatalog = data.games;
           this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
           this.lastCatalogFetch = Date.now();
@@ -571,11 +646,14 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             ? `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`
             : `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${encodeURIComponent(matched.slug || '')}&currency=EUR&database=allkeyshop.com&v2=1`;
 
-          const raw: any = await fetchWithAllkeyshopSolver(priceApiUrl, 15000);
+          const raw = await fetchWithAllkeyshopSolver<unknown>(priceApiUrl, 15000);
           if (!raw) continue;
 
-          const resolveName = (dict: any, id: any) => dict?.[String(id)]?.name ?? '';
-          const officialMerchantIds: number[] = Array.isArray(raw?.officialMerchants) ? raw.officialMerchants : [];
+          const validated = validateAllKeyShopPriceResponse(raw);
+          if (!validated) continue;
+
+          const resolveName = (dict: Record<string, { name: string }> | undefined, id: any) => dict?.[String(id)]?.name ?? '';
+          const officialMerchantIds = validated.officialMerchants || [];
 
           // Build game slug for direct comparison page link
           const cleanSlug = (matched.slug || matched.name || gameTitle)
@@ -586,7 +664,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             ? `https://www.allkeyshop.com/blog/${encodeURIComponent(cleanSlug)}/`
             : `https://www.allkeyshop.com/blog/buy-${encodeURIComponent(cleanSlug)}-cd-key-compare-prices/`;
 
-          const historyEntries: any[] = Array.isArray(raw?.history) ? raw.history : [];
+          const historyEntries = validated.history;
           if (historyEntries.length === 0) continue;
 
           // Determine the latest observation timestamp across the feed
@@ -612,9 +690,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
               continue;
             }
 
-            const merchantName = resolveName(raw.merchants, entry.merchant_id);
-            const editionName = resolveName(raw.editions, entry.edition);
-            const regionName = resolveName(raw.regions, entry.region);
+            const merchantName = resolveName(validated.merchants, entry.merchant_id);
+            const editionName = resolveName(validated.editions, entry.edition);
+            const regionName = resolveName(validated.regions, entry.region);
 
             if (!merchantName) continue;
 
