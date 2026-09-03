@@ -53,12 +53,6 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
     dealTier === 'Good' ? 'var(--accent-blue)' :
     'var(--dim)';
 
-  const tierDisplayName = 
-    dealTier === 'Exceptional' ? 'Mega Deal' : 
-    dealTier === 'Great' ? 'Great Deal' : 
-    dealTier === 'Good' ? 'Good Deal' : 
-    dealTier === 'Fair' ? 'Fair' : 'Weak';
-
   // Real context savings
   const savingVsMedian = game.bestSavingVsMedianEur;
   const typicalMedian = game.typicalSaleMedianEur;
@@ -147,8 +141,8 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
           <TickerFlag game={game} />
         </div>
 
-        {/* Top-Right: Deal Score & Tier Pill */}
-        {hasBestDeal && (
+        {/* Top-Right: Deal Score Pill (Numeric Score Only) */}
+        {hasBestDeal && dealScore > 0 && (
           <div 
             className="deal-score-badge"
             style={{ 
@@ -161,32 +155,24 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               borderRadius: 'var(--radius-sm)',
               padding: '2px 7px',
               fontFamily: 'var(--font-mono)',
-              fontSize: '0.72rem',
+              fontSize: '0.75rem',
               fontWeight: 700,
               zIndex: 3,
-              cursor: onExplain && dealScore > 0 ? 'pointer' : 'default',
+              cursor: onExplain ? 'pointer' : 'default',
               display: 'flex',
               alignItems: 'center',
-              gap: 4
+              justifyContent: 'center',
+              minWidth: 26
             }}
             title={`Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
             onClick={(e) => {
-              if (onExplain && dealScore > 0) {
+              if (onExplain) {
                 e.stopPropagation();
                 onExplain(game);
               }
             }}
           >
-            {dealScore > 0 ? (
-              <>
-                <span className="deal-score-num ticker-num">{dealScore}</span>
-                <span className="deal-score-tier-label">{tierDisplayName}</span>
-              </>
-            ) : (
-              <span className="deal-score-tier-label">
-                {game.bestMerchantName || 'Best Deal'}
-              </span>
-            )}
+            <span className="deal-score-num ticker-num">{dealScore}</span>
           </div>
         )}
 
@@ -226,8 +212,49 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
             {game.title}
           </h3>
 
-          {/* Context Line: Explain savings vs typical sale or historical low */}
-          <div className="hist-context-line" style={{ fontSize: '0.78rem', color: 'var(--dim)', marginTop: 3 }}>
+          {/* Context Line: Selective Mega/Great Deal Badge & savings vs typical */}
+          <div className="hist-context-line" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--dim)', marginTop: 4 }}>
+            {dealTier === 'Exceptional' && (
+              <span 
+                className="deal-tier-tag tier-tag-exceptional" 
+                style={{
+                  background: 'rgba(167, 139, 250, 0.2)',
+                  color: 'var(--accent-purple)',
+                  border: '1px solid rgba(167, 139, 250, 0.4)',
+                  borderRadius: 4,
+                  padding: '1px 6px',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.03em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3
+                }}
+              >
+                🔥 MEGA DEAL
+              </span>
+            )}
+            {dealTier === 'Great' && (
+              <span 
+                className="deal-tier-tag tier-tag-great" 
+                style={{
+                  background: 'var(--down-dim)',
+                  color: 'var(--down)',
+                  border: '1px solid rgba(34, 211, 165, 0.35)',
+                  borderRadius: 4,
+                  padding: '1px 6px',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.03em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3
+                }}
+              >
+                ✨ GREAT DEAL
+              </span>
+            )}
+
             {savingVsMedian && savingVsMedian > 0 && typicalMedian ? (
               <span style={{ color: 'var(--down)', fontWeight: 600 }}>
                 €{savingVsMedian.toFixed(2)} below typical (€{typicalMedian.toFixed(2)})
