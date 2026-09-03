@@ -5,7 +5,7 @@ import type { PriceEvaluationInput } from './types.js';
  * Evaluates the market event of an offer (discount magnitude, historical record, price direction).
  */
 export function detectPriceEvent(input: PriceEvaluationInput, confidence: number, riskLevel: PriceRiskLevel): PriceEventType {
-  const { currentPriceEur, originalPriceEur, basePriceEur, historicalLowEur, previousPriceEur, isOfficialMerchant, sourceAgreementCount } = input;
+  const { currentPriceEur, originalPriceEur, basePriceEur, historicalLowEur, previousPriceEur, isOfficialMerchant, sourceAgreementCount, independentMerchantCount } = input;
   
   if (currentPriceEur <= 0) {
     return 'NONE';
@@ -18,7 +18,8 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
 
   // 2. Check for Historical Low records (new records take precedence)
   const isNewAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur < historicalLowEur * 0.98;
-  const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH';
+  const merchantCount = independentMerchantCount ?? 1;
+  const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || merchantCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH';
   const isAtAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02 && riskLevel !== 'HIGH';
   const isNearAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.10 && riskLevel !== 'HIGH';
 

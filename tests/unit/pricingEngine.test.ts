@@ -954,5 +954,21 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
       expect(indieRes.riskLevel).toBe('SAFE');
       expect(indieRes.isAnomaly).toBe(false);
     });
+
+    it('21. Multi-merchant consensus (independentMerchantCount >= 2) confirms NEW_HISTORICAL_LOW even on single source adapter', () => {
+      const res = evaluatePriceMovement({
+        currentPriceEur: 12.00,
+        basePriceEur: 59.99,
+        historicalLowEur: 18.00,
+        isOfficialMerchant: false,
+        sourceAgreementCount: 1, // Only from AllKeyShop adapter feed
+        independentMerchantCount: 3, // But 3 independent merchants on that feed (G2A, Kinguin, CDKeys) sell at this price
+        marketPricesEur: [12.00, 12.50, 13.00]
+      });
+
+      expect(res.event).toBe('NEW_HISTORICAL_LOW');
+      expect(res.riskLevel).toBe('SAFE');
+      expect(res.isAnomaly).toBe(false);
+    });
   });
 });
