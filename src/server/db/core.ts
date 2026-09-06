@@ -29,7 +29,6 @@ export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
           WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
-        CASE WHEN is_anomaly = 1 OR risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
         price_eur ASC,
         COALESCE(last_observed_at, fetched_at) DESC
     ) as rn

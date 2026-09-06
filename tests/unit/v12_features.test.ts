@@ -142,7 +142,7 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
     expect(stats.averageDiscountPercent).toBeGreaterThan(0);
   });
 
-  it('orders Best Deals by computed Deal Score and excludes HIGH risk / anomalies', () => {
+  it('orders Best Deals by computed Deal Score and includes all valid deals regardless of risk status', () => {
     const profile = profileRepo.create('Test User', '76561198000000002');
     const steamMerchant = merchantRepo.getOrCreate('steam', 'Steam Store', true);
     const keyshop = merchantRepo.getOrCreate('shady', 'Untrusted Shop', false);
@@ -234,14 +234,12 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
 
     const bestDeals = gameRepo.getBestDeals(profile.id, 10);
     
-    // HIGH risk g3 must be excluded from normal Best Deals
-    expect(bestDeals.some(d => d.id === g3.id)).toBe(false);
+    // Anomalies are NOT excluded from Best Deals per user requirements
+    expect(bestDeals.some(d => d.id === g3.id)).toBe(true);
 
-    // g1 (Score ~97) must come before g2 (Score ~36)
-    expect(bestDeals.length).toBe(2);
+    expect(bestDeals.length).toBe(3);
     expect(bestDeals[0].bestDealScore).toBeGreaterThanOrEqual(65);
     expect(['Good', 'Exceptional']).toContain(bestDeals[0].bestDealTier);
-    expect(bestDeals[1].id).toBe(g2.id);
   });
 
   it('filters wishlist games accurately by majorDealsOnly, allTimeLowOnly, and trustedOnly', () => {

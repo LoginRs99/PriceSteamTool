@@ -154,9 +154,8 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
     expect(anomalyRepo.list(false)[0].isDismissed).toBe(true);
   });
 
-  it('selects cheapest anomalous offer as fallback best deal when all offers are anomalous, and prioritizes safe offers when available', () => {
+  it('selects cheapest offer as best deal regardless of anomaly flag, while recording anomalies for safety review', () => {
     resetDb();
-
     const game = gameRepo.upsert({
       steamAppId: 99999,
       title: 'Only Glitch Offers Game',
@@ -189,7 +188,7 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
       sourceCode: 'allkeyshop'
     });
 
-    // 1. Check per-game selection: the cheaper anomalous offer (€0.40) must be best deal as fallback
+    // 1. Check per-game selection: the cheaper anomalous offer (€0.40) must be best deal
     let offers = offerRepo.getOffersForGame(game.id);
     expect(offers.length).toBe(2);
     const offer40 = offers.find(o => o.priceEur === 0.40);
@@ -214,16 +213,16 @@ describe('Data Safety — Write-Time Anomaly Recording & Deduplication', () => {
       sourceCode: 'steam'
     });
 
-    // Safe offer must immediately take precedence over cheaper anomalous offers
+    // Cheapest offer (€0.40) remains best deal because anomalies are no longer excluded from best deal
     offers = offerRepo.getOffersForGame(game.id);
-    expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(true);
-    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(false);
+    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(true);
+    expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(false);
 
-    // Recomputing all deals must preserve safe precedence
+    // Recomputing all deals must preserve lowest price selection
     offerRepo.recomputeAllBestDeals();
     offers = offerRepo.getOffersForGame(game.id);
-    expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(true);
-    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(false);
+    expect(offers.find(o => o.priceEur === 0.40)?.isBestDeal).toBe(true);
+    expect(offers.find(o => o.priceEur === 29.99)?.isBestDeal).toBe(false);
   });
 
   it('correctly persists atl_is_confirmed=0 for keyshop ATL and halves rarity bonus in mapGameRow', () => {

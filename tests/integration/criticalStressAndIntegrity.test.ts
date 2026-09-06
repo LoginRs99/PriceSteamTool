@@ -153,10 +153,10 @@ describe('Critical Performance, Scale Stress & Data Integrity Suite', () => {
     expect(bestDeals.length).toBe(100);
 
     for (const b of bestDeals) {
-      // Best deal must NEVER be an anomaly or HIGH risk
-      expect(b.is_anomaly).toBe(0);
-      expect(b.risk_level).not.toBe('HIGH');
-      expect(b.price_eur).toBeGreaterThan(0.49); // Skipped the 0.49 anomaly
+      // Best deal selects lowest valid price; anomalous offers are not excluded from Best Deal
+      expect(b.price_eur).toBe(0.49);
+      expect(b.is_anomaly).toBe(1);
+      expect(b.risk_level).toBe('HIGH');
 
       // Best deal must be fresh (<72h) since fresh offers were available
       const ageHours = (Date.now() - new Date(b.last_observed_at).getTime()) / (3600 * 1000);

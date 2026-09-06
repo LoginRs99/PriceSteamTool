@@ -202,6 +202,6 @@ describe('OffersTable Component & Badge Integrity', () => {
     );
 
     expect(screen.getByText('HIGH RISK')).toBeInTheDocument();
-    expect(screen.getByText('Unverified outlier price (excluded from Best Deal)')).toBeInTheDocument();
+    expect(screen.getByText('Unverified outlier price (Flagged in Data Safety)')).toBeInTheDocument();
   });
 });

@@ -95,7 +95,7 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
     expect(recomputedGame.bestIsFresh).toBe(true);
   });
 
-  it('Case C: Fresh safe offer beats fresh HIGH-risk / anomalous offer', () => {
+  it('Case C: Fresh lowest price beats higher price regardless of anomaly status', () => {
     const game = gameRepo.upsert({ steamAppId: 1003, title: 'Case C Game', basePriceEur: 60.0 });
     const merchantA = merchantRepo.getOrCreate('shady_keys', 'Shady Keys', false);
     const merchantB = merchantRepo.getOrCreate('legit_store', 'Legit Store', true);
@@ -119,9 +119,9 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
     offerRepo.recomputeBestDealForGame(game.id);
 
     const recomputedGame = gameRepo.getById(game.id)!;
-    expect(recomputedGame.bestOfferId).toBe(offerBId);
-    expect(recomputedGame.bestPriceEur).toBe(6.00);
-    expect(recomputedGame.bestRiskLevel).toBe('SAFE');
+    expect(recomputedGame.bestOfferId).toBe(offerAId);
+    expect(recomputedGame.bestPriceEur).toBe(5.00);
+    expect(recomputedGame.bestRiskLevel).toBe('HIGH');
     expect(recomputedGame.bestIsFresh).toBe(true);
   });
 

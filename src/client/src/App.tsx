@@ -453,6 +453,7 @@ export const App: React.FC = () => {
           {/* TAB 4: DATA SAFETY (ANOMALIES) VIEW */}
           {mainTab === 'safety' && (
             <AnomaliesView
+              onSelectGame={(id) => setSelectedGameId(id)}
               onRefresh={() => {
                 loadAnomalies();
                 loadGames();

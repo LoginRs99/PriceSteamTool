@@ -422,8 +422,6 @@ export const gameRepo = {
       WHERE w.profile_id = ? AND w.is_active = 1
         AND (g.is_free = 0 OR g.is_free IS NULL)
         AND bo.is_valid = 1
-        AND bo.risk_level != 'HIGH'
-        AND bo.is_anomaly = 0
         AND (bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))
     `).all(profileId) as any[];
 

@@ -56,9 +56,9 @@ export const OffersTable: React.FC<OffersTableProps> = ({
 
       const readableAnomalyReason = offer.anomalyReason
         ? (offer.anomalyReason.includes('High Risk') || offer.anomalyReason.includes('Unconfirmed') 
-            ? 'Unverified outlier price (excluded from Best Deal)' 
+            ? 'Unverified outlier price (Flagged in Data Safety)' 
             : offer.anomalyReason)
-        : 'Excluded from Best Deal';
+        : 'Flagged outlier price';
 
       return (
         <tr key={offer.id} style={isExpiredSection ? { opacity: 0.78 } : undefined}>
