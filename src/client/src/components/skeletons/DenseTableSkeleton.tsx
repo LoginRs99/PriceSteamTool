@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 interface DenseTableSkeletonProps {
   rows?: number;
@@ -10,16 +10,16 @@ export const DenseTableSkeleton: React.FC<DenseTableSkeletonProps> = ({ rows = 8
       <table className="dense-table">
         <thead>
           <tr>
-            <th style={{ width: 45 }}>#</th>
-            <th>Title</th>
-            <th style={{ width: 120 }}>Trend</th>
-            <th style={{ width: 85 }}>MSRP</th>
-            <th style={{ width: 105 }}>Best Deal</th>
-            <th style={{ width: 90 }}>Discount</th>
-            <th style={{ width: 130 }}>Deal Score</th>
-            <th style={{ width: 140 }}>Best Store</th>
-            <th style={{ width: 95 }}>ATL</th>
-            <th style={{ width: 75, textAlign: 'right' }}>Action</th>
+            <th className="th-priority" style={{ width: 45 }}>#</th>
+            <th className="th-title">Title</th>
+            <th className="th-sparkline" style={{ width: 120 }}>Trend</th>
+            <th className="th-msrp" style={{ width: 85 }}>MSRP</th>
+            <th className="th-price" style={{ width: 105 }}>Best Deal</th>
+            <th className="th-discount" style={{ width: 90 }}>Discount</th>
+            <th className="th-score" style={{ width: 130 }}>Deal Score</th>
+            <th className="th-store" style={{ width: 145 }}>Best Store</th>
+            <th className="th-atl" style={{ width: 95 }}>ATL</th>
+            <th className="th-action" style={{ width: 75, textAlign: 'right' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -30,11 +30,14 @@ export const DenseTableSkeleton: React.FC<DenseTableSkeletonProps> = ({ rows = 8
                 <div className="skeleton-shimmer" style={{ width: 22, height: 14, borderRadius: 3 }} />
               </td>
 
-              {/* 2. Title & Flag */}
+              {/* 2. Capsule + Title & Flag */}
               <td className="cell-title">
                 <div className="table-title-wrap" style={{ gap: 8 }}>
-                  <div className="skeleton-shimmer" style={{ width: 140, height: 16, borderRadius: 4 }} />
-                  <div className="skeleton-shimmer" style={{ width: 42, height: 16, borderRadius: 4 }} />
+                  <div className="skeleton-shimmer table-capsule-img" style={{ width: 56, height: 26, borderRadius: 4 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div className="skeleton-shimmer" style={{ width: 140, height: 16, borderRadius: 4 }} />
+                    <div className="skeleton-shimmer" style={{ width: 42, height: 12, borderRadius: 3 }} />
+                  </div>
                 </div>
               </td>
 

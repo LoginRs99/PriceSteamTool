@@ -20,6 +20,9 @@ export interface SteamWishlistItem {
   basePriceEur?: number;
   currentPriceEur?: number;
   discountPercent: number;
+  reviewDesc?: string;
+  reviewsPercent?: number;
+  reviewsTotal?: string;
 }
 
 export interface SteamAppDetails {
@@ -222,6 +225,14 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
               }
             }
 
+            const reviewDesc = infoObj.review_desc || undefined;
+            const reviewsPercent = (infoObj.reviews_percent !== undefined && infoObj.reviews_percent !== null)
+              ? Number(infoObj.reviews_percent)
+              : undefined;
+            const reviewsTotal = (infoObj.reviews_total !== undefined && infoObj.reviews_total !== null)
+              ? String(infoObj.reviews_total)
+              : undefined;
+
             items.push({
               steamAppId: appId,
               title,
@@ -237,7 +248,10 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
               rawOriginalPrice,
               basePriceEur,
               currentPriceEur,
-              discountPercent
+              discountPercent,
+              reviewDesc,
+              reviewsPercent,
+              reviewsTotal
             });
           }
 

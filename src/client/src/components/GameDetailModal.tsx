@@ -78,6 +78,17 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
                 Steam Store (AppID: {game.steamAppId}) <ExternalLink size={12} />
               </a>
 
+              {game.steamReviewPercent != null && (
+                <span
+                  className={`steam-review-pill ${
+                    game.steamReviewPercent >= 70 ? 'positive' : game.steamReviewPercent >= 40 ? 'mixed' : 'negative'
+                  }`}
+                  title={game.steamReviewDesc ? `${game.steamReviewDesc} (${game.steamReviewTotal?.toLocaleString() ?? 0} reviews)` : `${game.steamReviewPercent}% positive`}
+                >
+                  👍 {game.steamReviewPercent}% {game.steamReviewDesc ? `· ${game.steamReviewDesc}` : ''}
+                </span>
+              )}
+
               <button
                 type="button"
                 className="btn btn-outline"
@@ -102,6 +113,8 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
             game={game}
             bestOffer={bestOffer}
             intelligence={intelligence}
+            copiedVoucherId={copiedVoucherId}
+            onCopyVoucher={handleCopyVoucher}
           />
 
           {/* 1.5 Target Price Discord Alert Configuration */}

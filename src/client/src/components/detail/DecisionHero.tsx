@@ -6,19 +6,25 @@ import {
   Scale, 
   Clock, 
   CheckCircle, 
-  ExternalLink 
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface DecisionHeroProps {
   game: Game;
   bestOffer?: Offer;
   intelligence?: PriceIntelligenceResponse;
+  copiedVoucherId?: string | null;
+  onCopyVoucher?: (offerId: string, voucherCode: string) => void;
 }
 
 export const DecisionHero: React.FC<DecisionHeroProps> = ({
   game,
   bestOffer,
-  intelligence
+  intelligence,
+  copiedVoucherId,
+  onCopyVoucher
 }) => {
   const advice = intelligence?.advice || {
     decision: 'FAIR' as const,
@@ -123,9 +129,52 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
 
         {bestOffer && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'right' }}>
-              Best offer sold by <strong style={{ color: 'var(--ink)' }}>{bestOffer.merchantName}</strong>
+            <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>Best offer:</span>
+              <strong style={{ color: 'var(--ink)' }}>{bestOffer.merchantName}</strong>
+              <span 
+                className={`store-pill ${bestOffer.isOfficial ? 'official' : 'keyshop'}`} 
+                style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4 }}
+              >
+                {bestOffer.isOfficial ? 'OFFICIAL' : 'KEYSHOP'}
+              </span>
             </div>
+
+            {bestOffer.voucherCode && (
+              <button
+                type="button"
+                onClick={() => onCopyVoucher && onCopyVoucher(bestOffer.id, bestOffer.voucherCode!)}
+                className="voucher-copy-btn"
+                title="Click to copy voucher code to clipboard"
+                style={{
+                  background: copiedVoucherId === bestOffer.id ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.12)',
+                  border: '1px dashed #10b981',
+                  color: '#10b981',
+                  padding: '3px 8px',
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                {copiedVoucherId === bestOffer.id ? (
+                  <>
+                    <Check size={11} />
+                    <span>COPIED!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={11} />
+                    <span>CODE: {bestOffer.voucherCode}</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <a
               href={bestOffer.dealUrl}
               target="_blank"

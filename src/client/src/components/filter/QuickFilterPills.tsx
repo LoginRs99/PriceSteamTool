@@ -5,6 +5,7 @@ import {
   Sparkles, 
   ShieldCheck, 
   Tag, 
+  Target,
   RotateCcw 
 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ interface QuickFilterPillsProps {
 
 export const getActivePill = (filters: WishlistFilterOptions): string => {
   if (filters.hasAnomaly) return 'anomaly';
+  if (filters.targetReachedOnly) return 'target_reached';
   if (filters.buyOnly) return 'buy_recommendations';
   if ((filters.minDealScore ?? 0) >= 85) return 'exceptional';
   if ((filters.minDealScore ?? 0) >= 70) return 'best_deals';
@@ -52,14 +54,20 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
       </button>
 
       <button
-        className={`pill-btn ${currentPill === 'buy_recommendations' ? 'active' : ''}`}
+        className={`pill-btn pill-gold ${currentPill === 'buy_recommendations' ? 'active' : ''}`}
         onClick={() => onPillSelect('buy_recommendations')}
-        style={{ borderColor: currentPill === 'buy_recommendations' ? 'var(--down)' : undefined }}
       >
-        <Sparkles size={13} color="var(--down)" />
-        <span style={{ color: currentPill === 'buy_recommendations' ? 'var(--down)' : undefined, fontWeight: 700 }}>
-          🔥 Buy Recommendations
-        </span>
+        <Sparkles size={13} />
+        <span>🔥 Buy Recommendations</span>
+      </button>
+
+      <button
+        className={`pill-btn pill-gold ${currentPill === 'target_reached' ? 'active' : ''}`}
+        onClick={() => onPillSelect('target_reached')}
+        title="Show games where best deal has reached your target price"
+      >
+        <Target size={13} />
+        <span>🎯 Target Reached</span>
       </button>
 
       <button
@@ -71,14 +79,14 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
       </button>
 
       <button
-        className={`pill-btn ${currentPill === 'exceptional' ? 'active' : ''}`}
+        className={`pill-btn pill-gold ${currentPill === 'exceptional' ? 'active' : ''}`}
         onClick={() => onPillSelect('exceptional')}
       >
         🔥 Exceptional (85+)
       </button>
 
       <button
-        className={`pill-btn ${currentPill === 'atl' ? 'active' : ''}`}
+        className={`pill-btn pill-gold ${currentPill === 'atl' ? 'active' : ''}`}
         onClick={() => onPillSelect('atl')}
       >
         <Flame size={13} />

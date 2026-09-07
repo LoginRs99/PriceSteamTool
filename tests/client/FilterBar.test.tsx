@@ -18,16 +18,13 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders search input, sort selector, view mode toggles, and preset pills', () => {
+  it('renders search input, sort selector, and preset pills', () => {
     const handleFilterChange = vi.fn();
-    const handleViewModeChange = vi.fn();
 
     render(
       <FilterBar 
         filters={defaultFilters}
         totalGames={142}
-        viewMode="grid"
-        onViewModeChange={handleViewModeChange}
         onFilterChange={handleFilterChange}
       />
     );
@@ -47,8 +44,6 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
       <FilterBar 
         filters={defaultFilters}
         totalGames={100}
-        viewMode="grid"
-        onViewModeChange={() => {}}
         onFilterChange={handleFilterChange}
       />
     );
@@ -65,8 +60,6 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
       <FilterBar 
         filters={{ ...defaultFilters, search: 'Cyberpunk' }}
         totalGames={100}
-        viewMode="grid"
-        onViewModeChange={() => {}}
         onFilterChange={handleFilterChange}
       />
     );
@@ -83,8 +76,6 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
       <FilterBar 
         filters={defaultFilters}
         totalGames={100}
-        viewMode="grid"
-        onViewModeChange={() => {}}
         onFilterChange={handleFilterChange}
       />
     );
@@ -95,35 +86,12 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     expect(handleFilterChange).toHaveBeenCalledWith({ sort: 'price_asc', page: 1 });
   });
 
-  it('fires onViewModeChange when switching view modes', () => {
-    const handleViewModeChange = vi.fn();
-    render(
-      <FilterBar 
-        filters={defaultFilters}
-        totalGames={100}
-        viewMode="grid"
-        onViewModeChange={handleViewModeChange}
-        onFilterChange={() => {}}
-      />
-    );
-
-    const listBtn = screen.getByRole('button', { name: 'Compact List View (Dense Rows)' });
-    fireEvent.click(listBtn);
-    expect(handleViewModeChange).toHaveBeenCalledWith('list');
-
-    const tableBtn = screen.getByRole('button', { name: 'Dense Table View (Data Table)' });
-    fireEvent.click(tableBtn);
-    expect(handleViewModeChange).toHaveBeenCalledWith('table');
-  });
-
   it('sets appropriate filter options when clicking preset pills', () => {
     const handleFilterChange = vi.fn();
     render(
       <FilterBar 
         filters={defaultFilters}
         totalGames={100}
-        viewMode="grid"
-        onViewModeChange={() => {}}
         onFilterChange={handleFilterChange}
       />
     );
@@ -163,8 +131,6 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
       <FilterBar 
         filters={defaultFilters}
         totalGames={100}
-        viewMode="grid"
-        onViewModeChange={() => {}}
         onFilterChange={handleFilterChange}
       />
     );
@@ -205,8 +171,6 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
           merchantType: 'official'
         }}
         totalGames={100}
-        viewMode="grid"
-        onViewModeChange={() => {}}
         onFilterChange={handleFilterChange}
       />
     );
@@ -222,5 +186,40 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
       merchantType: 'all',
       page: 1
     }));
+  });
+
+  it('triggers targetReachedOnly when clicking Target Reached pill', () => {
+    const handleFilterChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={defaultFilters}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    const targetBtn = screen.getByRole('button', { name: /Target Reached/i });
+    fireEvent.click(targetBtn);
+    expect(handleFilterChange).toHaveBeenCalledWith(expect.objectContaining({
+      targetReachedOnly: true,
+      page: 1
+    }));
+  });
+
+  it('clears search when pressing Escape while search input is focused', () => {
+    const handleFilterChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={{ ...defaultFilters, search: 'Witcher' }}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText('Search wishlist games... (press /)');
+    searchInput.focus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(handleFilterChange).toHaveBeenCalledWith({ search: '', page: 1 });
   });
 });

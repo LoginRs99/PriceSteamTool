@@ -1,15 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { 
   Game, 
-  ViewMode, 
   MainTab 
 } from './types.js';
 import { Navbar } from './components/Navbar.js';
 import { SyncBanner } from './components/SyncBanner.js';
 import { DealsDashboard } from './components/DealsDashboard.js';
 import { FilterBar } from './components/FilterBar.js';
-import { GameCard } from './components/GameCard.js';
-import { CompactListView } from './components/CompactListView.js';
 import { DenseTableView } from './components/DenseTableView.js';
 import { FreeGamesView } from './components/FreeGamesView.js';
 import { GameDetailModal } from './components/GameDetailModal.js';
@@ -19,7 +16,7 @@ import { AnomaliesView } from './components/AnomaliesView.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
 import { ScoreExplainModal } from './components/ScoreExplainModal.js';
-import { GameCardSkeleton, CompactListSkeleton, DenseTableSkeleton } from './components/skeletons/index.js';
+import { DenseTableSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -31,9 +28,6 @@ import {
   Sparkles, 
   Flame, 
   Gift, 
-  LayoutGrid, 
-  List, 
-  Table as TableIcon, 
   AlertTriangle 
 } from 'lucide-react';
 
@@ -47,17 +41,8 @@ export const App: React.FC = () => {
   // Profiles
   const { profiles, activeProfile, loadProfiles } = useProfiles();
 
-  // Navigation Tabs & View Mode
+  // Navigation Tabs
   const [mainTab, setMainTab] = useState<MainTab>('wishlist');
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('pricetool_view_mode');
-    return (saved === 'grid' || saved === 'list' || saved === 'table') ? saved : 'grid';
-  });
-
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('pricetool_view_mode', mode);
-  };
 
   // Wishlist Games & Filtering
   const {
@@ -214,8 +199,6 @@ export const App: React.FC = () => {
               <FilterBar
                 filters={filters}
                 totalGames={totalGames}
-                viewMode={viewMode}
-                onViewModeChange={handleViewModeChange}
                 onFilterChange={updateFilters}
               />
 
@@ -249,15 +232,7 @@ export const App: React.FC = () => {
               )}
 
               {loading && games.length === 0 ? (
-                viewMode === 'grid' ? (
-                  <div className="games-grid">
-                    <GameCardSkeleton count={8} />
-                  </div>
-                ) : viewMode === 'list' ? (
-                  <CompactListSkeleton rows={8} />
-                ) : (
-                  <DenseTableSkeleton rows={8} />
-                )
+                <DenseTableSkeleton rows={10} />
               ) : !loading && games.length === 0 ? (
                 <div className="empty-state">
                   <Gamepad2 size={40} color="var(--text-muted)" />
@@ -275,36 +250,13 @@ export const App: React.FC = () => {
                 </div>
               ) : (
                 <div style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s ease' }}>
-                  {viewMode === 'grid' && (
-                    <div className="games-grid">
-                      {games.map(game => (
-                        <GameCard
-                          key={game.id}
-                          game={game}
-                          onClick={() => setSelectedGameId(game.id)}
-                          onExplain={(g) => setExplainGame(g)}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {viewMode === 'list' && (
-                    <CompactListView
-                      games={games}
-                      onGameClick={(game) => setSelectedGameId(game.id)}
-                      onExplain={(g) => setExplainGame(g)}
-                    />
-                  )}
-
-                  {viewMode === 'table' && (
-                    <DenseTableView
-                      games={games}
-                      onGameClick={(game) => setSelectedGameId(game.id)}
-                      onExplain={(g) => setExplainGame(g)}
-                      currentSort={filters.sort}
-                      onSortChange={(sort) => updateFilters({ sort, page: 1 })}
-                    />
-                  )}
+                  <DenseTableView
+                    games={games}
+                    onGameClick={(game) => setSelectedGameId(game.id)}
+                    onExplain={(g) => setExplainGame(g)}
+                    currentSort={filters.sort}
+                    onSortChange={(sort) => updateFilters({ sort, page: 1 })}
+                  />
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
@@ -369,8 +321,6 @@ export const App: React.FC = () => {
           {mainTab === 'free' && (
             <FreeGamesView
               games={freeGames}
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
               onGameClick={(game) => setSelectedGameId(game.id)}
             />
           )}
@@ -388,33 +338,6 @@ export const App: React.FC = () => {
                     Ranked by verified Deal Score algorithms for maximum savings.
                   </p>
                 </div>
-
-                <div className="view-mode-group" role="group" aria-label="View Mode">
-                  <button
-                    className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                    onClick={() => handleViewModeChange('grid')}
-                    title="Grid View"
-                    aria-label="Grid View"
-                  >
-                    <LayoutGrid size={16} />
-                  </button>
-                  <button
-                    className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
-                    onClick={() => handleViewModeChange('list')}
-                    title="Compact List View"
-                    aria-label="Compact List View"
-                  >
-                    <List size={16} />
-                  </button>
-                  <button
-                    className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
-                    onClick={() => handleViewModeChange('table')}
-                    title="Dense Table View"
-                    aria-label="Dense Table View"
-                  >
-                    <TableIcon size={16} />
-                  </button>
-                </div>
               </div>
 
               {topDeals.length === 0 ? (
@@ -423,23 +346,6 @@ export const App: React.FC = () => {
                   <h3 className="empty-title">No Active Deals Found</h3>
                   <p className="empty-desc">No discounted games are currently recorded. Run a sync to find deals.</p>
                 </div>
-              ) : viewMode === 'grid' ? (
-                <div className="games-grid">
-                  {topDeals.map(game => (
-                    <GameCard
-                      key={game.id}
-                      game={game}
-                      onClick={() => setSelectedGameId(game.id)}
-                      onExplain={(g) => setExplainGame(g)}
-                    />
-                  ))}
-                </div>
-              ) : viewMode === 'list' ? (
-                <CompactListView
-                  games={topDeals}
-                  onGameClick={(game) => setSelectedGameId(game.id)}
-                  onExplain={(g) => setExplainGame(g)}
-                />
               ) : (
                 <DenseTableView
                   games={topDeals}

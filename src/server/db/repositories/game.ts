@@ -94,6 +94,10 @@ export function buildWishlistFilterClause(
     whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) > 0`);
   }
 
+  if (options.targetReachedOnly) {
+    whereClauses.push(`w.target_price_eur IS NOT NULL AND bo.price_eur IS NOT NULL AND bo.price_eur <= w.target_price_eur`);
+  }
+
   if (options.merchantType === 'official' || (options.merchantType as any) === 'official_only') {
     whereClauses.push(`m.is_official = 1`);
   } else if (options.merchantType === 'keyshop' || (options.merchantType as any) === 'keyshop_only') {
@@ -130,6 +134,9 @@ export const gameRepo = {
     historicalLowDate?: string;
     historicalLowSource?: string;
     itadId?: string;
+    steamReviewDesc?: string;
+    steamReviewPercent?: number;
+    steamReviewTotal?: string;
   }): Game {
     const now = new Date().toISOString();
     const slug = game.slug || game.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -149,6 +156,9 @@ export const gameRepo = {
             historical_low_date = COALESCE(?, historical_low_date),
             historical_low_source = COALESCE(?, historical_low_source),
             itad_id = COALESCE(?, itad_id),
+            steam_review_desc = COALESCE(?, steam_review_desc),
+            steam_review_percent = COALESCE(?, steam_review_percent),
+            steam_review_total = COALESCE(?, steam_review_total),
             updated_at = ?
         WHERE id = ?
       `).run(
@@ -163,6 +173,9 @@ export const gameRepo = {
         game.historicalLowDate || null,
         game.historicalLowSource || null,
         game.itadId || null,
+        game.steamReviewDesc || null,
+        game.steamReviewPercent !== undefined ? game.steamReviewPercent : null,
+        game.steamReviewTotal || null,
         now,
         existing.id
       );
@@ -182,6 +195,9 @@ export const gameRepo = {
         historicalLowEur: game.historicalLowEur !== undefined ? game.historicalLowEur : (existing.historical_low_eur ? Number(existing.historical_low_eur) : undefined),
         historicalLowDate: game.historicalLowDate || existing.historical_low_date || undefined,
         historicalLowSource: game.historicalLowSource || existing.historical_low_source || undefined,
+        steamReviewDesc: game.steamReviewDesc || existing.steam_review_desc || undefined,
+        steamReviewPercent: game.steamReviewPercent !== undefined ? game.steamReviewPercent : (existing.steam_review_percent !== null && existing.steam_review_percent !== undefined ? Number(existing.steam_review_percent) : undefined),
+        steamReviewTotal: game.steamReviewTotal || existing.steam_review_total || undefined,
         hasAnomaly: false,
         offersCount: 0,
         createdAt: existing.created_at,
@@ -191,8 +207,8 @@ export const gameRepo = {
 
     const id = randomUUID();
     prepareStmt(`
-      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, historical_low_eur, historical_low_date, historical_low_source, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, historical_low_eur, historical_low_date, historical_low_source, steam_review_desc, steam_review_percent, steam_review_total, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       game.steamAppId,
@@ -208,6 +224,9 @@ export const gameRepo = {
       game.historicalLowEur || null,
       game.historicalLowDate || null,
       game.historicalLowSource || null,
+      game.steamReviewDesc || null,
+      game.steamReviewPercent !== undefined ? game.steamReviewPercent : null,
+      game.steamReviewTotal || null,
       now,
       now
     );
@@ -224,6 +243,9 @@ export const gameRepo = {
       isDlc: Boolean(game.isDlc),
       isFree: Boolean(game.isFree),
       basePriceEur: game.basePriceEur,
+      steamReviewDesc: game.steamReviewDesc,
+      steamReviewPercent: game.steamReviewPercent,
+      steamReviewTotal: game.steamReviewTotal,
       hasAnomaly: false,
       offersCount: 0,
       createdAt: now,
@@ -671,6 +693,9 @@ export const gameRepo = {
     isDlc?: boolean;
     isFree?: boolean;
     basePriceEur?: number;
+    reviewDesc?: string;
+    reviewsPercent?: number;
+    reviewsTotal?: string;
   }[]): void {
     const db = getDb();
     const now = new Date().toISOString();
@@ -678,8 +703,8 @@ export const gameRepo = {
     const stmtDeactivate = prepareStmt(`UPDATE wishlist_entries SET is_active = 0 WHERE profile_id = ?`);
     const stmtFindGame = prepareStmt(`SELECT id, title, slug, header_image, base_price_eur FROM games WHERE steam_app_id = ?`);
     const stmtInsertGame = prepareStmt(`
-      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, created_at, updated_at)
-      VALUES (?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, steam_review_desc, steam_review_percent, steam_review_total, created_at, updated_at)
+      VALUES (?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stmtUpdateGame = prepareStmt(`
       UPDATE games SET
@@ -691,6 +716,9 @@ export const gameRepo = {
         is_dlc = COALESCE(?, games.is_dlc),
         is_free = COALESCE(?, games.is_free),
         base_price_eur = COALESCE(?, games.base_price_eur),
+        steam_review_desc = COALESCE(?, games.steam_review_desc),
+        steam_review_percent = COALESCE(?, games.steam_review_percent),
+        steam_review_total = COALESCE(?, games.steam_review_total),
         updated_at = ?
       WHERE id = ?
     `);
@@ -714,24 +742,21 @@ export const gameRepo = {
 
         if (existing) {
           gameId = existing.id;
-          if (
-            (existing.title.startsWith('App ') && !item.title.startsWith('App ')) ||
-            !existing.header_image ||
-            (existing.base_price_eur === null && item.basePriceEur !== undefined)
-          ) {
-            stmtUpdateGame.run(
-              item.title,
-              slug,
-              item.headerImage || null,
-              item.capsuleImage || null,
-              item.releaseDate || null,
-              item.isDlc !== undefined ? (item.isDlc ? 1 : 0) : null,
-              item.isFree !== undefined ? (item.isFree ? 1 : 0) : null,
-              item.basePriceEur !== undefined ? item.basePriceEur : null,
-              now,
-              gameId
-            );
-          }
+          stmtUpdateGame.run(
+            item.title,
+            slug,
+            item.headerImage || null,
+            item.capsuleImage || null,
+            item.releaseDate || null,
+            item.isDlc !== undefined ? (item.isDlc ? 1 : 0) : null,
+            item.isFree !== undefined ? (item.isFree ? 1 : 0) : null,
+            item.basePriceEur !== undefined ? item.basePriceEur : null,
+            item.reviewDesc || null,
+            item.reviewsPercent !== undefined ? item.reviewsPercent : null,
+            item.reviewsTotal || null,
+            now,
+            gameId
+          );
         } else {
           gameId = randomUUID();
           stmtInsertGame.run(
@@ -745,6 +770,9 @@ export const gameRepo = {
             item.isDlc ? 1 : 0,
             item.isFree ? 1 : 0,
             item.basePriceEur !== undefined ? item.basePriceEur : null,
+            item.reviewDesc || null,
+            item.reviewsPercent !== undefined ? item.reviewsPercent : null,
+            item.reviewsTotal || null,
             now,
             now
           );
@@ -918,6 +946,9 @@ function mapGameRow(r: any): Game {
     historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
     historicalLowDate: r.historical_low_date || undefined,
     historicalLowSource: r.historical_low_source || undefined,
+    steamReviewDesc: r.steam_review_desc || undefined,
+    steamReviewPercent: r.steam_review_percent !== null && r.steam_review_percent !== undefined ? Number(r.steam_review_percent) : undefined,
+    steamReviewTotal: r.steam_review_total || undefined,
     typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : undefined,
     typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
     typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,

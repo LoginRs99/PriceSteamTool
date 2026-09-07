@@ -110,6 +110,11 @@ export interface Game {
   historicalLowDate?: string;
   historicalLowSource?: string;
   
+  // Steam Review Sentiment
+  steamReviewDesc?: string;
+  steamReviewPercent?: number;
+  steamReviewTotal?: string;
+  
   // Statistical Historical Anchors
   typicalSaleMedianEur?: number;
   typicalSaleQ1Eur?: number;
@@ -357,6 +362,7 @@ export interface WishlistFilterOptions {
   actionDecision?: ActionDecision[];
   merchantType?: 'all' | 'official' | 'keyshop' | 'official_only' | 'keyshop_only';
   hasAnomaly?: boolean;
+  targetReachedOnly?: boolean;
   priceEvent?: PriceEventType;
   riskLevel?: PriceRiskLevel;
   page?: number;

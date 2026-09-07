@@ -218,27 +218,16 @@ describe('App Root Component (Monolith & Decomposed Regression Tests)', () => {
     });
   });
 
-  it('switches view mode between grid, compact list, and dense table', async () => {
+  it('renders the unified dense table view with headers and game details', async () => {
     render(<App />);
 
     await waitFor(() => {
       expect(screen.getAllByText('Terraria')[0]).toBeInTheDocument();
     });
 
-    // Switch to List View
-    const listBtn = screen.getByLabelText(/Compact List View/i);
-    fireEvent.click(listBtn);
-    expect(localStorage.getItem('pricetool_view_mode')).toBe('list');
-
-    // Switch to Table View
-    const tableBtn = screen.getByLabelText(/Dense Table View/i);
-    fireEvent.click(tableBtn);
-    expect(localStorage.getItem('pricetool_view_mode')).toBe('table');
-
-    // Switch back to Grid View
-    const gridBtn = screen.getByLabelText(/Grid View/i);
-    fireEvent.click(gridBtn);
-    expect(localStorage.getItem('pricetool_view_mode')).toBe('grid');
+    expect(screen.getByText('Deal Score')).toBeInTheDocument();
+    expect(screen.getByText('Best Store')).toBeInTheDocument();
+    expect(screen.getByText('MSRP')).toBeInTheDocument();
   });
 
   it('opens GameDetailModal when a game is clicked and closes on close button', async () => {

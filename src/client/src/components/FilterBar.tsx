@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { WishlistFilterOptions, ViewMode } from '../types.js';
+import type { WishlistFilterOptions } from '../types.js';
 import { 
   Search, 
   X, 
@@ -8,22 +8,17 @@ import {
 import { useFilterState } from './filter/useFilterState.js';
 import { QuickFilterPills } from './filter/QuickFilterPills.js';
 import { AdvancedFiltersDrawer } from './filter/AdvancedFiltersDrawer.js';
-import { ViewModeToggle } from './filter/ViewModeToggle.js';
 import { ActiveFilterBadges } from './filter/ActiveFilterBadges.js';
 
 interface FilterBarProps {
   filters: WishlistFilterOptions;
   totalGames: number;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   onFilterChange: (newFilters: Partial<WishlistFilterOptions>) => void;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
   totalGames,
-  viewMode,
-  onViewModeChange,
   onFilterChange,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -130,9 +125,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <option value="100">100 / page</option>
             <option value="200">200 / page</option>
           </select>
-
-          {/* View Mode Toggle Buttons */}
-          <ViewModeToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
         </div>
       </div>
 

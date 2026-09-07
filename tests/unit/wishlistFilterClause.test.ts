@@ -38,4 +38,14 @@ describe('buildWishlistFilterClause Unit Tests', () => {
     expect(whereSql).toContain('(g.is_free = 1 OR g.base_price_eur = 0)');
     expect(params).toEqual(['profile-xyz']);
   });
+
+  it('handles targetReachedOnly filter correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-tgt', {
+      targetReachedOnly: true
+    });
+
+    expect(whereSql).toContain('w.target_price_eur IS NOT NULL');
+    expect(whereSql).toContain('bo.price_eur <= w.target_price_eur');
+    expect(params).toEqual(['profile-tgt']);
+  });
 });

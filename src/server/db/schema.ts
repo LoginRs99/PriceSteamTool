@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS games (
   allkeyshop_check_interval_hours INTEGER DEFAULT 24,
   allkeyshop_unchanged_streak INTEGER DEFAULT 0,
   allkeyshop_last_price_eur REAL,
+  steam_review_desc TEXT,
+  steam_review_percent INTEGER,
+  steam_review_total TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

@@ -30,6 +30,20 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
         </span>
       )}
 
+      {filters.buyOnly && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(251, 191, 36, 0.4)', color: '#fbbf24' }}>
+          🔥 Buy Recommendations
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ buyOnly: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.targetReachedOnly && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(34, 211, 165, 0.4)', color: 'var(--down)' }}>
+          🎯 Target Reached
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ targetReachedOnly: false, page: 1 })} />
+        </span>
+      )}
+
       {filters.minDealScore !== undefined && filters.minDealScore > 0 && (
         <span className="filter-active-tag">
           Score ≥ {filters.minDealScore}

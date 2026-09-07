@@ -42,6 +42,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
         <thead>
           <tr>
             <th 
+              className="th-priority"
               style={{ width: 45, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('priority')}
               title="Sort by Steam Wishlist Priority"
@@ -49,15 +50,17 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
               # {renderSortIndicator('priority')}
             </th>
             <th 
+              className="th-title"
               style={{ cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('title_asc')}
               title="Sort by Title Alphabetically"
             >
               Title {renderSortIndicator('title_asc')}
             </th>
-            <th style={{ width: 120 }}>Trend</th>
-            <th style={{ width: 85 }}>MSRP</th>
+            <th className="th-sparkline" style={{ width: 120 }}>Trend</th>
+            <th className="th-msrp" style={{ width: 85 }}>MSRP</th>
             <th 
+              className="th-price"
               style={{ width: 105, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('price_asc', 'price_desc')}
               title="Sort by Best Deal Price"
@@ -65,6 +68,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
               Best Deal {renderSortIndicator('price_asc', 'price_desc')}
             </th>
             <th 
+              className="th-discount"
               style={{ width: 90, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('price_drops', 'discount_desc')}
               title="Sort by Highest Discount %"
@@ -72,21 +76,23 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
               Discount {renderSortIndicator('price_drops', 'discount_desc')}
             </th>
             <th 
+              className="th-score"
               style={{ width: 130, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('best_value', 'deal_score_desc')}
               title="Sort by Deal Score (Best Value)"
             >
               Deal Score {renderSortIndicator('best_value', 'deal_score_desc')}
             </th>
-            <th style={{ width: 140 }}>Best Store</th>
+            <th className="th-store" style={{ width: 145 }}>Best Store</th>
             <th 
+              className="th-atl"
               style={{ width: 95, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('near_atl')}
               title="Sort by All-Time Low Status"
             >
               ATL {renderSortIndicator('near_atl')}
             </th>
-            <th style={{ width: 75, textAlign: 'right' }}>Action</th>
+            <th className="th-action" style={{ width: 75, textAlign: 'right' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -109,6 +115,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
               'rgba(107, 114, 128, 0.15)';
 
             const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
+            const capsuleUrl = game.capsuleImage || (game.steamAppId ? `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${game.steamAppId}/capsule_sm_120.jpg` : undefined);
 
             return (
               <tr 
@@ -121,12 +128,33 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                   {game.priority !== undefined ? `#${game.priority}` : '—'}
                 </td>
 
-                {/* 2. Title & Single Priority Flag */}
+                {/* 2. Capsule + Title & Flag */}
                 <td className="cell-title">
                   <div className="table-title-wrap">
-                    <span className="table-game-title">{game.title}</span>
-                    <div className="table-flags">
-                      <TickerFlag game={game} />
+                    {capsuleUrl && (
+                      <img 
+                        src={capsuleUrl} 
+                        alt="" 
+                        className="table-capsule-img" 
+                        loading="lazy"
+                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                      />
+                    )}
+                    <div className="table-title-inner">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="table-game-title">{game.title}</span>
+                        {game.steamReviewPercent !== undefined && (
+                          <span 
+                            className={`steam-review-pill ${game.steamReviewPercent >= 80 ? 'positive' : game.steamReviewPercent >= 70 ? 'mixed' : 'negative'}`}
+                            title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})`}
+                          >
+                            👍 {game.steamReviewPercent}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="table-flags">
+                        <TickerFlag game={game} />
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -218,8 +246,16 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                 <td className="cell-store">
                   {game.bestMerchantName ? (
                     <div className="store-cell-content">
-                      {game.bestMerchantIsOfficial && <ShieldCheck size={12} color="var(--down)" />}
-                      <span className="store-name-text" title={game.bestMerchantName}>{game.bestMerchantName}</span>
+                      {game.bestMerchantIsOfficial ? (
+                        <span className="store-pill official" title={`${game.bestMerchantName} (Official Store)`}>
+                          <ShieldCheck size={12} color="var(--down)" />
+                          <span className="store-name-text">{game.bestMerchantName}</span>
+                        </span>
+                      ) : (
+                        <span className="store-pill keyshop" title={`${game.bestMerchantName} (Keyshop)`}>
+                          <span className="store-name-text">{game.bestMerchantName}</span>
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <span className="text-dim">—</span>
@@ -242,7 +278,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                       href={game.bestDealUrl} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="btn btn-secondary btn-xs"
+                      className="btn btn-primary btn-xs"
                       title="Open deal in store"
                     >
                       Buy

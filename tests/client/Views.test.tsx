@@ -103,15 +103,12 @@ describe('Catalog Views: CompactListView, DenseTableView, and FreeGamesView', ()
   });
 
   describe('FreeGamesView', () => {
-    it('renders free games banner, filters by search query, and changes view modes', () => {
-      const viewModeMock = vi.fn();
+    it('renders free games banner, filters by search query, and handles interactions', () => {
       const gameClickMock = vi.fn();
 
       render(
         <FreeGamesView
           games={[mockFreeGame]}
-          viewMode="grid"
-          onViewModeChange={viewModeMock}
           onGameClick={gameClickMock}
         />
       );
@@ -127,10 +124,9 @@ describe('Catalog Views: CompactListView, DenseTableView, and FreeGamesView', ()
       fireEvent.change(searchInput, { target: { value: 'Dota' } });
       expect(screen.getByText('Dota 2')).toBeInTheDocument();
 
-      // Switch View Mode
-      const listBtn = screen.getByLabelText('Compact List View');
-      fireEvent.click(listBtn);
-      expect(viewModeMock).toHaveBeenCalledWith('list');
+      // Click game row
+      fireEvent.click(screen.getByText('Dota 2'));
+      expect(gameClickMock).toHaveBeenCalledWith(mockFreeGame);
     });
   });
 });

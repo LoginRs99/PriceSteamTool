@@ -1,27 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { PriceChartData, PriceChartPoint } from '../types.js';
 
 interface PriceChartProps {
   data: PriceChartData;
 }
 
+type TimeframeOption = '1M' | '3M' | '6M' | '1Y' | 'ALL';
+
 export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('ALL');
   const [hoveredPoint, setHoveredPoint] = useState<{ point: PriceChartPoint; x: number; y: number } | null>(null);
 
-  const { points, basePriceEur, historicalLowEur, typicalSaleMedianEur, minPrice, maxPrice } = data;
+  const { points: rawPoints, basePriceEur, historicalLowEur, typicalSaleMedianEur } = data;
 
-  if (!points || points.length < 2) {
+  // Filter points based on timeframe
+  const points = useMemo(() => {
+    if (!rawPoints || rawPoints.length === 0) return [];
+    if (timeframe === 'ALL') return rawPoints;
+
+    const now = Date.now();
+    const daysMap: Record<Exclude<TimeframeOption, 'ALL'>, number> = {
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365
+    };
+    const cutoff = now - daysMap[timeframe] * 24 * 60 * 60 * 1000;
+    const filtered = rawPoints.filter(p => new Date(p.timestamp).getTime() >= cutoff);
+
+    // If filtered points is empty or only 1, include the point right before cutoff as anchor if available
+    if (filtered.length < 2 && rawPoints.length >= 2) {
+      return rawPoints.slice(-Math.max(filtered.length, 2));
+    }
+    return filtered;
+  }, [rawPoints, timeframe]);
+
+  if (!rawPoints || rawPoints.length < 2) {
     return (
       <div className="price-chart-empty">
         <p>Price tracking initialized. Timeline history graph will develop with subsequent sync observations.</p>
-        {points && points.length === 1 && (
+        {rawPoints && rawPoints.length === 1 && (
           <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-            Latest recorded price: <strong>€{points[0].priceEur.toFixed(2)}</strong> ({points[0].merchantName})
+            Latest recorded price: <strong>€{rawPoints[0].priceEur.toFixed(2)}</strong> ({rawPoints[0].merchantName})
           </div>
         )}
       </div>
     );
   }
+
+  // Active min/max based on visible points
+  const activeMinPrice = points.length > 0 ? Math.min(...points.map(p => p.priceEur)) : data.minPrice;
+  const activeMaxPrice = points.length > 0 ? Math.max(...points.map(p => p.priceEur)) : data.maxPrice;
 
   // Chart dimensions & padding
   const width = 680;
@@ -35,13 +64,13 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
   const chartH = height - padTop - padBottom;
 
   // Y-axis scaling: ensure headroom above max and cushion below min
-  const yMin = Math.max(0, Math.floor(Math.min(minPrice, historicalLowEur ?? minPrice) * 0.85));
-  const yMax = Math.ceil(Math.max(maxPrice, basePriceEur ?? maxPrice) * 1.08);
+  const yMin = Math.max(0, Math.floor(Math.min(activeMinPrice, historicalLowEur ?? activeMinPrice) * 0.85));
+  const yMax = Math.ceil(Math.max(activeMaxPrice, basePriceEur ?? activeMaxPrice) * 1.08);
   const yRange = yMax - yMin || 1;
 
   // X-axis scaling: time-based
-  const firstTime = new Date(points[0].timestamp).getTime();
-  const lastTime = new Date(points[points.length - 1].timestamp).getTime();
+  const firstTime = points.length > 0 ? new Date(points[0].timestamp).getTime() : Date.now();
+  const lastTime = points.length > 0 ? new Date(points[points.length - 1].timestamp).getTime() : Date.now();
   const timeSpan = lastTime - firstTime || 1;
 
   const getX = (timestamp: string) => {
@@ -73,8 +102,10 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
     }
   });
 
-  const lastPointX = getX(points[points.length - 1].timestamp);
-  areaD += ` L ${lastPointX} ${padTop + chartH} Z`;
+  if (points.length > 0) {
+    const lastPointX = getX(points[points.length - 1].timestamp);
+    areaD += ` L ${lastPointX} ${padTop + chartH} Z`;
+  }
 
   // Y-axis ticks
   const yTicks = [
@@ -84,26 +115,44 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
     yMax
   ];
 
+  const timeframes: TimeframeOption[] = ['1M', '3M', '6M', '1Y', 'ALL'];
+
   return (
     <div className="price-chart-container">
       <div className="price-chart-header">
         <span className="price-chart-title">Price History Timeline</span>
-        <div className="price-chart-legend">
-          {basePriceEur && (
-            <span className="legend-item msrp">
-              <span className="legend-line msrp-line"></span> Steam MSRP (€{basePriceEur.toFixed(2)})
-            </span>
-          )}
-          {typicalSaleMedianEur && (
-            <span className="legend-item typical">
-              <span className="legend-line typical-line"></span> Typical Sale (€{typicalSaleMedianEur.toFixed(2)})
-            </span>
-          )}
-          {historicalLowEur !== undefined && (
-            <span className="legend-item atl">
-              <span className="legend-line atl-line"></span> ATL (€{historicalLowEur.toFixed(2)})
-            </span>
-          )}
+        
+        <div className="price-chart-controls">
+          <div className="timeframe-selector" role="group" aria-label="Select chart timeframe">
+            {timeframes.map(tf => (
+              <button
+                key={tf}
+                type="button"
+                className={`timeframe-btn ${timeframe === tf ? 'active' : ''}`}
+                onClick={() => setTimeframe(tf)}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+
+          <div className="price-chart-legend">
+            {basePriceEur && (
+              <span className="legend-item msrp">
+                <span className="legend-line msrp-line"></span> Steam MSRP (€{basePriceEur.toFixed(2)})
+              </span>
+            )}
+            {typicalSaleMedianEur && (
+              <span className="legend-item typical">
+                <span className="legend-line typical-line"></span> Typical Sale (€{typicalSaleMedianEur.toFixed(2)})
+              </span>
+            )}
+            {historicalLowEur !== undefined && (
+              <span className="legend-item atl">
+                <span className="legend-line atl-line"></span> ATL (€{historicalLowEur.toFixed(2)})
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

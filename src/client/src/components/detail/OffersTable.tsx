@@ -20,17 +20,26 @@ export const OffersTable: React.FC<OffersTableProps> = ({
   onCopyVoucher
 }) => {
   const [showExpired, setShowExpired] = useState(false);
+  const [storeFilter, setStoreFilter] = useState<'ALL' | 'OFFICIAL' | 'KEYSHOP'>('ALL');
 
   // Active in-stock offers vs expired / stale offers
   const activeOffers = offers.filter(o => o.isValid !== false && o.isFresh !== false);
   const expiredOffers = offers.filter(o => o.isValid === false || o.isFresh === false);
 
+  // Filter by store type
+  const filterByStore = (list: Offer[]) => {
+    if (storeFilter === 'OFFICIAL') return list.filter(o => o.isOfficial);
+    if (storeFilter === 'KEYSHOP') return list.filter(o => !o.isOfficial);
+    return list;
+  };
+
   // Fallback: If no offers are strictly fresh, show all in active table so user still sees data.
   // Both sections strictly sorted by price ascending (cheapest first).
-  const displayActive = [...(activeOffers.length > 0 ? activeOffers : offers)].sort((a, b) => a.priceEur - b.priceEur);
-  const displayExpired = [...(activeOffers.length > 0 ? expiredOffers : [])].sort((a, b) => a.priceEur - b.priceEur);
+  const baseActive = activeOffers.length > 0 ? activeOffers : offers;
+  const displayActive = filterByStore(baseActive).sort((a, b) => a.priceEur - b.priceEur);
+  const displayExpired = filterByStore(activeOffers.length > 0 ? expiredOffers : []).sort((a, b) => a.priceEur - b.priceEur);
 
-  const bestOffer = displayActive.find(o => o.isBestDeal) || displayActive[0];
+  const bestOffer = baseActive.sort((a, b) => a.priceEur - b.priceEur)[0];
   const lowestPrice = bestOffer ? bestOffer.priceEur : 0;
 
   const renderOfferRows = (offerList: Offer[], isExpiredSection = false) => {
@@ -242,10 +251,37 @@ export const OffersTable: React.FC<OffersTableProps> = ({
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
-          Available Offers ({displayActive.length})
-        </h4>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+            Available Offers ({displayActive.length})
+          </h4>
+          
+          <div className="timeframe-selector" style={{ fontSize: 11 }}>
+            <button
+              type="button"
+              className={`timeframe-btn ${storeFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => setStoreFilter('ALL')}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`timeframe-btn ${storeFilter === 'OFFICIAL' ? 'active' : ''}`}
+              onClick={() => setStoreFilter('OFFICIAL')}
+            >
+              Official
+            </button>
+            <button
+              type="button"
+              className={`timeframe-btn ${storeFilter === 'KEYSHOP' ? 'active' : ''}`}
+              onClick={() => setStoreFilter('KEYSHOP')}
+            >
+              Keyshops
+            </button>
+          </div>
+        </div>
+
         {displayExpired.length > 0 && (
           <button
             type="button"

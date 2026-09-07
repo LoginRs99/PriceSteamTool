@@ -172,6 +172,14 @@ export const MIGRATIONS: Migration[] = [
       // 3. Recompute best deal assignment across all games
       db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
     }
+  },
+  {
+    name: '015_add_steam_review_columns',
+    up: (db) => {
+      try { db.exec("ALTER TABLE games ADD COLUMN steam_review_desc TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE games ADD COLUMN steam_review_percent INTEGER"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE games ADD COLUMN steam_review_total TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+    }
   }
 ];
 

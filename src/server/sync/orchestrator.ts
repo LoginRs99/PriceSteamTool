@@ -278,7 +278,10 @@ export class SyncOrchestrator {
         releaseDate: item.releaseDate,
         isDlc: item.isDlc,
         isFree: item.isFree,
-        basePriceEur: item.basePriceEur
+        basePriceEur: item.basePriceEur,
+        reviewDesc: item.reviewDesc,
+        reviewsPercent: item.reviewsPercent,
+        reviewsTotal: item.reviewsTotal
       })));
 
       // Step 3: Check TTL Cache

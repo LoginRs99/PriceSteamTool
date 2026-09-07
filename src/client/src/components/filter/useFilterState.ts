@@ -9,6 +9,14 @@ export function useFilterState(
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        if (filters.search) {
+          onFilterChange({ search: '', page: 1 });
+        }
+        searchInputRef.current?.blur();
+        return;
+      }
+
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
         return;
@@ -22,12 +30,13 @@ export function useFilterState(
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [filters.search, onFilterChange]);
 
   // Calculate active filter count for badge
   let activeFilterCount = 0;
   if (filters.search) activeFilterCount++;
   if (filters.buyOnly) activeFilterCount++;
+  if (filters.targetReachedOnly) activeFilterCount++;
   if (filters.saleOnly) activeFilterCount++;
   if (filters.minDiscount && filters.minDiscount > 0) activeFilterCount++;
   if (filters.allTimeLowOnly) activeFilterCount++;
@@ -50,6 +59,7 @@ export function useFilterState(
       saleOnly: false,
       majorDealsOnly: false,
       allTimeLowOnly: false,
+      targetReachedOnly: false,
       trustedOnly: false,
       underPrice: undefined,
       minPrice: undefined,
@@ -91,6 +101,7 @@ export function useFilterState(
         onFilterChange({
           sort: 'best_value',
           buyOnly: true,
+          targetReachedOnly: false,
           saleOnly: false,
           majorDealsOnly: false,
           allTimeLowOnly: false,
@@ -98,6 +109,25 @@ export function useFilterState(
           underPrice: undefined,
           minDiscount: undefined,
           minDealScore: 70,
+          merchantType: 'all',
+          hasAnomaly: false,
+          page: 1
+        });
+        break;
+      case 'target_reached':
+        onFilterChange({
+          sort: 'best_value',
+          targetReachedOnly: true,
+          buyOnly: false,
+          saleOnly: false,
+          majorDealsOnly: false,
+          allTimeLowOnly: false,
+          trustedOnly: false,
+          underPrice: undefined,
+          minPrice: undefined,
+          maxPrice: undefined,
+          minDiscount: undefined,
+          minDealScore: undefined,
           merchantType: 'all',
           hasAnomaly: false,
           page: 1
