@@ -25,9 +25,10 @@ export const OffersTable: React.FC<OffersTableProps> = ({
   const activeOffers = offers.filter(o => o.isValid !== false && o.isFresh !== false);
   const expiredOffers = offers.filter(o => o.isValid === false || o.isFresh === false);
 
-  // Fallback: If no offers are strictly fresh, show all in active table so user still sees data
-  const displayActive = activeOffers.length > 0 ? activeOffers : offers;
-  const displayExpired = activeOffers.length > 0 ? expiredOffers : [];
+  // Fallback: If no offers are strictly fresh, show all in active table so user still sees data.
+  // Both sections strictly sorted by price ascending (cheapest first).
+  const displayActive = [...(activeOffers.length > 0 ? activeOffers : offers)].sort((a, b) => a.priceEur - b.priceEur);
+  const displayExpired = [...(activeOffers.length > 0 ? expiredOffers : [])].sort((a, b) => a.priceEur - b.priceEur);
 
   const bestOffer = displayActive.find(o => o.isBestDeal) || displayActive[0];
   const lowestPrice = bestOffer ? bestOffer.priceEur : 0;

@@ -261,35 +261,11 @@ export const offerRepo = {
         WHERE o.game_id = ? AND o.merchant_id != ?
       `).all(data.gameId, data.merchantId) as any[];
 
-      const compatiblePeers = otherOffersRows.filter(row => isCompatiblePeerOffer(
-        { productType: data.productType, regionType: data.regionType },
-        {
-          productType: row.product_type,
-          regionType: row.region_type,
-          isValid: Boolean(row.is_valid),
-          isAnomaly: Boolean(row.is_anomaly),
-          riskLevel: row.risk_level,
-          lastObservedAt: row.last_observed_at,
-          fetchedAt: row.fetched_at
-        },
-        { allowAnomalies: false }
-      ));
-
-      const corroborationPeers = otherOffersRows.filter(row => isCompatiblePeerOffer(
-        { productType: data.productType, regionType: data.regionType },
-        {
-          productType: row.product_type,
-          regionType: row.region_type,
-          isValid: Boolean(row.is_valid),
-          isAnomaly: Boolean(row.is_anomaly),
-          riskLevel: row.risk_level,
-          lastObservedAt: row.last_observed_at,
-          fetchedAt: row.fetched_at
-        },
-        { allowAnomalies: true }
-      ));
-
-      const marketPrices = compatiblePeers.map(p => Number(p.price_eur));
+      // All valid active offers for this game participate in the real market price baseline
+      const corroborationPeers = otherOffersRows.filter(row => Boolean(row.is_valid));
+      const marketPrices = corroborationPeers
+        .filter(row => Number(row.price_eur) > 0)
+        .map(p => Number(p.price_eur));
       const distinctSources = new Set(allObservations.map(o => o.source_code));
       const distinctSourceCount = distinctSources.size;
 
@@ -627,8 +603,8 @@ export const offerRepo = {
       // Recalculate best deal for this game
       offerRepo.recomputeBestDealForGame(data.gameId);
 
-      // Manage genuine anomalies & HIGH risk detections in the anomalies table (Data Safety audit trail)
-      if (pricingEval.isAnomaly || pricingEval.riskLevel === 'HIGH') {
+      // Manage genuine anomalies in the anomalies table (Data Safety audit trail)
+      if (pricingEval.isAnomaly) {
         const anomalyType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
           ? pricingEval.riskFlags[0]
           : 'PRICE_ANOMALY';
@@ -758,7 +734,6 @@ export const offerRepo = {
       WHERE o.game_id = ?
       ORDER BY
         o.is_valid DESC,
-        CASE WHEN o.is_anomaly = 1 OR o.risk_level = 'HIGH' THEN 1 ELSE 0 END ASC,
         o.price_eur ASC,
         COALESCE(o.last_observed_at, o.fetched_at) DESC
     `).all(gameId) as any[];

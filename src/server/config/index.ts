@@ -14,7 +14,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   host: process.env.HOST || '0.0.0.0',
   dataDir: DATA_DIR,
-  dbPath: path.join(DATA_DIR, 'pricetool.db'),
+  dbPath: process.env.DB_PATH || path.join(DATA_DIR, 'pricetool.db'),
   isDev: process.env.NODE_ENV !== 'production',
   
   // API Keys

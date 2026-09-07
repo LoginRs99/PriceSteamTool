@@ -669,8 +669,8 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                                 Risk Score: {itemScorePct}%
                               </span>
                             </div>
-                            <div style={{ fontSize: 12, color: '#f87171', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <TrendingDown size={12} />
+                            <div style={{ fontSize: 12, color: 'var(--amber, #f59e0b)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <AlertTriangle size={12} />
                               <span>{a.reason || 'Flagged price outlier'}</span>
                             </div>
                           </div>

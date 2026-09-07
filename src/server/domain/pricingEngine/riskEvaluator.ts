@@ -82,11 +82,29 @@ export function calculatePriceRisk(
     return { riskScore: 0.0, riskLevel: 'SAFE' };
   }
 
+  // 1. Price increases or unchanged prices are NEVER anomalies or pricing glitches
+  const prevPrice = input.previousPriceEur;
+  if (prevPrice !== undefined && prevPrice > 0 && currentPriceEur >= prevPrice - 0.005) {
+    return { riskScore: 0.0, riskLevel: 'SAFE' };
+  }
+
   const msrp = basePriceEur || originalPriceEur || 0;
   let rawSeverity = 0.0;
 
   const sourceCheck = evaluateSourceOwnHistoryAnomaly(currentPriceEur, sourceHistoryEur);
   const peers = marketPricesEur.filter(p => p > 0);
+  const minPeerPrice = peers.length > 0 ? Math.min(...peers) : Infinity;
+
+  // 2. Fundamental Safety Rule: If another active store is cheaper than (or equal to) this offer,
+  // this offer CANNOT be a low-price bottom outlier or glitch!
+  if (minPeerPrice < currentPriceEur - 0.01) {
+    if (sourceCheck.applicable && sourceCheck.isBreak) {
+      flags.add('SOURCE_OWN_HISTORY_BREAK');
+      flags.add('SOURCE_OWN_HISTORY_BREAK_CORROBORATED');
+    }
+    return { riskScore: 0.0, riskLevel: 'SAFE' };
+  }
+
   const validPeers = peers;
   const hasCorroboratingPeer = peers.some(p => {
     const relDiff = Math.abs(p - currentPriceEur) / Math.min(p, currentPriceEur);
@@ -94,13 +112,13 @@ export function calculatePriceRisk(
   });
 
   const allLiveOffers = [currentPriceEur, ...peers].sort((a, b) => a - b);
-  const minLiveOffer = allLiveOffers.length > 0 ? allLiveOffers[0] : currentPriceEur;
-  const isCheapestCandidate = currentPriceEur <= minLiveOffer * 1.02;
+  const isCheapestCandidate = true; // Guaranteed by the minPeerPrice check above
 
-  // 1. Peer-Market Anomaly Signals (strictly guarded by cheapest-candidate policy)
+  // 3. Peer-Market Anomaly Signals (only evaluated when this offer is the cheapest on the market)
 
-  // 1A. Sub-euro / extreme ratio drop glitch check (<€1.00 or <5% of MSRP)
-  if (isCheapestCandidate && (currentPriceEur < 1.00 || (msrp > 0 && currentPriceEur < msrp * 0.05))) {
+  // 3A. Sub-euro / extreme ratio drop glitch check (<€1.00 on €5+ game or <5% of MSRP)
+  const isSubEuroGlitch = (currentPriceEur < 1.00 && msrp >= 5.0) || (msrp > 0 && currentPriceEur < msrp * 0.05);
+  if (isSubEuroGlitch) {
     if (peers.length === 0 || !hasCorroboratingPeer) {
       rawSeverity = Math.max(rawSeverity, 0.85);
       flags.add('SUB_EURO_PREMIUM_GLITCH');
@@ -110,45 +128,53 @@ export function calculatePriceRisk(
     }
   }
 
-  // 1B. Lone bottom outlier check (primary driver of HIGH risk for live market bottom outlier)
-  if (isCheapestCandidate && allLiveOffers.length >= 2 && allLiveOffers[0] === currentPriceEur) {
-    const secondCheapest = allLiveOffers[1];
-    if (secondCheapest > 0 && currentPriceEur < secondCheapest * 0.55) {
+  // 3B. Lone bottom outlier check (>50% below the next cheapest store on the market)
+  if (peers.length >= 1 && minPeerPrice < Infinity) {
+    if (currentPriceEur < minPeerPrice * 0.50) {
       rawSeverity = Math.max(rawSeverity, 0.90);
       flags.add('LONE_BOTTOM_OUTLIER');
     }
   }
 
-  // 1C. Market median divergence (capped at 0.35 so it cannot reach HIGH risk on its own)
-  if (isCheapestCandidate && validPeers.length >= 2) {
+  // 3C. Market median divergence (capped at 0.35 so it cannot reach HIGH risk on its own)
+  if (validPeers.length >= 2) {
     const sorted = [...validPeers].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
-    if (median >= 1.00 && currentPriceEur < median * 0.25) {
+    if (median >= 2.00 && currentPriceEur < median * 0.25) {
       rawSeverity = Math.max(rawSeverity, 0.35);
       flags.add('EXTREME_MEDIAN_OUTLIER');
-    } else if (median >= 1.00 && currentPriceEur < median * 0.40) {
+    } else if (median >= 2.00 && currentPriceEur < median * 0.40) {
       rawSeverity = Math.max(rawSeverity, 0.35);
       flags.add('SOURCE_DISAGREEMENT');
     }
   }
 
-  // 1D. Historical Low Discrepancy (historicalLowEur >= €2.00)
-  if (isCheapestCandidate && historicalLowEur && historicalLowEur >= 2.00 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
+  // 3D. Historical Low Discrepancy (historicalLowEur >= €2.00, dropping >80% below ATL)
+  if (historicalLowEur && historicalLowEur >= 2.00 && currentPriceEur < historicalLowEur * 0.20 && validPeers.length >= 2) {
     rawSeverity = Math.max(rawSeverity, 0.50);
     flags.add('HISTORICAL_LOW_DISCREPANCY');
   }
 
-  // 2. Own-History Signal & Peer Corroboration
+  // 4. Own-History Signal & Peer Corroboration
   if (sourceCheck.applicable && sourceCheck.isBreak) {
     flags.add('SOURCE_OWN_HISTORY_BREAK');
     if (hasCorroboratingPeer) {
       // Legitimate market-wide sale: peer market corroborates the new price level
       rawSeverity = Math.max(rawSeverity, 0.15);
       flags.add('SOURCE_OWN_HISTORY_BREAK_CORROBORATED');
-    } else if (isCheapestCandidate) {
-      // Lone break from established history without live peer corroboration on cheapest candidate
-      rawSeverity = Math.max(rawSeverity, 0.90);
+    } else {
+      // Only treat as high risk if the drop is an extreme crash (<15% of MSRP or <20% of own median)
+      const ownMedian = sourceCheck.ownMedian || currentPriceEur;
+      const isExtremeCrash = (msrp >= 10 && currentPriceEur < msrp * 0.15) || 
+                            (ownMedian >= 10 && currentPriceEur < ownMedian * 0.20) ||
+                            (currentPriceEur < 1.00 && msrp >= 10);
+      if (isExtremeCrash) {
+        rawSeverity = Math.max(rawSeverity, 0.85);
+      } else {
+        // Normal 50-70% seasonal sale: not an anomaly
+        rawSeverity = Math.max(rawSeverity, 0.20);
+      }
     }
   }
 

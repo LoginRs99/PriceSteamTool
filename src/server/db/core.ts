@@ -50,6 +50,27 @@ export function getDb(): Database.Database {
     // Run versioned schema migrations
     runMigrations(dbInstance);
 
+    // Auto-resolve historical anomalies that are price increases or no longer bottom outliers
+    try {
+      dbInstance.exec(`
+        UPDATE anomalies 
+        SET is_dismissed = 1 
+        WHERE is_dismissed = 0 AND (
+          offer_id IN (
+            SELECT id FROM offers 
+            WHERE price_event = 'PRICE_INCREASE' 
+               OR is_anomaly = 0 
+               OR is_valid = 0
+          )
+          OR offer_id IN (
+            SELECT o1.id FROM offers o1
+            JOIN offers o2 ON o1.game_id = o2.game_id AND o1.id != o2.id
+            WHERE o2.is_valid = 1 AND o2.price_eur < o1.price_eur - 0.01
+          )
+        );
+      `);
+    } catch {}
+
     // Diagnostic: audit anomalies table content summary at startup
     if (process.env.NODE_ENV !== 'test') {
       try {

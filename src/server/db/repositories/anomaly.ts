@@ -123,7 +123,17 @@ export const anomalyRepo = {
          LEFT JOIN games g ON a.game_id = g.id
          LEFT JOIN offers o ON a.offer_id = o.id
          LEFT JOIN merchants m ON o.merchant_id = m.id
-         WHERE a.is_dismissed = 0 AND (o.is_anomaly = 1 OR o.risk_level = 'HIGH')
+         WHERE a.is_dismissed = 0 
+           AND o.is_anomaly = 1 
+           AND o.is_valid = 1
+           AND (o.price_event IS NULL OR o.price_event != 'PRICE_INCREASE')
+           AND NOT EXISTS (
+             SELECT 1 FROM offers o2 
+             WHERE o2.game_id = a.game_id 
+               AND o2.id != o.id 
+               AND o2.is_valid = 1 
+               AND o2.price_eur < o.price_eur - 0.01
+           )
          ORDER BY a.detected_at DESC`
       : `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
          FROM anomalies a 
