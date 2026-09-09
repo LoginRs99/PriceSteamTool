@@ -890,6 +890,15 @@ export class SyncOrchestrator {
           let offers: NormalizedSourceOffer[] = [];
           if (sourceCode === 'steam') {
             offers = await steamAdapter.fetchPricesForGame(game.steamAppId);
+            for (const offer of offers) {
+              const details = offer.rawPayload;
+              if (details && (details.metacriticScore !== undefined || details.metacriticUrl)) {
+                gameRepo.updateMetadata(game.steamAppId, {
+                  metacriticScore: details.metacriticScore,
+                  metacriticUrl: details.metacriticUrl
+                });
+              }
+            }
           } else if (sourceCode === 'itad') {
             offers = await itadAdapter.fetchPricesForGame(game.steamAppId, game.title, game.itadId || undefined);
           } else if (sourceCode === 'cheapshark') {
