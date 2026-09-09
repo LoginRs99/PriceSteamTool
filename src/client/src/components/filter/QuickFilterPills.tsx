@@ -21,8 +21,6 @@ export const getActivePill = (filters: WishlistFilterOptions): string => {
   if (filters.hasAnomaly) return 'anomaly';
   if (filters.targetReachedOnly) return 'target_reached';
   if (filters.buyOnly) return 'buy_recommendations';
-  if ((filters.minDealScore ?? 0) >= 85) return 'exceptional';
-  if ((filters.minDealScore ?? 0) >= 70) return 'best_deals';
   if (filters.minDiscount === 75) return 'discount_75';
   if (filters.minDiscount === 50) return 'discount_50';
   if (filters.allTimeLowOnly) return 'atl';
@@ -31,6 +29,8 @@ export const getActivePill = (filters: WishlistFilterOptions): string => {
   if (filters.underPrice === 20 || filters.maxPrice === 20) return 'under_20';
   if (filters.merchantType === 'official') return 'official';
   if (filters.merchantType === 'keyshop') return 'keyshop';
+  if ((filters.minDealScore ?? 0) >= 85) return 'exceptional';
+  if ((filters.minDealScore ?? 0) >= 70) return 'best_deals';
   if (filters.saleOnly) return 'sale';
   return 'all';
 };
@@ -47,7 +47,7 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
   return (
     <div className="filter-pills-row">
       <button
-        className={`pill-btn ${currentPill === 'all' && !isFiltered ? 'active' : ''}`}
+        className={`pill-btn ${currentPill === 'all' ? 'active' : ''}`}
         onClick={() => onPillSelect('all')}
       >
         All Games ({totalGames})

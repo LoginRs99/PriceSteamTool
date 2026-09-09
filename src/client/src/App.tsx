@@ -191,9 +191,51 @@ export const App: React.FC = () => {
                 stats={stats}
                 topDeals={topDeals}
                 onSelectGame={(id) => setSelectedGameId(id)}
-                onFilterATL={() => updateFilters({ allTimeLowOnly: true, majorDealsOnly: false, saleOnly: false, page: 1 })}
-                onFilterMajor={() => updateFilters({ majorDealsOnly: true, allTimeLowOnly: false, saleOnly: false, page: 1 })}
-                onFilterSale={() => updateFilters({ saleOnly: true, majorDealsOnly: false, allTimeLowOnly: false, page: 1 })}
+                onFilterATL={() => updateFilters({
+                  buyOnly: false,
+                  targetReachedOnly: false,
+                  saleOnly: false,
+                  majorDealsOnly: false,
+                  allTimeLowOnly: true,
+                  underPrice: undefined,
+                  maxPrice: undefined,
+                  minPrice: undefined,
+                  minDiscount: undefined,
+                  minDealScore: undefined,
+                  merchantType: 'all',
+                  sort: 'near_atl',
+                  page: 1
+                })}
+                onFilterMajor={() => updateFilters({
+                  buyOnly: false,
+                  targetReachedOnly: false,
+                  saleOnly: false,
+                  majorDealsOnly: true,
+                  allTimeLowOnly: false,
+                  underPrice: undefined,
+                  maxPrice: undefined,
+                  minPrice: undefined,
+                  minDiscount: undefined,
+                  minDealScore: undefined,
+                  merchantType: 'all',
+                  sort: 'best_value',
+                  page: 1
+                })}
+                onFilterSale={() => updateFilters({
+                  buyOnly: false,
+                  targetReachedOnly: false,
+                  saleOnly: true,
+                  majorDealsOnly: false,
+                  allTimeLowOnly: false,
+                  underPrice: undefined,
+                  maxPrice: undefined,
+                  minPrice: undefined,
+                  minDiscount: undefined,
+                  minDealScore: undefined,
+                  merchantType: 'all',
+                  sort: 'price_drops',
+                  page: 1
+                })}
               />
 
               <FilterBar

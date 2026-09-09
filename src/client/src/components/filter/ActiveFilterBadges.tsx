@@ -33,7 +33,7 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
       {filters.buyOnly && (
         <span className="filter-active-tag" style={{ borderColor: 'rgba(251, 191, 36, 0.4)', color: '#fbbf24' }}>
           🔥 Buy Recommendations
-          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ buyOnly: false, page: 1 })} />
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ buyOnly: false, minDealScore: filters.minDealScore === 70 ? undefined : filters.minDealScore, page: 1 })} />
         </span>
       )}
 

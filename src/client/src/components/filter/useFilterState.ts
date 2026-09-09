@@ -1,5 +1,23 @@
 import { useEffect, useRef } from 'react';
 import type { WishlistFilterOptions } from '../../types.js';
+import { getActivePill } from './QuickFilterPills.js';
+
+export const QUICK_PILL_BASE: Partial<WishlistFilterOptions> = {
+  buyOnly: false,
+  targetReachedOnly: false,
+  saleOnly: false,
+  majorDealsOnly: false,
+  allTimeLowOnly: false,
+  trustedOnly: false,
+  underPrice: undefined,
+  minPrice: undefined,
+  maxPrice: undefined,
+  minDiscount: undefined,
+  minDealScore: undefined,
+  merchantType: 'all',
+  hasAnomaly: false,
+  page: 1
+};
 
 export function useFilterState(
   filters: WishlistFilterOptions,
@@ -84,227 +102,119 @@ export function useFilterState(
   };
 
   const setPill = (pill: string) => {
+    const currentActive = getActivePill(filters);
+
+    // If clicking the already active pill, toggle it off back to all games
+    if (pill === currentActive && pill !== 'all') {
+      onFilterChange({
+        ...QUICK_PILL_BASE,
+        sort: 'best_value'
+      });
+      return;
+    }
+
     switch (pill) {
       case 'all':
         onFilterChange({
-          sort: 'best_value',
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minPrice: undefined,
-          maxPrice: undefined,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          hideAnomalies: false,
-          hideProvisional: false,
-          buyOnly: false,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          ...QUICK_PILL_BASE,
+          sort: 'best_value'
         });
         break;
       case 'buy_recommendations':
         onFilterChange({
-          sort: 'best_value',
+          ...QUICK_PILL_BASE,
           buyOnly: true,
-          targetReachedOnly: false,
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
           minDealScore: 70,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'best_value'
         });
         break;
       case 'target_reached':
         onFilterChange({
-          sort: 'best_value',
+          ...QUICK_PILL_BASE,
           targetReachedOnly: true,
-          buyOnly: false,
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minPrice: undefined,
-          maxPrice: undefined,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'best_value'
         });
         break;
       case 'best_deals':
         onFilterChange({
-          sort: 'best_value',
+          ...QUICK_PILL_BASE,
           minDealScore: 70,
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'best_value'
         });
         break;
       case 'exceptional':
         onFilterChange({
-          sort: 'deal_score_desc',
+          ...QUICK_PILL_BASE,
           minDealScore: 85,
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'deal_score_desc'
         });
         break;
       case 'discount_75':
         onFilterChange({
-          sort: 'price_drops',
+          ...QUICK_PILL_BASE,
           minDiscount: 75,
           saleOnly: true,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'price_drops'
         });
         break;
       case 'discount_50':
         onFilterChange({
-          sort: 'price_drops',
+          ...QUICK_PILL_BASE,
           minDiscount: 50,
           saleOnly: true,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'price_drops'
         });
         break;
       case 'atl':
         onFilterChange({
-          sort: 'near_atl',
-          saleOnly: false,
-          majorDealsOnly: false,
+          ...QUICK_PILL_BASE,
           allTimeLowOnly: true,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'near_atl'
         });
         break;
       case 'sale':
         onFilterChange({
-          sort: 'price_drops',
+          ...QUICK_PILL_BASE,
           saleOnly: true,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'price_drops'
         });
         break;
       case 'under_5':
         onFilterChange({
-          sort: 'price_asc',
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
+          ...QUICK_PILL_BASE,
           underPrice: 5,
           maxPrice: 5,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'price_asc'
         });
         break;
       case 'under_10':
         onFilterChange({
-          sort: 'price_asc',
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
+          ...QUICK_PILL_BASE,
           underPrice: 10,
           maxPrice: 10,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'price_asc'
         });
         break;
       case 'under_20':
         onFilterChange({
-          sort: 'price_asc',
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
+          ...QUICK_PILL_BASE,
           underPrice: 20,
           maxPrice: 20,
-          minDiscount: undefined,
-          minDealScore: undefined,
-          merchantType: 'all',
-          hasAnomaly: false,
-          page: 1
+          sort: 'price_asc'
         });
         break;
       case 'official':
         onFilterChange({
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
-          minDealScore: undefined,
+          ...QUICK_PILL_BASE,
           merchantType: 'official',
-          hasAnomaly: false,
-          page: 1
+          sort: 'best_value'
         });
         break;
       case 'keyshop':
         onFilterChange({
-          saleOnly: false,
-          majorDealsOnly: false,
-          allTimeLowOnly: false,
-          trustedOnly: false,
-          underPrice: undefined,
-          minDiscount: undefined,
-          minDealScore: undefined,
+          ...QUICK_PILL_BASE,
           merchantType: 'keyshop',
-          hasAnomaly: false,
-          page: 1
+          sort: 'best_value'
         });
         break;
     }
