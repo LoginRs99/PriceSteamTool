@@ -240,6 +240,40 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 018] Steam CDN image URLs update notice:', err?.message);
       }
     }
+  },
+  {
+    name: '019_purge_false_sub_euro_glitches',
+    up: (db) => {
+      try {
+        // 1. Reset offers that were falsely flagged as SUB_EURO_PREMIUM_GLITCH on catalog games (MSRP < 15 EUR with price >= msrp * 0.05)
+        db.exec(`
+          UPDATE offers
+          SET risk_level = 'SAFE',
+              risk_score = 0.0,
+              is_anomaly = 0,
+              anomaly_score = 0.0,
+              anomaly_reason = NULL
+          WHERE is_anomaly = 1
+            AND (risk_flags LIKE '%SUB_EURO_PREMIUM_GLITCH%' OR anomaly_reason LIKE '%Sub-Euro%')
+            AND game_id IN (
+              SELECT id FROM games 
+              WHERE (base_price_eur IS NOT NULL AND base_price_eur < 15.0 AND offers.price_eur >= base_price_eur * 0.05)
+            );
+
+          -- 2. Dismiss corresponding anomaly records
+          UPDATE anomalies
+          SET is_dismissed = 1
+          WHERE offer_id IN (
+            SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
+          ) AND is_dismissed = 0;
+
+          -- 3. Recompute best deal assignment
+          ${BEST_DEAL_RECOMPUTE_ALL_SQL}
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 019] Notice:', err?.message);
+      }
+    }
   }
 ];
 
