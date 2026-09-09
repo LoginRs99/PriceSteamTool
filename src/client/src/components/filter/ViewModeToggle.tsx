@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ViewMode } from '../../types.js';
-import { LayoutGrid, List, Table as TableIcon } from 'lucide-react';
+import { LayoutGrid, Table as TableIcon } from 'lucide-react';
 
 interface ViewModeToggleProps {
   viewMode: ViewMode;
@@ -20,14 +20,6 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
         aria-label="Grid View (Cards)"
       >
         <LayoutGrid size={16} />
-      </button>
-      <button
-        className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
-        onClick={() => onViewModeChange('list')}
-        title="Compact List View (Dense Rows)"
-        aria-label="Compact List View (Dense Rows)"
-      >
-        <List size={16} />
       </button>
       <button
         className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}

@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { CompactListView } from '../../src/client/src/components/CompactListView.js';
 import { DenseTableView } from '../../src/client/src/components/DenseTableView.js';
 import { FreeGamesView } from '../../src/client/src/components/FreeGamesView.js';
 import type { Game } from '../../src/client/src/types.js';
@@ -46,32 +45,7 @@ const mockFreeGame: Game = {
   updatedAt: '2026-01-01T00:00:00Z'
 };
 
-describe('Catalog Views: CompactListView, DenseTableView, and FreeGamesView', () => {
-  describe('CompactListView', () => {
-    it('renders compact list rows with titles, discounts, and triggers callbacks', () => {
-      const clickMock = vi.fn();
-      const explainMock = vi.fn();
-
-      render(
-        <CompactListView
-          games={[mockPaidGame]}
-          onGameClick={clickMock}
-          onExplain={explainMock}
-        />
-      );
-
-      expect(screen.getByText('Terraria')).toBeInTheDocument();
-      expect(screen.getByText('€4.99')).toBeInTheDocument();
-      expect(screen.getByText('-50%')).toBeInTheDocument();
-
-      fireEvent.click(screen.getByText('Terraria'));
-      expect(clickMock).toHaveBeenCalledWith(mockPaidGame);
-
-      const scoreBtn = screen.getByText(/85/);
-      fireEvent.click(scoreBtn);
-      expect(explainMock).toHaveBeenCalledWith(mockPaidGame);
-    });
-  });
+describe('Catalog Views: DenseTableView and FreeGamesView', () => {
 
   describe('DenseTableView', () => {
     it('renders table columns, sort changes, and row interactions', () => {

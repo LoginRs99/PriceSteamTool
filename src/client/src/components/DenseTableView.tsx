@@ -279,7 +279,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                         gap: 3,
                         boxShadow: '0 0 6px rgba(239, 68, 68, 0.25)'
                       }}
-                      title="⚡ Lehetséges Árhiba (Pricing Error) — Azonnali vétel javasolt, mielőtt a bolt korrigálja!"
+                      title="⚡ Potential Pricing Error — Immediate purchase recommended before store correction!"
                       onClick={(e) => {
                         if (onExplain) {
                           e.stopPropagation();
@@ -305,7 +305,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                         alignItems: 'center',
                         gap: 3
                       }}
-                      title="Gyanús áranomália vagy elszigetelt kiugró ár — védelmi okokból elnyomva"
+                      title="Suspicious price anomaly or isolated outlier — suppressed for safety"
                       onClick={(e) => {
                         if (onExplain) {
                           e.stopPropagation();
@@ -313,7 +313,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                         }
                       }}
                     >
-                      <AlertTriangle size={11} /> Áranomália
+                      <AlertTriangle size={11} /> Anomaly
                     </span>
                   ) : hasBestDeal && dealScore > 0 ? (
                     <span 
@@ -339,11 +339,11 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                       {dealScore} • {dealTier}
                     </span>
                   ) : isFree ? (
-                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Ingyenes játék">Ingyenes</span>
+                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Free Game">Free</span>
                   ) : hasBestDeal ? (
-                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Nincs aktív leárazás (teljes ár)">Nincs akció</span>
+                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="No active discount (full price)">Full price</span>
                   ) : (
-                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Árszinkronizálásra vár">—</span>
+                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Awaiting price sync">—</span>
                   )}
                 </td>
 

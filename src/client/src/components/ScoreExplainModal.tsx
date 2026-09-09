@@ -73,14 +73,14 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>⚡</span>
               <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
-                <strong>⚡ Lehetséges Árhiba (Pricing Error)!</strong> Az ajánlat extrém módon olcsóbb a piaci mediánnál és a többi boltnál. Ha valódi árhiba, a bolt hamarosan javíthatja vagy törölheti — érdemes azonnal lecsapni rá, ha érdekel a játék!
+                <strong>⚡ Potential Pricing Error!</strong> This offer is dramatically cheaper than the market median and other stores. If this is an unintended pricing glitch, the store may soon correct or cancel orders — consider purchasing immediately if you want the game!
               </div>
             </div>
           ) : (game.bestRiskLevel === 'HIGH' || game.hasAnomaly) ? (
             <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
-                <strong>Védelmi áranomália elnyomás:</strong> Az észlelt legolcsóbb ár elszigetelt, ellenőrizetlen érték az aggregátornál. A félrevezetés megelőzése érdekében a Deal Score nem jelenik meg normál akcióként, amíg legalább egy másik független forrás meg nem erősíti.
+                <strong>Safety Anomaly Suppression:</strong> The lowest detected price is an isolated, unverified outlier on an aggregator. To prevent misleading alerts, Deal Score is suppressed until corroborated by at least one independent store source.
               </div>
             </div>
           ) : null}
@@ -131,7 +131,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           {game.actionSignal && (
             <div>
               <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                Action Signal & Akció-előrejelzés
+                Action Signal & Sale Forecast
               </h4>
               <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, borderLeft: `4px solid ${game.actionSignal.badgeColor}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -140,7 +140,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
                       style={{ 
                         background: `${game.actionSignal.badgeColor}22`, 
                         color: game.actionSignal.badgeColor, 
-                        border: `1px solid ${game.actionSignal.badgeColor}55`,
+                        border: `1px solid ${game.actionSignal.badgeColor}55`, 
                         padding: '3px 10px', 
                         borderRadius: 6, 
                         fontWeight: 700, 
@@ -150,12 +150,12 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
                       {game.actionSignal.badgeLabel}
                     </span>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                      Sürgősség: <strong style={{ color: game.actionSignal.urgency === 'HIGH' ? '#10b981' : 'inherit' }}>{game.actionSignal.urgency}</strong>
+                      Urgency: <strong style={{ color: game.actionSignal.urgency === 'HIGH' ? '#10b981' : 'inherit' }}>{game.actionSignal.urgency}</strong>
                     </span>
                   </div>
                   {game.actionSignal.expectedSaleTargetEur && (
                     <div style={{ fontSize: '0.82rem', textAlign: 'right' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Várható akciós célár: </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>Expected sale target: </span>
                       <strong style={{ color: '#10b981' }}>€{game.actionSignal.expectedSaleTargetEur.toFixed(2)}</strong>
                     </div>
                   )}
@@ -166,21 +166,21 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
                 </div>
 
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-surface-elevated)', padding: '8px 12px', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div><strong>Időzítési kontextus:</strong> {game.actionSignal.timingContext}</div>
+                  <div><strong>Timing context:</strong> {game.actionSignal.timingContext}</div>
                   {game.actionSignal.avgDaysBetweenSales !== undefined && (
                     <div style={{ display: 'flex', gap: 12, marginTop: 2, fontSize: '0.75rem' }}>
-                      <span>Átlagos akció-ciklus: <strong>~{game.actionSignal.avgDaysBetweenSales} nap</strong></span>
+                      <span>Average sale cycle: <strong>~{game.actionSignal.avgDaysBetweenSales} days</strong></span>
                       {game.actionSignal.daysSinceLastSale !== undefined && (
-                        <span>Utolsó akció óta: <strong>{game.actionSignal.daysSinceLastSale} nap</strong></span>
+                        <span>Since last sale: <strong>{game.actionSignal.daysSinceLastSale} days</strong></span>
                       )}
                       {game.actionSignal.isSaleOverdue && (
-                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>⚡ Új akció esedékes</span>
+                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>⚡ Sale expected soon</span>
                       )}
                     </div>
                   )}
                   {game.actionSignal.upcomingEventName && (
                     <div style={{ marginTop: 2, color: game.actionSignal.daysUntilUpcomingEvent && game.actionSignal.daysUntilUpcomingEvent <= 14 ? '#f59e0b' : 'inherit', fontSize: '0.75rem' }}>
-                      📅 Következő nagy vásár: <strong>{game.actionSignal.upcomingEventName}</strong> ({game.actionSignal.daysUntilUpcomingEvent} nap múlva)
+                      📅 Next major event: <strong>{game.actionSignal.upcomingEventName}</strong> (in {game.actionSignal.daysUntilUpcomingEvent} days)
                     </div>
                   )}
                 </div>

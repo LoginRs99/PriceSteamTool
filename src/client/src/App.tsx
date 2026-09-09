@@ -9,7 +9,6 @@ import { SyncBanner } from './components/SyncBanner.js';
 import { DealsDashboard } from './components/DealsDashboard.js';
 import { FilterBar } from './components/FilterBar.js';
 import { DenseTableView } from './components/DenseTableView.js';
-import { CompactListView } from './components/CompactListView.js';
 import { GameCard } from './components/GameCard.js';
 import { ViewModeToggle } from './components/filter/ViewModeToggle.js';
 import { FreeGamesView } from './components/FreeGamesView.js';
@@ -20,7 +19,7 @@ import { AnomaliesView } from './components/AnomaliesView.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
 import { ScoreExplainModal } from './components/ScoreExplainModal.js';
-import { DenseTableSkeleton, GameCardSkeleton, CompactListSkeleton } from './components/skeletons/index.js';
+import { DenseTableSkeleton, GameCardSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -302,10 +301,6 @@ export const App: React.FC = () => {
                   <div className="games-grid">
                     <GameCardSkeleton count={filters.limit || 24} />
                   </div>
-                ) : viewMode === 'list' ? (
-                  <div className="compact-list-container">
-                    <CompactListSkeleton rows={filters.limit || 24} />
-                  </div>
                 ) : (
                   <DenseTableSkeleton rows={10} />
                 )
@@ -337,12 +332,6 @@ export const App: React.FC = () => {
                         />
                       ))}
                     </div>
-                  ) : viewMode === 'list' ? (
-                    <CompactListView
-                      games={games}
-                      onGameClick={(game) => setSelectedGameId(game.id)}
-                      onExplain={(g) => setExplainGame(g)}
-                    />
                   ) : (
                     <DenseTableView
                       games={games}
@@ -454,12 +443,6 @@ export const App: React.FC = () => {
                     />
                   ))}
                 </div>
-              ) : viewMode === 'list' ? (
-                <CompactListView
-                  games={topDeals}
-                  onGameClick={(game) => setSelectedGameId(game.id)}
-                  onExplain={(g) => setExplainGame(g)}
-                />
               ) : (
                 <DenseTableView
                   games={topDeals}

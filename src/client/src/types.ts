@@ -324,7 +324,7 @@ export interface SyncStatusResponse {
   };
 }
 
-export type ViewMode = 'grid' | 'list' | 'table';
+export type ViewMode = 'grid' | 'table';
 export type MainTab = 'wishlist' | 'free' | 'deals' | 'safety';
 
 export interface WishlistFilterOptions {

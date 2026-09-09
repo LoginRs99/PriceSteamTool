@@ -239,7 +239,7 @@ describe('GameDetailModal Component (Monolith & Decomposed Regression Tests)', (
     });
 
     // Open candidate selector
-    const openAksBtn = screen.getByRole('button', { name: /Jelöltek megtekintése/i });
+    const openAksBtn = screen.getByRole('button', { name: /View Candidates/i });
     await act(async () => {
       fireEvent.click(openAksBtn);
     });
@@ -249,7 +249,7 @@ describe('GameDetailModal Component (Monolith & Decomposed Regression Tests)', (
     });
 
     // Select candidate
-    const selectCandBtn = screen.getByRole('button', { name: 'Kiválasztás' });
+    const selectCandBtn = screen.getByRole('button', { name: 'Select' });
     await act(async () => {
       fireEvent.click(selectCandBtn);
     });

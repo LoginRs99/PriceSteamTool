@@ -154,7 +154,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               boxShadow: isPricingError ? '0 0 8px rgba(239, 68, 68, 0.4)' : undefined
             }}
             title={isPricingError 
-              ? "⚡ Lehetséges Árhiba (Pricing Error) — Azonnali vétel javasolt, mielőtt a bolt korrigálja!"
+              ? "⚡ Potential Pricing Error — Immediate purchase recommended before store correction!"
               : `Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
             onClick={(e) => {
               if (onExplain) {

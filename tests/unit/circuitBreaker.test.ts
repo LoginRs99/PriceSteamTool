@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { CircuitBreakerRegistry } from '../../src/server/sync/circuitBreaker.js';
+import { getDb } from '../../src/server/db/core.js';
 
 describe('Circuit Breaker State Machine — State Transitions', () => {
+  beforeEach(() => {
+    try {
+      const db = getDb();
+      db.exec(`UPDATE sources SET state = 'NORMAL', consecutive_failures = 0, consecutive_rate_limits = 0, cooldown_until = NULL;`);
+    } catch (e) {}
+  });
+
   it('starts in NORMAL state and allows execution', () => {
     const cb = new CircuitBreakerRegistry();
     const check = cb.canExecute('itad');

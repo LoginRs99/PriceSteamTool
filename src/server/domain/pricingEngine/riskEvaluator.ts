@@ -116,8 +116,11 @@ export function calculatePriceRisk(
 
   // 3. Peer-Market Anomaly Signals (only evaluated when this offer is the cheapest on the market)
 
-  // 3A. Sub-euro / extreme ratio drop glitch check (<€1.00 on €5+ game or <5% of MSRP)
-  const isSubEuroGlitch = (currentPriceEur < 1.00 && msrp >= 5.0) || (msrp > 0 && currentPriceEur < msrp * 0.05);
+  // 3A. Sub-euro / extreme ratio drop glitch check
+  // True sub-euro glitches (<€1.00) occur on premium games (MSRP >= €15.00, e.g. €20 - €70 game accidentally listed under €1)
+  // OR on ANY game when the discount is extreme / implausible (>95% discount, price < 5% of MSRP, e.g. €0.10 on a €9 game).
+  // Standard 85-90% discounts on older/budget catalog games (MSRP < €15.00, e.g. €8.99 -> €0.89) are legitimate sales.
+  const isSubEuroGlitch = (currentPriceEur < 1.00 && msrp >= 15.0) || (msrp > 0 && currentPriceEur < msrp * 0.05);
   if (isSubEuroGlitch) {
     if (peers.length === 0 || !hasCorroboratingPeer) {
       rawSeverity = Math.max(rawSeverity, 0.85);
@@ -166,13 +169,17 @@ export function calculatePriceRisk(
     } else {
       // Only treat as high risk if the drop is an extreme crash (<15% of MSRP or <20% of own median)
       const ownMedian = sourceCheck.ownMedian || currentPriceEur;
-      const isExtremeCrash = (msrp >= 10 && currentPriceEur < msrp * 0.15) || 
-                            (ownMedian >= 10 && currentPriceEur < ownMedian * 0.20) ||
-                            (currentPriceEur < 1.00 && msrp >= 10);
+      const isOfficialLegitSale = isOfficialMerchant && (msrp > 0 ? currentPriceEur >= msrp * 0.08 : true);
+      const isExtremeCrash = !isOfficialLegitSale && (
+        (msrp >= 20 && currentPriceEur < msrp * 0.15) || 
+        (ownMedian >= 20 && currentPriceEur < ownMedian * 0.20) ||
+        (currentPriceEur < 1.00 && msrp >= 20) ||
+        (msrp > 0 && currentPriceEur < msrp * 0.05)
+      );
       if (isExtremeCrash) {
         rawSeverity = Math.max(rawSeverity, 0.85);
       } else {
-        // Normal 50-70% seasonal sale: not an anomaly
+        // Normal 50-90% seasonal sale: not an anomaly
         rawSeverity = Math.max(rawSeverity, 0.20);
       }
     }

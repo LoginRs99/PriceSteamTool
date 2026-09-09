@@ -32,7 +32,7 @@ const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', 
           boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)',
           ...style 
         }} 
-        title="⚡ Pricing Error / Glitch Deal — Azonnali vétel javasolt, mielőtt korrigálják!"
+        title="⚡ Pricing Error / Glitch Deal — Immediate purchase recommended before correction!"
       >
         <span>⚡ GLITCH</span>
       </span>

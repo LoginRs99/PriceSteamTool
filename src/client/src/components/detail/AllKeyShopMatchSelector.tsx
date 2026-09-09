@@ -32,18 +32,18 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Key size={16} color="#f59e0b" />
           <div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>AllKeyShop Párosítás / Source Match</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>AllKeyShop Match / Source</span>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {currentAksOverride 
-                ? `Egyéni felülbírálás aktív: ${currentAksOverride}`
-                : 'Automatikus egyeztetés aktív'}
+                ? `Custom override active: ${currentAksOverride}`
+                : 'Automatic matching active'}
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {aksOverrideSuccess && (
             <span style={{ fontSize: 12, color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
-              <Check size={14} /> Frissítve!
+              <Check size={14} /> Updated!
             </span>
           )}
           <button
@@ -53,7 +53,7 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
             style={{ fontSize: 12, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             <Search size={13} />
-            {showAksSelector ? 'Bezárás' : 'Jelöltek megtekintése / Módosítás'}
+            {showAksSelector ? 'Close' : 'View Candidates / Change'}
           </button>
         </div>
       </div>
@@ -63,12 +63,12 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
           {loadingAksCandidates ? (
             <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text-muted)' }}>
               <RefreshCw size={14} className="spin" style={{ display: 'inline', marginRight: 6 }} />
-              Jelöltek keresése az AllKeyShop katalógusban...
+              Searching candidates in AllKeyShop catalog...
             </div>
           ) : (
             <div>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
-                Talált AllKeyShop jelöltek erre a játékra ({aksCandidates.length}):
+                Found AllKeyShop candidates for this game ({aksCandidates.length}):
               </span>
               {aksCandidates.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
@@ -102,7 +102,7 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
                           className={isSelected ? "btn btn-primary" : "btn btn-secondary"}
                           style={{ fontSize: 11, padding: '4px 10px' }}
                         >
-                          {isSelected ? '✓ Aktív' : 'Kiválasztás'}
+                          {isSelected ? '✓ Active' : 'Select'}
                         </button>
                       </div>
                     );
@@ -110,7 +110,7 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
                 </div>
               ) : (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Nincs automatikus jelölt. Megadhatsz egyedi AllKeyShop linket alább:
+                  No automatic candidates found. You can enter a custom AllKeyShop link or slug below:
                 </div>
               )}
 
@@ -118,7 +118,7 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="Pl. https://www.allkeyshop.com/blog/buy-judas-cd-key-compare-prices-2/ vagy slug"
+                  placeholder="E.g. https://www.allkeyshop.com/blog/buy-judas-cd-key-compare-prices-2/ or slug"
                   value={customAksInput}
                   onChange={e => onCustomInputChange(e.target.value)}
                   style={{
@@ -139,7 +139,7 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
                   className="btn btn-primary"
                   style={{ fontSize: 12, padding: '6px 12px' }}
                 >
-                  {savingAksOverride ? 'Mentés...' : 'Mentés & Frissítés'}
+                  {savingAksOverride ? 'Saving...' : 'Save & Refresh'}
                 </button>
                 {currentAksOverride && (
                   <button
@@ -152,7 +152,7 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
                     className="btn btn-secondary"
                     style={{ fontSize: 12, padding: '6px 12px', color: '#f87171' }}
                   >
-                    Visszaállítás automatikusra
+                    Reset to automatic matching
                   </button>
                 )}
               </div>

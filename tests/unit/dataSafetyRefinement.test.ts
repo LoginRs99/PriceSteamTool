@@ -221,4 +221,56 @@ describe('Data Safety & Outlier Detection Refinement Suite', () => {
     expect(offers[1].priceEur).toBe(18.00);
     expect(offers[2].priceEur).toBe(35.00);
   });
+
+  it('RULE 6: Official seasonal sales on classic catalog titles (e.g. Hitman Contracts €8.99 -> €0.89) are SAFE and not anomalies', () => {
+    const flags = new Set<any>();
+    const risk = calculatePriceRisk({
+      currentPriceEur: 0.89,
+      basePriceEur: 8.99,
+      isOfficialMerchant: true,
+      sourceAgreementCount: 1,
+      marketPricesEur: []
+    }, flags);
+
+    expect(risk.riskLevel).toBe('SAFE');
+    expect(flags.has('SUB_EURO_PREMIUM_GLITCH')).toBe(false);
+
+    const movement = evaluatePriceMovement({
+      currentPriceEur: 0.89,
+      basePriceEur: 8.99,
+      isOfficialMerchant: true,
+      sourceAgreementCount: 1,
+      marketPricesEur: []
+    });
+
+    expect(movement.riskLevel).toBe('SAFE');
+    expect(movement.isAnomaly).toBe(false);
+    expect(movement.summary).not.toContain('⚡ Sub-Euro Price Glitch');
+  });
+
+  it('RULE 7: Genuine pricing error on AAA game (e.g. €59.99 -> €0.89) remains HIGH risk anomaly', () => {
+    const flags = new Set<any>();
+    const risk = calculatePriceRisk({
+      currentPriceEur: 0.89,
+      basePriceEur: 59.99,
+      isOfficialMerchant: true,
+      sourceAgreementCount: 1,
+      marketPricesEur: [45.00]
+    }, flags);
+
+    expect(risk.riskLevel).toBe('HIGH');
+    expect(flags.has('SUB_EURO_PREMIUM_GLITCH')).toBe(true);
+
+    const movement = evaluatePriceMovement({
+      currentPriceEur: 0.89,
+      basePriceEur: 59.99,
+      isOfficialMerchant: true,
+      sourceAgreementCount: 1,
+      marketPricesEur: [45.00]
+    });
+
+    expect(movement.riskLevel).toBe('HIGH');
+    expect(movement.isAnomaly).toBe(true);
+    expect(movement.summary).toContain('⚡ Sub-Euro Price Glitch');
+  });
 });
