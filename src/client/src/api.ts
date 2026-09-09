@@ -158,6 +158,19 @@ export const api = {
     return res.json();
   },
 
+  async refreshGame(id: string): Promise<{ success: boolean; gameId: string; offersCount: number }> {
+    const res = await fetch(`${API_BASE}/games/${id}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ includeKeyshops: true })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to refresh game prices');
+    }
+    return res.json();
+  },
+
   // Sync
   async startSync(options: { forceRefresh?: boolean; sources?: SourceCode[] } = {}): Promise<SyncProgressUpdate> {
     const res = await fetch(`${API_BASE}/sync/start`, {

@@ -272,4 +272,27 @@ describe('GameDetailModal Component (Monolith & Decomposed Regression Tests)', (
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(handleClose).toHaveBeenCalledTimes(2);
   });
+
+  it('triggers refreshGame and onGameUpdated when Refresh Prices button is clicked', async () => {
+    const refreshSpy = vi.spyOn(api, 'refreshGame').mockResolvedValue({ success: true, gameId: 'game-101', offersCount: 2 } as any);
+    const onGameUpdated = vi.fn();
+
+    render(<GameDetailModal gameId="game-101" onClose={() => {}} onGameUpdated={onGameUpdated} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Elden Ring' })).toBeInTheDocument();
+    });
+
+    const refreshBtn = screen.getByRole('button', { name: /Refresh Prices/i });
+    expect(refreshBtn).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(refreshBtn);
+    });
+
+    expect(refreshSpy).toHaveBeenCalledWith('game-101');
+    await waitFor(() => {
+      expect(onGameUpdated).toHaveBeenCalledWith('game-101');
+    });
+  });
 });

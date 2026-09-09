@@ -4,7 +4,8 @@ import {
   X, 
   ExternalLink, 
   Copy, 
-  Check 
+  Check,
+  RefreshCw 
 } from 'lucide-react';
 import { useGameIntelligence } from './detail/useGameIntelligence.js';
 import { DecisionHero } from './detail/DecisionHero.js';
@@ -51,7 +52,9 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
     handleCopySteamUrl,
     handleCopyVoucher,
     handleSaveTargetPrice,
-    handleClearTargetPrice
+    handleClearTargetPrice,
+    refreshingGame,
+    handleRefreshGame
   } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated, onGameUpdated);
 
   if (loading || !data) {
@@ -168,9 +171,22 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
               </button>
             </div>
           </div>
-          <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleRefreshGame}
+              disabled={refreshingGame}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 12px' }}
+              title="Refresh current prices for this game from all connected sources"
+            >
+              <RefreshCw size={13} className={refreshingGame ? 'spin-icon' : ''} />
+              <span>{refreshingGame ? 'Refreshing...' : 'Refresh Prices'}</span>
+            </button>
+            <button className="btn btn-outline" onClick={onClose} style={{ padding: 6 }} aria-label="Close modal">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}

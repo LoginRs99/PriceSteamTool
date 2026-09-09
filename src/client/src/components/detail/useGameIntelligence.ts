@@ -29,6 +29,30 @@ export function useGameIntelligence(
   const [loadingAksCandidates, setLoadingAksCandidates] = useState(false);
   const [savingAksOverride, setSavingAksOverride] = useState(false);
   const [aksOverrideSuccess, setAksOverrideSuccess] = useState(false);
+  const [refreshingGame, setRefreshingGame] = useState(false);
+
+  const handleRefreshGame = async () => {
+    if (!data?.game || refreshingGame) return;
+    setRefreshingGame(true);
+    try {
+      await api.refreshGame(data.game.id);
+      const [updatedDetails, updatedIntel] = await Promise.all([
+        api.getGameDetails(gameId),
+        api.getPriceIntelligence(gameId).catch(() => null)
+      ]);
+      setData({
+        ...updatedDetails,
+        intelligence: updatedIntel || undefined
+      });
+      if (onGameUpdated) {
+        onGameUpdated(gameId);
+      }
+    } catch (err) {
+      console.error('Failed to refresh game prices:', err);
+    } finally {
+      setRefreshingGame(false);
+    }
+  };
 
   const handleOpenAksSelector = async () => {
     if (!data?.game) return;
@@ -192,6 +216,8 @@ export function useGameIntelligence(
     handleCopySteamUrl,
     handleCopyVoucher,
     handleSaveTargetPrice,
-    handleClearTargetPrice
+    handleClearTargetPrice,
+    refreshingGame,
+    handleRefreshGame
   };
 }
