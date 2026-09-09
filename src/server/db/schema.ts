@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   custom_url TEXT,
   avatar_url TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
+  is_family INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -240,6 +241,16 @@ CREATE TABLE IF NOT EXISTS notifications_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_log_game ON notifications_log(game_id, sent_at);
+
+-- 13. Family Owned Apps Table (Steam Family Library Sharing)
+CREATE TABLE IF NOT EXISTS family_owned_apps (
+  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  steam_app_id INTEGER NOT NULL,
+  synced_at TEXT NOT NULL,
+  PRIMARY KEY (profile_id, steam_app_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_owned_apps_app_id ON family_owned_apps(steam_app_id);
 `;
 
 export const SEED_SOURCES_SQL = `

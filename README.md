@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.7.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-204%2F204%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-1.7.1-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-447%2F447%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -53,6 +53,8 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
 
 ### 5. Multi-View Architecture & Free Games Separation (2,500+ Games Support)
 * **Dedicated Free-to-Play Section**: Free games (`is_free = 1`) are separated into their own navigation tab with direct Steam launcher (`steam://run/<id>`) and store links, keeping the paid deal catalog clean.
+* **Steam Family Sharing Library Filter**: Sync and track games owned by family profiles to avoid purchasing games already accessible via Steam Family Sharing (`hideFamilyShared`).
+* **Unreleased & Coming Soon Exclusion**: Smart filter (`hideUnreleased`) to hide announced games without price observations.
 * **3 Ergonomic View Modes**:
   * 🔲 **Grid View**: Rich visual card layout with cover artwork, discount flags, and Deal Score badges.
   * 📄 **Compact List View**: Clean single-line horizontal strips for fast vertical scanning.
@@ -105,7 +107,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (20 test suites / 204 unit & integration tests)
+# 3. Run test suite (47 test suites / 447 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck

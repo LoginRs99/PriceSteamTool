@@ -368,6 +368,63 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   }
 
   /**
+   * Fetches owned games (app IDs) for a Steam profile.
+   * Tries Steam Web API (IPlayerService/GetOwnedGames) if key is configured,
+   * otherwise falls back to public Steam Community XML endpoint.
+   */
+  public async fetchOwnedGames(steamId64OrSlug: string): Promise<number[]> {
+    return this.queue.enqueue(async () => {
+      const resolved = await this.resolveSteamId64(steamId64OrSlug);
+      const targetId = resolved.steamId64 || steamId64OrSlug;
+      const appIds = new Set<number>();
+
+      // 1. Steam Web API (Fastest and officially supported if key is configured)
+      if (config.steamApiKey && /^\d{17}$/.test(targetId)) {
+        try {
+          const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${config.steamApiKey}&steamid=${targetId}&format=json&include_appinfo=0`;
+          const res: any = await safeFetchJson(url);
+          if (res?.response?.games && Array.isArray(res.response.games)) {
+            for (const g of res.response.games) {
+              if (g?.appid && typeof g.appid === 'number') {
+                appIds.add(g.appid);
+              }
+            }
+            return Array.from(appIds);
+          }
+        } catch {
+          // Fall back to community XML endpoint
+        }
+      }
+
+      // 2. Steam Community XML /games?xml=1 fallback
+      try {
+        const targetPath = /^\d+$/.test(targetId) ? `profiles/${targetId}` : `id/${targetId}`;
+        const xmlUrl = `https://steamcommunity.com/${targetPath}/games?xml=1`;
+        const response = await fetch(xmlUrl, {
+          headers: { 'User-Agent': STEAM_STORE_HEADERS['User-Agent'] },
+          signal: AbortSignal.timeout(10000)
+        });
+
+        if (response.ok) {
+          const xmlText = await response.text();
+          const regex = /<appID>(\d+)<\/appID>/g;
+          let match;
+          while ((match = regex.exec(xmlText)) !== null) {
+            const id = parseInt(match[1], 10);
+            if (!isNaN(id)) {
+              appIds.add(id);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[SteamSourceAdapter] Failed to fetch owned games for ${targetId} via XML:`, err.message);
+      }
+
+      return Array.from(appIds);
+    });
+  }
+
+  /**
    * PriceSourceAdapter interface implementation: generates the official Steam Store offer
    */
   public async fetchPricesForGame(steamAppId: number): Promise<NormalizedSourceOffer[]> {

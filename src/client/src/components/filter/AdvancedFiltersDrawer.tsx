@@ -129,6 +129,42 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
           />
           <span>Major Price Drops Only</span>
         </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.hideUnreleased)}
+            onChange={(e) => onFilterChange({ hideUnreleased: e.target.checked, page: 1 })}
+          />
+          <span>Hide Unreleased (Coming Soon)</span>
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.hideDlcs)}
+            onChange={(e) => onFilterChange({ hideDlcs: e.target.checked, page: 1 })}
+          />
+          <span>Hide DLCs & Add-ons</span>
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.includeFreeGames)}
+            onChange={(e) => onFilterChange({ includeFreeGames: e.target.checked, page: 1 })}
+          />
+          <span>Include Free-to-Play in Wishlist</span>
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.hideFamilyShared)}
+            onChange={(e) => onFilterChange({ hideFamilyShared: e.target.checked, page: 1 })}
+          />
+          <span>Hide Family Shared Games (👨‍👩‍👧 Family Library)</span>
+        </label>
       </div>
     </div>
   );

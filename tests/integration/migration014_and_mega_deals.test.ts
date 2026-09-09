@@ -99,17 +99,17 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
   it('invalidateStaleForGameSource immediately invalidates orphaned AllKeyShop offers without affecting other sources', async () => {
     const { offerRepo, merchantRepo } = await import('../../src/server/db/index.js');
 
+    // Insert game into DB ensuring FK constraint is satisfied
+    const { getDb } = await import('../../src/server/db/core.js');
+    const db = getDb();
+    db.prepare(`
+      INSERT OR REPLACE INTO games (id, steam_app_id, title, slug, base_price_eur, created_at, updated_at)
+      VALUES ('game-test-stale', 99999, 'Test Stale Cleanup', 'test-stale-cleanup', 29.99, datetime('now'), datetime('now'))
+    `).run();
+
     // Create merchants
     const mG2a = merchantRepo.getOrCreate('g2a', 'G2A', false, 'https://g2a.com');
     const mCdkeys = merchantRepo.getOrCreate('cdkeys', 'CDKeys', false, 'https://cdkeys.com');
-
-    // Insert game
-    const { getDb } = await import('../../src/server/db/core.js');
-    const db = getDb();
-    db.exec(`
-      INSERT OR IGNORE INTO games (id, steam_app_id, title, slug, base_price_eur, created_at, updated_at)
-      VALUES ('game-test-stale', 99999, 'Test Stale Cleanup', 'test-stale-cleanup', 29.99, datetime('now'), datetime('now'));
-    `);
 
     // Offer 1: From AllKeyShop (simulating old wrong match)
     const off1 = offerRepo.upsertOffer({

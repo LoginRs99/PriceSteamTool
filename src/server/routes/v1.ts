@@ -54,12 +54,13 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
 
     const { games, total } = gameRepo.getWishlistGames(activeProfile.id, {
       search,
+      steamAppId,
       page,
       limit
     });
 
-    const filtered = steamAppId ? games.filter(g => g.steamAppId === steamAppId) : games;
-    const totalCount = steamAppId ? filtered.length : total;
+    const filtered = games;
+    const totalCount = total;
 
     // Generate simple ETag from latest update times
     const latestUpdate = filtered.reduce((latest, g) => (g.updatedAt > latest ? g.updatedAt : latest), '');

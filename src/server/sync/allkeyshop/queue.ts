@@ -152,7 +152,9 @@ export class AllKeyShopPoliteQueue {
         this.wasInCooldown = true;
         const cooldownUntil = circuitBreakers.getCooldownUntil('allkeyshop') || (now + 1000);
         const waitMs = Math.max(50, cooldownUntil - now);
-        await new Promise(r => setTimeout(r, waitMs));
+        const sliceMs = Math.min(waitMs, 1000);
+        await new Promise(r => setTimeout(r, sliceMs));
+        if (this.queue.length === 0) break;
         continue;
       }
 

@@ -48,4 +48,54 @@ describe('buildWishlistFilterClause Unit Tests', () => {
     expect(whereSql).toContain('bo.price_eur <= w.target_price_eur');
     expect(params).toEqual(['profile-tgt']);
   });
+
+  it('handles hideUnreleased filter correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-rel', {
+      hideUnreleased: true
+    });
+
+    expect(whereSql).toContain('bo.price_eur IS NOT NULL AND bo.price_eur > 0');
+    expect(whereSql).toContain("LOWER(g.release_date) NOT LIKE '%coming%'");
+    expect(params).toEqual(['profile-rel']);
+  });
+
+  it('handles hideDlcs filter correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-dlc', {
+      hideDlcs: true
+    });
+
+    expect(whereSql).toContain('(g.is_dlc = 0 OR g.is_dlc IS NULL)');
+    expect(params).toEqual(['profile-dlc']);
+  });
+
+  it('handles includeFreeGames filter correctly without excluding free games', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-all', {
+      includeFreeGames: true
+    });
+
+    expect(whereSql).not.toContain('(g.is_free = 0 OR g.is_free IS NULL)');
+    expect(whereSql).not.toContain('(g.is_free = 1 OR g.base_price_eur = 0)');
+    expect(params).toEqual(['profile-all']);
+  });
+
+  it('handles hideFamilyShared filter correctly by checking family_owned_apps and profiles', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-fam', {
+      hideFamilyShared: true
+    });
+
+    expect(whereSql).toContain('NOT EXISTS');
+    expect(whereSql).toContain('family_owned_apps fo');
+    expect(whereSql).toContain('fp.is_family = 1');
+    expect(whereSql).toContain('fo.steam_app_id = g.steam_app_id');
+    expect(params).toEqual(['profile-fam']);
+  });
+
+  it('handles steamAppId filter correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-steam', {
+      steamAppId: 1091500
+    });
+
+    expect(whereSql).toContain('g.steam_app_id = ?');
+    expect(params).toEqual(['profile-steam', 1091500]);
+  });
 });

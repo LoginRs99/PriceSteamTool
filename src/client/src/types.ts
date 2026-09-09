@@ -56,6 +56,8 @@ export interface Profile {
   preferredCurrency?: string;
   preferredCountry?: string;
   isActive: boolean;
+  isFamily?: boolean;
+  familyGamesCount?: number;
   gameCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -104,6 +106,7 @@ export interface Game {
   releaseDate?: string;
   isDlc: boolean;
   isFree: boolean;
+  isFamilyShared?: boolean;
   basePriceEur?: number;
   historicalLowEur?: number;
   historicalLowDate?: string;
@@ -353,6 +356,10 @@ export interface WishlistFilterOptions {
   merchantType?: 'all' | 'official' | 'keyshop' | 'official_only' | 'keyshop_only';
   hasAnomaly?: boolean;
   targetReachedOnly?: boolean;
+  hideUnreleased?: boolean;
+  hideDlcs?: boolean;
+  includeFreeGames?: boolean;
+  hideFamilyShared?: boolean;
   priceEvent?: PriceEventType;
   riskLevel?: PriceRiskLevel;
   page?: number;

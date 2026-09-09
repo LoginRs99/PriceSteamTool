@@ -21,11 +21,11 @@ export const api = {
     return res.json();
   },
 
-  async createProfile(name: string, steamId: string, customUrl?: string): Promise<Profile> {
+  async createProfile(name: string, steamId: string, customUrl?: string, isFamily: boolean = false): Promise<Profile> {
     const res = await fetch(`${API_BASE}/profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, steamId, customUrl })
+      body: JSON.stringify({ name, steamId, customUrl, isFamily })
     });
     if (!res.ok) {
       const err = await res.json();
@@ -36,6 +36,30 @@ export const api = {
 
   async setActiveProfile(id: string): Promise<void> {
     await fetch(`${API_BASE}/profiles/${id}/active`, { method: 'PUT' });
+  },
+
+  async toggleFamilyProfile(id: string, isFamily?: boolean): Promise<{ success: boolean; isFamily: boolean }> {
+    const res = await fetch(`${API_BASE}/profiles/${id}/family`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isFamily })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to toggle family status');
+    }
+    return res.json();
+  },
+
+  async syncFamilyLibrary(id: string): Promise<{ success: boolean; gameCount: number }> {
+    const res = await fetch(`${API_BASE}/profiles/${id}/sync-family`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to sync family library');
+    }
+    return res.json();
   },
 
   async deleteProfile(id: string): Promise<void> {
@@ -70,6 +94,10 @@ export const api = {
     if (options.buyOnly) params.set('buyOnly', 'true');
     if (options.merchantType) params.set('merchantType', options.merchantType);
     if (options.hasAnomaly) params.set('hasAnomaly', 'true');
+    if (options.hideUnreleased) params.set('hideUnreleased', 'true');
+    if (options.hideDlcs) params.set('hideDlcs', 'true');
+    if (options.includeFreeGames) params.set('includeFreeGames', 'true');
+    if (options.hideFamilyShared) params.set('hideFamilyShared', 'true');
     if (options.page) params.set('page', String(options.page));
     if (options.limit) params.set('limit', String(options.limit));
 

@@ -106,7 +106,23 @@ export async function safeFetchJson<T>(
 
         lastError = error;
       } else {
-        return (await response.json()) as T;
+        if (typeof response.text === 'function') {
+          const rawText = await response.text();
+          try {
+            return JSON.parse(rawText) as T;
+          } catch (jsonErr: any) {
+            const contentType = response.headers?.get?.('content-type') || 'unknown';
+            const preview = rawText.slice(0, 160).replace(/\s+/g, ' ').trim();
+            const parseError: any = new Error(
+              `Failed to parse JSON response from ${url} (status: ${response.status}, content-type: ${contentType}): ${preview}`
+            );
+            parseError.status = response.status;
+            parseError.rawText = rawText;
+            throw parseError;
+          }
+        } else {
+          return (await response.json()) as T;
+        }
       }
     } catch (err: any) {
       lastError = err;

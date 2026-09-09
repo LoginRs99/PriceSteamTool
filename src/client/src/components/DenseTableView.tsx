@@ -143,6 +143,23 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                     <div className="table-title-inner">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="table-game-title">{game.title}</span>
+                        {game.isFamilyShared && (
+                          <span 
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'rgba(59, 130, 246, 0.15)',
+                              color: '#60a5fa',
+                              border: '1px solid rgba(59, 130, 246, 0.3)',
+                              whiteSpace: 'nowrap'
+                            }}
+                            title="Owned by a member of your Steam Family Library"
+                          >
+                            👨‍👩‍👧 Family
+                          </span>
+                        )}
                         {game.steamReviewPercent !== undefined && (
                           <span 
                             className={`steam-review-pill ${game.steamReviewPercent >= 80 ? 'positive' : game.steamReviewPercent >= 70 ? 'mixed' : 'negative'}`}

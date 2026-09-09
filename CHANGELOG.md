@@ -5,6 +5,29 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-09-09
+
+### Added
+* **Steam Family Sharing Library Sync & Filter**:
+  * Added `is_family` flag to Steam profiles and automatic ownership ingestion via `family_owned_apps` table.
+  * Added `hideFamilyShared` wishlist filter option with SQL-level `NOT EXISTS` query and UI toggle badge to avoid buying games already accessible via family members.
+* **Unreleased & Coming Soon Game Filter**:
+  * Added `hideUnreleased` option to filter out games without price observations that have release dates indicating future/unreleased status (`coming soon`, `tba`).
+
+### Fixed
+* **Queue Cooldown & Cancellation Safeguards**:
+  * Sliced cooldown sleep into 1s/2s intervals in `AllKeyShopPoliteQueue` and `PacedSourceQueue`, preventing multi-hour hangs when clearing or resetting queues.
+  * Implemented fallback timeout for `BACKOFF` and `PAUSED` circuit breaker states when `cooldownUntil` is missing.
+* **0 EUR Free Game & Corroboration Division Safety**:
+  * Fixed `isValid` observation filtering in `offerRepo` to include valid 0 EUR free games and 100% discount promotions.
+  * Guarded independent merchant corroboration calculation against division-by-zero when prices are 0 EUR.
+* **V1 REST API `steam_app_id` Direct SQL Resolution**:
+  * Added database-level `steamAppId` filtering to `buildWishlistFilterClause`, fixing in-memory pagination bugs on `GET /api/v1/games?steam_app_id=...`.
+* **Robust Diagnostic JSON Parsing**:
+  * Added detailed URL, status code, and preview snippet diagnostics to `safeFetchJson` on HTML/non-JSON responses.
+
+---
+
 ## [1.7.0] - 2026-08-19
 
 ### Added

@@ -180,6 +180,21 @@ export const MIGRATIONS: Migration[] = [
       try { db.exec("ALTER TABLE games ADD COLUMN steam_review_percent INTEGER"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
       try { db.exec("ALTER TABLE games ADD COLUMN steam_review_total TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
     }
+  },
+  {
+    name: '016_add_family_sharing_support',
+    up: (db) => {
+      try { db.exec("ALTER TABLE profiles ADD COLUMN is_family INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS family_owned_apps (
+          profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+          steam_app_id INTEGER NOT NULL,
+          synced_at TEXT NOT NULL,
+          PRIMARY KEY (profile_id, steam_app_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_family_owned_apps_app_id ON family_owned_apps(steam_app_id);
+      `);
+    }
   }
 ];
 

@@ -49,6 +49,10 @@ export function useFilterState(
   if (filters.merchantType && filters.merchantType !== 'all') activeFilterCount++;
   if (filters.hideAnomalies) activeFilterCount++;
   if (filters.hideProvisional) activeFilterCount++;
+  if (filters.hideUnreleased) activeFilterCount++;
+  if (filters.hideDlcs) activeFilterCount++;
+  if (filters.includeFreeGames) activeFilterCount++;
+  if (filters.hideFamilyShared) activeFilterCount++;
 
   const isFiltered = Boolean(activeFilterCount > 0 || (filters.sort && filters.sort !== 'best_value'));
 
@@ -68,6 +72,10 @@ export function useFilterState(
       minDealScore: undefined,
       hideAnomalies: false,
       hideProvisional: false,
+      hideUnreleased: false,
+      hideDlcs: false,
+      includeFreeGames: false,
+      hideFamilyShared: false,
       buyOnly: false,
       merchantType: 'all',
       hasAnomaly: false,

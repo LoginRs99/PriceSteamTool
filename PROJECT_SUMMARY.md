@@ -5,7 +5,7 @@
 
 ---
 
-## 📌 TL;DR Overview (v1.7.0)
+## 📌 TL;DR Overview (v1.7.1)
 
 PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Price Aggregator and Deal Intelligence platform built on:
 - **Backend:** Node.js 22+, Fastify 5, TypeScript, Better-SQLite3 (WAL mode, prepared statement caching, composite indexing).
@@ -19,6 +19,7 @@ PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Pric
   - **Action Signal Engine:** `BUY_NOW`, `STRONG_BUY`, `FAIR_DEAL`, `WAIT`, `MONITOR`.
   - **Adaptive Keyshop Pacing:** Fair round-robin due-game sorting, exponential-tailed jitter, self-tuning exponential backoff (24h -> 168h ceiling) on stable prices with active target price override, Byparr solver integration, and User-Agent rotation.
   - **Discord Webhook Alerts:** Multi-tier deal notifications with provisional filtering, target price hit alerts, and post-enrichment keyshop deal dispatch.
+  - **Library Intelligence:** Steam Family Sharing ownership synchronization (`hideFamilyShared`) and Unreleased/Coming Soon exclusion (`hideUnreleased`).
 
 ---
 
@@ -26,7 +27,7 @@ PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Pric
 
 ```bash
 npm run typecheck   # Typecheck (tsc --noEmit)
-npm test            # Run all 20 Vitest suites (215 tests)
+npm test            # Run all 47 Vitest suites (447 tests)
 npm run build       # Build client (Vite) and server (TypeScript)
 npm start           # Run production server
 ```

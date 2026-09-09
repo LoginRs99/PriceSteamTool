@@ -100,6 +100,34 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
         </span>
       )}
 
+      {filters.hideUnreleased && (
+        <span className="filter-active-tag">
+          Hide Unreleased
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ hideUnreleased: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.hideDlcs && (
+        <span className="filter-active-tag">
+          Hide DLCs
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ hideDlcs: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.includeFreeGames && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(16, 185, 129, 0.4)', color: '#34d399' }}>
+          Include Free Games
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ includeFreeGames: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.hideFamilyShared && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(59, 130, 246, 0.4)', color: '#60a5fa' }}>
+          👨‍👩‍👧 Hide Family Games
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ hideFamilyShared: false, page: 1 })} />
+        </span>
+      )}
+
       <button
         type="button"
         onClick={onResetAll}

@@ -205,7 +205,7 @@ export const offerRepo = {
           discountPercent: meta.discountPercent !== undefined ? Number(meta.discountPercent) : 0,
           voucherCode: meta.voucherCode || undefined,
           dealUrl: meta.dealUrl || data.dealUrl,
-          isValid: meta.isValid !== false && Number(obs.observed_price_eur) > 0,
+          isValid: meta.isValid !== false && !isNaN(Number(obs.observed_price_eur)) && Number(obs.observed_price_eur) >= 0,
           observedAt: obs.observed_at
         };
       }).filter(c => c.isValid);
@@ -273,8 +273,9 @@ export const offerRepo = {
       const corroboratingMerchants = new Set<string>();
       for (const peer of corroborationPeers) {
         const peerPrice = Number(peer.price_eur);
-        if (peerPrice > 0) {
-          const relDiff = Math.abs(peerPrice - active.priceEur) / Math.min(peerPrice, active.priceEur);
+        if (peerPrice >= 0 && active.priceEur >= 0) {
+          const minP = Math.min(peerPrice, active.priceEur);
+          const relDiff = minP === 0 ? (peerPrice === active.priceEur ? 0 : 1) : Math.abs(peerPrice - active.priceEur) / minP;
           if (relDiff <= 0.30) {
             corroboratingMerchants.add(peer.merchant_id);
           }

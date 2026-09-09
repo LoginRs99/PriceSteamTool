@@ -45,13 +45,18 @@ export function buildWishlistFilterClause(
   // Free vs Paid filtering
   if (options.isFreeOnly === true) {
     whereClauses.push(`(g.is_free = 1 OR g.base_price_eur = 0)`);
-  } else {
+  } else if (!options.includeFreeGames) {
     whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL)`);
   }
 
   if (options.search && options.search.trim() !== '') {
     whereClauses.push(`g.title LIKE ?`);
     params.push(`%${options.search.trim()}%`);
+  }
+
+  if (options.steamAppId !== undefined) {
+    whereClauses.push(`g.steam_app_id = ?`);
+    params.push(options.steamAppId);
   }
 
   if (options.saleOnly) {
@@ -96,6 +101,35 @@ export function buildWishlistFilterClause(
 
   if (options.targetReachedOnly) {
     whereClauses.push(`w.target_price_eur IS NOT NULL AND bo.price_eur IS NOT NULL AND bo.price_eur <= w.target_price_eur`);
+  }
+
+  // Unreleased / Coming soon filtering
+  // When hideUnreleased is true, exclude games that have no price observations AND either have no release date,
+  // a release date containing 'coming soon'/'tba', or a future timestamp.
+  if (options.hideUnreleased) {
+    whereClauses.push(`(
+      (bo.price_eur IS NOT NULL AND bo.price_eur > 0)
+      OR (g.base_price_eur IS NOT NULL AND g.base_price_eur > 0)
+      OR (g.release_date IS NOT NULL 
+          AND LOWER(g.release_date) NOT LIKE '%coming%' 
+          AND LOWER(g.release_date) NOT LIKE '%tba%' 
+          AND LOWER(g.release_date) NOT LIKE '%to be announced%'
+          AND g.release_date <= datetime('now'))
+    )`);
+  }
+
+  // DLC / Add-on filtering
+  if (options.hideDlcs) {
+    whereClauses.push(`(g.is_dlc = 0 OR g.is_dlc IS NULL)`);
+  }
+
+  // Steam Family Library sharing filtering
+  if (options.hideFamilyShared) {
+    whereClauses.push(`NOT EXISTS (
+      SELECT 1 FROM family_owned_apps fo
+      JOIN profiles fp ON fo.profile_id = fp.id
+      WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id
+    )`);
   }
 
   if (options.merchantType === 'official' || (options.merchantType as any) === 'official_only') {
@@ -272,7 +306,8 @@ export const gameRepo = {
         m.trust_score as best_merchant_trust_score,
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count
+        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count,
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
       FROM games g
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
       LEFT JOIN merchants m ON bo.merchant_id = m.id
@@ -436,7 +471,8 @@ export const gameRepo = {
         m.trust_score as best_merchant_trust_score,
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count
+        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count,
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
@@ -492,7 +528,8 @@ export const gameRepo = {
       m.trust_score as best_merchant_trust_score,
       (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-      (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count
+      (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count,
+      (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
     `;
 
     // Always fetch candidates and apply computed filters & sorting in memory for high precision
@@ -942,6 +979,7 @@ function mapGameRow(r: any): Game {
     releaseDate: r.release_date || undefined,
     isDlc: Boolean(r.is_dlc),
     isFree: Boolean(r.is_free),
+    isFamilyShared: Boolean(r.is_family_shared),
     basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
     historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
     historicalLowDate: r.historical_low_date || undefined,

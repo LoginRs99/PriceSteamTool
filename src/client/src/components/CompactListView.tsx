@@ -65,7 +65,26 @@ export const CompactListView: React.FC<CompactListViewProps> = ({ games, onGameC
                 }}
               />
               <div className="compact-title-wrap">
-                <span className="compact-title" title={game.title}>{game.title}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="compact-title" title={game.title}>{game.title}</span>
+                  {game.isFamilyShared && (
+                    <span 
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(59, 130, 246, 0.15)',
+                        color: '#60a5fa',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Owned by a member of your Steam Family Library"
+                    >
+                      👨‍👩‍👧 Family
+                    </span>
+                  )}
+                </div>
                 <div className="compact-tags">
                   <TickerFlag game={game} />
                 </div>

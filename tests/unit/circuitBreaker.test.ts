@@ -53,4 +53,21 @@ describe('Circuit Breaker State Machine — State Transitions', () => {
     // Threshold for BACKOFF is consecutiveFailures >= 2; 1 failure should stay in NORMAL
     expect(cb.getState('itad')).toBe('NORMAL');
   });
+
+  it('handles PAUSED state with null or elapsed cooldown by transitioning to COOLDOWN probe', () => {
+    const cb = new CircuitBreakerRegistry();
+    cb.recordFailure('steam', 'err 1');
+    cb.recordFailure('steam', 'err 2');
+    cb.recordFailure('steam', 'err 3');
+    cb.recordFailure('steam', 'err 4');
+    expect(cb.getState('steam')).toBe('PAUSED');
+
+    // Manually force cooldownUntil to past or null to simulate legacy DB record
+    const info = (cb as any).getOrCreate('steam');
+    info.cooldownUntil = Date.now() - 1000;
+
+    const check = cb.canExecute('steam');
+    expect(check.allowed).toBe(true);
+    expect(cb.getState('steam')).toBe('COOLDOWN');
+  });
 });

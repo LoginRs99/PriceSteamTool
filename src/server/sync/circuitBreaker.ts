@@ -64,22 +64,24 @@ export class CircuitBreakerRegistry {
     }
 
     if (info.state === 'BACKOFF') {
-      if (info.cooldownUntil && now >= info.cooldownUntil) {
+      const cooldownDeadline = info.cooldownUntil ?? ((info.lastFailureTime || 0) + 30 * 1000);
+      if (now >= cooldownDeadline) {
         info.state = 'COOLDOWN'; // probe
         sourceRepo.updateCircuitState(source, 'COOLDOWN', undefined, info.consecutiveFailures, info.consecutiveRateLimits);
         return { allowed: true };
       }
-      const remainingSecs = info.cooldownUntil ? Math.max(1, Math.ceil((info.cooldownUntil - now) / 1000)) : 0;
+      const remainingSecs = Math.max(1, Math.ceil((cooldownDeadline - now) / 1000));
       return { allowed: false, reason: `Source ${source} is in BACKOFF cooldown (${remainingSecs}s remaining)` };
     }
 
     if (info.state === 'PAUSED') {
-      if (info.cooldownUntil && now >= info.cooldownUntil) {
+      const cooldownDeadline = info.cooldownUntil ?? ((info.lastFailureTime || 0) + 5 * 60 * 1000);
+      if (now >= cooldownDeadline) {
         info.state = 'COOLDOWN'; // single probe attempt
         sourceRepo.updateCircuitState(source, 'COOLDOWN', undefined, info.consecutiveFailures, info.consecutiveRateLimits);
         return { allowed: true };
       }
-      const remainingSecs = info.cooldownUntil ? Math.max(1, Math.ceil((info.cooldownUntil - now) / 1000)) : 0;
+      const remainingSecs = Math.max(1, Math.ceil((cooldownDeadline - now) / 1000));
       return { allowed: false, reason: `Source ${source} is PAUSED (${remainingSecs}s remaining)` };
     }
 

@@ -69,7 +69,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const schema = z.object({
       name: z.string().min(1),
       steamId: z.string().min(1),
-      customUrl: z.string().optional()
+      customUrl: z.string().optional(),
+      isFamily: z.boolean().optional()
     });
 
     const parsed = schema.safeParse(request.body);
@@ -83,7 +84,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       parsed.data.name,
       resolved.steamId64,
       parsed.data.customUrl,
-      resolved.avatarUrl
+      resolved.avatarUrl,
+      parsed.data.isFamily ?? false
     );
 
     return reply.status(201).send(profile);
@@ -93,6 +95,30 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const { id } = request.params as { id: string };
     profileRepo.setActive(id);
     return { success: true };
+  });
+
+  fastify.put('/api/profiles/:id/family', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = (request.body || {}) as { isFamily?: boolean };
+    const profile = profileRepo.getById(id);
+    if (!profile) return reply.status(404).send({ error: 'Profile not found' });
+    const isFamily = body.isFamily !== undefined ? Boolean(body.isFamily) : !profile.isFamily;
+    profileRepo.setFamily(id, isFamily);
+    return { success: true, isFamily };
+  });
+
+  fastify.post('/api/profiles/:id/sync-family', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const profile = profileRepo.getById(id);
+    if (!profile) return reply.status(404).send({ error: 'Profile not found' });
+
+    try {
+      const appIds = await steamAdapter.fetchOwnedGames(profile.steamId);
+      profileRepo.saveFamilyOwnedApps(id, appIds);
+      return { success: true, gameCount: appIds.length };
+    } catch (err: any) {
+      return reply.status(500).send({ error: `Failed to sync family library: ${err.message}` });
+    }
   });
 
   fastify.delete('/api/profiles/:id', async (request, reply) => {
@@ -130,6 +156,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       buyOnly: query.buyOnly === 'true' || query.buyOnly === true,
       merchantType: query.merchantType || 'all',
       hasAnomaly: query.hasAnomaly === 'true' || query.hasAnomaly === true,
+      hideUnreleased: query.hideUnreleased === 'true' || query.hideUnreleased === true,
+      hideDlcs: query.hideDlcs === 'true' || query.hideDlcs === true,
+      includeFreeGames: query.includeFreeGames === 'true' || query.includeFreeGames === true,
+      hideFamilyShared: query.hideFamilyShared === 'true' || query.hideFamilyShared === true,
       page: safeInt(query.page, 1) || 1,
       limit: Math.min(500, Math.max(1, safeInt(query.limit, 50) || 50)),
     };
