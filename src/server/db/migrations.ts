@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { BEST_DEAL_RECOMPUTE_ALL_SQL } from './core.js';
+import { calculateSteamDbRating } from '../domain/rating.js';
 
 export interface Migration {
   name: string;
@@ -194,6 +195,50 @@ export const MIGRATIONS: Migration[] = [
         );
         CREATE INDEX IF NOT EXISTS idx_family_owned_apps_app_id ON family_owned_apps(steam_app_id);
       `);
+    }
+  },
+  {
+    name: '017_add_steamdb_and_metacritic_ratings',
+    up: (db) => {
+      try { db.exec("ALTER TABLE games ADD COLUMN steamdb_rating REAL"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE games ADD COLUMN metacritic_score INTEGER"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+      try { db.exec("ALTER TABLE games ADD COLUMN metacritic_url TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) throw e; }
+
+      try {
+        const games = db.prepare(`
+          SELECT id, steam_review_percent, steam_review_total 
+          FROM games 
+          WHERE steam_review_percent IS NOT NULL AND steam_review_total IS NOT NULL
+        `).all() as Array<{ id: string; steam_review_percent: number; steam_review_total: string }>;
+
+        const updateStmt = db.prepare(`UPDATE games SET steamdb_rating = ? WHERE id = ?`);
+        for (const g of games) {
+          const rating = calculateSteamDbRating(g.steam_review_percent, g.steam_review_total);
+          if (rating !== undefined) {
+            updateStmt.run(rating, g.id);
+          }
+        }
+      } catch (err: any) {
+        console.warn('[Migration 017] SteamDB rating backfill notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '018_update_steam_cdn_image_urls',
+    up: (db) => {
+      try {
+        db.exec(`
+          UPDATE games 
+          SET header_image = 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/' || steam_app_id || '/header.jpg'
+          WHERE header_image IS NULL OR header_image LIKE '%cdn.akamai.steamstatic.com%' OR header_image LIKE '%capsule_sm_120%';
+
+          UPDATE games 
+          SET capsule_image = 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/' || steam_app_id || '/capsule_231x87.jpg'
+          WHERE capsule_image IS NULL OR capsule_image LIKE '%cdn.akamai.steamstatic.com%';
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 018] Steam CDN image URLs update notice:', err?.message);
+      }
     }
   }
 ];

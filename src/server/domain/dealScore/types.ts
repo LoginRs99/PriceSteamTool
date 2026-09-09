@@ -15,6 +15,9 @@ export const NO_HISTORY_FALLBACK_CAP = 25;         // Max score when zero histor
 export const ATL_FULL_DEPTH_RATIO = 0.35;          // ATL depth below median that earns 100% of base record bonus
 export const DATA_SUFFICIENCY_MIN_SAMPLES = 3;     // Min historical observations to establish full distribution
 export const PROVISIONAL_SCORE_CAP = 65;           // Max score when N = 1 or 2 (prevents false Exceptional on sparse data)
+export const PROVISIONAL_DEEP_DISCOUNT_CAP = 80;   // Dynamic cap for major discounts (>=45% on MSRP >= 30€)
+export const SAVINGS_TIER_HIGH_EUR = 25.0;         // €25+ absolute savings threshold (+5 score boost)
+export const SAVINGS_TIER_MASSIVE_EUR = 40.0;      // €40+ absolute savings threshold (+10 score boost)
 
 export interface DealScoreInput {
   priceEur: number;

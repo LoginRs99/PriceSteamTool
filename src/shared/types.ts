@@ -7,6 +7,7 @@ export type CircuitBreakerState = 'NORMAL' | 'BACKOFF' | 'COOLDOWN' | 'PAUSED' |
 export type CircuitState = CircuitBreakerState;
 
 export type PriceEventType = 
+  | 'PRICING_ERROR'
   | 'NEW_HISTORICAL_LOW' 
   | 'AT_HISTORICAL_LOW' 
   | 'SUSPECTED_HISTORICAL_LOW'
@@ -113,10 +114,13 @@ export interface Game {
   historicalLowDate?: string;
   historicalLowSource?: string;
   
-  // Steam Review Sentiment
+  // Steam Review Sentiment & Ratings
   steamReviewDesc?: string;
   steamReviewPercent?: number;
   steamReviewTotal?: string;
+  steamdbRating?: number;
+  metacriticScore?: number;
+  metacriticUrl?: string;
   
   // Statistical Historical Anchors
   typicalSaleMedianEur?: number;
@@ -295,6 +299,7 @@ export interface DiscordSettings {
   minConfidence?: number;
   notifyAtlOnly?: boolean;
   notifyFreeGames?: boolean;
+  notifyPricingErrors?: boolean;
   cooldownHours?: number;
 }
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Game, WishlistStatistics } from '../types.js';
+import { GameImage } from './GameImage.js';
 import { Flame, TrendingDown, ShieldCheck, Tag, Sparkles, Trophy } from 'lucide-react';
 
 interface DealsDashboardProps {
@@ -128,19 +129,11 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                   onClick={() => onSelectGame(game.id)}
                 >
                   <div className="spotlight-img-wrap">
-                    <img 
-                      src={game.capsuleImage || game.headerImage || `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/capsule_231x87.jpg`} 
+                    <GameImage
+                      game={game}
                       alt={game.title}
                       className="spotlight-img"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (!target.dataset.triedFallback) {
-                          target.dataset.triedFallback = 'true';
-                          target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
-                        }
-                      }}
+                      type="header"
                     />
                     {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
                       <span className="spotlight-discount">

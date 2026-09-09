@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import type { Game } from '../types.js';
 import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
-import { AlertTriangle, ShieldCheck, Info, Gamepad2, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
+import { GameImage } from './GameImage.js';
+import { AlertTriangle, ShieldCheck, Info, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
 
 interface GameCardProps {
   game: Game;
@@ -11,14 +12,8 @@ interface GameCardProps {
 }
 
 const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
-  const [imgError, setImgError] = useState(false);
-  const [triedFallback, setTriedFallback] = useState(false);
   const [copiedSteam, setCopiedSteam] = useState(false);
   const [copyError, setCopyError] = useState(false);
-
-  const imageUrl = game.capsuleImage || 
-    game.headerImage || 
-    `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/capsule_231x87.jpg`;
 
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isFree = game.isFree || game.bestPriceEur === 0;
@@ -30,8 +25,11 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
   // Rail color by tier / status
   const isConfirmedATL = (game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW') && !game.bestIsProvisional;
   const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
+  const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75);
 
-  const railColor = isHighRisk 
+  const railColor = isPricingError
+    ? '#ef4444'
+    : isHighRisk 
     ? 'var(--up)' 
     : isConfirmedATL 
     ? 'var(--signal)' 
@@ -42,12 +40,14 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
     : 'var(--dim)';
 
   const tierBadgeBg = 
+    isPricingError ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(220, 38, 38, 0.4) 100%)' :
     dealTier === 'Exceptional' ? 'rgba(167, 139, 250, 0.2)' : 
     dealTier === 'Great' ? 'var(--down-dim)' : 
     dealTier === 'Good' ? 'rgba(56, 189, 248, 0.15)' :
     'rgba(107, 114, 128, 0.15)';
 
   const tierBadgeColor = 
+    isPricingError ? '#f87171' :
     dealTier === 'Exceptional' ? 'var(--accent-purple)' : 
     dealTier === 'Great' ? 'var(--down)' : 
     dealTier === 'Good' ? 'var(--accent-blue)' :
@@ -75,42 +75,12 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
     <div className="game-card" onClick={onClick}>
       {/* Cover Image Container */}
       <div className="game-card-image-wrap" style={{ position: 'relative', overflow: 'hidden' }}>
-        {!imgError ? (
-          <img 
-            src={imageUrl} 
-            alt={game.title} 
-            className="game-card-image"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (!triedFallback) {
-                setTriedFallback(true);
-                target.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
-              } else {
-                setImgError(true);
-              }
-            }}
-          />
-        ) : (
-          <div 
-            className="game-card-image" 
-            style={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              background: 'linear-gradient(135deg, var(--surface-hover) 0%, var(--surface) 100%)',
-              color: 'var(--dim)',
-              gap: 6
-            }}
-          >
-            <Gamepad2 size={24} style={{ opacity: 0.6 }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '0 8px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
-              {game.title}
-            </span>
-          </div>
-        )}
+        <GameImage 
+          game={game} 
+          alt={game.title} 
+          className="game-card-image" 
+          type="header" 
+        />
 
         {/* Mini Sparkline Overlay at bottom of image */}
         <div 
@@ -137,12 +107,30 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
         />
 
         {/* Top-Left: Single Priority Flag (ATL > Target Hit > Discount) */}
-        <div className="deal-badge-cluster" style={{ position: 'absolute', top: 8, left: 8, zIndex: 3 }}>
+        <div className="deal-badge-cluster" style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
           <TickerFlag game={game} />
+          {game.isFamilyShared && (
+            <span 
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(30, 58, 138, 0.85)',
+                color: '#93c5fd',
+                border: '1px solid rgba(147, 197, 253, 0.4)',
+                backdropFilter: 'blur(4px)',
+                whiteSpace: 'nowrap'
+              }}
+              title="Owned by a member of your Steam Family Library"
+            >
+              👨‍👩‍👧 Family
+            </span>
+          )}
         </div>
 
         {/* Top-Right: Deal Score Pill (Numeric Score Only) */}
-        {hasBestDeal && dealScore > 0 && (
+        {hasBestDeal && (dealScore > 0 || isPricingError) && (
           <div 
             className="deal-score-badge"
             style={{ 
@@ -151,20 +139,23 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               right: 8,
               background: tierBadgeBg, 
               color: tierBadgeColor,
-              border: `1px solid ${tierBadgeColor}44`,
+              border: isPricingError ? '1px solid #ef4444' : `1px solid ${tierBadgeColor}44`,
               borderRadius: 'var(--radius-sm)',
               padding: '2px 7px',
               fontFamily: 'var(--font-mono)',
               fontSize: '0.75rem',
-              fontWeight: 700,
+              fontWeight: 800,
               zIndex: 3,
               cursor: onExplain ? 'pointer' : 'default',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              minWidth: 26
+              minWidth: 26,
+              boxShadow: isPricingError ? '0 0 8px rgba(239, 68, 68, 0.4)' : undefined
             }}
-            title={`Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
+            title={isPricingError 
+              ? "⚡ Lehetséges Árhiba (Pricing Error) — Azonnali vétel javasolt, mielőtt a bolt korrigálja!"
+              : `Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
             onClick={(e) => {
               if (onExplain) {
                 e.stopPropagation();
@@ -172,7 +163,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               }
             }}
           >
-            <span className="deal-score-num ticker-num">{dealScore}</span>
+            <span className="deal-score-num ticker-num">{isPricingError ? '⚡ 99' : dealScore}</span>
           </div>
         )}
 
@@ -208,9 +199,55 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
       {/* Card Content */}
       <div className="game-card-body">
         <div>
-          <h3 className="game-title" title={game.title}>
-            {game.title}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+            <h3 className="game-title" title={game.title} style={{ margin: 0, flex: 1 }}>
+              {game.title}
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginTop: 1 }}>
+              {game.steamReviewPercent !== undefined && (
+                <span 
+                  className={`steam-review-pill ${game.steamReviewPercent >= 80 ? 'positive' : game.steamReviewPercent >= 70 ? 'mixed' : 'negative'}`}
+                  title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})`}
+                >
+                  👍 {game.steamReviewPercent}%
+                </span>
+              )}
+              {game.steamdbRating !== undefined && (
+                <span 
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '1px 5px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title={`SteamDB Rating: ${game.steamdbRating}% (Bayesian review-volume weighted score)`}
+                >
+                  ⭐ {game.steamdbRating}%
+                </span>
+              )}
+              {game.metacriticScore !== undefined && (
+                <span 
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '1px 5px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.15)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: game.metacriticScore >= 75 ? '#4ade80' : game.metacriticScore >= 50 ? '#facc15' : '#f87171',
+                    border: `1px solid ${game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.3)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    whiteSpace: 'nowrap'
+                  }}
+                  title={`Metacritic Score: ${game.metacriticScore}/100`}
+                >
+                  M {game.metacriticScore}
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* Context Line: Selective Mega/Great Deal Badge & savings vs typical */}
           <div className="hist-context-line" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--dim)', marginTop: 4 }}>

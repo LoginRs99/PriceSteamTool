@@ -6,6 +6,7 @@ import { generateActionSignal } from '../../domain/actionSignal.js';
 import { generatePriceIntelligence } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource, isAggregatorSource } from '../../domain/priceIntelligence/types.js';
 import { FRESHNESS_WINDOW_MS } from '../../domain/constants.js';
+import { calculateSteamDbRating } from '../../domain/rating.js';
 import type { 
   Game, 
   WishlistFilterOptions, 
@@ -171,9 +172,15 @@ export const gameRepo = {
     steamReviewDesc?: string;
     steamReviewPercent?: number;
     steamReviewTotal?: string;
+    steamdbRating?: number;
+    metacriticScore?: number;
+    metacriticUrl?: string;
   }): Game {
     const now = new Date().toISOString();
     const slug = game.slug || game.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const calculatedSteamdbRating = game.steamdbRating !== undefined 
+      ? game.steamdbRating 
+      : (game.steamReviewPercent !== undefined && game.steamReviewTotal ? calculateSteamDbRating(game.steamReviewPercent, game.steamReviewTotal) : undefined);
     
     const existing = prepareStmt(`SELECT * FROM games WHERE steam_app_id = ?`).get(game.steamAppId) as any;
     if (existing) {
@@ -193,6 +200,9 @@ export const gameRepo = {
             steam_review_desc = COALESCE(?, steam_review_desc),
             steam_review_percent = COALESCE(?, steam_review_percent),
             steam_review_total = COALESCE(?, steam_review_total),
+            steamdb_rating = COALESCE(?, steamdb_rating),
+            metacritic_score = COALESCE(?, metacritic_score),
+            metacritic_url = COALESCE(?, metacritic_url),
             updated_at = ?
         WHERE id = ?
       `).run(
@@ -210,6 +220,9 @@ export const gameRepo = {
         game.steamReviewDesc || null,
         game.steamReviewPercent !== undefined ? game.steamReviewPercent : null,
         game.steamReviewTotal || null,
+        calculatedSteamdbRating !== undefined ? calculatedSteamdbRating : null,
+        game.metacriticScore !== undefined ? game.metacriticScore : null,
+        game.metacriticUrl || null,
         now,
         existing.id
       );
@@ -232,6 +245,9 @@ export const gameRepo = {
         steamReviewDesc: game.steamReviewDesc || existing.steam_review_desc || undefined,
         steamReviewPercent: game.steamReviewPercent !== undefined ? game.steamReviewPercent : (existing.steam_review_percent !== null && existing.steam_review_percent !== undefined ? Number(existing.steam_review_percent) : undefined),
         steamReviewTotal: game.steamReviewTotal || existing.steam_review_total || undefined,
+        steamdbRating: calculatedSteamdbRating !== undefined ? calculatedSteamdbRating : (existing.steamdb_rating !== null && existing.steamdb_rating !== undefined ? Number(existing.steamdb_rating) : undefined),
+        metacriticScore: game.metacriticScore !== undefined ? game.metacriticScore : (existing.metacritic_score !== null && existing.metacritic_score !== undefined ? Number(existing.metacritic_score) : undefined),
+        metacriticUrl: game.metacriticUrl || existing.metacritic_url || undefined,
         hasAnomaly: false,
         offersCount: 0,
         createdAt: existing.created_at,
@@ -241,8 +257,8 @@ export const gameRepo = {
 
     const id = randomUUID();
     prepareStmt(`
-      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, historical_low_eur, historical_low_date, historical_low_source, steam_review_desc, steam_review_percent, steam_review_total, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, historical_low_eur, historical_low_date, historical_low_source, steam_review_desc, steam_review_percent, steam_review_total, steamdb_rating, metacritic_score, metacritic_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       game.steamAppId,
@@ -261,6 +277,9 @@ export const gameRepo = {
       game.steamReviewDesc || null,
       game.steamReviewPercent !== undefined ? game.steamReviewPercent : null,
       game.steamReviewTotal || null,
+      calculatedSteamdbRating !== undefined ? calculatedSteamdbRating : null,
+      game.metacriticScore !== undefined ? game.metacriticScore : null,
+      game.metacriticUrl || null,
       now,
       now
     );
@@ -280,6 +299,9 @@ export const gameRepo = {
       steamReviewDesc: game.steamReviewDesc,
       steamReviewPercent: game.steamReviewPercent,
       steamReviewTotal: game.steamReviewTotal,
+      steamdbRating: calculatedSteamdbRating,
+      metacriticScore: game.metacriticScore,
+      metacriticUrl: game.metacriticUrl,
       hasAnomaly: false,
       offersCount: 0,
       createdAt: now,
@@ -342,6 +364,9 @@ export const gameRepo = {
     isFree?: boolean;
     basePriceEur?: number;
     itadId?: string;
+    steamdbRating?: number;
+    metacriticScore?: number;
+    metacriticUrl?: string;
   }): void {
     const validTitle = details.title && !details.title.startsWith('App ') ? details.title : null;
     const slug = validTitle 
@@ -358,6 +383,9 @@ export const gameRepo = {
         is_free = CASE WHEN ? IS NOT NULL THEN ? ELSE is_free END,
         base_price_eur = COALESCE(?, base_price_eur),
         itad_id = COALESCE(?, itad_id),
+        steamdb_rating = COALESCE(?, steamdb_rating),
+        metacritic_score = COALESCE(?, metacritic_score),
+        metacritic_url = COALESCE(?, metacritic_url),
         updated_at = ?
       WHERE steam_app_id = ?
     `).run(
@@ -372,6 +400,9 @@ export const gameRepo = {
       details.isFree !== undefined ? (details.isFree ? 1 : 0) : null,
       details.basePriceEur !== undefined ? details.basePriceEur : null,
       details.itadId || null,
+      details.steamdbRating !== undefined ? details.steamdbRating : null,
+      details.metacriticScore !== undefined ? details.metacriticScore : null,
+      details.metacriticUrl || null,
       new Date().toISOString(),
       steamAppId
     );
@@ -733,6 +764,9 @@ export const gameRepo = {
     reviewDesc?: string;
     reviewsPercent?: number;
     reviewsTotal?: string;
+    steamdbRating?: number;
+    metacriticScore?: number;
+    metacriticUrl?: string;
   }[]): void {
     const db = getDb();
     const now = new Date().toISOString();
@@ -740,8 +774,8 @@ export const gameRepo = {
     const stmtDeactivate = prepareStmt(`UPDATE wishlist_entries SET is_active = 0 WHERE profile_id = ?`);
     const stmtFindGame = prepareStmt(`SELECT id, title, slug, header_image, base_price_eur FROM games WHERE steam_app_id = ?`);
     const stmtInsertGame = prepareStmt(`
-      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, steam_review_desc, steam_review_percent, steam_review_total, created_at, updated_at)
-      VALUES (?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO games (id, steam_app_id, itad_id, title, slug, header_image, capsule_image, release_date, is_dlc, is_free, base_price_eur, steam_review_desc, steam_review_percent, steam_review_total, steamdb_rating, metacritic_score, metacritic_url, created_at, updated_at)
+      VALUES (?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stmtUpdateGame = prepareStmt(`
       UPDATE games SET
@@ -756,6 +790,9 @@ export const gameRepo = {
         steam_review_desc = COALESCE(?, games.steam_review_desc),
         steam_review_percent = COALESCE(?, games.steam_review_percent),
         steam_review_total = COALESCE(?, games.steam_review_total),
+        steamdb_rating = COALESCE(?, games.steamdb_rating),
+        metacritic_score = COALESCE(?, games.metacritic_score),
+        metacritic_url = COALESCE(?, games.metacritic_url),
         updated_at = ?
       WHERE id = ?
     `);
@@ -775,6 +812,9 @@ export const gameRepo = {
       for (const item of items) {
         const slug = item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const existing = stmtFindGame.get(item.steamAppId) as any;
+        const steamdbRating = item.steamdbRating !== undefined 
+          ? item.steamdbRating 
+          : (item.reviewsPercent !== undefined && item.reviewsTotal ? calculateSteamDbRating(item.reviewsPercent, item.reviewsTotal) : undefined);
         let gameId: string;
 
         if (existing) {
@@ -791,6 +831,9 @@ export const gameRepo = {
             item.reviewDesc || null,
             item.reviewsPercent !== undefined ? item.reviewsPercent : null,
             item.reviewsTotal || null,
+            steamdbRating !== undefined ? steamdbRating : null,
+            item.metacriticScore !== undefined ? item.metacriticScore : null,
+            item.metacriticUrl || null,
             now,
             gameId
           );
@@ -810,6 +853,9 @@ export const gameRepo = {
             item.reviewDesc || null,
             item.reviewsPercent !== undefined ? item.reviewsPercent : null,
             item.reviewsTotal || null,
+            steamdbRating !== undefined ? steamdbRating : null,
+            item.metacriticScore !== undefined ? item.metacriticScore : null,
+            item.metacriticUrl || null,
             now,
             now
           );
@@ -987,6 +1033,9 @@ function mapGameRow(r: any): Game {
     steamReviewDesc: r.steam_review_desc || undefined,
     steamReviewPercent: r.steam_review_percent !== null && r.steam_review_percent !== undefined ? Number(r.steam_review_percent) : undefined,
     steamReviewTotal: r.steam_review_total || undefined,
+    steamdbRating: r.steamdb_rating !== null && r.steamdb_rating !== undefined ? Number(r.steamdb_rating) : undefined,
+    metacriticScore: r.metacritic_score !== null && r.metacritic_score !== undefined ? Number(r.metacritic_score) : undefined,
+    metacriticUrl: r.metacritic_url || undefined,
     typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : undefined,
     typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
     typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,

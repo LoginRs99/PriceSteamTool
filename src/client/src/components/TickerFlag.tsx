@@ -15,6 +15,30 @@ const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', 
   const isTargetPending = game.targetPriceEur !== undefined && (!hasBestDeal || game.bestPriceEur! > game.targetPriceEur);
   const discount = game.bestDiscountPercent ?? 0;
 
+  const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (
+    (game.bestRiskLevel === 'HIGH' || game.hasAnomaly) && (game.bestDiscountPercent ?? 0) >= 75
+  );
+
+  // Priority 0: Glitch Hunter / Pricing Error (Highest Urgency)
+  if (isPricingError) {
+    return (
+      <span 
+        className={`ticker-flag ${className}`} 
+        style={{ 
+          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', 
+          color: '#fff', 
+          border: '1px solid #f87171',
+          fontWeight: 800,
+          boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)',
+          ...style 
+        }} 
+        title="⚡ Pricing Error / Glitch Deal — Azonnali vétel javasolt, mielőtt korrigálják!"
+      >
+        <span>⚡ GLITCH</span>
+      </span>
+    );
+  }
+
   // Priority 1: All-Time-Low
   if (isConfirmedATL) {
     return (

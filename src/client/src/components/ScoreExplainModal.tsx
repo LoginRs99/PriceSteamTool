@@ -68,6 +68,23 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             </div>
           </div>
 
+          {/* Pricing Error / Glitch Alert Banner */}
+          {(game.bestPriceEvent === 'PRICING_ERROR' || ((game.bestRiskLevel === 'HIGH' || game.hasAnomaly) && (game.bestDiscountPercent ?? 0) >= 75)) ? (
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>⚡</span>
+              <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
+                <strong>⚡ Lehetséges Árhiba (Pricing Error)!</strong> Az ajánlat extrém módon olcsóbb a piaci mediánnál és a többi boltnál. Ha valódi árhiba, a bolt hamarosan javíthatja vagy törölheti — érdemes azonnal lecsapni rá, ha érdekel a játék!
+              </div>
+            </div>
+          ) : (game.bestRiskLevel === 'HIGH' || game.hasAnomaly) ? (
+            <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
+                <strong>Védelmi áranomália elnyomás:</strong> Az észlelt legolcsóbb ár elszigetelt, ellenőrizetlen érték az aggregátornál. A félrevezetés megelőzése érdekében a Deal Score nem jelenik meg normál akcióként, amíg legalább egy másik független forrás meg nem erősíti.
+              </div>
+            </div>
+          ) : null}
+
           {/* Provisional Guard Warning if active */}
           {isProvisional && (
             <div style={{ background: 'var(--signal-dim)', border: '1px solid rgba(251, 191, 36, 0.3)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>

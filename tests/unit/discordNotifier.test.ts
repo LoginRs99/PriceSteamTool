@@ -268,6 +268,49 @@ describe('Discord Notifier Service', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('should fast-track glitch hunter alerts for pricing errors when notifyPricingErrors is enabled', async () => {
+    saveDiscordSettings({
+      webhookUrl: 'https://discord.com/api/webhooks/mock/deals',
+      isEnabled: true,
+      minDealScore: 75,
+      minConfidence: 40,
+      notifyAtlOnly: false,
+      notifyFreeGames: false,
+      notifyPricingErrors: true,
+      cooldownHours: 24
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    gameRepo.upsert({ steamAppId: 4002, title: 'Glitch Hunter Game', slug: 'glitch-hunter-game' });
+    const inserted = gameRepo.getBySteamAppId(4002)!;
+
+    const glitchGame: Game = {
+      id: inserted.id,
+      steamAppId: 4002,
+      title: 'Glitch Hunter Game',
+      slug: 'glitch-hunter-game',
+      isDlc: false,
+      isFree: false,
+      hasAnomaly: true,
+      bestRiskLevel: 'HIGH',
+      bestPriceEvent: 'PRICING_ERROR',
+      offersCount: 1,
+      bestPriceEur: 0.99,
+      basePriceEur: 59.99,
+      bestDiscountPercent: 98,
+      bestDealScore: 99,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const { sentCount } = await sendDealNotifications([glitchGame], 'TEST');
+    expect(sentCount).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('should format provisional deals cleanly without claiming verified ATL status', async () => {
     saveDiscordSettings({
       webhookUrl: 'https://discord.com/api/webhooks/mock/deals',

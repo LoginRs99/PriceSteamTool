@@ -2,7 +2,8 @@ import React from 'react';
 import type { Game } from '../types.js';
 import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
-import { ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { GameImage } from './GameImage.js';
+import { ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 
 interface DenseTableViewProps {
   games: Game[];
@@ -115,7 +116,6 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
               'rgba(107, 114, 128, 0.15)';
 
             const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
-            const capsuleUrl = game.capsuleImage || (game.steamAppId ? `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${game.steamAppId}/capsule_sm_120.jpg` : undefined);
 
             return (
               <tr 
@@ -131,15 +131,12 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                 {/* 2. Capsule + Title & Flag */}
                 <td className="cell-title">
                   <div className="table-title-wrap">
-                    {capsuleUrl && (
-                      <img 
-                        src={capsuleUrl} 
-                        alt="" 
-                        className="table-capsule-img" 
-                        loading="lazy"
-                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
-                      />
-                    )}
+                    <GameImage
+                      game={game}
+                      alt=""
+                      className="table-capsule-img"
+                      type="capsule"
+                    />
                     <div className="table-title-inner">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="table-game-title">{game.title}</span>
@@ -166,6 +163,40 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                             title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})`}
                           >
                             👍 {game.steamReviewPercent}%
+                          </span>
+                        )}
+                        {game.steamdbRating !== undefined && (
+                          <span 
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'rgba(56, 189, 248, 0.12)',
+                              color: '#38bdf8',
+                              border: '1px solid rgba(56, 189, 248, 0.3)',
+                              whiteSpace: 'nowrap'
+                            }}
+                            title={`SteamDB Rating: ${game.steamdbRating}% (Bayesian review-volume weighted score)`}
+                          >
+                            ⭐ {game.steamdbRating}%
+                          </span>
+                        )}
+                        {game.metacriticScore !== undefined && (
+                          <span 
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: '1px 5px',
+                              borderRadius: 'var(--radius-sm)',
+                              background: game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.15)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                              color: game.metacriticScore >= 75 ? '#4ade80' : game.metacriticScore >= 50 ? '#facc15' : '#f87171',
+                              border: `1px solid ${game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.3)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                              whiteSpace: 'nowrap'
+                            }}
+                            title={`Metacritic Critic Score: ${game.metacriticScore}/100`}
+                          >
+                            M {game.metacriticScore}
                           </span>
                         )}
                       </div>
@@ -231,7 +262,60 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
 
                 {/* 7. Deal Score */}
                 <td className="cell-score">
-                  {hasBestDeal && dealScore > 0 && !isHighRisk ? (
+                  {game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75) ? (
+                    <span 
+                      className="score-chip-sm ticker-num"
+                      style={{ 
+                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.3) 100%)', 
+                        color: '#f87171', 
+                        border: '1px solid rgba(239, 68, 68, 0.5)',
+                        cursor: onExplain ? 'pointer' : 'default',
+                        padding: '2px 6px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontWeight: 800,
+                        fontSize: '0.72rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        boxShadow: '0 0 6px rgba(239, 68, 68, 0.25)'
+                      }}
+                      title="⚡ Lehetséges Árhiba (Pricing Error) — Azonnali vétel javasolt, mielőtt a bolt korrigálja!"
+                      onClick={(e) => {
+                        if (onExplain) {
+                          e.stopPropagation();
+                          onExplain(game);
+                        }
+                      }}
+                    >
+                      ⚡ GLITCH 99
+                    </span>
+                  ) : isHighRisk ? (
+                    <span 
+                      className="score-chip-sm ticker-num"
+                      style={{ 
+                        background: 'rgba(245, 158, 11, 0.15)', 
+                        color: '#f59e0b', 
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        cursor: onExplain ? 'pointer' : 'default',
+                        padding: '2px 6px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontWeight: 700,
+                        fontSize: '0.72rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3
+                      }}
+                      title="Gyanús áranomália vagy elszigetelt kiugró ár — védelmi okokból elnyomva"
+                      onClick={(e) => {
+                        if (onExplain) {
+                          e.stopPropagation();
+                          onExplain(game);
+                        }
+                      }}
+                    >
+                      <AlertTriangle size={11} /> Áranomália
+                    </span>
+                  ) : hasBestDeal && dealScore > 0 ? (
                     <span 
                       className="score-chip-sm ticker-num"
                       style={{ 
@@ -254,8 +338,12 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                     >
                       {dealScore} • {dealTier}
                     </span>
+                  ) : isFree ? (
+                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Ingyenes játék">Ingyenes</span>
+                  ) : hasBestDeal ? (
+                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Nincs aktív leárazás (teljes ár)">Nincs akció</span>
                   ) : (
-                    <span className="text-dim">—</span>
+                    <span className="text-dim" style={{ fontSize: '0.75rem' }} title="Árszinkronizálásra vár">—</span>
                   )}
                 </td>
 

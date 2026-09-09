@@ -281,7 +281,10 @@ export class SyncOrchestrator {
         basePriceEur: item.basePriceEur,
         reviewDesc: item.reviewDesc,
         reviewsPercent: item.reviewsPercent,
-        reviewsTotal: item.reviewsTotal
+        reviewsTotal: item.reviewsTotal,
+        steamdbRating: item.steamdbRating,
+        metacriticScore: item.metacriticScore,
+        metacriticUrl: item.metacriticUrl
       })));
 
       // Step 3: Check TTL Cache
@@ -353,9 +356,16 @@ export class SyncOrchestrator {
                   releaseDate: details.releaseDate,
                   isDlc: details.isDlc,
                   isFree: details.isFree,
-                  basePriceEur: details.basePriceEur
+                  basePriceEur: details.basePriceEur,
+                  metacriticScore: details.metacriticScore,
+                  metacriticUrl: details.metacriticUrl
                 });
                 g.title = details.title;
+              } else if (details && (details.metacriticScore !== undefined || details.metacriticUrl)) {
+                gameRepo.updateMetadata(g.steamAppId, {
+                  metacriticScore: details.metacriticScore,
+                  metacriticUrl: details.metacriticUrl
+                });
               }
 
               this.ingestOffer(g.id, 'steam', offer);

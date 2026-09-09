@@ -89,6 +89,73 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
                 </span>
               )}
 
+              {game.steamdbRating != null && (
+                <span
+                  className="steamdb-rating-pill"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                  title={`SteamDB Rating: ${game.steamdbRating}% (Bayesian review-volume weighted rating — protects against review bombing and small sample bias)`}
+                >
+                  ⭐ {game.steamdbRating}% SteamDB
+                </span>
+              )}
+
+              {game.metacriticScore != null && (
+                game.metacriticUrl ? (
+                  <a
+                    href={game.metacriticUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="metacritic-pill"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.18)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.18)' : 'rgba(239, 68, 68, 0.18)',
+                      color: game.metacriticScore >= 75 ? '#4ade80' : game.metacriticScore >= 50 ? '#facc15' : '#f87171',
+                      border: `1px solid ${game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.35)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      textDecoration: 'none'
+                    }}
+                    title={`Metacritic Score: ${game.metacriticScore}/100 (Official Critic Consensus — click to view reviews)`}
+                  >
+                    <span style={{ fontWeight: 900, background: 'currentColor', color: '#000', borderRadius: 2, padding: '0 3px', fontSize: 10 }}>M</span> {game.metacriticScore} <ExternalLink size={10} />
+                  </a>
+                ) : (
+                  <span
+                    className="metacritic-pill"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.18)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.18)' : 'rgba(239, 68, 68, 0.18)',
+                      color: game.metacriticScore >= 75 ? '#4ade80' : game.metacriticScore >= 50 ? '#facc15' : '#f87171',
+                      border: `1px solid ${game.metacriticScore >= 75 ? 'rgba(34, 197, 94, 0.35)' : game.metacriticScore >= 50 ? 'rgba(234, 179, 8, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                    title={`Metacritic Score: ${game.metacriticScore}/100 (Official Critic Consensus)`}
+                  >
+                    <span style={{ fontWeight: 900, background: 'currentColor', color: '#000', borderRadius: 2, padding: '0 3px', fontSize: 10 }}>M</span> {game.metacriticScore}
+                  </span>
+                )
+              )}
+
               <button
                 type="button"
                 className="btn btn-outline"

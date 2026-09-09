@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Game } from '../types.js';
+import { GameImage } from './GameImage.js';
 import { Sparkles, ExternalLink, Play, Search } from 'lucide-react';
 
 interface FreeGamesViewProps {
@@ -71,21 +72,17 @@ export const FreeGamesView: React.FC<FreeGamesViewProps> = ({
             </thead>
             <tbody>
               {filteredGames.map(game => {
-                const capsuleUrl = game.capsuleImage || (game.steamAppId ? `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${game.steamAppId}/capsule_sm_120.jpg` : undefined);
                 return (
                   <tr key={game.id} className="dense-table-row" onClick={() => onGameClick(game)}>
                     <td className="cell-priority">#{game.priority ?? '—'}</td>
                     <td className="cell-title">
                       <div className="table-title-wrap">
-                        {capsuleUrl && (
-                          <img 
-                            src={capsuleUrl} 
-                            alt="" 
-                            className="table-capsule-img" 
-                            loading="lazy"
-                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
-                          />
-                        )}
+                        <GameImage
+                          game={game}
+                          alt=""
+                          className="table-capsule-img"
+                          type="capsule"
+                        />
                         <span className="table-game-title">{game.title}</span>
                       </div>
                     </td>

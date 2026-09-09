@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { convertToEur } from '../domain/normalizer.js';
 import { exchangeRateService } from '../domain/exchangeRate.js';
+import { calculateSteamDbRating } from '../domain/rating.js';
 
 export interface SteamWishlistItem {
   steamAppId: number;
@@ -23,6 +24,9 @@ export interface SteamWishlistItem {
   reviewDesc?: string;
   reviewsPercent?: number;
   reviewsTotal?: string;
+  steamdbRating?: number;
+  metacriticScore?: number;
+  metacriticUrl?: string;
 }
 
 export interface SteamAppDetails {
@@ -39,6 +43,8 @@ export interface SteamAppDetails {
   basePriceEur?: number;
   currentPriceEur?: number;
   discountPercent: number;
+  metacriticScore?: number;
+  metacriticUrl?: string;
 }
 
 const STEAM_STORE_HEADERS = {
@@ -183,8 +189,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             const infoObj = info as any;
             const isFree = Boolean(infoObj.free);
             const title = infoObj.name || `App ${appId}`;
-            const headerImage = infoObj.caps || `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`;
-            const capsuleImage = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/capsule_231x87.jpg`;
+            const headerImage = `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
+            const capsuleImage = infoObj.caps || `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/capsule_231x87.jpg`;
             const priority = Number(infoObj.priority ?? 0);
             const dateAdded = infoObj.added ? new Date(infoObj.added * 1000).toISOString() : undefined;
             const releaseDate = infoObj.release_date || undefined;
@@ -232,6 +238,11 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             const reviewsTotal = (infoObj.reviews_total !== undefined && infoObj.reviews_total !== null)
               ? String(infoObj.reviews_total)
               : undefined;
+            const steamdbRating = calculateSteamDbRating(reviewsPercent, reviewsTotal);
+            const metacriticScore = (infoObj.metacritic_score !== undefined && infoObj.metacritic_score !== null)
+              ? Number(infoObj.metacritic_score)
+              : (infoObj.metacritic?.score !== undefined && infoObj.metacritic?.score !== null ? Number(infoObj.metacritic.score) : undefined);
+            const metacriticUrl = infoObj.metacritic?.url || infoObj.metacritic_url || undefined;
 
             items.push({
               steamAppId: appId,
@@ -251,7 +262,10 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
               discountPercent,
               reviewDesc,
               reviewsPercent,
-              reviewsTotal
+              reviewsTotal,
+              steamdbRating,
+              metacriticScore,
+              metacriticUrl
             });
           }
 
@@ -280,8 +294,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             title: `App ${item.appid}`,
             priority: Number(item.priority ?? 0),
             dateAdded: item.date_added ? new Date(item.date_added * 1000).toISOString() : undefined,
-            headerImage: `https://cdn.akamai.steamstatic.com/steam/apps/${item.appid}/header.jpg`,
-            capsuleImage: `https://cdn.akamai.steamstatic.com/steam/apps/${item.appid}/capsule_231x87.jpg`,
+            headerImage: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${item.appid}/header.jpg`,
+            capsuleImage: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${item.appid}/capsule_231x87.jpg`,
             isDlc: false,
             isFree: false,
             discountPercent: 0
@@ -307,7 +321,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
    */
   public async fetchAppDetails(steamAppId: number): Promise<SteamAppDetails | null> {
     return this.queue.enqueue(async () => {
-      const url = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&cc=${config.preferredCountry.toLowerCase()}&filters=basic,price_overview`;
+      const url = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&cc=${config.preferredCountry.toLowerCase()}&filters=basic,price_overview,metacritic`;
       const data: any = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
 
       const entry = data?.[String(steamAppId)];
@@ -349,11 +363,16 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
         currentPriceEur = 0;
       }
 
+      const metacriticScore = (g.metacritic?.score !== undefined && g.metacritic?.score !== null)
+        ? Number(g.metacritic.score)
+        : undefined;
+      const metacriticUrl = g.metacritic?.url || undefined;
+
       return {
         steamAppId,
         title: g.name || `App ${steamAppId}`,
-        headerImage: g.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/header.jpg`,
-        capsuleImage: `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/capsule_231x87.jpg`,
+        headerImage: g.header_image || `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${steamAppId}/header.jpg`,
+        capsuleImage: g.capsule_image || `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${steamAppId}/capsule_231x87.jpg`,
         releaseDate: g.release_date?.date || undefined,
         isDlc: g.type === 'dlc',
         isFree,
@@ -362,7 +381,9 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
         rawOriginalPrice,
         basePriceEur,
         currentPriceEur,
-        discountPercent
+        discountPercent,
+        metacriticScore,
+        metacriticUrl
       };
     });
   }

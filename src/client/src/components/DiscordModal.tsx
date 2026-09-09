@@ -14,6 +14,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
   const [minConfidence, setMinConfidence] = useState(40);
   const [notifyAtlOnly, setNotifyAtlOnly] = useState(false);
   const [notifyFreeGames, setNotifyFreeGames] = useState(true);
+  const [notifyPricingErrors, setNotifyPricingErrors] = useState(true);
   const [cooldownHours, setCooldownHours] = useState(24);
 
   const [loading, setLoading] = useState(false);
@@ -47,6 +48,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
       setMinConfidence((data as any).minConfidence ?? 40);
       setNotifyAtlOnly(data.notifyAtlOnly ?? false);
       setNotifyFreeGames(data.notifyFreeGames ?? true);
+      setNotifyPricingErrors((data as any).notifyPricingErrors ?? true);
       setCooldownHours(data.cooldownHours ?? 24);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to load Discord settings');
@@ -67,6 +69,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
         minConfidence,
         notifyAtlOnly,
         notifyFreeGames,
+        notifyPricingErrors,
         cooldownHours
       } as any);
       setSaveSuccess(true);
@@ -270,6 +273,21 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
                   <span>100% Free Game Promotions</span>
                 </div>
                 <div className="checkbox-desc">Always send an instant alert if a game on your wishlist becomes free (100% off)</div>
+              </div>
+            </label>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={notifyPricingErrors}
+                onChange={e => setNotifyPricingErrors(e.target.checked)}
+              />
+              <div className="checkbox-content">
+                <div className="checkbox-title">
+                  <span style={{ fontSize: '0.95rem' }}>⚡</span>
+                  <span>Glitch Hunter (Pricing Errors)</span>
+                </div>
+                <div className="checkbox-desc">Instant push alert for potential store pricing mistakes (&ge;75% drops or sub-euro glitches)</div>
               </div>
             </label>
           </div>

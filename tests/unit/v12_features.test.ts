@@ -239,7 +239,7 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
 
     expect(bestDeals.length).toBe(3);
     expect(bestDeals[0].bestDealScore).toBeGreaterThanOrEqual(65);
-    expect(['Good', 'Exceptional']).toContain(bestDeals[0].bestDealTier);
+    expect(['Good', 'Great', 'Exceptional']).toContain(bestDeals[0].bestDealTier);
   });
 
   it('filters wishlist games accurately by majorDealsOnly, allTimeLowOnly, and trustedOnly', () => {

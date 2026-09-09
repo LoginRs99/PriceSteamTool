@@ -9,17 +9,23 @@ import { useFilterState } from './filter/useFilterState.js';
 import { QuickFilterPills } from './filter/QuickFilterPills.js';
 import { AdvancedFiltersDrawer } from './filter/AdvancedFiltersDrawer.js';
 import { ActiveFilterBadges } from './filter/ActiveFilterBadges.js';
+import { ViewModeToggle } from './filter/ViewModeToggle.js';
+import type { ViewMode } from '../types.js';
 
 interface FilterBarProps {
   filters: WishlistFilterOptions;
   totalGames: number;
   onFilterChange: (newFilters: Partial<WishlistFilterOptions>) => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
   totalGames,
   onFilterChange,
+  viewMode = 'table',
+  onViewModeChange
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const {
@@ -125,6 +131,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <option value="100">100 / page</option>
             <option value="200">200 / page</option>
           </select>
+
+          {/* View Mode Switcher (Cards / Compact List / Dense Table) */}
+          {onViewModeChange && (
+            <ViewModeToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
+          )}
         </div>
       </div>
 

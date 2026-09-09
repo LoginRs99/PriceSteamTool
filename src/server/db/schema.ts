@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS games (
   steam_review_desc TEXT,
   steam_review_percent INTEGER,
   steam_review_total TEXT,
+  steamdb_rating REAL,
+  metacritic_score INTEGER,
+  metacritic_url TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

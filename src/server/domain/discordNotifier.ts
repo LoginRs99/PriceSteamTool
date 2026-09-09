@@ -11,6 +11,7 @@ export interface DiscordSettings {
   minConfidence: number;
   notifyAtlOnly: boolean;
   notifyFreeGames: boolean;
+  notifyPricingErrors?: boolean;
   cooldownHours: number;
 }
 
@@ -53,6 +54,11 @@ export function getDiscordSettings(maskUrl = false): DiscordSettings {
     ? freeFromDb === 'true' 
     : (process.env.DISCORD_NOTIFY_FREE_GAMES !== 'false');
 
+  const pricingErrorsFromDb = settingsRepo.get('discord_notify_pricing_errors');
+  const notifyPricingErrors = pricingErrorsFromDb !== undefined
+    ? pricingErrorsFromDb === 'true'
+    : (process.env.DISCORD_NOTIFY_PRICING_ERRORS === 'true');
+
   const cooldownFromDb = settingsRepo.get('discord_cooldown_hours');
   const cooldownHours = cooldownFromDb !== undefined 
     ? parseInt(cooldownFromDb, 10) 
@@ -67,6 +73,7 @@ export function getDiscordSettings(maskUrl = false): DiscordSettings {
     minConfidence: isNaN(minConfidence) ? 40 : Math.max(0, Math.min(100, minConfidence)),
     notifyAtlOnly,
     notifyFreeGames,
+    notifyPricingErrors,
     cooldownHours: isNaN(cooldownHours) ? 24 : Math.max(1, cooldownHours)
   };
 }
@@ -93,6 +100,9 @@ export function saveDiscordSettings(settings: Partial<DiscordSettings>): Discord
   }
   if (settings.notifyFreeGames !== undefined) {
     settingsRepo.set('discord_notify_free_games', settings.notifyFreeGames ? 'true' : 'false');
+  }
+  if (settings.notifyPricingErrors !== undefined) {
+    settingsRepo.set('discord_notify_pricing_errors', settings.notifyPricingErrors ? 'true' : 'false');
   }
   if (settings.cooldownHours !== undefined) {
     settingsRepo.set('discord_cooldown_hours', String(settings.cooldownHours));
@@ -220,8 +230,15 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       continue;
     }
 
-    // 0.1 High Risk & Anomaly Exclusion Guard
-    if (game.hasAnomaly || game.bestRiskLevel === 'HIGH') {
+    // 0.1 High Risk & Anomaly Guard:
+    // Normal high-risk offers (unverified slight shifts, dubious single-source small drops) are suppressed.
+    // HOWEVER: True Pricing Errors (PRICING_ERROR event, >=75% discount or sub-euro glitch) can be FAST-TRACKED
+    // as Glitch Hunter alerts when notifyPricingErrors is enabled!
+    const isPricingErrorAlert = Boolean(settings.notifyPricingErrors) && 
+      (game.bestPriceEvent === 'PRICING_ERROR' || (game.bestDiscountPercent && game.bestDiscountPercent >= 75)) && 
+      (game.hasAnomaly || game.bestRiskLevel === 'HIGH');
+
+    if ((game.hasAnomaly || game.bestRiskLevel === 'HIGH') && !isPricingErrorAlert) {
       continue;
     }
 
@@ -281,7 +298,10 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     let embedColor = 0x3498DB; // Default Blue
     let headline = '🏷️ **New Sale Price on Your Wishlist**';
 
-    if (hasTargetHit) {
+    if (isPricingErrorAlert) {
+      embedColor = 0xFF0033; // Urgent Crimson Red
+      headline = '🚨 **GLITCH HUNTER: Potential Pricing Error Detected!**';
+    } else if (hasTargetHit) {
       embedColor = 0x00BFFF; // Deep Sky Blue / Target Cyan
       headline = `🎯 **Target Price Reached! (Target: €${game.targetPriceEur!.toFixed(2)})**`;
     } else if (isQualifyingFreeGame) {

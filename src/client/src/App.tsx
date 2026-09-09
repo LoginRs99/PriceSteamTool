@@ -1,13 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { 
   Game, 
-  MainTab 
+  MainTab,
+  ViewMode 
 } from './types.js';
 import { Navbar } from './components/Navbar.js';
 import { SyncBanner } from './components/SyncBanner.js';
 import { DealsDashboard } from './components/DealsDashboard.js';
 import { FilterBar } from './components/FilterBar.js';
 import { DenseTableView } from './components/DenseTableView.js';
+import { CompactListView } from './components/CompactListView.js';
+import { GameCard } from './components/GameCard.js';
+import { ViewModeToggle } from './components/filter/ViewModeToggle.js';
 import { FreeGamesView } from './components/FreeGamesView.js';
 import { GameDetailModal } from './components/GameDetailModal.js';
 import { ProfileModal } from './components/ProfileModal.js';
@@ -16,7 +20,7 @@ import { AnomaliesView } from './components/AnomaliesView.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
 import { ScoreExplainModal } from './components/ScoreExplainModal.js';
-import { DenseTableSkeleton } from './components/skeletons/index.js';
+import { DenseTableSkeleton, GameCardSkeleton, CompactListSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -43,6 +47,24 @@ export const App: React.FC = () => {
 
   // Navigation Tabs
   const [mainTab, setMainTab] = useState<MainTab>('wishlist');
+
+  // View Mode: grid (cards), list (compact), or table (dense)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      return (localStorage.getItem('pricetool_view_mode') as ViewMode) || 'table';
+    } catch {
+      return 'table';
+    }
+  });
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('pricetool_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
 
   // Wishlist Games & Filtering
   const {
@@ -242,6 +264,8 @@ export const App: React.FC = () => {
                 filters={filters}
                 totalGames={totalGames}
                 onFilterChange={updateFilters}
+                viewMode={viewMode}
+                onViewModeChange={handleViewModeChange}
               />
 
               {gamesError && (
@@ -274,7 +298,17 @@ export const App: React.FC = () => {
               )}
 
               {loading && games.length === 0 ? (
-                <DenseTableSkeleton rows={10} />
+                viewMode === 'grid' ? (
+                  <div className="games-grid">
+                    <GameCardSkeleton count={filters.limit || 24} />
+                  </div>
+                ) : viewMode === 'list' ? (
+                  <div className="compact-list-container">
+                    <CompactListSkeleton rows={filters.limit || 24} />
+                  </div>
+                ) : (
+                  <DenseTableSkeleton rows={10} />
+                )
               ) : !loading && games.length === 0 ? (
                 <div className="empty-state">
                   <Gamepad2 size={40} color="var(--text-muted)" />
@@ -292,13 +326,32 @@ export const App: React.FC = () => {
                 </div>
               ) : (
                 <div style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s ease' }}>
-                  <DenseTableView
-                    games={games}
-                    onGameClick={(game) => setSelectedGameId(game.id)}
-                    onExplain={(g) => setExplainGame(g)}
-                    currentSort={filters.sort}
-                    onSortChange={(sort) => updateFilters({ sort, page: 1 })}
-                  />
+                  {viewMode === 'grid' ? (
+                    <div className="games-grid">
+                      {games.map(game => (
+                        <GameCard
+                          key={game.id}
+                          game={game}
+                          onClick={() => setSelectedGameId(game.id)}
+                          onExplain={(g) => setExplainGame(g)}
+                        />
+                      ))}
+                    </div>
+                  ) : viewMode === 'list' ? (
+                    <CompactListView
+                      games={games}
+                      onGameClick={(game) => setSelectedGameId(game.id)}
+                      onExplain={(g) => setExplainGame(g)}
+                    />
+                  ) : (
+                    <DenseTableView
+                      games={games}
+                      onGameClick={(game) => setSelectedGameId(game.id)}
+                      onExplain={(g) => setExplainGame(g)}
+                      currentSort={filters.sort}
+                      onSortChange={(sort) => updateFilters({ sort, page: 1 })}
+                    />
+                  )}
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
@@ -370,7 +423,7 @@ export const App: React.FC = () => {
           {/* TAB 3: TOP BEST DEALS SHOWCASE */}
           {mainTab === 'deals' && (
             <div className="best-deals-tab-view">
-              <div className="deals-header" style={{ marginBottom: 16 }}>
+              <div className="deals-header" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Flame size={20} color="#f59e0b" />
@@ -380,6 +433,8 @@ export const App: React.FC = () => {
                     Ranked by verified Deal Score algorithms for maximum savings.
                   </p>
                 </div>
+
+                <ViewModeToggle viewMode={viewMode} onViewModeChange={handleViewModeChange} />
               </div>
 
               {topDeals.length === 0 ? (
@@ -388,6 +443,23 @@ export const App: React.FC = () => {
                   <h3 className="empty-title">No Active Deals Found</h3>
                   <p className="empty-desc">No discounted games are currently recorded. Run a sync to find deals.</p>
                 </div>
+              ) : viewMode === 'grid' ? (
+                <div className="games-grid">
+                  {topDeals.map(game => (
+                    <GameCard
+                      key={game.id}
+                      game={game}
+                      onClick={() => setSelectedGameId(game.id)}
+                      onExplain={(g) => setExplainGame(g)}
+                    />
+                  ))}
+                </div>
+              ) : viewMode === 'list' ? (
+                <CompactListView
+                  games={topDeals}
+                  onGameClick={(game) => setSelectedGameId(game.id)}
+                  onExplain={(g) => setExplainGame(g)}
+                />
               ) : (
                 <DenseTableView
                   games={topDeals}

@@ -1,5 +1,11 @@
 import type { DealScoreInput, DealScoreResult } from './types.js';
-import { NO_HISTORY_FALLBACK_CAP, DATA_SUFFICIENCY_MIN_SAMPLES, PROVISIONAL_SCORE_CAP } from './types.js';
+import { 
+  NO_HISTORY_FALLBACK_CAP, 
+  DATA_SUFFICIENCY_MIN_SAMPLES, 
+  PROVISIONAL_SCORE_CAP,
+  SAVINGS_TIER_HIGH_EUR,
+  SAVINGS_TIER_MASSIVE_EUR
+} from './types.js';
 import { getDealScoreTier } from './tiers.js';
 import { calculateBaseScore } from './baseScore.js';
 import { calculateRecordBonus } from './recordBonus.js';
@@ -34,8 +40,24 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     recordBonus = Number((recordBonus * 0.5).toFixed(2));
   }
 
-  // 3. Stage 3: Sum & Clamp
+  // 3. Stage 3: Sum & Absolute Savings Booster
   let rawScore = baseScore + recordBonus;
+
+  // Absolute Savings Booster:
+  // When buying expensive AA/AAA titles (50€ - 90€+), saving €25 or €40+ is a massive real-world saving
+  // that deserves a score boost beyond pure relative percentage, provided the price is genuinely below typical median.
+  const msrp = input.basePriceEur ?? input.originalPriceEur ?? median ?? 0;
+  const isBelowTypicalMedian = median && priceEur < median - 0.01;
+  const absoluteSavingEur = msrp > priceEur ? (msrp - priceEur) : 0;
+  let savingsBoost = 0;
+  if (isBelowTypicalMedian) {
+    if (absoluteSavingEur >= SAVINGS_TIER_MASSIVE_EUR) {
+      savingsBoost = 10;
+    } else if (absoluteSavingEur >= SAVINGS_TIER_HIGH_EUR) {
+      savingsBoost = 5;
+    }
+  }
+  rawScore += savingsBoost;
 
   // Fallback for 0-history items (e.g. brand new unreleased games with no median)
   const isNoHistory = (median === null || median === undefined || median <= 0);
@@ -51,8 +73,9 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
 
   // 4. Data Sufficiency Guard:
   // If historical sample is very sparse (N = 1 or 2), the statistical distribution is not yet established.
-  // We cap the score at PROVISIONAL_SCORE_CAP (65 - Good) so it cannot claim "Exceptional/Historical Low Record (85-100)"
-  // without at least 3 historical data points.
+  // Standard cap is PROVISIONAL_SCORE_CAP (65 - Good).
+  // DYNAMIC PROVISIONAL UPGRADE: If a major title (MSRP >= 30€) has a deep discount (>=45%),
+  // allow the cap to expand to PROVISIONAL_DEEP_DISCOUNT_CAP (80 - Great) so new AAA sales are not choked.
   const sampleCount = input.sampleCount ?? (isNoHistory ? 0 : 5);
   const isProvisional = !isNoHistory && sampleCount > 0 && sampleCount < DATA_SUFFICIENCY_MIN_SAMPLES;
   if (isProvisional) {
