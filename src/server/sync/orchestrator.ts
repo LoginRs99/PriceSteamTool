@@ -604,7 +604,7 @@ export class SyncOrchestrator {
       : games
           .filter(g => isAllkeyshopDue(g))
           .sort((a, b) => computeWishlistScrapePriority(b) - computeWishlistScrapePriority(a));
-    const maxGames = config.allkeyshopMaxGames;
+    const maxGames = forceRefresh ? 0 : config.allkeyshopMaxGames;
     const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
       ? dueGames.slice(0, maxGames) 
       : dueGames;
