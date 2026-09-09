@@ -238,6 +238,12 @@ describe('GameDetailModal Component (Monolith & Decomposed Regression Tests)', (
       expect(screen.getByRole('heading', { name: 'Elden Ring' })).toBeInTheDocument();
     });
 
+    // Switch to Offers tab
+    const offersTabBtn = screen.getByRole('button', { name: /Store Offers/i });
+    await act(async () => {
+      fireEvent.click(offersTabBtn);
+    });
+
     // Open candidate selector
     const openAksBtn = screen.getByRole('button', { name: /View Candidates/i });
     await act(async () => {

@@ -203,16 +203,16 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
             <h3 className="game-title" title={game.title} style={{ margin: 0, flex: 1 }}>
               {game.title}
             </h3>
+            {/* Primary Rating Badge (Consolidated to prevent title crushing; full breakdown available in tooltip & modal) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginTop: 1 }}>
-              {game.steamReviewPercent !== undefined && (
+              {game.steamReviewPercent !== undefined ? (
                 <span 
                   className={`steam-review-pill ${game.steamReviewPercent >= 80 ? 'positive' : game.steamReviewPercent >= 70 ? 'mixed' : 'negative'}`}
-                  title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})`}
+                  title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})${game.steamdbRating !== undefined ? ` • SteamDB: ${game.steamdbRating}%` : ''}${game.metacriticScore !== undefined ? ` • Metacritic: ${game.metacriticScore}/100` : ''}`}
                 >
                   👍 {game.steamReviewPercent}%
                 </span>
-              )}
-              {game.steamdbRating !== undefined && (
+              ) : game.steamdbRating !== undefined ? (
                 <span 
                   style={{
                     fontSize: 10,
@@ -224,12 +224,11 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
                     border: '1px solid rgba(56, 189, 248, 0.3)',
                     whiteSpace: 'nowrap'
                   }}
-                  title={`SteamDB Rating: ${game.steamdbRating}% (Bayesian review-volume weighted score)`}
+                  title={`SteamDB Rating: ${game.steamdbRating}% (Bayesian weighted)${game.metacriticScore !== undefined ? ` • Metacritic: ${game.metacriticScore}/100` : ''}`}
                 >
                   ⭐ {game.steamdbRating}%
                 </span>
-              )}
-              {game.metacriticScore !== undefined && (
+              ) : game.metacriticScore !== undefined ? (
                 <span 
                   style={{
                     fontSize: 10,
@@ -245,7 +244,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
                 >
                   M {game.metacriticScore}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
 

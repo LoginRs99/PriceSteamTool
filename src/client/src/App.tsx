@@ -5,6 +5,7 @@ import type {
   ViewMode 
 } from './types.js';
 import { Navbar } from './components/Navbar.js';
+import { api } from './api.js';
 import { SyncBanner } from './components/SyncBanner.js';
 import { DealsDashboard } from './components/DealsDashboard.js';
 import { FilterBar } from './components/FilterBar.js';
@@ -121,6 +122,16 @@ export const App: React.FC = () => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleRefreshSingleGame = useCallback(async (gameId: string) => {
+    try {
+      await api.refreshGame(gameId);
+      loadGames();
+      loadStatsAndDeals();
+    } catch (err) {
+      console.error('Failed to refresh game:', err);
+    }
+  }, [loadGames, loadStatsAndDeals]);
 
   const totalPages = Math.ceil(totalGames / (filters.limit || 50)) || 1;
   const currentPage = filters.page || 1;
@@ -339,6 +350,7 @@ export const App: React.FC = () => {
                       onExplain={(g) => setExplainGame(g)}
                       currentSort={filters.sort}
                       onSortChange={(sort) => updateFilters({ sort, page: 1 })}
+                      onRefreshGame={handleRefreshSingleGame}
                     />
                   )}
 
@@ -448,6 +460,7 @@ export const App: React.FC = () => {
                   games={topDeals}
                   onGameClick={(game) => setSelectedGameId(game.id)}
                   onExplain={(g) => setExplainGame(g)}
+                  onRefreshGame={handleRefreshSingleGame}
                 />
               )}
             </div>

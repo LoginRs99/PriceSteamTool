@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PriceChart } from './PriceChart.js';
 import { 
   X, 
   ExternalLink, 
   Copy, 
   Check,
-  RefreshCw 
+  RefreshCw,
+  Activity,
+  Tag,
+  Clock 
 } from 'lucide-react';
 import { useGameIntelligence } from './detail/useGameIntelligence.js';
 import { DecisionHero } from './detail/DecisionHero.js';
@@ -56,6 +59,8 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
     refreshingGame,
     handleRefreshGame
   } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated, onGameUpdated);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'offers' | 'history'>('overview');
 
   if (loading || !data) {
     return <GameDetailSkeleton onClose={onClose} />;
@@ -189,62 +194,148 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
           </div>
         </div>
 
+        {/* Modal Navigation Tabs */}
+        <div 
+          className="modal-nav-tabs" 
+          style={{ 
+            display: 'flex', 
+            gap: 4, 
+            padding: '0 20px', 
+            background: 'var(--bg-surface-elevated)', 
+            borderBottom: '1px solid var(--border-subtle)',
+            flexWrap: 'wrap'
+          }}
+        >
+          <button
+            type="button"
+            className={`modal-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+            style={{
+              padding: '10px 14px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'overview' ? '2px solid var(--accent-blue)' : '2px solid transparent',
+              color: activeTab === 'overview' ? 'var(--text-primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Activity size={14} color={activeTab === 'overview' ? 'var(--accent-blue)' : 'currentColor'} />
+            <span>Overview & Advice</span>
+          </button>
+          <button
+            type="button"
+            className={`modal-tab-btn ${activeTab === 'offers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('offers')}
+            style={{
+              padding: '10px 14px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'offers' ? '2px solid var(--accent-blue)' : '2px solid transparent',
+              color: activeTab === 'offers' ? 'var(--text-primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Tag size={14} color={activeTab === 'offers' ? 'var(--accent-blue)' : 'currentColor'} />
+            <span>Store Offers ({offers.length})</span>
+          </button>
+          <button
+            type="button"
+            className={`modal-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+            style={{
+              padding: '10px 14px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'history' ? '2px solid var(--accent-blue)' : '2px solid transparent',
+              color: activeTab === 'history' ? 'var(--text-primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Clock size={14} color={activeTab === 'history' ? 'var(--accent-blue)' : 'currentColor'} />
+            <span>Price History ({history.length})</span>
+          </button>
+        </div>
+
         {/* Modal Body */}
         <div className="modal-body">
-          {/* 1. Buy / Fair / Wait Decision Hero */}
-          <DecisionHero 
-            game={game}
-            bestOffer={bestOffer}
-            intelligence={intelligence}
-            copiedVoucherId={copiedVoucherId}
-            onCopyVoucher={handleCopyVoucher}
-          />
+          {/* TAB 1: OVERVIEW & INTELLIGENCE */}
+          <div style={{ display: activeTab === 'overview' ? 'flex' : 'none', flexDirection: 'column', gap: 16 }}>
+            {/* 1. Buy / Fair / Wait Decision Hero */}
+            <DecisionHero 
+              game={game}
+              bestOffer={bestOffer}
+              intelligence={intelligence}
+              copiedVoucherId={copiedVoucherId}
+              onCopyVoucher={handleCopyVoucher}
+            />
 
-          {/* 1.5 Target Price Discord Alert Configuration */}
-          <TargetPriceEditor
-            currentTargetPrice={game.targetPriceEur}
-            targetPriceInput={targetPriceInput}
-            savingTarget={savingTarget}
-            targetSavedSuccess={targetSavedSuccess}
-            onInputChange={setTargetPriceInput}
-            onSave={handleSaveTargetPrice}
-            onClear={handleClearTargetPrice}
-          />
+            {/* 1.5 Target Price Discord Alert Configuration */}
+            <TargetPriceEditor
+              currentTargetPrice={game.targetPriceEur}
+              targetPriceInput={targetPriceInput}
+              savingTarget={savingTarget}
+              targetSavedSuccess={targetSavedSuccess}
+              onInputChange={setTargetPriceInput}
+              onSave={handleSaveTargetPrice}
+              onClear={handleClearTargetPrice}
+            />
 
-          {/* 2. Rolling Period Lows Bar */}
-          <PeriodLowsBar periodLows={intelligence?.periodLows} />
+            {/* 2. Rolling Period Lows Bar */}
+            <PeriodLowsBar periodLows={intelligence?.periodLows} />
 
-          {/* 3. Interactive Price History Chart */}
-          {intelligence?.chartData && (
-            <PriceChart data={intelligence.chartData} />
-          )}
+            {/* 3. Interactive Price History Chart */}
+            {intelligence?.chartData && (
+              <PriceChart data={intelligence.chartData} />
+            )}
 
-          {/* 4. Price Intelligence Metrics Grid */}
-          <IntelMetricsGrid intelligence={intelligence} />
+            {/* 4. Price Intelligence Metrics Grid */}
+            <IntelMetricsGrid intelligence={intelligence} />
+          </div>
 
-          {/* 5. All Available Offers Table */}
-          <OffersTable 
-            offers={offers}
-            copiedVoucherId={copiedVoucherId}
-            onCopyVoucher={handleCopyVoucher}
-          />
+          {/* TAB 2: STORE OFFERS & KEYSHOP MATCHING */}
+          <div style={{ display: activeTab === 'offers' ? 'flex' : 'none', flexDirection: 'column', gap: 16 }}>
+            {/* 5. All Available Offers Table */}
+            <OffersTable 
+              offers={offers}
+              copiedVoucherId={copiedVoucherId}
+              onCopyVoucher={handleCopyVoucher}
+            />
 
-          {/* 5.5. AllKeyShop Candidate Discovery & Custom Match Selector */}
-          <AllKeyShopMatchSelector
-            showAksSelector={showAksSelector}
-            loadingAksCandidates={loadingAksCandidates}
-            savingAksOverride={savingAksOverride}
-            aksOverrideSuccess={aksOverrideSuccess}
-            aksCandidates={aksCandidates}
-            currentAksOverride={currentAksOverride}
-            customAksInput={customAksInput}
-            onToggleSelector={handleOpenAksSelector}
-            onApplyOverride={handleApplyAksOverride}
-            onCustomInputChange={setCustomAksInput}
-          />
+            {/* 5.5. AllKeyShop Candidate Discovery & Custom Match Selector */}
+            <AllKeyShopMatchSelector
+              showAksSelector={showAksSelector}
+              loadingAksCandidates={loadingAksCandidates}
+              savingAksOverride={savingAksOverride}
+              aksOverrideSuccess={aksOverrideSuccess}
+              aksCandidates={aksCandidates}
+              currentAksOverride={currentAksOverride}
+              customAksInput={customAksInput}
+              onToggleSelector={handleOpenAksSelector}
+              onApplyOverride={handleApplyAksOverride}
+              onCustomInputChange={setCustomAksInput}
+            />
+          </div>
 
-          {/* 6. Price History Table */}
-          <PriceHistoryTable history={history} />
+          {/* TAB 3: HISTORICAL OBSERVATIONS LOG */}
+          <div style={{ display: activeTab === 'history' ? 'flex' : 'none', flexDirection: 'column', gap: 16 }}>
+            {/* 6. Price History Table */}
+            <PriceHistoryTable history={history} />
+          </div>
         </div>
       </div>
     </div>

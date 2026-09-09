@@ -3,7 +3,7 @@ import type { Game } from '../types.js';
 import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
 import { GameImage } from './GameImage.js';
-import { ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface DenseTableViewProps {
   games: Game[];
@@ -11,6 +11,7 @@ interface DenseTableViewProps {
   onExplain?: (game: Game) => void;
   currentSort?: string;
   onSortChange?: (sort: any) => void;
+  onRefreshGame?: (gameId: string) => Promise<void> | void;
 }
 
 export const DenseTableView: React.FC<DenseTableViewProps> = ({ 
@@ -18,8 +19,10 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
   onGameClick, 
   onExplain,
   currentSort,
-  onSortChange 
+  onSortChange,
+  onRefreshGame
 }) => {
+  const [refreshingId, setRefreshingId] = React.useState<string | null>(null);
   const handleHeaderClick = (primarySort: string, altSort: string = primarySort) => {
     if (!onSortChange) return;
     if (currentSort === primarySort) {
@@ -378,21 +381,44 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
 
                 {/* 10. Action */}
                 <td className="cell-action" onClick={e => e.stopPropagation()}>
-                  {game.bestDealUrl ? (
-                    <a 
-                      href={game.bestDealUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="btn btn-primary btn-xs"
-                      title="Open deal in store"
-                    >
-                      Buy
-                    </a>
-                  ) : (
-                    <button className="btn btn-outline btn-xs" onClick={() => onGameClick(game)}>
-                      Info
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                    {onRefreshGame && (
+                      <button
+                        type="button"
+                        disabled={refreshingId === game.id}
+                        className="btn btn-outline btn-xs"
+                        style={{ padding: '3px 6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Refresh prices now for this game"
+                        aria-label={`Refresh prices for ${game.title}`}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setRefreshingId(game.id);
+                          try {
+                            await onRefreshGame(game.id);
+                          } finally {
+                            setRefreshingId(null);
+                          }
+                        }}
+                      >
+                        <RefreshCw size={11} className={refreshingId === game.id ? 'spin-icon' : ''} />
+                      </button>
+                    )}
+                    {game.bestDealUrl ? (
+                      <a 
+                        href={game.bestDealUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="btn btn-primary btn-xs"
+                        title="Open deal in store"
+                      >
+                        Buy
+                      </a>
+                    ) : (
+                      <button className="btn btn-outline btn-xs" onClick={() => onGameClick(game)}>
+                        Info
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
