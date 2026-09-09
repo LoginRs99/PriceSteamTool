@@ -148,4 +148,71 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
     expect(check1?.isValid).toBe(false);
     expect(check2?.isValid).toBe(true);
   });
+
+  it('Migration 019 purges false sub-euro glitch on catalog titles and retains true AAA glitches', () => {
+    // 1. Insert Hitman Contracts (MSRP €8.99) and AAA game (MSRP €59.99)
+    db.exec(`
+      INSERT INTO games (id, steam_app_id, title, slug, base_price_eur, created_at, updated_at)
+      VALUES 
+        ('game-hitman', 247430, 'Hitman: Contracts', 'hitman-contracts', 8.99, datetime('now'), datetime('now')),
+        ('game-aaa', 1091500, 'Cyberpunk 2077', 'cyberpunk-2077', 59.99, datetime('now'), datetime('now'));
+
+      INSERT OR IGNORE INTO merchants (id, name, code, is_official, trust_score, created_at)
+      VALUES 
+        ('m-steam', 'Steam Store', 'steam', 1, 0.95, datetime('now')),
+        ('m-shady', 'Shady Keys', 'shady', 0, 0.40, datetime('now'));
+
+      -- False sub-euro glitch on Hitman: Contracts (€0.89 on €8.99 game)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, risk_level, is_anomaly, risk_flags, anomaly_reason, deal_url, fetched_at, created_at, updated_at)
+      VALUES ('off-hitman', 'game-hitman', 'm-steam', 'DIRECT_PURCHASE', 'GLOBAL', 0.89, 8.99, 1, 1, 'HIGH', 1, '["SUB_EURO_PREMIUM_GLITCH"]', '⚡ Sub-Euro Price Glitch (<€1.00)', 'https://store.steampowered.com/app/247430', datetime('now'), datetime('now'), datetime('now'));
+
+      INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
+      VALUES ('anom-hitman', 'game-hitman', 'off-hitman', 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Sub-Euro Price Glitch', datetime('now'), 0);
+
+      -- True sub-euro glitch on Cyberpunk 2077 (€0.49 on €59.99 game)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, risk_level, is_anomaly, risk_flags, anomaly_reason, deal_url, fetched_at, created_at, updated_at)
+      VALUES ('off-aaa', 'game-aaa', 'm-shady', 'STEAM_KEY', 'GLOBAL', 0.49, 59.99, 1, 1, 'HIGH', 1, '["SUB_EURO_PREMIUM_GLITCH"]', '⚡ Sub-Euro Price Glitch (<€1.00)', 'https://shady.example/deal', datetime('now'), datetime('now'), datetime('now'));
+
+      INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
+      VALUES ('anom-aaa', 'game-aaa', 'off-aaa', 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Sub-Euro Price Glitch', datetime('now'), 0);
+    `);
+
+    // Execute Migration 019 logic
+    db.exec(`
+      UPDATE offers
+      SET risk_level = 'SAFE',
+          risk_score = 0.0,
+          is_anomaly = 0,
+          anomaly_score = 0.0,
+          anomaly_reason = NULL
+      WHERE is_anomaly = 1
+        AND (risk_flags LIKE '%SUB_EURO_PREMIUM_GLITCH%' OR anomaly_reason LIKE '%Sub-Euro%')
+        AND game_id IN (
+          SELECT id FROM games 
+          WHERE (base_price_eur IS NOT NULL AND base_price_eur < 15.0 AND offers.price_eur >= base_price_eur * 0.05)
+        );
+
+      UPDATE anomalies
+      SET is_dismissed = 1
+      WHERE offer_id IN (
+        SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
+      ) AND is_dismissed = 0;
+    `);
+
+    // Verify Hitman offer is restored to SAFE
+    const hitmanOffer = db.prepare(`SELECT risk_level, is_anomaly FROM offers WHERE id = 'off-hitman'`).get() as any;
+    expect(hitmanOffer.risk_level).toBe('SAFE');
+    expect(hitmanOffer.is_anomaly).toBe(0);
+
+    const hitmanAnom = db.prepare(`SELECT is_dismissed FROM anomalies WHERE id = 'anom-hitman'`).get() as any;
+    expect(hitmanAnom.is_dismissed).toBe(1);
+
+    // Verify Cyberpunk glitch is still HIGH risk and active anomaly
+    const aaaOffer = db.prepare(`SELECT risk_level, is_anomaly FROM offers WHERE id = 'off-aaa'`).get() as any;
+    expect(aaaOffer.risk_level).toBe('HIGH');
+    expect(aaaOffer.is_anomaly).toBe(1);
+
+    const aaaAnom = db.prepare(`SELECT is_dismissed FROM anomalies WHERE id = 'anom-aaa'`).get() as any;
+    expect(aaaAnom.is_dismissed).toBe(0);
+  });
 });
