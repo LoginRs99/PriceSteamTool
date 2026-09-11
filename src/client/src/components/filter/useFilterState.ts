@@ -8,14 +8,13 @@ export const QUICK_PILL_BASE: Partial<WishlistFilterOptions> = {
   saleOnly: false,
   majorDealsOnly: false,
   allTimeLowOnly: false,
-  trustedOnly: false,
   underPrice: undefined,
   minPrice: undefined,
   maxPrice: undefined,
   minDiscount: undefined,
   minDealScore: undefined,
   merchantType: 'all',
-  hasAnomaly: false,
+  hasPricingErrors: false,
   page: 1
 };
 
@@ -59,13 +58,12 @@ export function useFilterState(
   if (filters.minDiscount && filters.minDiscount > 0) activeFilterCount++;
   if (filters.allTimeLowOnly) activeFilterCount++;
   if (filters.majorDealsOnly) activeFilterCount++;
-  if (filters.trustedOnly) activeFilterCount++;
   if (filters.minDealScore && filters.minDealScore > 0) activeFilterCount++;
   if (filters.minPrice !== undefined && filters.minPrice > 0) activeFilterCount++;
   if (filters.maxPrice !== undefined && filters.maxPrice > 0) activeFilterCount++;
   if (filters.underPrice !== undefined && filters.underPrice > 0) activeFilterCount++;
   if (filters.merchantType && filters.merchantType !== 'all') activeFilterCount++;
-  if (filters.hideAnomalies) activeFilterCount++;
+  if (filters.hidePricingErrors) activeFilterCount++;
   if (filters.hideProvisional) activeFilterCount++;
   if (filters.hideUnreleased) activeFilterCount++;
   if (filters.hideDlcs) activeFilterCount++;
@@ -82,13 +80,12 @@ export function useFilterState(
       majorDealsOnly: false,
       allTimeLowOnly: false,
       targetReachedOnly: false,
-      trustedOnly: false,
       underPrice: undefined,
       minPrice: undefined,
       maxPrice: undefined,
       minDiscount: undefined,
       minDealScore: undefined,
-      hideAnomalies: false,
+      hidePricingErrors: false,
       hideProvisional: false,
       hideUnreleased: false,
       hideDlcs: false,
@@ -96,7 +93,7 @@ export function useFilterState(
       hideFamilyShared: false,
       buyOnly: false,
       merchantType: 'all',
-      hasAnomaly: false,
+      hasPricingErrors: false,
       page: 1
     });
   };

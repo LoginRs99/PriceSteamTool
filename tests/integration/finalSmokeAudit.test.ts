@@ -197,7 +197,7 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
           slug: 'case-a',
           isDlc: false,
           isFree: false,
-          hasAnomaly: false,
+          hasPricingError: false,
           offersCount: 1,
           bestPriceEur: 12.00,
           bestDiscountPercent: 75,
@@ -215,7 +215,7 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
           slug: 'case-b',
           isDlc: false,
           isFree: false,
-          hasAnomaly: false,
+          hasPricingError: false,
           offersCount: 1,
           bestPriceEur: 5.00,
           bestDiscountPercent: 90,
@@ -232,8 +232,7 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
           slug: 'case-d',
           isDlc: false,
           isFree: false,
-          hasAnomaly: true, // Flagged!
-          bestRiskLevel: 'HIGH',
+          hasPricingError: true, // Flagged!
           offersCount: 1,
           bestPriceEur: 0.49,
           bestDealScore: 99,

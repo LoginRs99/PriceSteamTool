@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { Anomaly } from '../types.js';
+import type { PricingError as Anomaly } from '../types.js';
 import { api } from '../api.js';
 
 export function useAnomalies() {

@@ -14,7 +14,7 @@ describe('Task 22: useGameIntelligence hygiene (response reuse, delayed AKS re-s
     slug: 'test-game',
     isDlc: false,
     isFree: false,
-    hasAnomaly: false,
+    hasPricingError: false,
     offersCount: 0,
     targetPriceEur: 25.00,
     createdAt: '2026-01-01T00:00:00Z',
@@ -43,8 +43,7 @@ describe('Task 22: useGameIntelligence hygiene (response reuse, delayed AKS re-s
       dealUrl: 'https://steam.example.com',
       isBestDeal: true,
       priceEvent: 'NEW_HISTORICAL_LOW',
-      riskLevel: 'SAFE',
-      isAnomaly: false,
+      isLikelyPricingError: false,
       sources: ['steam'],
       fetchedAt: '2026-01-01T00:00:00Z',
       lastObservedAt: '2026-01-01T00:00:00Z'

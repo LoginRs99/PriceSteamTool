@@ -88,12 +88,12 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
               <ShieldCheck size={16} color="#10b981" />
             </div>
             <div className="stat-value" style={{ color: '#10b981', fontSize: 20 }}>
-              {stats.gamesWithHighRiskOffers > 0 
-                ? `${stats.gamesWithHighRiskOffers} Flagged` 
+              {stats.gamesWithPricingErrors > 0 
+                ? `${stats.gamesWithPricingErrors} Flagged` 
                 : '100% Verified'}
             </div>
             <div className="stat-footer">
-              {stats.gamesWithHighRiskOffers > 0 ? 'High-risk offers suppressed' : 'All prices consensus-checked'}
+              {stats.gamesWithPricingErrors > 0 ? 'Pricing errors suppressed' : 'All prices consensus-checked'}
             </div>
           </div>
         </div>

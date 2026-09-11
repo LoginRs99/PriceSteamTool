@@ -16,7 +16,7 @@ describe('Task 25: Minor Polish (DenseTableView concurrent spinners & PriceChart
         slug: 'game-one',
         isDlc: false,
         isFree: false,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         createdAt: '2026-01-01T00:00:00Z',
         updatedAt: '2026-01-01T00:00:00Z'
@@ -28,7 +28,7 @@ describe('Task 25: Minor Polish (DenseTableView concurrent spinners & PriceChart
         slug: 'game-two',
         isDlc: false,
         isFree: false,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         createdAt: '2026-01-01T00:00:00Z',
         updatedAt: '2026-01-01T00:00:00Z'

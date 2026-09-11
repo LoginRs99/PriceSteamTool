@@ -119,7 +119,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
               dealTier === 'Good' ? 'rgba(56, 189, 248, 0.15)' :
               'rgba(107, 114, 128, 0.15)';
 
-            const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
+            const isHighRisk = Boolean(game.hasPricingError);
 
             return (
               <tr 

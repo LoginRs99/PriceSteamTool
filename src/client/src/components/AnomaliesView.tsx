@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import type { Anomaly } from '../types.js';
+import type { PricingError as Anomaly } from '../types.js';
 import { api } from '../api.js';
 import { 
   AlertTriangle, 
@@ -135,7 +135,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
           gameTitle: a.gameTitle || 'Unknown Game',
           steamAppId: a.steamAppId,
           dealUrl: a.dealUrl,
-          highestScore: a.score ?? 0,
+          highestScore: a.confidence ?? 0,
           cheapestPrice: a.priceEur,
           cheapestMerchant: a.merchantName,
           topReason: a.reason,
@@ -144,8 +144,8 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
         map.set(key, group);
       }
       group.items.push(a);
-      if ((a.score ?? 0) > group.highestScore) {
-        group.highestScore = a.score ?? 0;
+      if ((a.confidence ?? 0) > group.highestScore) {
+        group.highestScore = a.confidence ?? 0;
         group.topReason = a.reason || group.topReason;
       }
       if (a.priceEur !== undefined && a.priceEur !== null) {
@@ -189,7 +189,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
   const stats = useMemo(() => {
     const totalOffers = anomalies.length;
     const totalGames = groupedAnomalies.length;
-    const highRiskCount = anomalies.filter(a => (a.score ?? 0) >= 0.60).length;
+    const highRiskCount = anomalies.filter(a => (a.confidence ?? 0) >= 0.60).length;
     const subEuroGlitchCount = anomalies.filter(a => (a.priceEur !== undefined && a.priceEur < 1.00) || (a.reason && a.reason.includes('glitch'))).length;
     return { totalOffers, totalGames, highRiskCount, subEuroGlitchCount };
   }, [anomalies, groupedAnomalies]);
@@ -629,7 +629,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                     gap: 8
                   }}>
                     {group.items.map(a => {
-                      const itemScorePct = typeof a.score === 'number' ? Math.round(a.score * 100) : 0;
+                      const itemScorePct = typeof a.confidence === 'number' ? Math.round(a.confidence * 100) : 0;
                       const itemPrice = typeof a.priceEur === 'number' ? `€${a.priceEur.toFixed(2)}` : null;
 
                       return (

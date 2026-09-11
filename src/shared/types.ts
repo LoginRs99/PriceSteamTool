@@ -19,34 +19,22 @@ export type PriceEventType =
   | 'STANDARD_SALE'
   | 'NONE';
 
-export type PriceRiskLevel = 'SAFE' | 'LOW' | 'MEDIUM' | 'SUSPICIOUS' | 'HIGH';
+export type PricingErrorType = 
+  | 'DECIMAL_SHIFT' 
+  | 'MARKET_OUTLIER' 
+  | 'BELOW_ATL_IMPLAUSIBLE' 
+  | 'EDITION_INVERSION' 
+  | 'OWN_HISTORY_BREAK' 
+  | 'FRESH_RELEASE_DROP' 
+  | 'FAKE_BASELINE';
 
-export type PriceRiskFlag = 
-  | 'UNREALISTIC_DISCOUNT'         // > 95% discount on paid game
-  | 'EXTREME_UNDER_ATL'            // Price > 50% below verified ATL
-  | 'ANOMALOUS_Z_SCORE'            // Statistical outlier compared to cluster
-  | 'SINGLE_UNVERIFIED_SOURCE'     // Only 1 unverified source reports this price
-  | 'FRESH_RELEASE_UNEXPECTED_DROP'// < 3 months old game with unlikely huge drop
-  | 'UNCONFIRMED_KEYSHOP'          // Marketplace listing without multi-source confirmation
-  | 'SOURCE_DISAGREEMENT'          // Strong conflict between source observations
-  | 'STALE_OBSERVATION'            // Stale observation (affects confidence, not pricing risk)
-  | 'MISSING_MSRP_ANCHOR'          // No verified MSRP baseline available
-  | 'SUB_EURO_PREMIUM_GLITCH'
-  | 'SUB_EURO_PREMIUM_GLITCH_CORROBORATED'
-  | 'EXTREME_MEDIAN_OUTLIER'
-  | 'LONE_BOTTOM_OUTLIER'
-  | 'HISTORICAL_LOW_DISCREPANCY'
-  | 'SOURCE_OWN_HISTORY_BREAK'
-  | 'SOURCE_OWN_HISTORY_BREAK_CORROBORATED';
+export type DealVerdict = 'INSTANT_BUY' | 'GREAT_DEAL' | 'FAIR_DEAL' | 'WAIT' | 'OVERPRICED';
 
-export interface PriceEvaluation {
-  event: PriceEventType;
-  riskLevel: PriceRiskLevel;
-  riskScore: number;               // 0.00 - 1.00
-  riskFlags: PriceRiskFlag[];
-  confidence: number;              // 0.00 - 1.00 (Data completeness and consensus certainty)
-  summary: string;
-  isAnomaly: boolean;              // Derived: riskLevel === 'HIGH'
+export interface PricingErrorEvaluation {
+  isLikelyPricingError: boolean;
+  confidence: number;
+  type: PricingErrorType | null;
+  reason: string | null;
 }
 
 export interface Profile {
@@ -71,8 +59,6 @@ export interface Merchant {
   name: string;
   defaultUrl?: string;
   isOfficial: boolean;
-  trustScore: number;
-  qualityScore?: number;
   createdAt?: string;
 }
 
@@ -139,21 +125,18 @@ export interface Game {
   bestMerchantName?: string;
   bestMerchantCode?: string;
   bestMerchantIsOfficial?: boolean;
-  bestMerchantTrustScore?: number;
   bestProductType?: ProductType;
   bestRegionType?: RegionType;
   bestDealUrl?: string;
   bestPriceEvent?: PriceEventType;
-  bestRiskLevel?: PriceRiskLevel;
   bestLastObservedAt?: string;
   bestIsFresh?: boolean;
   bestDealScore?: number;
   bestDealTier?: DealScoreTier;
+  bestVerdict?: DealVerdict;
   bestConfidenceScore?: number;
   bestConfidenceTier?: ConfidenceTier;
   bestIsProvisional?: boolean;
-  bestZScore?: number;
-  bestEffectiveSigma?: number;
   bestSavingVsMedianEur?: number;
   bestAtlDistanceEur?: number;
   valueRankingScore?: number; // Monotonic value score combining Deal Score & Confidence
@@ -175,8 +158,8 @@ export interface Game {
   // Historical Backfill State
   priceHistorySeededAt?: string;
 
-  hasAnomaly: boolean;
-  anomalyCount?: number;
+  hasPricingError: boolean;
+  pricingErrorCount?: number;
   offersCount: number;
   
   createdAt: string;
@@ -190,7 +173,6 @@ export interface Offer {
   merchantName: string;
   merchantCode: string;
   isOfficial: boolean;
-  trustScore?: number;
   productType: ProductType;
   regionType: RegionType;
   regionCode?: string;
@@ -205,16 +187,16 @@ export interface Offer {
   dealUrl: string;
   isValid?: boolean;
   
-  // 2D Pricing Engine & Deal Score fields
+  // Pricing Event & Error Detector fields
   priceEvent: PriceEventType;
-  riskLevel: PriceRiskLevel;
-  riskScore?: number;
-  riskFlags?: PriceRiskFlag[];
-  evaluationConfidence?: number;
-  isAnomaly: boolean;
-  anomalyReason?: string;
+  isLikelyPricingError: boolean;
+  pricingErrorConfidence?: number;
+  pricingErrorType?: PricingErrorType;
+  pricingErrorReason?: string;
+
   dealScore?: number;
   dealTier?: DealScoreTier;
+  verdict?: DealVerdict;
   confidenceScore?: number;
   confidenceTier?: ConfidenceTier;
   isProvisional?: boolean;
@@ -254,8 +236,7 @@ export interface PriceHistoryEntry {
   priceEvent?: PriceEventType;
   dealScore?: number;
   isOfficial?: boolean;
-  isAnomaly?: boolean;
-  riskLevel?: PriceRiskLevel;
+  isPricingError?: boolean;
   recordedAt: string;
 }
 
@@ -277,7 +258,7 @@ export interface SourceStatus {
   state: CircuitBreakerState;
 }
 
-export interface Anomaly {
+export interface PricingError {
   id: string;
   gameId: string;
   gameTitle: string;
@@ -287,8 +268,8 @@ export interface Anomaly {
   priceEur?: number;
   originalPriceEur?: number;
   dealUrl?: string;
-  anomalyType: string;
-  score: number;
+  errorType: PricingErrorType | string;
+  confidence: number;
   reason: string;
   detectedAt: string;
   isDismissed?: boolean;
@@ -360,7 +341,6 @@ export interface WishlistFilterOptions {
   majorDealsOnly?: boolean;
   allTimeLowOnly?: boolean;
   historicalLowOnly?: boolean;
-  trustedOnly?: boolean;
   isFreeOnly?: boolean;
   underPrice?: number;
   minPrice?: number;
@@ -368,12 +348,12 @@ export interface WishlistFilterOptions {
   minDiscount?: number;
   minDealScore?: number;
   minConfidence?: number;
-  hideAnomalies?: boolean;
+  hidePricingErrors?: boolean;
   hideProvisional?: boolean;
   buyOnly?: boolean;
   actionDecision?: ActionDecision[];
   merchantType?: 'all' | 'official' | 'keyshop' | 'official_only' | 'keyshop_only';
-  hasAnomaly?: boolean;
+  hasPricingErrors?: boolean;
   targetReachedOnly?: boolean;
   hideUnreleased?: boolean;
   hideDlcs?: boolean;
@@ -381,7 +361,6 @@ export interface WishlistFilterOptions {
   hideFamilyShared?: boolean;
   steamAppId?: number;
   priceEvent?: PriceEventType;
-  riskLevel?: PriceRiskLevel;
   page?: number;
   limit?: number;
 }
@@ -392,7 +371,7 @@ export interface WishlistStatistics {
   gamesOnSale: number;
   gamesAtHistoricalLow: number;
   majorDropsCount: number;
-  gamesWithHighRiskOffers: number;
+  gamesWithPricingErrors: number;
   averageDiscountPercent: number;
 }
 
@@ -498,4 +477,63 @@ export interface PriceIntelligenceResponse {
   actionSignal?: ActionSignal;
   historicalContextSummary: string;
   chartData: PriceChartData;
+}
+
+// ----------------------------------------------------
+// Deal Score v2.3 Contract
+// ----------------------------------------------------
+export interface DealScoreResult {
+  score: number; // 0 - 100
+  tier: DealScoreTier;
+  verdict: DealVerdict;
+  baseScore: number;
+  rarityBonus: number;
+  confidenceScore: number; // 0 - 100 (%)
+  confidenceTier: ConfidenceTier;
+  isLowSample: boolean;
+  isProvisional?: boolean;
+  components?: {
+    atlProximity: number;
+    discountDepth: number;
+    historicalValue: number;
+    marketPosition: number;
+    subtotal: number;
+    rawScore: number;
+  };
+  explanation?: {
+    medianSavingEur: number;
+    atlDistanceEur: number;
+    confidenceFactors: Record<string, number>;
+  };
+}
+
+export interface DealScoreInput {
+  priceEur: number;
+  basePriceEur?: number;
+  
+  // Statistical Inputs (180d / 365d / All-Time historical observations)
+  typicalSaleMedianEur?: number | null;
+  typicalSaleQ1Eur?: number;
+  typicalSaleQ3Eur?: number;
+  low90dEur?: number | null;
+  low1yEur?: number | null;
+  allTimeLowEur?: number | null;
+  historicalLowEur?: number | null;
+  
+  // Confidence Inputs
+  sampleCount?: number;
+  firstObservedAt?: string;
+  lastObservedAt?: string;
+  sourceCount?: number;
+  
+  // Pricing Error & Market Inputs
+  isPricingError?: boolean;
+  marketMinPriceEur?: number;
+  otherOfferCount?: number;
+  isStalePrice?: boolean;
+
+  // Edge cases
+  originalPriceEur?: number;
+  isConfirmedAtl?: boolean;
+  isSingleSourceLow?: boolean;
 }

@@ -7,7 +7,8 @@ import type {
   SyncProgressUpdate, 
   WishlistFilterOptions, 
   WishlistStatistics, 
-  Anomaly, 
+  PricingError,
+  PricingError as Anomaly,
   SourceCode, 
   PriceIntelligenceResponse,
   DiscordSettings
@@ -96,7 +97,6 @@ export const api = {
     if (options.saleOnly) params.set('saleOnly', 'true');
     if (options.majorDealsOnly) params.set('majorDealsOnly', 'true');
     if (options.allTimeLowOnly) params.set('allTimeLowOnly', 'true');
-    if (options.trustedOnly) params.set('trustedOnly', 'true');
     if (options.historicalLowOnly) params.set('historicalLowOnly', 'true');
     if (options.isFreeOnly !== undefined) params.set('isFreeOnly', String(options.isFreeOnly));
     if (options.underPrice) params.set('underPrice', String(options.underPrice));
@@ -105,11 +105,11 @@ export const api = {
     if (options.minDiscount !== undefined) params.set('minDiscount', String(options.minDiscount));
     if (options.minDealScore !== undefined) params.set('minDealScore', String(options.minDealScore));
     if (options.minConfidence !== undefined) params.set('minConfidence', String(options.minConfidence));
-    if (options.hideAnomalies) params.set('hideAnomalies', 'true');
+    if (options.hidePricingErrors) params.set('hidePricingErrors', 'true');
     if (options.hideProvisional) params.set('hideProvisional', 'true');
     if (options.buyOnly) params.set('buyOnly', 'true');
     if (options.merchantType) params.set('merchantType', options.merchantType);
-    if (options.hasAnomaly) params.set('hasAnomaly', 'true');
+    if (options.hasPricingErrors) params.set('hasPricingErrors', 'true');
     if (options.hideUnreleased) params.set('hideUnreleased', 'true');
     if (options.hideDlcs) params.set('hideDlcs', 'true');
     if (options.includeFreeGames) params.set('includeFreeGames', 'true');

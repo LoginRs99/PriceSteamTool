@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { prepareStmt } from '../core.js';
-import type { Anomaly } from '../../../shared/types.js';
+import type { PricingError } from '../../../shared/types.js';
 import { logWarn } from '../../utils/logger.js';
 
 export const ANOMALY_RETRIGGER_AFTER_DAYS = 30;
@@ -9,7 +9,7 @@ export const anomalyRepo = {
   record(
     gameId: string, 
     offerId: string, 
-    type: Anomaly['anomalyType'], 
+    type: string, 
     score: number, 
     reason: string, 
     currentPriceEur?: number,
@@ -116,7 +116,7 @@ export const anomalyRepo = {
     `).run(offerId);
   },
 
-  list(onlyActive: boolean = true): Anomaly[] {
+  list(onlyActive: boolean = true): PricingError[] {
     const sql = onlyActive 
       ? `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
          FROM anomalies a 
@@ -158,8 +158,8 @@ export const anomalyRepo = {
         priceEur: r.price_eur !== null && r.price_eur !== undefined ? Number(r.price_eur) : undefined,
         originalPriceEur: r.original_price_eur !== null && r.original_price_eur !== undefined ? Number(r.original_price_eur) : undefined,
         dealUrl: targetUrl || undefined,
-        anomalyType: r.anomaly_type || 'PRICE_GLITCH',
-        score: Number(r.score || 0),
+        errorType: r.anomaly_type || 'PRICE_GLITCH',
+        confidence: Number(r.score || 0),
         reason: r.reason || 'Flagged price anomaly',
         detectedAt: r.detected_at || new Date().toISOString(),
         isDismissed: Boolean(r.is_dismissed)

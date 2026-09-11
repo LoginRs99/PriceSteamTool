@@ -246,10 +246,10 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     fireEvent.change(maxInput, { target: { value: '45' } });
     expect(handleFilterChange).toHaveBeenCalledWith({ maxPrice: 45, page: 1 });
 
-    // Toggle Hide Anomalies checkbox
-    const hideAnomaliesCheckbox = screen.getByRole('checkbox', { name: 'Hide High-Risk Anomalies' });
-    fireEvent.click(hideAnomaliesCheckbox);
-    expect(handleFilterChange).toHaveBeenCalledWith({ hideAnomalies: true, page: 1 });
+    // Toggle Hide Pricing Errors checkbox
+    const hidePricingErrorsCheckbox = screen.getByRole('checkbox', { name: 'Hide Pricing Errors' });
+    fireEvent.click(hidePricingErrorsCheckbox);
+    expect(handleFilterChange).toHaveBeenCalledWith({ hidePricingErrors: true, page: 1 });
   });
 
   it('resets all filters when Reset filters / Clear all is clicked', () => {

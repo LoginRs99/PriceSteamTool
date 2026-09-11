@@ -16,7 +16,7 @@ const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', 
   const discount = game.bestDiscountPercent ?? 0;
 
   const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (
-    (game.bestRiskLevel === 'HIGH' || game.hasAnomaly) && (game.bestDiscountPercent ?? 0) >= 75
+    Boolean(game.hasPricingError) && (game.bestDiscountPercent ?? 0) >= 75
   );
 
   // Priority 0: Glitch Hunter / Pricing Error (Highest Urgency)

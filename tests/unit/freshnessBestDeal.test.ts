@@ -121,7 +121,7 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
     const recomputedGame = gameRepo.getById(game.id)!;
     expect(recomputedGame.bestOfferId).toBe(offerAId);
     expect(recomputedGame.bestPriceEur).toBe(5.00);
-    expect(recomputedGame.bestRiskLevel).toBe('HIGH');
+    expect(recomputedGame.hasPricingError).toBe(true);
     expect(recomputedGame.bestIsFresh).toBe(true);
   });
 
@@ -327,8 +327,7 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
 
       // The global offer should remain valid and not be flagged with an anomaly from the HU-locked price
       expect(globalOffer).toBeDefined();
-      expect(globalOffer.isAnomaly).toBe(false);
-      expect(globalOffer.riskLevel).not.toBe('HIGH');
+      expect(globalOffer.isLikelyPricingError).toBe(false);
     });
   });
 });

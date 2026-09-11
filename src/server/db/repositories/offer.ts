@@ -466,8 +466,7 @@ export const offerRepo = {
           rawCurrency: active.rawCurrency,
           discountPercent: active.discountPercent,
           priceEvent: pricingEval.event,
-          isAnomaly: pricingEval.isAnomaly,
-          riskLevel: pricingEval.riskLevel,
+          isPricingError: pricingEval.isAnomaly,
           recordedAt: now
         };
 
@@ -488,7 +487,7 @@ export const offerRepo = {
           atlIsSingleSourceLow: gameInfo.atl_is_single_source_low !== null && gameInfo.atl_is_single_source_low !== undefined ? Boolean(gameInfo.atl_is_single_source_low) : undefined,
           isDlc: Boolean(gameInfo.is_dlc),
           isFree: Boolean(gameInfo.is_free),
-          hasAnomaly: false,
+          hasPricingError: false,
           offersCount: 1,
           createdAt: gameInfo.created_at,
           updatedAt: now
@@ -510,11 +509,7 @@ export const offerRepo = {
           isBestDeal: false,
           isValid: active.isValid,
           priceEvent: pricingEval.event,
-          riskLevel: pricingEval.riskLevel,
-          riskScore: pricingEval.riskScore,
-          riskFlags: pricingEval.riskFlags,
-          evaluationConfidence: pricingEval.confidence,
-          isAnomaly: pricingEval.isAnomaly,
+          isLikelyPricingError: pricingEval.isAnomaly,
           dealScore: 0,
           dealTier: 'Fair',
           sources: [active.sourceCode],
@@ -580,8 +575,7 @@ export const offerRepo = {
           historicalLowEur: periodLows.allTimeLow.priceEur || (gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined),
           isConfirmedAtl: periodLows.allTimeLow.isConfirmed,
           isSingleSourceLow: Boolean(periodLows.allTimeLow.isConfirmed === false || periodLows.low90d.isSingleSourceLow),
-          isAnomaly: pricingEval.isAnomaly,
-          riskLevel: pricingEval.riskLevel,
+          isPricingError: pricingEval.isAnomaly,
           // Pass the same context fields the read paths use so write-time and read-time scores match
           sampleCount: typicalSale.sampleCount,
           sourceCount: Math.max(1, distinctSourceCount),
@@ -686,8 +680,7 @@ export const offerRepo = {
       firstObservedAt: r.price_tracking_first_observed_at || undefined,
       lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
       sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
-      isAnomaly: Boolean(r.is_anomaly),
-      riskLevel: r.risk_level || 'SAFE'
+      isPricingError: Boolean(r.is_anomaly)
     });
 
     const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
@@ -716,14 +709,11 @@ export const offerRepo = {
       isFresh,
       isValid: Boolean(r.is_valid),
       priceEvent: r.price_event || 'NONE',
-      riskLevel: r.risk_level || 'SAFE',
-      riskScore: Number(r.risk_score || 0),
-      riskFlags,
-      evaluationConfidence: Number(r.evaluation_confidence || 1.0),
-      isAnomaly: Boolean(r.is_anomaly),
-      anomalyReason: r.anomaly_reason || undefined,
+      isLikelyPricingError: Boolean(r.is_anomaly),
+      pricingErrorReason: r.anomaly_reason || undefined,
       dealScore: dealCalc.score,
       dealTier: dealCalc.tier,
+      verdict: dealCalc.verdict,
       confidenceScore: dealCalc.confidenceScore,
       confidenceTier: dealCalc.confidenceTier,
       isProvisional: dealCalc.isProvisional,
@@ -806,8 +796,7 @@ export const offerRepo = {
         firstObservedAt: r.price_tracking_first_observed_at || undefined,
         lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
         sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
-        isAnomaly: Boolean(r.is_anomaly),
-        riskLevel: r.risk_level || 'SAFE'
+        isPricingError: Boolean(r.is_anomaly)
       });
 
       const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
@@ -836,14 +825,11 @@ export const offerRepo = {
         isFresh,
         isValid: Boolean(r.is_valid),
         priceEvent: r.price_event || 'NONE',
-        riskLevel: r.risk_level || 'SAFE',
-        riskScore: Number(r.risk_score || 0),
-        riskFlags,
-        evaluationConfidence: Number(r.evaluation_confidence || 1.0),
-        isAnomaly: Boolean(r.is_anomaly),
-        anomalyReason: r.anomaly_reason || undefined,
+        isLikelyPricingError: Boolean(r.is_anomaly),
+        pricingErrorReason: r.anomaly_reason || undefined,
         dealScore: dealCalc.score,
         dealTier: dealCalc.tier,
+        verdict: dealCalc.verdict,
         confidenceScore: dealCalc.confidenceScore,
         confidenceTier: dealCalc.confidenceTier,
         isProvisional: dealCalc.isProvisional,
@@ -906,8 +892,7 @@ export const offerRepo = {
       discountPercent: r.discount_percent ? Number(r.discount_percent) : undefined,
       priceEvent: r.price_event || undefined,
       dealScore: r.deal_score !== null && r.deal_score !== undefined ? Number(r.deal_score) : undefined,
-      isAnomaly: Boolean(r.is_anomaly),
-      riskLevel: r.risk_level || 'SAFE',
+      isPricingError: Boolean(r.is_anomaly),
       recordedAt: r.recorded_at
     }));
   },
@@ -1025,7 +1010,7 @@ export const offerRepo = {
         atlIsSingleSourceLow: gameRow.atl_is_single_source_low !== null && gameRow.atl_is_single_source_low !== undefined ? Boolean(gameRow.atl_is_single_source_low) : undefined,
         isDlc: Boolean(gameRow.is_dlc),
         isFree: Boolean(gameRow.is_free),
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         createdAt: gameRow.created_at,
         updatedAt: now
@@ -1042,7 +1027,7 @@ export const offerRepo = {
       let newHistLowSource = gameRow.historical_low_source || undefined;
 
       for (const h of history) {
-        if (h.isAnomaly) continue;
+        if (h.isPricingError) continue;
         if (!newHistLowEur || h.priceEur < newHistLowEur) {
           newHistLowEur = h.priceEur;
           newHistLowDate = h.recordedAt;
@@ -1173,8 +1158,6 @@ export const offerRepo = {
         dealUrl: bestDeal?.dealUrl || null,
         dealScore: bestDeal ? bestDeal.dealScore : g.bestDealScore,
         dealTier: bestDeal ? bestDeal.dealTier : g.bestDealTier,
-        riskLevel: bestDeal ? bestDeal.riskLevel : (g.bestRiskLevel || 'SAFE'),
-        riskFlags: bestDeal ? bestDeal.riskFlags : [],
         actionSignal: g.actionSignal || null,
         ...(options?.includeAllOffers ? { offers } : {})
       };

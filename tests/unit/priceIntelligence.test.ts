@@ -22,7 +22,7 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
     historicalLowSource: 'Steam',
     isDlc: false,
     isFree: false,
-    hasAnomaly: false,
+    hasPricingError: false,
     offersCount: 1,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2026-08-15T00:00:00Z'
@@ -45,11 +45,7 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
     isValid: true,
     isBestDeal: true,
     priceEvent: 'NEW_HISTORICAL_LOW',
-    riskLevel: 'SAFE',
-    riskScore: 0,
-    riskFlags: [],
-    evaluationConfidence: 1.0,
-    isAnomaly: false,
+    isLikelyPricingError: false,
     sources: ['steam'],
     sourceAgreementCount: 3,
     dealScore: 92,
@@ -230,8 +226,7 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
           id: 'off-3',
           merchantName: 'G2A RU Key',
           priceEur: 4.99,
-          regionType: 'RESTRICTED', // Incompatible
-          riskLevel: 'HIGH'
+          regionType: 'RESTRICTED' // Incompatible
         }
       ];
 
@@ -244,8 +239,7 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
     it('sets minTrustedPriceEur to undefined when only compatible offers are anomalies', () => {
       const anomalyOffer: Offer = {
         ...sampleOffer,
-        isAnomaly: true,
-        riskLevel: 'HIGH',
+        isLikelyPricingError: true,
         priceEur: 0.99
       };
       const res = calculateMarketComparison([anomalyOffer], anomalyOffer);
@@ -268,12 +262,13 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
     });
 
     it('returns WAIT with HIGH confidence when offer is flagged as anomaly', () => {
-      const anomalyOffer: Offer = { ...sampleOffer, isAnomaly: true, priceEur: 0.99, anomalyReason: 'Price Glitch' };
+      const anomalyOffer: Offer = { ...sampleOffer, isLikelyPricingError: true, priceEur: 0.99, pricingErrorReason: 'Price Glitch' };
       const periodLows = calculatePeriodLows(baseGame, [], anomalyOffer);
       const typical = { medianPriceEur: 29.99, sampleCount: 5, isLowConfidence: false };
 
       const advice = evaluatePurchaseAdvice(baseGame, anomalyOffer, periodLows, typical);
       expect(advice.decision).toBe('WAIT');
+      expect(advice.confidence).toBe('HIGH');
       expect(advice.headline).toBe('High Risk Price Anomaly');
     });
 

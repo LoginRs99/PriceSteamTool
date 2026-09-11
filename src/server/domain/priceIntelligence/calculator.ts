@@ -47,18 +47,16 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     firstObservedAt: (game as any).priceTrackingFirstObservedAt || (game as any).price_tracking_first_observed_at || (history.length > 0 ? history[history.length - 1].recordedAt : undefined),
     lastObservedAt: bestOffer?.lastObservedAt || (history.length > 0 ? history[0].recordedAt : undefined),
     sourceCount: bestOffer?.sources?.length ?? (game as any).bestOfferSourceCount ?? (game as any).best_offer_source_count ?? 1,
-    isAnomaly: Boolean(bestOffer?.isAnomaly),
-    riskLevel: bestOffer?.riskLevel || 'SAFE'
+    isPricingError: Boolean(bestOffer?.isLikelyPricingError)
   });
 
   const actionSignal = generateActionSignal({
     dealScore: bestOffer?.dealScore ?? game.bestDealScore ?? freshDealCalc.score,
     confidenceScore: game.bestConfidenceScore ?? 
       bestOffer?.confidenceScore ?? 
-      (bestOffer?.evaluationConfidence !== undefined ? bestOffer.evaluationConfidence * 100 : undefined) ?? 
       (freshDealCalc.confidenceScore ?? 50),
     isProvisional: Boolean(game.bestIsProvisional ?? bestOffer?.isProvisional ?? freshDealCalc.isProvisional),
-    isAnomaly: bestOffer?.isAnomaly ?? false,
+    isAnomaly: bestOffer?.isLikelyPricingError ?? false,
     currentPriceEur: currentPrice,
     basePriceEur: game.basePriceEur,
     typicalSaleMedianEur: typicalSale.medianPriceEur || undefined,

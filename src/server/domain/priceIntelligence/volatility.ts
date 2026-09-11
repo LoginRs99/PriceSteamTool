@@ -22,7 +22,7 @@ export function calculatePriceVolatility(
     }
   }
 
-  if (currentBestOffer && currentBestOffer.priceEur > 0 && !currentBestOffer.isAnomaly && currentBestOffer.riskLevel !== 'HIGH') {
+  if (currentBestOffer && currentBestOffer.priceEur > 0 && !currentBestOffer.isLikelyPricingError) {
     const today = (currentBestOffer.lastObservedAt || currentBestOffer.fetchedAt).slice(0, 10);
     const existing = dailyMap.get(today);
     if (existing === undefined || currentBestOffer.priceEur < existing) {

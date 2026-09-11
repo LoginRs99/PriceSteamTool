@@ -122,8 +122,7 @@ describe('All-Time Low (ATL) Confirmation State Integrity Suite', () => {
         priceEur: 39.99,
         discountPercent: 0,
         priceEvent: 'NONE',
-        isAnomaly: false,
-        riskLevel: 'SAFE',
+        isPricingError: false,
         recordedAt: now
       }
     ];
@@ -156,8 +155,7 @@ describe('All-Time Low (ATL) Confirmation State Integrity Suite', () => {
         priceEur: 3.10,
         discountPercent: 92,
         priceEvent: 'MAJOR_DROP',
-        isAnomaly: false,
-        riskLevel: 'SAFE',
+        isPricingError: false,
         recordedAt: now
       }
     ];
@@ -315,8 +313,7 @@ describe('ATL Source-Category Classification (isOfficialStoreSource / isAggregat
         priceEur: 5.20,
         discountPercent: 89,
         priceEvent: 'MAJOR_DROP',
-        isAnomaly: false,
-        riskLevel: 'SAFE',
+        isPricingError: false,
         recordedAt: now
       }
     ];

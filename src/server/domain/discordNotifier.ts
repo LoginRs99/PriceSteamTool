@@ -236,9 +236,9 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     // as Glitch Hunter alerts when notifyPricingErrors is enabled!
     const isPricingErrorAlert = Boolean(settings.notifyPricingErrors) && 
       (game.bestPriceEvent === 'PRICING_ERROR' || (game.bestDiscountPercent && game.bestDiscountPercent >= 75)) && 
-      (game.hasAnomaly || game.bestRiskLevel === 'HIGH');
+      Boolean(game.hasPricingError);
 
-    if ((game.hasAnomaly || game.bestRiskLevel === 'HIGH') && !isPricingErrorAlert) {
+    if (game.hasPricingError && !isPricingErrorAlert) {
       continue;
     }
 

@@ -138,7 +138,7 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
     expect(stats.totalGames).toBe(4);
     expect(stats.gamesOnSale).toBe(3); // g1 (75%), g2 (20%), g4 (99%)
     expect(stats.gamesAtHistoricalLow).toBe(1); // g1 is NEW_HISTORICAL_LOW
-    expect(stats.gamesWithHighRiskOffers).toBe(1); // g4 has HIGH risk offer
+    expect(stats.gamesWithPricingErrors).toBe(1); // g4 has pricing error
     expect(stats.averageDiscountPercent).toBeGreaterThan(0);
   });
 
@@ -332,12 +332,12 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
     expect(atlDeals.games.some(g => g.id === g1_atl.id)).toBe(true);
     expect(atlDeals.games.some(g => g.id === g2.id)).toBe(false);
 
-    // 3. Trusted Deals Filter: risk IN (SAFE, LOW) AND (official OR trust >= 0.8)
-    const trustedDeals = gameRepo.getWishlistGames(profile.id, { trustedOnly: true });
-    expect(trustedDeals.games.some(g => g.id === g1_atl.id)).toBe(true);
-    expect(trustedDeals.games.some(g => g.id === g1_major.id)).toBe(true);
-    expect(trustedDeals.games.some(g => g.id === g2.id)).toBe(true);
-    expect(trustedDeals.games.some(g => g.id === g3.id)).toBe(false); // HIGH risk / untrusted keyshop excluded
+    // 3. Hide Pricing Errors Filter
+    const filteredDeals = gameRepo.getWishlistGames(profile.id, { hidePricingErrors: true });
+    expect(filteredDeals.games.some(g => g.id === g1_atl.id)).toBe(true);
+    expect(filteredDeals.games.some(g => g.id === g1_major.id)).toBe(true);
+    expect(filteredDeals.games.some(g => g.id === g2.id)).toBe(true);
+    expect(filteredDeals.games.some(g => g.id === g3.id)).toBe(false); // pricing error excluded
 
     // 4. Sort by deal_score_desc
     const sortedByDealScore = gameRepo.getWishlistGames(profile.id, { sort: 'deal_score_desc' });

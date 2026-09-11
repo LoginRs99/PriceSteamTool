@@ -11,8 +11,7 @@ export const merchantRepo = {
         code: row.code,
         name: row.name,
         defaultUrl: row.default_url || undefined,
-        isOfficial: Boolean(row.is_official),
-        trustScore: Number(row.trust_score)
+        isOfficial: Boolean(row.is_official)
       };
     }
 
@@ -23,7 +22,7 @@ export const merchantRepo = {
       VALUES (?, ?, ?, ?, ?, 1.0, ?)
     `).run(id, code, name, defaultUrl || null, isOfficial ? 1 : 0, now);
 
-    return { id, code, name, defaultUrl, isOfficial, trustScore: 1.0 };
+    return { id, code, name, defaultUrl, isOfficial };
   },
 
   list(): Merchant[] {
@@ -33,8 +32,7 @@ export const merchantRepo = {
       code: r.code,
       name: r.name,
       defaultUrl: r.default_url || undefined,
-      isOfficial: Boolean(r.is_official),
-      trustScore: Number(r.trust_score)
+      isOfficial: Boolean(r.is_official)
     }));
   }
 };

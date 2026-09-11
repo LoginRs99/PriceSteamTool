@@ -14,7 +14,7 @@ const mockGameBase: Game = {
   slug: 'cyberpunk-2077',
   isDlc: false,
   isFree: false,
-  hasAnomaly: false,
+  hasPricingError: false,
   offersCount: 1,
   basePriceEur: 59.99,
   bestPriceEur: 29.99,
@@ -105,8 +105,7 @@ describe('GameCard Component', () => {
   it('renders risk flag when game has high risk or anomaly', () => {
     const riskyGame: Game = {
       ...mockGameBase,
-      hasAnomaly: true,
-      bestRiskLevel: 'HIGH'
+      hasPricingError: true
     };
     render(<GameCard game={riskyGame} onClick={() => {}} />);
     

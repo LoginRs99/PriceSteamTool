@@ -25,7 +25,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
 
   // Rail color by tier / status
   const isConfirmedATL = (game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW') && !game.bestIsProvisional;
-  const isHighRisk = game.bestRiskLevel === 'HIGH' || game.hasAnomaly;
+  const isHighRisk = Boolean(game.hasPricingError);
   const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75);
 
   const railColor = isPricingError

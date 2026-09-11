@@ -117,8 +117,7 @@ describe('Data Safety & Outlier Detection Refinement Suite', () => {
     const offers = offerRepo.getOffersForGame(game.id);
     const wyrelOffer = offers.find(o => o.merchantId === storeB.id)!;
 
-    expect(wyrelOffer.isAnomaly).toBe(false);
-    expect(wyrelOffer.riskLevel).toBe('SAFE');
+    expect(wyrelOffer.isLikelyPricingError).toBe(false);
 
     const anomalies = anomalyRepo.list(true);
     expect(anomalies.some(a => a.offerId === wyrelOffer.id)).toBe(false);
@@ -159,9 +158,8 @@ describe('Data Safety & Outlier Detection Refinement Suite', () => {
     const offers = offerRepo.getOffersForGame(game.id);
     const glitchOffer = offers.find(o => o.merchantId === sketchyStore.id)!;
 
-    expect(glitchOffer.isAnomaly).toBe(true);
-    expect(glitchOffer.riskLevel).toBe('HIGH');
-    expect(glitchOffer.anomalyReason).toContain('Sub-Euro Price Glitch');
+    expect(glitchOffer.isLikelyPricingError).toBe(true);
+    expect(glitchOffer.pricingErrorReason).toContain('Sub-Euro Price Glitch');
 
     const anomalies = anomalyRepo.list(true);
     expect(anomalies.length).toBe(1);

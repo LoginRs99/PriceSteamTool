@@ -804,7 +804,7 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
         priceEur: 3.00,
         typicalSaleMedianEur: 30.00,
         allTimeLowEur: 20.00,
-        isAnomaly: true
+        isPricingError: true
       });
 
       // Deal score is calculated purely from price & median, ignoring anomaly status

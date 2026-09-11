@@ -11,15 +11,14 @@ export function calculateMarketComparison(
   // Filter compatible, valid, non-anomaly offers
   const compatible = offers.filter(o => 
     o.isValid && 
-    !o.isAnomaly && 
-    o.riskLevel !== 'HIGH' &&
+    !o.isLikelyPricingError && 
     ['GLOBAL', 'EU', 'HU'].includes(o.regionType) &&
     o.priceEur > 0
   );
 
   if (compatible.length === 0) {
     const p = currentBestOffer?.priceEur || 0;
-    const isTrusted = Boolean(currentBestOffer && !currentBestOffer.isAnomaly && currentBestOffer.riskLevel !== 'HIGH');
+    const isTrusted = Boolean(currentBestOffer && !currentBestOffer.isLikelyPricingError);
     return {
       marketMedianEur: p,
       minOfficialPriceEur: currentBestOffer?.isOfficial ? p : undefined,

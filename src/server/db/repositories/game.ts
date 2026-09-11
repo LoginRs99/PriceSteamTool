@@ -13,6 +13,7 @@ import type {
   WishlistStatistics, 
   DealScoreTier, 
   ConfidenceTier, 
+  DealVerdict,
   ActionSignal, 
   PriceIntelligenceResponse 
 } from '../../../shared/types.js';
@@ -78,9 +79,6 @@ export function buildWishlistFilterClause(
     whereClauses.push(`bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW')`);
   }
 
-  if (options.trustedOnly) {
-    whereClauses.push(`bo.risk_level IN ('SAFE', 'LOW') AND (m.is_official = 1 OR m.trust_score >= 0.8)`);
-  }
 
   if (options.minPrice !== undefined && options.minPrice >= 0) {
     whereClauses.push(`bo.price_eur >= ?`);
@@ -97,7 +95,7 @@ export function buildWishlistFilterClause(
     params.push(options.underPrice);
   }
 
-  if (options.hasAnomaly) {
+  if (options.hasPricingErrors) {
     whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) > 0`);
   }
 
@@ -110,22 +108,26 @@ export function buildWishlistFilterClause(
   // a release date containing 'coming soon'/'tba', or a future timestamp.
   if (options.hideUnreleased) {
     whereClauses.push(`(
-      (bo.price_eur IS NOT NULL AND bo.price_eur > 0)
-      OR (g.base_price_eur IS NOT NULL AND g.base_price_eur > 0)
-      OR (g.release_date IS NOT NULL 
-          AND LOWER(g.release_date) NOT LIKE '%coming%' 
-          AND LOWER(g.release_date) NOT LIKE '%tba%' 
-          AND LOWER(g.release_date) NOT LIKE '%to be announced%'
-          AND g.release_date <= datetime('now'))
+      (bo.price_eur IS NOT NULL AND bo.price_eur > 0) OR
+      (
+        g.release_date IS NOT NULL 
+        AND LOWER(g.release_date) NOT LIKE '%coming soon%'
+        AND LOWER(g.release_date) NOT LIKE '%tba%'
+        AND LOWER(g.release_date) NOT LIKE '%to be announced%'
+        AND (
+          g.release_date <= date('now')
+          OR length(g.release_date) = 4 AND g.release_date <= strftime('%Y', 'now')
+        )
+      )
     )`);
   }
 
-  // DLC / Add-on filtering
+  // DLC filtering
   if (options.hideDlcs) {
     whereClauses.push(`(g.is_dlc = 0 OR g.is_dlc IS NULL)`);
   }
 
-  // Steam Family Library sharing filtering
+  // Family Shared filtering
   if (options.hideFamilyShared) {
     whereClauses.push(`NOT EXISTS (
       SELECT 1 FROM family_owned_apps fo
@@ -134,9 +136,17 @@ export function buildWishlistFilterClause(
     )`);
   }
 
-  if (options.merchantType === 'official' || (options.merchantType as any) === 'official_only') {
+  // Free games filtering (isFreeOnly vs includeFreeGames)
+  if (options.isFreeOnly === true) {
+    whereClauses.push(`(g.is_free = 1 OR bo.price_eur = 0)`);
+  } else if (!options.includeFreeGames) {
+    whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL) AND (bo.price_eur IS NULL OR bo.price_eur > 0)`);
+  }
+
+  // Storefront classification filtering (Official vs Keyshop)
+  if (options.merchantType === 'official' || options.merchantType === 'official_only') {
     whereClauses.push(`m.is_official = 1`);
-  } else if (options.merchantType === 'keyshop' || (options.merchantType as any) === 'keyshop_only') {
+  } else if (options.merchantType === 'keyshop' || options.merchantType === 'keyshop_only') {
     whereClauses.push(`m.is_official = 0`);
   }
 
@@ -145,10 +155,6 @@ export function buildWishlistFilterClause(
     params.push(options.priceEvent);
   }
 
-  if (options.riskLevel) {
-    whereClauses.push(`bo.risk_level = ?`);
-    params.push(options.riskLevel);
-  }
 
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
@@ -249,7 +255,7 @@ export const gameRepo = {
         steamdbRating: calculatedSteamdbRating !== undefined ? calculatedSteamdbRating : (existing.steamdb_rating !== null && existing.steamdb_rating !== undefined ? Number(existing.steamdb_rating) : undefined),
         metacriticScore: game.metacriticScore !== undefined ? game.metacriticScore : (existing.metacritic_score !== null && existing.metacritic_score !== undefined ? Number(existing.metacritic_score) : undefined),
         metacriticUrl: game.metacriticUrl || existing.metacritic_url || undefined,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 0,
         createdAt: existing.created_at,
         updatedAt: now
@@ -303,7 +309,7 @@ export const gameRepo = {
       steamdbRating: calculatedSteamdbRating,
       metacriticScore: game.metacriticScore,
       metacriticUrl: game.metacriticUrl,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 0,
       createdAt: now,
       updatedAt: now
@@ -477,7 +483,7 @@ export const gameRepo = {
       gamesOnSale: Number(row?.games_on_sale || 0),
       gamesAtHistoricalLow: Number(row?.games_at_historical_low || 0),
       majorDropsCount: Number(row?.major_drops_count || 0),
-      gamesWithHighRiskOffers: Number(row?.games_with_high_risk || 0),
+      gamesWithPricingErrors: Number(row?.games_with_high_risk || 0),
       averageDiscountPercent: Math.round(Number(row?.avg_discount || 0))
     };
   },
@@ -521,11 +527,6 @@ export const gameRepo = {
       const scoreA = a.bestDealScore ?? 0;
       const scoreB = b.bestDealScore ?? 0;
       if (scoreB !== scoreA) return scoreB - scoreA;
-
-      const riskRank = (risk?: string) => risk === 'SAFE' ? 1 : risk === 'LOW' ? 2 : 3;
-      const rankA = riskRank(a.bestRiskLevel);
-      const rankB = riskRank(b.bestRiskLevel);
-      if (rankA !== rankB) return rankA - rankB;
 
       return (a.priority ?? 999999) - (b.priority ?? 999999);
     });
@@ -583,8 +584,8 @@ export const gameRepo = {
     if (options.minConfidence !== undefined && options.minConfidence > 0) {
       allGames = allGames.filter(g => (g.bestConfidenceScore ?? 0) >= options.minConfidence!);
     }
-    if (options.hideAnomalies) {
-      allGames = allGames.filter(g => !g.hasAnomaly && g.bestRiskLevel !== 'HIGH');
+    if (options.hidePricingErrors) {
+      allGames = allGames.filter(g => !g.hasPricingError);
     }
     if (options.hideProvisional) {
       allGames = allGames.filter(g => !g.bestIsProvisional);
@@ -984,11 +985,10 @@ export const gameRepo = {
 function mapGameRow(r: any): Game {
   let bestDealScore: number | undefined;
   let bestDealTier: DealScoreTier | undefined;
+  let bestVerdict: DealVerdict | undefined;
   let bestConfidenceScore: number | undefined;
   let bestConfidenceTier: ConfidenceTier | undefined;
   let bestIsProvisional: boolean | undefined;
-  let bestZScore: number | undefined;
-  let bestEffectiveSigma: number | undefined;
   let bestSavingVsMedianEur: number | undefined;
   let bestAtlDistanceEur: number | undefined;
   let valueRankingScore: number | undefined;
@@ -1027,11 +1027,10 @@ function mapGameRow(r: any): Game {
 
     bestDealScore = dealResult.score;
     bestDealTier = dealResult.tier;
+    bestVerdict = dealResult.verdict;
     bestConfidenceScore = dealResult.confidenceScore;
     bestConfidenceTier = dealResult.confidenceTier;
     bestIsProvisional = dealResult.isProvisional;
-    bestZScore = dealResult.zScore;
-    bestEffectiveSigma = dealResult.explanation?.effectiveSigma;
     bestSavingVsMedianEur = dealResult.explanation?.medianSavingEur;
     bestAtlDistanceEur = dealResult.explanation?.atlDistanceEur;
     // Value Ranking Score for discovery: monotonic combination of deal score and confidence
@@ -1096,7 +1095,6 @@ function mapGameRow(r: any): Game {
     bestDealUrl: r.best_deal_url || undefined,
     bestOfferId: r.best_offer_id || undefined,
     bestPriceEvent: r.best_price_event || undefined,
-    bestRiskLevel: r.best_risk_level || undefined,
     bestLastObservedAt: r.best_last_observed_at || r.last_observed_at || undefined,
     bestIsFresh: r.best_price_eur !== null && r.best_price_eur !== undefined
       ? (!isNaN(new Date(r.best_last_observed_at || r.last_observed_at || '').getTime()) &&
@@ -1104,17 +1102,16 @@ function mapGameRow(r: any): Game {
       : undefined,
     bestDealScore,
     bestDealTier,
+    bestVerdict,
     bestConfidenceScore,
     bestConfidenceTier,
     bestIsProvisional,
-    bestZScore,
-    bestEffectiveSigma,
     bestSavingVsMedianEur,
     bestAtlDistanceEur,
     valueRankingScore,
     actionSignal,
-    hasAnomaly: Number(r.anomaly_count || 0) > 0,
-    anomalyCount: Number(r.anomaly_count || 0),
+    hasPricingError: Number(r.anomaly_count || 0) > 0,
+    pricingErrorCount: Number(r.anomaly_count || 0),
     offersCount: Number(r.offers_count || 0),
     priority: r.priority !== undefined ? Number(r.priority) : undefined,
     dateAddedSteam: r.date_added_steam || undefined,

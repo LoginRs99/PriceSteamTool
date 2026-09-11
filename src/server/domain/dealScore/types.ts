@@ -1,4 +1,6 @@
-import type { PriceEventType, PriceRiskLevel, DealScoreTier, ConfidenceTier } from '../../../shared/types.js';
+import type { PriceEventType, DealScoreTier, ConfidenceTier, DealVerdict, DealScoreInput, DealScoreResult } from '../../../shared/types.js';
+
+export type { DealScoreInput, DealScoreResult, DealVerdict, DealScoreTier, ConfidenceTier };
 
 // ============================================================================
 // Deal Score v2.3 — Tunable Constants (§0, §1, §2, §3)
@@ -18,59 +20,3 @@ export const PROVISIONAL_SCORE_CAP = 65;           // Max score when N = 1 or 2 
 export const PROVISIONAL_DEEP_DISCOUNT_CAP = 80;   // Dynamic cap for deep discounts (>=60% off MSRP on sparse data)
 export const SAVINGS_TIER_HIGH_EUR = 25.0;         // €25+ absolute savings threshold (+5 score boost)
 export const SAVINGS_TIER_MASSIVE_EUR = 40.0;      // €40+ absolute savings threshold (+10 score boost)
-
-export interface DealScoreInput {
-  priceEur: number;
-  basePriceEur?: number;
-  
-  // Statistical Inputs (180d / 365d / All-Time historical observations)
-  typicalSaleMedianEur?: number | null;
-  typicalSaleQ1Eur?: number;
-  typicalSaleQ3Eur?: number;
-  low90dEur?: number | null;
-  low1yEur?: number | null;
-  allTimeLowEur?: number | null;
-  historicalLowEur?: number | null;
-  
-  // Confidence Inputs
-  sampleCount?: number;
-  firstObservedAt?: string;
-  lastObservedAt?: string;
-  sourceCount?: number;
-  
-  // Data Quality & Anomaly Guards (Passed for metadata / UI flags)
-  isAnomaly?: boolean;
-  riskLevel?: PriceRiskLevel;
-
-  // Required for Fallback/Edge cases
-  originalPriceEur?: number;
-  isConfirmedAtl?: boolean;
-  isSingleSourceLow?: boolean;
-}
-
-export interface DealScoreResult {
-  score: number; // 0 - 100
-  tier: DealScoreTier;
-  baseScore: number;
-  rarityBonus: number;
-  confidenceScore: number; // 0 - 100 (%)
-  confidenceTier: ConfidenceTier;
-  isLowSample: boolean;
-  isProvisional?: boolean;
-  zScore?: number;
-  components?: {
-    discountScore?: number;
-    historicalScore?: number;
-    trustScore?: number;
-    subtotal: number;
-    confidenceMultiplier: number;
-    riskPenalty: number;
-    rawScore: number;
-  };
-  explanation?: {
-    effectiveSigma: number;
-    medianSavingEur: number;
-    atlDistanceEur: number;
-    confidenceFactors: Record<string, number>;
-  };
-}

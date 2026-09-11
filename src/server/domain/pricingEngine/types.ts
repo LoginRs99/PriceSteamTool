@@ -1,3 +1,35 @@
+import type { PriceEventType } from '../../../shared/types.js';
+
+export type PriceRiskLevel = 'SAFE' | 'LOW' | 'MEDIUM' | 'SUSPICIOUS' | 'HIGH';
+
+export type PriceRiskFlag = 
+  | 'UNREALISTIC_DISCOUNT'
+  | 'EXTREME_UNDER_ATL'
+  | 'ANOMALOUS_Z_SCORE'
+  | 'SINGLE_UNVERIFIED_SOURCE'
+  | 'FRESH_RELEASE_UNEXPECTED_DROP'
+  | 'UNCONFIRMED_KEYSHOP'
+  | 'SOURCE_DISAGREEMENT'
+  | 'STALE_OBSERVATION'
+  | 'MISSING_MSRP_ANCHOR'
+  | 'SUB_EURO_PREMIUM_GLITCH'
+  | 'SUB_EURO_PREMIUM_GLITCH_CORROBORATED'
+  | 'EXTREME_MEDIAN_OUTLIER'
+  | 'LONE_BOTTOM_OUTLIER'
+  | 'HISTORICAL_LOW_DISCREPANCY'
+  | 'SOURCE_OWN_HISTORY_BREAK'
+  | 'SOURCE_OWN_HISTORY_BREAK_CORROBORATED';
+
+export interface PriceEvaluation {
+  event: PriceEventType;
+  riskLevel: PriceRiskLevel;
+  riskScore: number;
+  riskFlags: PriceRiskFlag[];
+  confidence: number;
+  summary: string;
+  isAnomaly: boolean;
+}
+
 export interface PriceEvaluationInput {
   currentPriceEur: number;
   originalPriceEur?: number;

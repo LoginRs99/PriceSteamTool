@@ -144,7 +144,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
       bestPriceEur: game.bestPriceEur ?? null,
       bestMerchantName: game.bestMerchantName ?? null,
       bestDealScore: game.bestDealScore ?? null,
-      riskLevel: game.bestRiskLevel ?? 'SAFE',
+      riskLevel: game.hasPricingError ? 'SUSPICIOUS' : 'SAFE',
       metacriticScore: game.metacriticScore ?? null,
       metacriticUrl: game.metacriticUrl ?? null
     };
@@ -237,7 +237,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
         region: bestDeal.regionType,
         dealUrl: bestDeal.dealUrl,
         dealScore: bestDeal.dealScore,
-        riskLevel: bestDeal.riskLevel,
+        riskLevel: bestDeal.isLikelyPricingError ? 'HIGH' : 'SAFE',
         lastObservedAt: bestDeal.lastObservedAt
       } : null,
       offers: offers.map(o => ({
@@ -250,7 +250,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
         region: o.regionType,
         dealUrl: o.dealUrl,
         dealScore: o.dealScore,
-        riskLevel: o.riskLevel,
+        riskLevel: o.isLikelyPricingError ? 'HIGH' : 'SAFE',
         lastObservedAt: o.lastObservedAt
       }))
     };

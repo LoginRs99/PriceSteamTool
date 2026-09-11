@@ -55,7 +55,7 @@ describe('buildWishlistFilterClause Unit Tests', () => {
     });
 
     expect(whereSql).toContain('bo.price_eur IS NOT NULL AND bo.price_eur > 0');
-    expect(whereSql).toContain("LOWER(g.release_date) NOT LIKE '%coming%'");
+    expect(whereSql).toContain("LOWER(g.release_date) NOT LIKE '%coming soon%'");
     expect(params).toEqual(['profile-rel']);
   });
 

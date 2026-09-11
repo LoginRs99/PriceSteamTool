@@ -1,5 +1,5 @@
 import { evaluatePriceMovement, type PriceEvaluationInput } from './pricingEngine.js';
-import type { Anomaly, PriceEvaluation } from '../../shared/types.js';
+import type { PriceEvaluation } from './pricingEngine/types.js';
 
 export interface AnomalyEvaluationInput {
   priceEur: number;
@@ -18,7 +18,7 @@ export interface AnomalyEvaluationInput {
 export interface AnomalyResult {
   isAnomaly: boolean;
   score: number;
-  type?: Anomaly['anomalyType'];
+  type?: string;
   reason?: string;
   evaluation?: PriceEvaluation;
 }

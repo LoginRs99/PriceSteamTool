@@ -115,10 +115,10 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
           <input 
             type="checkbox"
-            checked={Boolean(filters.hideAnomalies)}
-            onChange={(e) => onFilterChange({ hideAnomalies: e.target.checked, page: 1 })}
+            checked={Boolean(filters.hidePricingErrors)}
+            onChange={(e) => onFilterChange({ hidePricingErrors: e.target.checked, page: 1 })}
           />
-          <span>Hide High-Risk Anomalies</span>
+          <span>Hide Pricing Errors</span>
         </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>

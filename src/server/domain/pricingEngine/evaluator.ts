@@ -1,5 +1,4 @@
-import type { PriceEvaluation, PriceRiskFlag } from '../../../shared/types.js';
-import type { PriceEvaluationInput } from './types.js';
+import type { PriceEvaluation, PriceRiskFlag, PriceEvaluationInput } from './types.js';
 import { detectPriceEvent } from './priceEvents.js';
 import { calculateRiskEvidenceConfidence, calculatePriceRisk } from './riskEvaluator.js';
 

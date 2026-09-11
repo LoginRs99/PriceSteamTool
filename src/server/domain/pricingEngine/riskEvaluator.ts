@@ -1,5 +1,4 @@
-import type { PriceRiskLevel, PriceRiskFlag } from '../../../shared/types.js';
-import type { PriceEvaluationInput } from './types.js';
+import type { PriceEvaluationInput, PriceRiskLevel, PriceRiskFlag } from './types.js';
 import { evaluateSourceOwnHistoryAnomaly } from './historyAnomaly.js';
 
 /**

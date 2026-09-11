@@ -64,10 +64,10 @@ export const OffersTable: React.FC<OffersTableProps> = ({
       const isMegaDrop = offer.priceEvent === 'EXTREME_DROP' && (Boolean(offer.isBestDeal) || isCompetitivePrice);
       const isMajorDrop = offer.priceEvent === 'MAJOR_DROP' && (Boolean(offer.isBestDeal) || isCompetitivePrice);
 
-      const readableAnomalyReason = offer.anomalyReason
-        ? (offer.anomalyReason.includes('High Risk') || offer.anomalyReason.includes('Unconfirmed') 
+      const readableAnomalyReason = offer.pricingErrorReason
+        ? (offer.pricingErrorReason.includes('High Risk') || offer.pricingErrorReason.includes('Unconfirmed') 
             ? 'Unverified outlier price (Flagged in Data Safety)' 
-            : offer.anomalyReason)
+            : offer.pricingErrorReason)
         : 'Flagged outlier price';
 
       return (
@@ -104,14 +104,14 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                   ⭐ BEST OFFER
                 </span>
               )}
-              {offer.riskLevel === 'HIGH' && (
+              {offer.isLikelyPricingError && (
                 <span className="ticker-flag ticker-flag-up" style={{ fontSize: 10, padding: '1px 5px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                   <AlertTriangle size={10} /> HIGH RISK
                 </span>
               )}
             </div>
 
-            {offer.isAnomaly && offer.riskLevel === 'HIGH' && (
+            {offer.isLikelyPricingError && (
               <span style={{ fontSize: 11, color: 'var(--up)', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                 <AlertTriangle size={11} /> {readableAnomalyReason}
               </span>

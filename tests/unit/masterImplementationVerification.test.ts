@@ -58,8 +58,7 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
         sourceCode: 'steam',
         priceEur: 19.99,
         recordedAt: '2026-08-01T00:00:00Z',
-        isAnomaly: false,
-        riskLevel: 'SAFE'
+        isPricingError: false
       };
       const anomalyEntry: PriceHistoryEntry = {
         id: 'h2',
@@ -67,8 +66,7 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
         sourceCode: 'allkeyshop',
         priceEur: 0.50,
         recordedAt: '2026-08-02T00:00:00Z',
-        isAnomaly: true,
-        riskLevel: 'HIGH',
+        isPricingError: true,
         priceEvent: 'EXTREME_DROP'
       };
       const zeroEntry: PriceHistoryEntry = {
@@ -94,7 +92,7 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
         historicalLowEur: 35.99,
         isDlc: false,
         isFree: false,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2026-08-27T00:00:00Z'
@@ -107,7 +105,7 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
         { id: '3', gameId: mockGame.id, sourceCode: 'itad', priceEur: 37.99, discountPercent: 37, recordedAt: '2026-03-15T00:00:00Z' },
         { id: '4', gameId: mockGame.id, sourceCode: 'steam', priceEur: 35.99, discountPercent: 40, recordedAt: '2026-06-25T00:00:00Z' },
         // The glitch observation:
-        { id: '5', gameId: mockGame.id, sourceCode: 'allkeyshop', priceEur: 0.50, discountPercent: 99, isAnomaly: true, riskLevel: 'HIGH', priceEvent: 'EXTREME_DROP', recordedAt: '2026-08-20T00:00:00Z' }
+        { id: '5', gameId: mockGame.id, sourceCode: 'allkeyshop', priceEur: 0.50, discountPercent: 99, isPricingError: true, priceEvent: 'EXTREME_DROP', recordedAt: '2026-08-20T00:00:00Z' }
       ];
 
       // 1. Period Lows & ATL must ignore €0.50
@@ -422,8 +420,7 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
       const history = offerRepo.getPriceHistory(game.id);
       expect(history.length).toBe(3);
       const glitch = history.find(h => h.id === 'hist-3')!;
-      expect(glitch.isAnomaly).toBe(true);
-      expect(glitch.riskLevel).toBe('HIGH');
+      expect(glitch.isPricingError).toBe(true);
       expect(glitch.rawCurrency).toBe('EUR');
 
       // Verify backfill does not drop anomaly flags and ignores glitch for typical sale & period lows
@@ -571,7 +568,7 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
         atlIsConfirmed: false,
         isDlc: false,
         isFree: false,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2026-08-27T00:00:00Z'

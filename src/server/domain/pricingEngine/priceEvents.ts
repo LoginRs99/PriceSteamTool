@@ -1,5 +1,5 @@
-import type { PriceEventType, PriceRiskLevel } from '../../../shared/types.js';
-import type { PriceEvaluationInput } from './types.js';
+import type { PriceEventType } from '../../../shared/types.js';
+import type { PriceEvaluationInput, PriceRiskLevel } from './types.js';
 
 /**
  * Evaluates the market event of an offer (discount magnitude, historical record, price direction).

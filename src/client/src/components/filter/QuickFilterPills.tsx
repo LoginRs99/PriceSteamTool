@@ -18,7 +18,7 @@ interface QuickFilterPillsProps {
 }
 
 export const getActivePill = (filters: WishlistFilterOptions): string => {
-  if (filters.hasAnomaly) return 'anomaly';
+  if (filters.hasPricingErrors) return 'anomaly';
   if (filters.targetReachedOnly) return 'target_reached';
   if (filters.buyOnly) return 'buy_recommendations';
   if (filters.minDiscount === 75) return 'discount_75';

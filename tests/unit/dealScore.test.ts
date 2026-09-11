@@ -631,23 +631,21 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
       expect(res.score).toBeGreaterThanOrEqual(75);
     });
 
-    it('Edge 8: Risk pillar penalizes anomalies and high risk offers', () => {
-      // isAnomaly: true at ATL must score <= 75
+    it('Edge 8: Pricing error suppresses deal score', () => {
+      // isPricingError: true at ATL must score <= 75
       const resAnomaly = calculateDealScore({
         priceEur: 10.00,
         typicalSaleMedianEur: 50.00,
         allTimeLowEur: 10.00,
-        isAnomaly: true,
-        riskLevel: 'HIGH',
+        isPricingError: true,
         sampleCount: 30
       });
       expect(resAnomaly.score).toBeLessThanOrEqual(75);
-      expect(resAnomaly.components?.riskPenalty).toBe(25);
-      expect(resAnomaly.components?.discountScore).toBeDefined();
-      expect(resAnomaly.components?.historicalScore).toBeDefined();
-      expect(resAnomaly.components?.trustScore).toBeDefined();
+      expect(resAnomaly.components?.discountDepth).toBeDefined();
+      expect(resAnomaly.components?.historicalValue).toBeDefined();
+      expect(resAnomaly.components?.atlProximity).toBeDefined();
 
-      // Normal safe offer at same ATL achieves >= 85
+      // Normal offer at same ATL achieves >= 85
       const resSafe = calculateDealScore({
         priceEur: 10.00,
         typicalSaleMedianEur: 50.00,
@@ -655,35 +653,6 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 30
       });
       expect(resSafe.score).toBeGreaterThanOrEqual(85);
-      expect(resSafe.components?.riskPenalty).toBe(0);
-
-      // Verify graduated penalties for risk levels without anomaly flag
-      const resHigh = calculateDealScore({
-        priceEur: 10.00,
-        typicalSaleMedianEur: 50.00,
-        allTimeLowEur: 10.00,
-        riskLevel: 'HIGH',
-        sampleCount: 30
-      });
-      expect(resHigh.components?.riskPenalty).toBe(20);
-
-      const resSuspicious = calculateDealScore({
-        priceEur: 10.00,
-        typicalSaleMedianEur: 50.00,
-        allTimeLowEur: 10.00,
-        riskLevel: 'SUSPICIOUS',
-        sampleCount: 30
-      });
-      expect(resSuspicious.components?.riskPenalty).toBe(12);
-
-      const resMedium = calculateDealScore({
-        priceEur: 10.00,
-        typicalSaleMedianEur: 50.00,
-        allTimeLowEur: 10.00,
-        riskLevel: 'MEDIUM',
-        sampleCount: 30
-      });
-      expect(resMedium.components?.riskPenalty).toBe(5);
     });
 
     it('Edge 9: Negative or zero price handled cleanly by math', () => {

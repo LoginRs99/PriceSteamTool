@@ -12,7 +12,7 @@ import { Navbar } from '../../src/client/src/components/Navbar.js';
 import { SyncBanner } from '../../src/client/src/components/SyncBanner.js';
 import { AnomaliesView } from '../../src/client/src/components/AnomaliesView.js';
 import { api } from '../../src/client/src/api.js';
-import type { Profile, Game, SourceStatus, DiscordSettings, Anomaly } from '../../src/client/src/types.js';
+import type { Profile, Game, SourceStatus, DiscordSettings, PricingError as Anomaly } from '../../src/client/src/types.js';
 
 const mockProfile: Profile = {
   id: 'prof-1',
@@ -32,7 +32,7 @@ const mockGame: Game = {
   slug: 'terraria',
   isDlc: false,
   isFree: false,
-  hasAnomaly: false,
+  hasPricingError: false,
   offersCount: 3,
   basePriceEur: 9.99,
   bestPriceEur: 4.99,
@@ -290,8 +290,8 @@ describe('Modals & Ancillary Components', () => {
         gameId: 'game-1',
         offerId: 'off-1',
         merchantName: 'Steam Store',
-        anomalyType: 'PERCENTAGE_DROP',
-        score: 95,
+        errorType: 'PERCENTAGE_DROP',
+        confidence: 95,
         reason: 'Price dropped by 99% (likely glitch)',
         priceEur: 0.10,
         detectedAt: '2026-01-01T00:00:00Z',

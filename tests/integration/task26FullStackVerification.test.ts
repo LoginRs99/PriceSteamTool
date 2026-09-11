@@ -235,8 +235,8 @@ describe('Task 26: Full Stack Verification (Smoke & Acceptance)', () => {
       const db = getDb();
       db.prepare(`UPDATE offers SET risk_level = 'HIGH', is_anomaly = 1 WHERE id = ?`).run(anomalyOffer.id);
 
-      // When hideAnomalies is active, the anomalous offer does not surface in wishlist
-      const filteredRes = gameRepo.getWishlistGames(profile.id, { hideAnomalies: true });
+      // When hidePricingErrors is active, the anomalous offer does not surface in wishlist
+      const filteredRes = gameRepo.getWishlistGames(profile.id, { hidePricingErrors: true });
       expect(filteredRes.games.length).toBe(0);
 
       // In CSV export, anomaly offers are accurately categorized with risk_level and is_anomaly flags

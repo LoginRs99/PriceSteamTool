@@ -51,7 +51,7 @@ export function calculatePeriodLows(
       isOfficial: h.isOfficial
     }));
 
-    if (currentBestOffer && currentBestOffer.priceEur > 0 && currentBestOffer.riskLevel !== 'HIGH' && !currentBestOffer.isAnomaly) {
+    if (currentBestOffer && currentBestOffer.priceEur > 0 && !currentBestOffer.isLikelyPricingError) {
       candidatePrices.push({
         price: currentBestOffer.priceEur,
         merchant: currentBestOffer.merchantName,

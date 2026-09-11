@@ -11,7 +11,7 @@ const mockStats: WishlistStatistics = {
   gamesOnSale: 6,
   gamesAtHistoricalLow: 3,
   majorDropsCount: 2,
-  gamesWithHighRiskOffers: 1,
+  gamesWithPricingErrors: 1,
   freeGamesCount: 2,
   averageDiscountPercent: 45
 };
@@ -23,7 +23,7 @@ const mockTopDeal: Game = {
   slug: 'terraria',
   isDlc: false,
   isFree: false,
-  hasAnomaly: false,
+  hasPricingError: false,
   offersCount: 3,
   basePriceEur: 9.99,
   bestPriceEur: 4.99,

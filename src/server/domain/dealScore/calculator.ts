@@ -71,17 +71,11 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
       : 0;
     rawScore = Math.min(NO_HISTORY_FALLBACK_CAP, discountPct * 0.3);
   } else {
-    // Risk pillar
-    if (input.isAnomaly === true) {
+    // Pricing error penalty if not skipped upstream
+    if (input.isPricingError) {
       riskPenalty = 25;
-    } else if (input.riskLevel === 'HIGH') {
-      riskPenalty = 20;
-    } else if (input.riskLevel === 'SUSPICIOUS') {
-      riskPenalty = 12;
-    } else if (input.riskLevel === 'MEDIUM') {
-      riskPenalty = 5;
+      rawScore = Math.max(0, rawScore - riskPenalty);
     }
-    rawScore = Math.max(0, rawScore - riskPenalty);
   }
 
   let finalScore = Math.round(Math.max(0, Math.min(100, rawScore)));
@@ -109,28 +103,31 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     sourceCount: input.sourceCount ?? 1
   });
 
+  const verdict = 
+    finalScore >= 85 ? 'INSTANT_BUY' :
+    finalScore >= 70 ? 'GREAT_DEAL' :
+    finalScore >= 50 ? 'FAIR_DEAL' :
+    finalScore >= 30 ? 'WAIT' : 'OVERPRICED';
+
   return {
     score: finalScore,
     tier,
+    verdict,
     baseScore,
     rarityBonus: recordBonus,
     confidenceScore: confidenceData.confidence,
     confidenceTier: confidenceData.tier,
     isLowSample: confidenceData.confidence < 40,
     isProvisional,
-    zScore,
     components: {
-      discountScore: baseScore,
-      historicalScore: recordBonus,
-      trustScore: savingsBoost,
+      atlProximity: recordBonus,
+      discountDepth: baseScore,
+      historicalValue: savingsBoost,
+      marketPosition: 0,
       subtotal: finalScore,
-      // Confidence is reported via confidenceScore/confidenceTier and consumed downstream, not multiplied into the score
-      confidenceMultiplier: 1.0,
-      riskPenalty,
       rawScore: Number(rawScore.toFixed(2))
     },
     explanation: {
-      effectiveSigma,
       medianSavingEur: median ? Number((median - priceEur).toFixed(2)) : 0,
       atlDistanceEur: atlDistanceEur ?? 0,
       confidenceFactors: confidenceData.factors

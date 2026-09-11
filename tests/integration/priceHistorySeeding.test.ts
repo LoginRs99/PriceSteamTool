@@ -127,7 +127,7 @@ describe('One-time Price History Seeding & Backfill', () => {
     // 6. Verify price_history table rows
     const historyRows = offerRepo.getPriceHistory(game.id, 50);
     expect(historyRows.length).toBe(4);
-    expect(historyRows.every(h => h.isAnomaly === false)).toBe(true);
+    expect(historyRows.every(h => h.isPricingError === false)).toBe(true);
 
     // 7. Test Idempotency: re-seeding the exact same points does not duplicate rows
     offerRepo.seedPriceHistoryForGame(game.id, mockPoints);
@@ -208,8 +208,8 @@ describe('One-time Price History Seeding & Backfill', () => {
     const gameHighPriority = gameRepo.upsert({ steamAppId: 2002, title: 'Game Priority 1', basePriceEur: 29.99 });
 
     gameRepo.syncWishlistEntries(profile.id, [
-      { steamAppId: 2001, priority: 10 },
-      { steamAppId: 2002, priority: 1 }
+      { steamAppId: 2001, title: 'Game Priority 10', priority: 10 },
+      { steamAppId: 2002, title: 'Game Priority 1', priority: 1 }
     ]);
 
     const origApiKey = config.itadApiKey;

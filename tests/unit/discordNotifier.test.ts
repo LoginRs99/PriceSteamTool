@@ -69,7 +69,7 @@ describe('Discord Notifier Service', () => {
       slug: 'super-deal-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       bestPriceEur: 9.99,
       basePriceEur: 49.99,
@@ -88,7 +88,7 @@ describe('Discord Notifier Service', () => {
       slug: 'mediocre-deal-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       bestPriceEur: 39.99,
       basePriceEur: 49.99,
@@ -146,7 +146,7 @@ describe('Discord Notifier Service', () => {
         slug: 'atl-game',
         isDlc: false,
         isFree: false,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         bestPriceEur: 12.99,
         basePriceEur: 59.99,
@@ -164,7 +164,7 @@ describe('Discord Notifier Service', () => {
         slug: 'non-atl-game',
         isDlc: false,
         isFree: false,
-        hasAnomaly: false,
+        hasPricingError: false,
         offersCount: 1,
         bestPriceEur: 24.99,
         basePriceEur: 59.99,
@@ -208,7 +208,7 @@ describe('Discord Notifier Service', () => {
       slug: 'free-giveaway-game',
       isDlc: false,
       isFree: true,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       bestPriceEur: 0,
       basePriceEur: 29.99,
@@ -252,8 +252,7 @@ describe('Discord Notifier Service', () => {
       slug: 'glitch-price-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: true, // Marked as anomaly!
-      bestRiskLevel: 'HIGH',
+      hasPricingError: true, // Marked as anomaly!
       offersCount: 1,
       bestPriceEur: 0.50,
       basePriceEur: 59.99,
@@ -294,8 +293,7 @@ describe('Discord Notifier Service', () => {
       slug: 'glitch-hunter-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: true,
-      bestRiskLevel: 'HIGH',
+      hasPricingError: true,
       bestPriceEvent: 'PRICING_ERROR',
       offersCount: 1,
       bestPriceEur: 0.99,
@@ -336,7 +334,7 @@ describe('Discord Notifier Service', () => {
       slug: 'provisional-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       bestIsProvisional: true,
       bestConfidenceScore: 35,
       bestConfidenceTier: 'Low',
@@ -387,7 +385,7 @@ describe('Discord Notifier Service', () => {
       slug: 'low-conf',
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       bestDealScore: 85,
       bestDealTier: 'Exceptional',
       bestConfidenceScore: 35, // Low (35 < 60)
@@ -405,7 +403,7 @@ describe('Discord Notifier Service', () => {
       slug: 'high-conf',
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       bestDealScore: 85,
       bestDealTier: 'Exceptional',
       bestConfidenceScore: 85, // High (85 >= 60)
@@ -449,8 +447,7 @@ describe('Discord Notifier Service', () => {
       slug: 'target-hit-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
-      bestRiskLevel: 'SAFE',
+      hasPricingError: false,
       bestDealScore: 40, // Low Deal Score (40 < 80)
       bestConfidenceScore: 30, // Low Confidence (30 < 75)
       bestPriceEvent: 'NONE', // Not an ATL deal!
@@ -495,8 +492,7 @@ describe('Discord Notifier Service', () => {
       slug: 'glitch-target-game',
       isDlc: false,
       isFree: false,
-      hasAnomaly: true, // Pricing anomaly detected!
-      bestRiskLevel: 'HIGH',
+      hasPricingError: true, // Pricing anomaly detected!
       targetPriceEur: 10.00,
       bestPriceEur: 0.99, // Unbelievably cheap, but suppressed due to anomaly
       offersCount: 1,
@@ -549,8 +545,7 @@ describe('Discord Notifier Service', () => {
       bestDealScore: 92, // Outstanding score!
       bestConfidenceScore: 80,
       bestIsFresh: false, // STALE OBSERVATION (>72h)
-      bestRiskLevel: 'SAFE',
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

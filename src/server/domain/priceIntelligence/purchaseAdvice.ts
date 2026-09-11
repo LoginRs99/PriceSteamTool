@@ -40,14 +40,14 @@ export function evaluatePurchaseAdvice(
   }
 
   // 2. High Risk / Anomaly Safety Guard
-  if (currentBestOffer && (currentBestOffer.isAnomaly || currentBestOffer.riskLevel === 'HIGH')) {
+  if (currentBestOffer && currentBestOffer.isLikelyPricingError) {
     return {
       decision: 'WAIT',
       confidence: actionSignal?.decision === 'PROVISIONAL' ? 'LOW' : 'HIGH',
       headline: 'High Risk Price Anomaly',
       reasoning: [
         'Current offer is flagged as an unverified pricing error or high-risk seller.',
-        currentBestOffer.anomalyReason || 'Price is an extreme outlier.'
+        currentBestOffer.pricingErrorReason || 'Price is an extreme outlier.'
       ]
     };
   }

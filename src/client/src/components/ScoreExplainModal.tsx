@@ -74,14 +74,14 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           </div>
 
           {/* Pricing Error / Glitch Alert Banner */}
-          {(game.bestPriceEvent === 'PRICING_ERROR' || ((game.bestRiskLevel === 'HIGH' || game.hasAnomaly) && (game.bestDiscountPercent ?? 0) >= 75)) ? (
+          {(game.bestPriceEvent === 'PRICING_ERROR' || (game.hasPricingError && (game.bestDiscountPercent ?? 0) >= 75)) ? (
             <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>⚡</span>
               <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
                 <strong>⚡ Potential Pricing Error!</strong> This offer is dramatically cheaper than the market median and other stores. If this is an unintended pricing glitch, the store may soon correct or cancel orders — consider purchasing immediately if you want the game!
               </div>
             </div>
-          ) : (game.bestRiskLevel === 'HIGH' || game.hasAnomaly) ? (
+          ) : game.hasPricingError ? (
             <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>

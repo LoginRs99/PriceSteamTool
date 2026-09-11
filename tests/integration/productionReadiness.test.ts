@@ -17,7 +17,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       historicalLowEur: 4.49,
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       createdAt: '2025-01-01T00:00:00Z',
       updatedAt: '2026-08-15T00:00:00Z'
@@ -39,15 +39,12 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       isValid: true,
       isBestDeal: true,
       priceEvent: 'AT_HISTORICAL_LOW',
-      riskLevel: 'SAFE',
-      riskScore: 0,
-      riskFlags: [],
-      evaluationConfidence: 1.0,
-      isAnomaly: false,
+      isLikelyPricingError: false,
       sources: ['steam'],
       sourceAgreementCount: 3,
       dealScore: 95,
       dealTier: 'Exceptional',
+      confidenceScore: 100,
       fetchedAt: '2026-08-15T12:00:00Z',
       lastObservedAt: '2026-08-15T12:00:00Z',
       createdAt: '2026-08-15T12:00:00Z',
@@ -74,7 +71,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       historicalLowEur: 32.00,
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       createdAt: '2025-01-01T00:00:00Z',
       updatedAt: '2026-08-15T00:00:00Z'
@@ -110,7 +107,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       historicalLowEur: 29.99,
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       createdAt: '2025-01-01T00:00:00Z',
       updatedAt: '2026-08-15T00:00:00Z'
@@ -134,11 +131,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       isValid: true,
       isBestDeal: true,
       priceEvent: 'STANDARD_SALE',
-      riskLevel: 'SAFE',
-      riskScore: 0,
-      riskFlags: [],
-      evaluationConfidence: 0.90,
-      isAnomaly: false,
+      isLikelyPricingError: false,
       sources: ['steam'],
       sourceAgreementCount: 2,
       dealScore: 42,
@@ -179,11 +172,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
     // Without previous low / typical sale context (pure MSRP fallback): score is 25 (Fallback Cap)
     const dealWithoutAtl = calculateDealScore({
       priceEur: 4.49,
-      basePriceEur: 29.99,
-
-
-      riskLevel: evalRes.riskLevel,
-
+      basePriceEur: 29.99
     });
 
     expect(dealWithoutAtl.score).toBe(25);
@@ -196,10 +185,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       typicalSaleMedianEur: 14.99,
       typicalSaleQ1Eur: 12.99,
       typicalSaleQ3Eur: 17.99,
-      allTimeLowEur: 4.49,
-
-      riskLevel: evalRes.riskLevel,
-
+      allTimeLowEur: 4.49
     });
 
     expect(dealWithAtl.score).toBeGreaterThanOrEqual(80);
@@ -221,10 +207,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
     const deal = calculateDealScore({
       priceEur: 0.49,
       basePriceEur: 59.99,
-
-
-      riskLevel: evalRes.riskLevel,
-      isAnomaly: evalRes.isAnomaly
+      isPricingError: evalRes.isAnomaly
     });
 
     expect(deal.score).toBeLessThanOrEqual(35);
@@ -238,7 +221,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       historicalLowEur: 29.99,
       isDlc: false,
       isFree: false,
-      hasAnomaly: true,
+      hasPricingError: true,
       offersCount: 1,
       createdAt: '2025-01-01T00:00:00Z',
       updatedAt: '2026-08-15T00:00:00Z'
@@ -261,12 +244,8 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       isValid: true,
       isBestDeal: true,
       priceEvent: evalRes.event,
-      riskLevel: evalRes.riskLevel,
-      riskScore: evalRes.riskScore,
-      riskFlags: evalRes.riskFlags,
-      evaluationConfidence: evalRes.confidence,
-      isAnomaly: true,
-      anomalyReason: 'Extreme pricing glitch',
+      isLikelyPricingError: true,
+      pricingErrorReason: 'Extreme pricing glitch',
       sources: ['allkeyshop'],
       sourceAgreementCount: 1,
       dealScore: deal.score,
@@ -296,7 +275,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       basePriceEur: 19.99,
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 1,
       createdAt: new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString(),
       updatedAt: new Date().toISOString()
@@ -340,11 +319,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       isValid: true,
       isBestDeal: true,
       priceEvent: 'STANDARD_SALE',
-      riskLevel: 'SAFE',
-      riskScore: 0,
-      riskFlags: [],
-      evaluationConfidence: 1.0,
-      isAnomaly: false,
+      isLikelyPricingError: false,
       sources: ['steam'],
       sourceAgreementCount: 2,
       fetchedAt: '2026-08-15T12:00:00Z',
@@ -359,7 +334,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       merchantName: 'GeoLocked Seller',
       priceEur: 2.99,
       regionType: 'RESTRICTED',
-      riskLevel: 'HIGH'
+      isLikelyPricingError: true
     };
 
     const game: Game = {
@@ -370,7 +345,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       basePriceEur: 39.99,
       isDlc: false,
       isFree: false,
-      hasAnomaly: false,
+      hasPricingError: false,
       offersCount: 2,
       createdAt: '2025-01-01T00:00:00Z',
       updatedAt: '2026-08-15T00:00:00Z'

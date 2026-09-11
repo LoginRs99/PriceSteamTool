@@ -15,10 +15,7 @@ export function isTrustedHistoryEntry(entry: PriceHistoryEntry): boolean {
   if (!entry || typeof entry.priceEur !== 'number' || isNaN(entry.priceEur) || entry.priceEur <= 0) {
     return false;
   }
-  if (entry.isAnomaly === true) {
-    return false;
-  }
-  if (entry.riskLevel === 'HIGH') {
+  if (entry.isPricingError === true) {
     return false;
   }
   if (entry.priceEvent === 'EXTREME_DROP') {
