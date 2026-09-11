@@ -92,10 +92,19 @@ export function getRecentDiagnosticsLogs(linesCount: number = 200): string {
   }
 }
 
+const MAX_LOG_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
 function appendToFile(text: string): void {
   try {
+    if (fs.existsSync(logFilePath)) {
+      const stats = fs.statSync(logFilePath);
+      if (stats.size >= MAX_LOG_SIZE_BYTES) {
+        fs.renameSync(logFilePath, `${logFilePath}.1`);
+      }
+    }
     fs.appendFileSync(logFilePath, text + '\n', 'utf-8');
   } catch (e) {
     // Suppress filesystem write error
   }
 }
+

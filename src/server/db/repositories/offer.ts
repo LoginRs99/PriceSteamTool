@@ -739,10 +739,29 @@ export const offerRepo = {
         COALESCE(o.last_observed_at, o.fetched_at) DESC
     `).all(gameId) as any[];
 
+    if (rows.length === 0) return [];
+
+    const offerIds = rows.map(r => r.id).filter(Boolean);
+    const sourcesByOffer = new Map<string, SourceCode[]>();
+
+    if (offerIds.length > 0) {
+      const placeholders = offerIds.map(() => '?').join(',');
+      const obsRows = prepareStmt(`
+        SELECT offer_id, source_code FROM source_observations WHERE offer_id IN (${placeholders})
+      `).all(...offerIds) as { offer_id: string; source_code: string }[];
+
+      for (const obs of obsRows) {
+        const list = sourcesByOffer.get(obs.offer_id);
+        if (list) {
+          list.push(obs.source_code as SourceCode);
+        } else {
+          sourcesByOffer.set(obs.offer_id, [obs.source_code as SourceCode]);
+        }
+      }
+    }
+
     return rows.map(r => {
-      const sources = prepareStmt(`
-        SELECT source_code FROM source_observations WHERE offer_id = ?
-      `).all(r.id) as any[];
+      const sources = sourcesByOffer.get(r.id) || [];
 
       let riskFlags: any[] = [];
       if (r.risk_flags) {
@@ -814,7 +833,7 @@ export const offerRepo = {
         confidenceScore: dealCalc.confidenceScore,
         confidenceTier: dealCalc.confidenceTier,
         isProvisional: dealCalc.isProvisional,
-        sources: sources.map(s => s.source_code as SourceCode),
+        sources,
         sourceAgreementCount: sources.length,
         fetchedAt: r.fetched_at,
         lastObservedAt: r.last_observed_at || r.fetched_at,
