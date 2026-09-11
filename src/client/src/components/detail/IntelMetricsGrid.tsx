@@ -20,10 +20,10 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
           <TrendingDown size={15} color="var(--accent-blue)" />
         </div>
         <div className="intel-value ticker-num" style={{ color: 'var(--accent-blue)' }}>
-          {typicalSale?.medianPriceEur !== null ? `€${typicalSale?.medianPriceEur?.toFixed(2)}` : '—'}
+          {typicalSale?.medianPriceEur != null ? `€${typicalSale.medianPriceEur.toFixed(2)}` : '—'}
         </div>
         <span className="intel-sub">
-          {typicalSale && typicalSale.medianPriceEur !== null
+          {typicalSale?.medianPriceEur != null
             ? `IQR Range: €${typicalSale.q1PriceEur?.toFixed(2)} – €${typicalSale.q3PriceEur?.toFixed(2)} (${typicalSale.sampleCount} sales)`
             : 'Insufficient historical sales'}
         </span>

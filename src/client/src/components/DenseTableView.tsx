@@ -4,6 +4,7 @@ import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
 import { GameImage } from './GameImage.js';
 import { ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, RefreshCw } from 'lucide-react';
+import { getSteamReviewSentiment } from '../utils/steamMeta.js';
 
 interface DenseTableViewProps {
   games: Game[];
@@ -162,7 +163,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                         )}
                         {game.steamReviewPercent !== undefined && (
                           <span 
-                            className={`steam-review-pill ${game.steamReviewPercent >= 80 ? 'positive' : game.steamReviewPercent >= 70 ? 'mixed' : 'negative'}`}
+                            className={`steam-review-pill ${getSteamReviewSentiment(game.steamReviewPercent)}`}
                             title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})`}
                           >
                             👍 {game.steamReviewPercent}%
@@ -290,7 +291,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                         }
                       }}
                     >
-                      ⚡ GLITCH 99
+                      ⚡ GLITCH
                     </span>
                   ) : isHighRisk ? (
                     <span 

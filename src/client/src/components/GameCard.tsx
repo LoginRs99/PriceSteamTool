@@ -4,6 +4,7 @@ import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
 import { GameImage } from './GameImage.js';
 import { AlertTriangle, ShieldCheck, Info, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
+import { getSteamReviewSentiment } from '../utils/steamMeta.js';
 
 interface GameCardProps {
   game: Game;
@@ -163,7 +164,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               }
             }}
           >
-            <span className="deal-score-num ticker-num">{isPricingError ? '⚡ 99' : dealScore}</span>
+            <span className="deal-score-num ticker-num">{isPricingError ? '⚡' : dealScore}</span>
           </div>
         )}
 
@@ -207,7 +208,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginTop: 1 }}>
               {game.steamReviewPercent !== undefined ? (
                 <span 
-                  className={`steam-review-pill ${game.steamReviewPercent >= 80 ? 'positive' : game.steamReviewPercent >= 70 ? 'mixed' : 'negative'}`}
+                  className={`steam-review-pill ${getSteamReviewSentiment(game.steamReviewPercent)}`}
                   title={`Steam Reviews: ${game.steamReviewDesc || 'User Reviews'} (${game.steamReviewPercent}% positive${game.steamReviewTotal ? ` of ${game.steamReviewTotal}` : ''})${game.steamdbRating !== undefined ? ` • SteamDB: ${game.steamdbRating}%` : ''}${game.metacriticScore !== undefined ? ` • Metacritic: ${game.metacriticScore}/100` : ''}`}
                 >
                   👍 {game.steamReviewPercent}%

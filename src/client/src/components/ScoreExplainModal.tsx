@@ -95,7 +95,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             <div style={{ background: 'var(--signal-dim)', border: '1px solid rgba(251, 191, 36, 0.3)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <AlertTriangle size={18} color="var(--signal)" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
-                <strong>Provisional Score Cap (Max 65):</strong> This game has limited historical observations ({sampleCount} recorded sales). Full Exceptional status (85–100) requires at least 3 historical datapoints to prevent false alerts.
+                <strong>Provisional Score:</strong> This game has limited historical observations ({sampleCount} recorded sales) and is capped at 65 — or 80 for deep discounts of 60%+ off MSRP — until at least 3 historical datapoints exist.
               </div>
             </div>
           )}
@@ -196,7 +196,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           {/* Explanation Footer Note */}
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
             <Info size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-            Deal Score measures how deeply discounted the current price is compared to the game's actual historical pricing pattern. It never judges merchant reputation or brand bias.
+            Deal Score measures how deeply discounted the current price is compared to the game's actual historical pricing pattern. Offers flagged as pricing anomalies receive a safety penalty; data confidence is reported separately and never inflates the score.
           </div>
         </div>
       </div>

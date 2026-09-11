@@ -19,6 +19,7 @@ import { OffersTable } from './detail/OffersTable.js';
 import { AllKeyShopMatchSelector } from './detail/AllKeyShopMatchSelector.js';
 import { PriceHistoryTable } from './detail/PriceHistoryTable.js';
 import { GameDetailSkeleton } from './skeletons/GameDetailSkeleton.js';
+import { getSteamReviewSentiment } from '../utils/steamMeta.js';
 
 interface GameDetailModalProps {
   gameId: string;
@@ -88,9 +89,7 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
 
               {game.steamReviewPercent != null && (
                 <span
-                  className={`steam-review-pill ${
-                    game.steamReviewPercent >= 70 ? 'positive' : game.steamReviewPercent >= 40 ? 'mixed' : 'negative'
-                  }`}
+                  className={`steam-review-pill ${getSteamReviewSentiment(game.steamReviewPercent)}`}
                   title={game.steamReviewDesc ? `${game.steamReviewDesc} (${game.steamReviewTotal?.toLocaleString() ?? 0} reviews)` : `${game.steamReviewPercent}% positive`}
                 >
                   👍 {game.steamReviewPercent}% {game.steamReviewDesc ? `· ${game.steamReviewDesc}` : ''}
