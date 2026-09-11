@@ -56,4 +56,6 @@ export const config = {
     ? process.env.TRUSTED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean) 
     : null,
   apiToken: process.env.API_TOKEN?.trim() || '',
+  trustProxy: process.env.TRUST_PROXY === 'true',
+  v1RateLimitPerMinute: parseInt(process.env.V1_RATE_LIMIT_PER_MIN || '300', 10),
 };

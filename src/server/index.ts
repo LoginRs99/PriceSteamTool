@@ -15,6 +15,8 @@ const __dirname = path.dirname(__filename);
 
 export async function createApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
+    // Note: Deployments behind a reverse proxy (e.g. Nginx, Caddy, Cloudflare) must enable Fastify trustProxy (via TRUST_PROXY=true) so request.ip reflects the real client.
+    trustProxy: Boolean(config.trustProxy),
     logger: {
       level: config.isDev ? 'info' : 'warn'
     }

@@ -8,6 +8,7 @@ import {
 } from '../db/index.js';
 import { syncOrchestrator } from '../sync/orchestrator.js';
 import type { Game, Offer, PriceHistoryEntry } from '../../shared/types.js';
+import { checkRateLimit } from './rateLimit.js';
 
 function resolveGame(id: string): Game | null {
   if (id.startsWith('steam:')) {
@@ -23,15 +24,42 @@ function resolveGame(id: string): Game | null {
 
 export const v1Routes: FastifyPluginAsync = async (fastify) => {
 
+  // Inbound Rate Limiting hook for /api/v1/*
+  // Note: Deployments behind a reverse proxy must enable Fastify trustProxy so request.ip reflects the real client.
+  fastify.addHook('onRequest', async (request, reply) => {
+    const key = request.ip || '127.0.0.1';
+    const rl = checkRateLimit(key);
+    (request as any).rateLimitInfo = rl;
+
+    if (!rl.allowed) {
+      reply.header('X-RateLimit-Limit', String(rl.limit));
+      reply.header('X-RateLimit-Remaining', '0');
+      reply.header('X-RateLimit-Reset', String(rl.resetSeconds));
+      reply.header('X-API-Version', '1.0');
+      reply.header('RateLimit-Limit', String(rl.limit));
+      reply.header('RateLimit-Remaining', '0');
+      reply.header('RateLimit-Reset', String(rl.resetSeconds));
+      reply.header('Retry-After', String(rl.resetSeconds));
+
+      return reply.status(429).send({
+        error: 'Rate limit exceeded',
+        retryAfterSeconds: rl.resetSeconds
+      });
+    }
+  });
+
   // Standard IETF & Custom RateLimit and Diagnostics Headers Hook for /api/v1/*
   fastify.addHook('onSend', async (request, reply, payload) => {
-    reply.header('X-RateLimit-Limit', '300');
-    reply.header('X-RateLimit-Remaining', '299');
-    reply.header('X-RateLimit-Reset', '60');
+    const rl = (request as any).rateLimitInfo;
+    if (rl) {
+      reply.header('X-RateLimit-Limit', String(rl.limit));
+      reply.header('X-RateLimit-Remaining', String(rl.remaining));
+      reply.header('X-RateLimit-Reset', String(rl.resetSeconds));
+      reply.header('RateLimit-Limit', String(rl.limit));
+      reply.header('RateLimit-Remaining', String(rl.remaining));
+      reply.header('RateLimit-Reset', String(rl.resetSeconds));
+    }
     reply.header('X-API-Version', '1.0');
-    reply.header('RateLimit-Limit', '300');
-    reply.header('RateLimit-Remaining', '299');
-    reply.header('RateLimit-Reset', '60');
     return payload;
   });
 
@@ -398,13 +426,15 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   // ----------------------------------------------------
 
   // GET /api/v1/quota
-  fastify.get('/api/v1/quota', async () => {
+  fastify.get('/api/v1/quota', async (request) => {
+    const key = request.ip || '127.0.0.1';
+    const rl = (request as any).rateLimitInfo || checkRateLimit(key);
     return {
       tier: 'SELF_HOSTED',
       status: 'HEALTHY',
-      rateLimitPerMinute: 300,
-      currentWindowRemaining: 299,
-      windowResetSeconds: 60,
+      rateLimitPerMinute: rl.limit,
+      currentWindowRemaining: rl.remaining,
+      windowResetSeconds: rl.resetSeconds,
       timestamp: new Date().toISOString()
     };
   });
