@@ -164,4 +164,35 @@ describe('useWishlistSync', () => {
     expect(result.current.syncProgress).not.toBeNull();
     expect(result.current.syncProgress?.status).toBe('RUNNING');
   });
+
+  it('maintains a single stable SSE connection when onSyncCompleted identity changes', () => {
+    let callback = vi.fn();
+    const { rerender } = renderHook(
+      ({ cb }: { cb: () => void }) => useWishlistSync(cb),
+      { initialProps: { cb: callback } }
+    );
+
+    expect(MockEventSource.instances.length).toBe(1);
+
+    // Re-render with a newly created callback function reference
+    callback = vi.fn();
+    rerender({ cb: callback });
+
+    // Connection must not have been torn down or recreated
+    expect(MockEventSource.instances.length).toBe(1);
+
+    // Emit COMPLETED event and verify the latest callback was invoked
+    const sse = MockEventSource.instances[0];
+    act(() => {
+      sse.emitMessage({
+        status: 'COMPLETED',
+        totalGames: 10,
+        processedGames: 10,
+        currentAction: 'Finished',
+        sourceProgress: {} as any
+      });
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
 });

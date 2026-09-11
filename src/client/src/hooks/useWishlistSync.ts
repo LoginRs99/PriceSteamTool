@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { SyncProgressUpdate, SourceCode } from '../types.js';
 import { api } from '../api.js';
 
@@ -6,6 +6,11 @@ const TERMINAL_STATUSES = ['COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED', 'CA
 
 export function useWishlistSync(onSyncCompleted?: () => void) {
   const [syncProgress, setSyncProgress] = useState<SyncProgressUpdate | null>(null);
+
+  const onSyncCompletedRef = useRef(onSyncCompleted);
+  useEffect(() => {
+    onSyncCompletedRef.current = onSyncCompleted;
+  });
 
   useEffect(() => {
     if (typeof EventSource === 'undefined') return;
@@ -16,8 +21,8 @@ export function useWishlistSync(onSyncCompleted?: () => void) {
         const update: SyncProgressUpdate = JSON.parse(event.data);
         setSyncProgress(update);
 
-        if ((update.status === 'COMPLETED' || update.status === 'COMPLETED_WITH_WARNINGS') && onSyncCompleted) {
-          onSyncCompleted();
+        if ((update.status === 'COMPLETED' || update.status === 'COMPLETED_WITH_WARNINGS') && onSyncCompletedRef.current) {
+          onSyncCompletedRef.current();
         }
       } catch (e) {
         console.error('Error parsing SSE event:', e);
@@ -27,7 +32,7 @@ export function useWishlistSync(onSyncCompleted?: () => void) {
     return () => {
       eventSource.close();
     };
-  }, [onSyncCompleted]);
+  }, []);
 
   useEffect(() => {
     if (!syncProgress || !TERMINAL_STATUSES.includes(syncProgress.status as any)) {
