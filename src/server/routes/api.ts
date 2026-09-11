@@ -8,6 +8,7 @@ import {
   anomalyRepo 
 } from '../db/index.js';
 import { syncOrchestrator } from '../sync/orchestrator.js';
+import { priceHistoryQueue } from '../sync/historyQueue.js';
 import { steamAdapter } from '../sources/steam.js';
 import { config } from '../config/index.js';
 import type { WishlistFilterOptions, SourceCode } from '../../shared/types.js';
@@ -241,9 +242,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.get('/api/games/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const game = gameRepo.getById(id);
+    let game = gameRepo.getById(id);
     if (!game) {
       return reply.status(404).send({ error: 'Game not found' });
+    }
+
+    if (!game.priceHistorySeededAt && config.itadApiKey) {
+      try {
+        await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
+        game = gameRepo.getById(id) || game;
+      } catch {}
     }
 
     const offers = offerRepo.getOffersForGame(id);
@@ -258,6 +266,17 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.get('/api/games/:id/intelligence', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const game = gameRepo.getById(id);
+    if (!game) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+
+    if (!game.priceHistorySeededAt && config.itadApiKey) {
+      try {
+        await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
+      } catch {}
+    }
+
     const intelligence = gameRepo.getPriceIntelligence(id);
     if (!intelligence) {
       return reply.status(404).send({ error: 'Game not found' });

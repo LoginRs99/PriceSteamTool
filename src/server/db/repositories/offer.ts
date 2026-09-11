@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getDb, prepareStmt, BEST_DEAL_RECOMPUTE_ALL_SQL } from '../core.js';
 import { gameRepo } from './game.js';
+import { merchantRepo } from './merchant.js';
 import { anomalyRepo } from './anomaly.js';
 import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/pricingEngine.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
@@ -909,6 +910,191 @@ export const offerRepo = {
       riskLevel: r.risk_level || 'SAFE',
       recordedAt: r.recorded_at
     }));
+  },
+
+  /**
+   * One-time backfill / seed of past promotional price history points for a game
+   */
+  seedPriceHistoryForGame(
+    gameId: string,
+    historyPoints: Array<{
+      shopName: string;
+      priceEur: number;
+      rawPrice?: number;
+      rawCurrency?: string;
+      regularPriceEur?: number;
+      discountPercent?: number;
+      timestamp: string;
+    }>
+  ): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+
+    const tx = db.transaction(() => {
+      const gameRow = prepareStmt(`
+        SELECT id, steam_app_id, title, slug, base_price_eur, historical_low_eur, 
+               historical_low_date, historical_low_source, atl_is_confirmed, 
+               atl_is_single_source_low, is_dlc, is_free, created_at, updated_at
+        FROM games WHERE id = ?
+      `).get(gameId) as any;
+
+      if (!gameRow) return;
+
+      const checkHistStmt = prepareStmt(`
+        SELECT id FROM price_history 
+        WHERE game_id = ? AND merchant_id = ? AND recorded_at = ? 
+        LIMIT 1
+      `);
+
+      const insertHistStmt = prepareStmt(`
+        INSERT INTO price_history (
+          id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency,
+          fx_rate, discount_percent, price_event, is_anomaly, risk_level, recorded_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?, 0, 'SAFE', ?)
+      `);
+
+      if (Array.isArray(historyPoints) && historyPoints.length > 0) {
+        for (const pt of historyPoints) {
+          if (typeof pt.priceEur !== 'number' || isNaN(pt.priceEur) || pt.priceEur <= 0) continue;
+          const shopName = pt.shopName || 'Store';
+          const shopCode = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'store';
+          const merchant = merchantRepo.getOrCreate(shopCode, shopName, true);
+
+          const existing = checkHistStmt.get(gameId, merchant.id, pt.timestamp);
+          if (existing) continue;
+
+          const disc = pt.discountPercent ? Math.round(pt.discountPercent) : 0;
+          const priceEvent = disc >= 50 ? 'MAJOR_DROP' : (disc >= 15 ? 'STANDARD_SALE' : 'NONE');
+
+          insertHistStmt.run(
+            randomUUID(),
+            gameId,
+            merchant.id,
+            'itad',
+            pt.priceEur,
+            pt.rawPrice !== undefined ? pt.rawPrice : pt.priceEur,
+            pt.rawCurrency || 'EUR',
+            disc,
+            priceEvent,
+            pt.timestamp
+          );
+        }
+      }
+
+      // Recompute rolling stats with all history points (including newly seeded points)
+      const rawHistory = prepareStmt(`
+        SELECT ph.*, m.name as merchant_name, m.is_official
+        FROM price_history ph
+        JOIN merchants m ON ph.merchant_id = m.id
+        WHERE ph.game_id = ?
+        ORDER BY ph.recorded_at DESC
+      `).all(gameId) as any[];
+
+      const history: PriceHistoryEntry[] = rawHistory.map(h => ({
+        id: h.id,
+        gameId: h.game_id,
+        merchantId: h.merchant_id,
+        merchantName: h.merchant_name || '',
+        isOfficial: Boolean(h.is_official),
+        sourceCode: h.source_code as SourceCode,
+        priceEur: Number(h.price_eur),
+        rawPrice: h.raw_price !== null && h.raw_price !== undefined ? Number(h.raw_price) : undefined,
+        rawCurrency: h.raw_currency || undefined,
+        fxRate: h.fx_rate !== null && h.fx_rate !== undefined ? Number(h.fx_rate) : undefined,
+        discountPercent: Number(h.discount_percent || 0),
+        priceEvent: h.price_event || 'NONE',
+        dealScore: h.deal_score ? Number(h.deal_score) : undefined,
+        isAnomaly: Boolean(h.is_anomaly),
+        riskLevel: h.risk_level || 'SAFE',
+        recordedAt: h.recorded_at
+      }));
+
+      const basePrice = gameRow.base_price_eur ? Number(gameRow.base_price_eur) : undefined;
+      const typicalSale = calculateTypicalSalePrice(basePrice, history);
+
+      const mappedGame: Game = {
+        id: gameRow.id,
+        steamAppId: Number(gameRow.steam_app_id),
+        title: gameRow.title,
+        slug: gameRow.slug,
+        basePriceEur: basePrice,
+        historicalLowEur: gameRow.historical_low_eur ? Number(gameRow.historical_low_eur) : undefined,
+        historicalLowDate: gameRow.historical_low_date || undefined,
+        historicalLowSource: gameRow.historical_low_source || undefined,
+        atlIsConfirmed: gameRow.atl_is_confirmed !== null && gameRow.atl_is_confirmed !== undefined ? Boolean(gameRow.atl_is_confirmed) : undefined,
+        atlIsSingleSourceLow: gameRow.atl_is_single_source_low !== null && gameRow.atl_is_single_source_low !== undefined ? Boolean(gameRow.atl_is_single_source_low) : undefined,
+        isDlc: Boolean(gameRow.is_dlc),
+        isFree: Boolean(gameRow.is_free),
+        hasAnomaly: false,
+        offersCount: 1,
+        createdAt: gameRow.created_at,
+        updatedAt: now
+      };
+
+      const currentBestOffer = offerRepo.getOffersForGame(gameId).find(o => o.isBestDeal);
+      const periodLows = calculatePeriodLows(mappedGame, history, currentBestOffer);
+      const atlConfirmed = periodLows.allTimeLow.isConfirmed ? 1 : 0;
+      const atlSingleSource = (periodLows.allTimeLow.isConfirmed === false || Boolean(periodLows.low90d.isSingleSourceLow)) ? 1 : 0;
+
+      // Check if seeded history reveals a lower all-time low
+      let newHistLowEur = gameRow.historical_low_eur ? Number(gameRow.historical_low_eur) : undefined;
+      let newHistLowDate = gameRow.historical_low_date || undefined;
+      let newHistLowSource = gameRow.historical_low_source || undefined;
+
+      for (const h of history) {
+        if (h.isAnomaly) continue;
+        if (!newHistLowEur || h.priceEur < newHistLowEur) {
+          newHistLowEur = h.priceEur;
+          newHistLowDate = h.recordedAt;
+          newHistLowSource = h.merchantName ? `ITAD (${h.merchantName})` : 'ITAD';
+        }
+      }
+
+      const firstObservedAt = history.length > 0 
+        ? history[history.length - 1].recordedAt 
+        : now;
+
+      prepareStmt(`
+        UPDATE games SET
+          typical_sale_median_eur = ?,
+          typical_sale_q1_eur = ?,
+          typical_sale_q3_eur = ?,
+          typical_sale_sample_count = ?,
+          typical_sale_low_confidence = ?,
+          low_90d_eur = ?,
+          low_1y_eur = ?,
+          atl_is_confirmed = ?,
+          atl_is_single_source_low = ?,
+          historical_low_eur = ?,
+          historical_low_date = ?,
+          historical_low_source = ?,
+          price_tracking_first_observed_at = COALESCE(price_tracking_first_observed_at, ?),
+          deal_score_stats_updated_at = ?,
+          price_history_seeded_at = ?,
+          updated_at = ?
+        WHERE id = ?
+      `).run(
+        typicalSale.medianPriceEur,
+        typicalSale.q1PriceEur,
+        typicalSale.q3PriceEur,
+        typicalSale.sampleCount,
+        typicalSale.isLowConfidence ? 1 : 0,
+        periodLows.low90d.priceEur,
+        periodLows.low1y.priceEur,
+        atlConfirmed,
+        atlSingleSource,
+        newHistLowEur ?? null,
+        newHistLowDate ?? null,
+        newHistLowSource ?? null,
+        firstObservedAt,
+        now,
+        now,
+        now,
+        gameId
+      );
+    });
+
+    tx();
   },
 
   getOffersCsvExportData(profileId: string): Array<{

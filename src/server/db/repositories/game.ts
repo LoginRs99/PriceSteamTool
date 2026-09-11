@@ -23,6 +23,7 @@ export interface WishlistSyncGame {
   itadId?: string;
   title: string;
   releaseDate?: string;
+  priceHistorySeededAt?: string;
   allkeyshopLastCheckedAt?: string;
   allkeyshopCheckIntervalHours?: number;
   allkeyshopUnchangedStreak?: number;
@@ -665,6 +666,7 @@ export const gameRepo = {
         g.itad_id, 
         g.title,
         g.release_date,
+        g.price_history_seeded_at,
         g.allkeyshop_last_checked_at,
         g.allkeyshop_check_interval_hours,
         g.allkeyshop_unchanged_streak,
@@ -683,6 +685,7 @@ export const gameRepo = {
       itadId: r.itad_id || undefined,
       title: r.title,
       releaseDate: r.release_date || undefined,
+      priceHistorySeededAt: r.price_history_seeded_at || undefined,
       allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
       allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
         ? Number(r.allkeyshop_check_interval_hours) 
@@ -700,6 +703,44 @@ export const gameRepo = {
         ? Number(r.priority)
         : undefined,
     }));
+  },
+
+  getUnseededHistoryWishlistGames(profileId: string): WishlistSyncGame[] {
+    const rows = prepareStmt(`
+      SELECT 
+        g.id, 
+        g.steam_app_id, 
+        g.itad_id, 
+        g.title,
+        g.release_date,
+        g.price_history_seeded_at,
+        w.target_price_eur,
+        w.priority
+      FROM wishlist_entries w
+      JOIN games g ON w.game_id = g.id
+      WHERE w.profile_id = ? AND w.is_active = 1 AND g.price_history_seeded_at IS NULL
+      ORDER BY w.priority ASC
+    `).all(profileId) as any[];
+
+    return rows.map(r => ({
+      id: r.id,
+      steamAppId: Number(r.steam_app_id),
+      itadId: r.itad_id || undefined,
+      title: r.title,
+      releaseDate: r.release_date || undefined,
+      priceHistorySeededAt: r.price_history_seeded_at || undefined,
+      targetPriceEur: r.target_price_eur !== null && r.target_price_eur !== undefined 
+        ? Number(r.target_price_eur) 
+        : undefined,
+      priority: r.priority !== null && r.priority !== undefined
+        ? Number(r.priority)
+        : undefined,
+    }));
+  },
+
+  markPriceHistorySeeded(gameId: string, timestamp?: string): void {
+    const ts = timestamp || new Date().toISOString();
+    prepareStmt(`UPDATE games SET price_history_seeded_at = ?, updated_at = datetime('now') WHERE id = ?`).run(ts, gameId);
   },
 
   getStaleWishlistGameIds(profileId: string, ttlHours: number = 6): WishlistSyncGame[] {
@@ -810,8 +851,9 @@ export const gameRepo = {
       stmtDeactivate.run(profileId);
 
       for (const item of items) {
-        const slug = item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const existing = stmtFindGame.get(item.steamAppId) as any;
+        const rawTitle = item.title || existing?.title || `Game ${item.steamAppId}`;
+        const slug = rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const steamdbRating = item.steamdbRating !== undefined 
           ? item.steamdbRating 
           : (item.reviewsPercent !== undefined && item.reviewsTotal ? calculateSteamDbRating(item.reviewsPercent, item.reviewsTotal) : undefined);
@@ -1081,6 +1123,7 @@ function mapGameRow(r: any): Game {
     allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined ? Number(r.allkeyshop_check_interval_hours) : undefined,
     allkeyshopUnchangedStreak: r.allkeyshop_unchanged_streak !== null && r.allkeyshop_unchanged_streak !== undefined ? Number(r.allkeyshop_unchanged_streak) : undefined,
     allkeyshopLastPriceEur: r.allkeyshop_last_price_eur !== null && r.allkeyshop_last_price_eur !== undefined ? Number(r.allkeyshop_last_price_eur) : undefined,
+    priceHistorySeededAt: r.price_history_seeded_at || undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };

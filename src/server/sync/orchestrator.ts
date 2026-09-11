@@ -24,6 +24,7 @@ import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
 import { allkeyshopAdapter } from '../sources/allkeyshop.js';
 import { allkeyshopQueue } from './allkeyshop/index.js';
+import { priceHistoryQueue } from './historyQueue.js';
 import { computeNextInterval, isAllkeyshopDue, computeWishlistScrapePriority } from '../domain/allkeyshopScheduling.js';
 import { exchangeRateService } from '../domain/exchangeRate.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
@@ -118,6 +119,7 @@ export class SyncOrchestrator {
     return {
       isCoreSyncRunning: this.isRunning,
       isEnrichmentRunning: this.enrichmentStatus.isRunning,
+      isHistorySeedingRunning: priceHistoryQueue.isSeedingRunning(),
       lastCoreSyncAt: this.lastCoreSyncAt,
       lastEnrichmentAt: this.lastEnrichmentAt,
       enrichmentProgress: this.enrichmentStatus.isRunning ? {
@@ -141,6 +143,7 @@ export class SyncOrchestrator {
   }
 
   public cancelSync(): void {
+    priceHistoryQueue.cancel();
     if (this.isRunning) {
       this.isCancelled = true;
       this.progress.status = 'CANCELLED';
@@ -567,6 +570,13 @@ export class SyncOrchestrator {
         logWarn(`[Cleanup] Failed to purge old price history / invalidate offers: ${purgeErr.message}`);
       }
 
+      // Step 8: Background Price History Seeding (One-time backfill from ITAD)
+      if (config.itadApiKey && !this.isCancelled) {
+        priceHistoryQueue.startBackgroundSeeding(profileId).catch(seedErr => {
+          logWarn(`[HistorySeed] Background seeding worker warning: ${seedErr.message}`);
+        });
+      }
+
     } catch (err: any) {
       const duration = Math.round((Date.now() - this.startTime) / 1000);
       this.progress.status = 'FAILED';
@@ -976,6 +986,14 @@ export class SyncOrchestrator {
             logWarn(`[Force Refresh] Background AllKeyShop enrichment failed for "${game.title}": ${aksErr.message}`);
           }
         })().catch(() => {});
+      }
+    }
+
+    if (!game.priceHistorySeededAt && config.itadApiKey) {
+      try {
+        await priceHistoryQueue.seedGame(gameId);
+      } catch (err: any) {
+        logWarn(`[Force Refresh] Price history seeding warning for "${game.title}": ${err.message}`);
       }
     }
 

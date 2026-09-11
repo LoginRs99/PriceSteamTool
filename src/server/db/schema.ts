@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS games (
   price_tracking_first_observed_at TEXT,
   best_offer_source_count INTEGER,
   deal_score_stats_updated_at TEXT,
+  price_history_seeded_at TEXT,
   allkeyshop_last_checked_at TEXT,
   allkeyshop_check_interval_hours INTEGER DEFAULT 24,
   allkeyshop_unchanged_streak INTEGER DEFAULT 0,

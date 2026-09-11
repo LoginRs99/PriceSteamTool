@@ -48,6 +48,16 @@ export function parseItadProductAndOfficial(shopName: string = '', drms: string[
   return { productTypeRaw: 'Unknown/Non-Steam', isOfficial: false };
 }
 
+export interface ItadHistoricalPoint {
+  shopName: string;
+  priceEur: number;
+  rawPrice: number;
+  rawCurrency: string;
+  regularPriceEur?: number;
+  discountPercent: number;
+  timestamp: string;
+}
+
 export class ItadSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'itad' as const;
   public readonly name = 'IsThereAnyDeal';
@@ -100,6 +110,69 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
 
     const batchMap = await this.fetchBatchOverview([resolvedItadId], new Map([[resolvedItadId, steamAppId]]));
     return batchMap.get(steamAppId) || [];
+  }
+
+  /**
+   * Fetches historical price cuts from ITAD v2 history endpoint
+   */
+  public async fetchPriceHistory(
+    steamAppId: number, 
+    itadId?: string,
+    sinceIso?: string
+  ): Promise<ItadHistoricalPoint[]> {
+    if (!config.itadApiKey) return [];
+
+    let resolvedItadId = itadId;
+    if (!resolvedItadId) {
+      resolvedItadId = (await this.lookupItadId(steamAppId)) || undefined;
+    }
+
+    if (!resolvedItadId) return [];
+
+    return this.queue.enqueue(async () => {
+      const country = config.preferredCountry || 'US';
+      // Default to 2 years back for rich historical depth
+      const since = sinceIso || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000 * 2).toISOString();
+      const url = `https://api.isthereanydeal.com/games/history/v2?key=${config.itadApiKey}&id=${resolvedItadId}&country=${country}&since=${encodeURIComponent(since)}`;
+
+      try {
+        const response: any = await safeFetchJson(url);
+        if (!Array.isArray(response)) {
+          return [];
+        }
+
+        const results: ItadHistoricalPoint[] = [];
+
+        for (const item of response) {
+          if (!item || !item.deal || item.deal.price?.amount === undefined) continue;
+          const rawAmount = Number(item.deal.price.amount);
+          if (isNaN(rawAmount) || rawAmount < 0) continue;
+
+          const currency = item.deal.price.currency || 'EUR';
+          const priceEur = convertToEur(rawAmount, currency);
+          const rawRegular = item.deal.regular?.amount !== undefined ? Number(item.deal.regular.amount) : undefined;
+          const regularPriceEur = rawRegular !== undefined ? convertToEur(rawRegular, item.deal.regular?.currency || currency) : undefined;
+          const discountPercent = typeof item.deal.cut === 'number' ? Math.round(item.deal.cut) : 0;
+          const shopName = item.shop?.name || 'Store';
+          const timestamp = item.timestamp || new Date().toISOString();
+
+          results.push({
+            shopName,
+            priceEur,
+            rawPrice: rawAmount,
+            rawCurrency: currency,
+            regularPriceEur,
+            discountPercent,
+            timestamp
+          });
+        }
+
+        return results;
+      } catch (err: any) {
+        if (err.status === 404) return [];
+        throw err;
+      }
+    });
   }
 
   /**

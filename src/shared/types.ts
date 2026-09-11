@@ -172,6 +172,9 @@ export interface Game {
   allkeyshopUnchangedStreak?: number;
   allkeyshopLastPriceEur?: number;
   
+  // Historical Backfill State
+  priceHistorySeededAt?: string;
+
   hasAnomaly: boolean;
   anomalyCount?: number;
   offersCount: number;
@@ -324,6 +327,7 @@ export interface SyncProgressUpdate {
 export interface SyncStatusResponse {
   isCoreSyncRunning: boolean;
   isEnrichmentRunning: boolean;
+  isHistorySeedingRunning?: boolean;
   lastCoreSyncAt?: string;
   lastEnrichmentAt?: string;
   enrichmentProgress?: {

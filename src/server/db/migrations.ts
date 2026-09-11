@@ -290,6 +290,16 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 020] Notice:', err?.message);
       }
     }
+  },
+  {
+    name: '021_add_price_history_seeded_at',
+    up: (db) => {
+      try {
+        db.exec("ALTER TABLE games ADD COLUMN price_history_seeded_at TEXT");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+    }
   }
 ];
 
