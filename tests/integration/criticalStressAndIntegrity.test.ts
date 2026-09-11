@@ -7,7 +7,7 @@ import { offerRepo } from '../../src/server/db/repositories/offer.js';
 import { gameRepo } from '../../src/server/db/repositories/game.js';
 import { merchantRepo } from '../../src/server/db/repositories/merchant.js';
 import { getDb } from '../../src/server/db/core.js';
-import { evaluatePriceMovement } from '../../src/server/domain/pricingEngine/evaluator.js';
+import { evaluatePriceMovement } from '../../src/server/domain/pricingError.js';
 
 function resetDatabase() {
   const db = getDb();

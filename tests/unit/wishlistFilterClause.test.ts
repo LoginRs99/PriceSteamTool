@@ -25,7 +25,7 @@ describe('buildWishlistFilterClause Unit Tests', () => {
     expect(whereSql).toContain('bo.price_eur <= ?');
     expect(whereSql).toContain('m.is_official = 1');
     expect(whereSql).toContain("bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP')");
-    expect(whereSql).toContain("bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW')");
+    expect(whereSql).toContain("bo.price_event IN ('NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW', 'RECORD_DROP', 'UNCONFIRMED_RECORD_DROP')");
 
     expect(params).toEqual(['profile-abc', '%witcher%', 50, 20]);
   });

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { SCHEMA_SQL, SEED_SOURCES_SQL } from '../../src/server/db/schema.js';
 import { runMigrations } from '../../src/server/db/migrations.js';
-import { evaluatePriceMovement } from '../../src/server/domain/pricingEngine/evaluator.js';
+import { evaluatePriceMovement } from '../../src/server/domain/pricingError.js';
 
 describe('Migration 014 & Mega Deals Integration Tests', () => {
   let db: Database.Database;

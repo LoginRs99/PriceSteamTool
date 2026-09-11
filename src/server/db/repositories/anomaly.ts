@@ -62,9 +62,10 @@ export const anomalyRepo = {
     `).get(gameId, offerId) as any;
 
     if (dismissedExisting) {
-      // Check if this is materially the same ongoing anomaly event that was dismissed:
-      // Same anomaly type AND price did not drop further below previous price
-      const isSameType = (dismissedExisting.anomaly_type === type);
+      // Same anomaly type (accounting for v1.8 renaming) AND price did not drop further below previous price
+      const isSameType = (dismissedExisting.anomaly_type === type) ||
+        (dismissedExisting.anomaly_type === 'DECIMAL_SHIFT' && type === 'SUB_EURO_PREMIUM_GLITCH') ||
+        (dismissedExisting.anomaly_type === 'SUB_EURO_PREMIUM_GLITCH' && type === 'DECIMAL_SHIFT');
       const isPriceDrop = (previousPriceEur !== undefined && currentPriceEur !== undefined && currentPriceEur < previousPriceEur - 0.005);
 
       let isExpiredDismissal = false;

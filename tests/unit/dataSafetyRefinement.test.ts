@@ -4,8 +4,7 @@ import { gameRepo } from '../../src/server/db/repositories/game.js';
 import { merchantRepo } from '../../src/server/db/repositories/merchant.js';
 import { offerRepo } from '../../src/server/db/repositories/offer.js';
 import { anomalyRepo } from '../../src/server/db/repositories/anomaly.js';
-import { calculatePriceRisk } from '../../src/server/domain/pricingEngine/riskEvaluator.js';
-import { evaluatePriceMovement } from '../../src/server/domain/pricingEngine/evaluator.js';
+import { calculatePriceRisk, evaluatePriceMovement } from '../../src/server/domain/pricingError.js';
 
 function resetDb() {
   const db = getDb();

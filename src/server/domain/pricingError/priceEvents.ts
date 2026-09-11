@@ -1,14 +1,30 @@
 import type { PriceEventType } from '../../../shared/types.js';
-import type { PriceEvaluationInput, PriceRiskLevel } from './types.js';
+import type { PriceEventInput } from './types.js';
 
 /**
  * Evaluates the market event of an offer (discount magnitude, historical record, price direction).
+ * Trust-free: replaces the former riskLevel gate with the pure isPricingError boolean flag.
  */
-export function detectPriceEvent(input: PriceEvaluationInput, confidence: number, riskLevel: PriceRiskLevel): PriceEventType {
-  const { currentPriceEur, originalPriceEur, basePriceEur, historicalLowEur, previousPriceEur, isOfficialMerchant, sourceAgreementCount, independentMerchantCount } = input;
-  
+export function detectPriceEvent(
+  input: PriceEventInput,
+  isPricingError: boolean = false
+): PriceEventType {
+  const currentPriceEur = input.currentPriceEur ?? input.priceEur ?? 0;
+  const originalPriceEur = input.originalPriceEur ?? input.claimedOriginalPriceEur;
+  const basePriceEur = input.basePriceEur ?? input.steamBasePriceEur;
+  const historicalLowEur = input.historicalLowEur ?? input.confirmedAtlEur;
+  const previousPriceEur = input.previousPriceEur;
+  const isOfficialMerchant = input.isOfficialMerchant ?? false;
+  const sourceAgreementCount = input.sourceAgreementCount ?? 1;
+  const independentMerchantCount = input.independentMerchantCount ?? 1;
+
   if (currentPriceEur <= 0) {
     return 'NONE';
+  }
+
+  // When detector flags the offer as a pricing error -> PRICING_ERROR
+  if (isPricingError) {
+    return 'PRICING_ERROR';
   }
 
   // 1. Check for price increase vs previous price
@@ -18,19 +34,18 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
 
   // 2. Check for Historical Low records (new records take precedence)
   const isNewAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur < historicalLowEur * 0.98;
-  const merchantCount = independentMerchantCount ?? 1;
-  const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || merchantCount >= 2 || (isOfficialMerchant && confidence >= 0.70)) && riskLevel !== 'HIGH';
-  const isAtAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02 && riskLevel !== 'HIGH';
-  const isNearAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.10 && riskLevel !== 'HIGH';
+  const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || independentMerchantCount >= 2 || isOfficialMerchant) && !isPricingError;
+  const isAtAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02 && !isPricingError;
+  const isNearAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.10 && !isPricingError;
 
   // Confirmed new historical low record
   if (isConfirmedAtl) {
-    return 'NEW_HISTORICAL_LOW';
+    return 'RECORD_DROP';
   }
 
   // Suspected unconfirmed new ATL (keyshop outlier or single source)
   if (isNewAtl) {
-    return 'SUSPECTED_HISTORICAL_LOW';
+    return 'UNCONFIRMED_RECORD_DROP';
   }
 
   // 3. Magnitude Evaluation against MSRP / Original price
@@ -54,9 +69,9 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
     return 'EXTREME_DROP';
   }
 
-  // 4. Matches Historical Low (smaller discounts)
+  // 4. Matches Historical Low (moderate discounts)
   if (isAtAtl) {
-    return 'AT_HISTORICAL_LOW';
+    return 'RECORD_DROP';
   }
 
   // 5. Major Drop:
@@ -73,7 +88,7 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
 
   // 6. Near Historical Low
   if (isNearAtl) {
-    return 'NEAR_HISTORICAL_LOW';
+    return 'MAJOR_DROP';
   }
 
   // 7. Significant drop (30%+ discount or €10+ savings)
@@ -83,7 +98,7 @@ export function detectPriceEvent(input: PriceEvaluationInput, confidence: number
 
   // 8. Standard sale (10%+ discount)
   if (discountPercent >= 10) {
-    return 'STANDARD_SALE';
+    return 'MODERATE_DROP';
   }
 
   return 'NONE';

@@ -7,17 +7,20 @@ export type CircuitBreakerState = 'NORMAL' | 'BACKOFF' | 'COOLDOWN' | 'PAUSED' |
 export type CircuitState = CircuitBreakerState;
 
 export type PriceEventType = 
-  | 'PRICING_ERROR'
+  | 'RECORD_DROP' 
+  | 'UNCONFIRMED_RECORD_DROP' 
+  | 'EXTREME_DROP' 
+  | 'MAJOR_DROP' 
+  | 'SIGNIFICANT_DROP' 
+  | 'MODERATE_DROP' 
+  | 'PRICE_INCREASE' 
+  | 'PRICING_ERROR' 
+  | 'NONE'
   | 'NEW_HISTORICAL_LOW' 
   | 'AT_HISTORICAL_LOW' 
   | 'SUSPECTED_HISTORICAL_LOW'
   | 'NEAR_HISTORICAL_LOW'
-  | 'MAJOR_DROP' 
-  | 'SIGNIFICANT_DROP'
-  | 'EXTREME_DROP' 
-  | 'PRICE_INCREASE' 
-  | 'STANDARD_SALE'
-  | 'NONE';
+  | 'STANDARD_SALE';
 
 export type PricingErrorType = 
   | 'DECIMAL_SHIFT' 

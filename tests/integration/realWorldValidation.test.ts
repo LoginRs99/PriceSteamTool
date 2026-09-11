@@ -8,7 +8,7 @@ import {
   closeDb
 } from '../../src/server/db/index.js';
 import { normalizeProductType, normalizeRegion } from '../../src/server/domain/normalizer.js';
-import { evaluateOfferAnomaly } from '../../src/server/domain/anomaly.js';
+import { evaluateOfferAnomaly } from '../../src/server/domain/pricingError.js';
 import { CircuitBreakerRegistry, circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
 

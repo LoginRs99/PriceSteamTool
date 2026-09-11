@@ -3,7 +3,7 @@ import { getDb, prepareStmt, BEST_DEAL_RECOMPUTE_ALL_SQL } from '../core.js';
 import { gameRepo } from './game.js';
 import { merchantRepo } from './merchant.js';
 import { anomalyRepo } from './anomaly.js';
-import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/pricingEngine.js';
+import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/pricingError.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource } from '../../domain/priceIntelligence/types.js';
@@ -295,7 +295,10 @@ export const offerRepo = {
           }
         }
       }
-      const independentMerchantCount = corroboratingMerchants.size + 1; // +1 for current merchant
+      const corroboratingCount = corroboratingMerchants.size + 1; // +1 for current merchant
+      const independentMerchantCount = corroboratingCount >= 2
+        ? corroboratingCount
+        : (merchantInfo?.is_official && distinctSourceCount >= 2 ? 2 : corroboratingCount);
 
       const sourceHistoryRows = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency FROM price_history 
@@ -424,7 +427,7 @@ export const offerRepo = {
       const hasPriceChanged = !isSameAsLatestMerchant && !isSameAsLatestSource;
 
       // Update historical low only on genuine price drop
-      if (hasPriceChanged && pricingEval.event === 'NEW_HISTORICAL_LOW') {
+      if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW')) {
         gameRepo.updateHistoricalLow(data.gameId, active.priceEur, now, active.sourceCode);
       }
 
