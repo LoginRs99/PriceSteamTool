@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import type { SourceStatus, SourceCode } from '../types.js';
 import { api } from '../api.js';
-import { X, Activity, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { X, Activity, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface SourcesModalProps {
   onClose: () => void;
@@ -18,6 +18,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchSources = async () => {
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const list = await api.getSources();
       setSources(list);
@@ -35,7 +36,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
     window.addEventListener('keydown', handleKeyDown);
 
     fetchSources();
-    const interval = setInterval(fetchSources, 3000);
+    const interval = setInterval(fetchSources, 5000);
     return () => {
       clearInterval(interval);
       window.removeEventListener('keydown', handleKeyDown);
@@ -46,10 +47,11 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
     try {
       setError(null);
       await api.toggleSource(code, isEnabled);
-      fetchSources();
     } catch (err: any) {
       console.error('Failed to toggle source:', err);
       setError(err.message || 'Failed to toggle source');
+    } finally {
+      fetchSources();
     }
   };
 
@@ -88,84 +90,91 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
             </a>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {sources.map(s => {
-              const stateColor = s.state === 'NORMAL' 
-                ? 'var(--down)' 
-                : s.state === 'BACKOFF' 
-                ? 'var(--signal)' 
-                : 'var(--up)';
+          {loading && sources.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '32px 16px', color: 'var(--dim)', fontSize: 14 }}>
+              <RefreshCw size={16} className="spin" />
+              <span>Loading sources...</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {sources.map(s => {
+                const stateColor = s.state === 'NORMAL' 
+                  ? 'var(--down)' 
+                  : s.state === 'BACKOFF' 
+                  ? 'var(--signal)' 
+                  : 'var(--up)';
 
-              return (
-                <div
-                  key={s.code}
-                  style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '14px 18px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontWeight: 700, fontSize: 15 }}>{s.name}</span>
-                      <span 
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 'var(--radius-sm)',
-                          background: `${stateColor}20`,
-                          color: stateColor,
-                          border: `1px solid ${stateColor}40`,
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        {s.state}
-                      </span>
+                return (
+                  <div
+                    key={s.code}
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '14px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontWeight: 700, fontSize: 15 }}>{s.name}</span>
+                        <span 
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: `${stateColor}20`,
+                            color: stateColor,
+                            border: `1px solid ${stateColor}40`,
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          {s.state}
+                        </span>
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                        <span style={{ color: 'var(--dim)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
+                        <input
+                          type="checkbox"
+                          checked={s.isEnabled}
+                          onChange={e => handleToggle(s.code, e.target.checked)}
+                        />
+                      </label>
                     </div>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-                      <span style={{ color: 'var(--dim)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
-                      <input
-                        type="checkbox"
-                        checked={s.isEnabled}
-                        onChange={e => handleToggle(s.code, e.target.checked)}
-                      />
-                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12, color: 'var(--dim)', paddingTop: 6, borderTop: '1px solid var(--line)' }}>
+                      <div>
+                        <span>Requests: </span>
+                        <strong className="ticker-num" style={{ color: 'var(--ink)' }}>{s.requestCount}</strong>
+                      </div>
+                      <div>
+                        <span>Success: </span>
+                        <strong className="ticker-num" style={{ color: 'var(--down)' }}>{s.successCount}</strong>
+                      </div>
+                      <div>
+                        <span>Failures: </span>
+                        <strong className="ticker-num" style={{ color: s.failureCount > 0 ? 'var(--up)' : 'var(--dim)' }}>{s.failureCount}</strong>
+                      </div>
+                      <div>
+                        <span>Rate Limits: </span>
+                        <strong className="ticker-num" style={{ color: s.rateLimitCount > 0 ? 'var(--signal)' : 'var(--dim)' }}>{s.rateLimitCount}</strong>
+                      </div>
+                    </div>
+
+                    {s.lastError && (
+                      <div style={{ fontSize: 11, color: 'var(--up)', marginTop: 4, wordBreak: 'break-all' }}>
+                        Last note: {s.lastError}
+                      </div>
+                    )}
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12, color: 'var(--dim)', paddingTop: 6, borderTop: '1px solid var(--line)' }}>
-                    <div>
-                      <span>Requests: </span>
-                      <strong className="ticker-num" style={{ color: 'var(--ink)' }}>{s.requestCount}</strong>
-                    </div>
-                    <div>
-                      <span>Success: </span>
-                      <strong className="ticker-num" style={{ color: 'var(--down)' }}>{s.successCount}</strong>
-                    </div>
-                    <div>
-                      <span>Failures: </span>
-                      <strong className="ticker-num" style={{ color: s.failureCount > 0 ? 'var(--up)' : 'var(--dim)' }}>{s.failureCount}</strong>
-                    </div>
-                    <div>
-                      <span>Rate Limits: </span>
-                      <strong className="ticker-num" style={{ color: s.rateLimitCount > 0 ? 'var(--signal)' : 'var(--dim)' }}>{s.rateLimitCount}</strong>
-                    </div>
-                  </div>
-
-                  {s.lastError && (
-                    <div style={{ fontSize: 11, color: 'var(--up)', marginTop: 4, wordBreak: 'break-all' }}>
-                      Last note: {s.lastError}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

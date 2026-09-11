@@ -57,6 +57,12 @@ export function parseRetryAfterHeader(headerValue?: string | null): number | und
   return undefined;
 }
 
+async function sleepBackoff(attempt: number): Promise<void> {
+  const baseDelay = attempt === 1 ? 500 : 1500;
+  const jitter = Math.floor(Math.random() * 200);
+  await new Promise(r => setTimeout(r, baseDelay + jitter));
+}
+
 /**
  * Standard fetch helper with timeout, custom User-Agent, and generic transient retry (max 2 retries)
  */
@@ -105,6 +111,7 @@ export async function safeFetchJson<T>(
         }
 
         lastError = error;
+        await sleepBackoff(attempt);
       } else {
         if (typeof response.text === 'function') {
           const rawText = await response.text();
@@ -140,9 +147,7 @@ export async function safeFetchJson<T>(
         throw err;
       }
 
-      const baseDelay = attempt === 1 ? 500 : 1500;
-      const jitter = Math.floor(Math.random() * 200);
-      await new Promise(r => setTimeout(r, baseDelay + jitter));
+      await sleepBackoff(attempt);
     } finally {
       clearTimeout(timer);
     }
