@@ -41,4 +41,23 @@ describe('Exchange Rate Service & Currency Normalization', () => {
     exchangeRateService.setRate('TEST_CURR', 0.50);
     expect(convertToEur(100, 'TEST_CURR')).toBe(50);
   });
+
+  it('safely handles unknown currencies without silent 1.0 fallback', () => {
+    expect(exchangeRateService.getRateToEur('XXX')).toBe(0);
+    expect(convertToEur(100, 'XXX')).toBe(0);
+    expect(convertToEur(50, 'UNKNOWN_CURRENCY')).toBe(0);
+  });
+
+  it('correctly converts newly supported fallback currencies', () => {
+    expect(exchangeRateService.getRateToEur('KRW')).toBe(0.00069);
+    // 100 * 0.00069 = 0.069 -> rounded to 2 decimal places is 0.07
+    expect(convertToEur(100, 'KRW')).toBe(0.07);
+    expect(convertToEur(10000, 'KRW')).toBe(6.9);
+
+    expect(exchangeRateService.getRateToEur('RUB')).toBe(0.01);
+    expect(convertToEur(100, 'RUB')).toBe(1);
+
+    expect(exchangeRateService.getRateToEur('BGN')).toBe(0.51);
+    expect(convertToEur(100, 'BGN')).toBe(51);
+  });
 });

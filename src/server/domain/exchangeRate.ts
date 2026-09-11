@@ -26,8 +26,30 @@ export const FALLBACK_TO_EUR_RATES: Record<string, number> = {
   NOK: 0.086,
   SEK: 0.088,
   DKK: 0.134,
-  NZD: 0.55
+  NZD: 0.55,
+  RUB: 0.0100,
+  KRW: 0.00069,
+  VND: 0.000037,
+  IDR: 0.000059,
+  CLP: 0.00095,
+  COP: 0.00023,
+  MXN: 0.053,
+  ZAR: 0.050,
+  HKD: 0.115,
+  SGD: 0.69,
+  TWD: 0.028,
+  THB: 0.026,
+  MYR: 0.20,
+  PHP: 0.016,
+  INR: 0.011,
+  UAH: 0.022,
+  CZK: 0.040,
+  RON: 0.20,
+  BGN: 0.51,
+  ISK: 0.0067
 };
+
+const warnedCurrencies = new Set<string>();
 
 export class ExchangeRateService {
   private ratesToEur: Map<string, number> = new Map();
@@ -68,7 +90,15 @@ export class ExchangeRateService {
    */
   public getRateToEur(currency: string): number {
     const code = this.normalizeCurrencyCode(currency);
-    return this.ratesToEur.get(code) ?? (FALLBACK_TO_EUR_RATES[code] || 1.0);
+    const rate = this.ratesToEur.get(code) ?? FALLBACK_TO_EUR_RATES[code];
+    if (rate !== undefined && rate > 0) {
+      return rate;
+    }
+    if (!warnedCurrencies.has(code)) {
+      warnedCurrencies.add(code);
+      console.warn(`[ExchangeRate] Unknown currency code: "${code}". No conversion rate available (returning 0).`);
+    }
+    return 0;
   }
 
   /**
@@ -83,6 +113,9 @@ export class ExchangeRateService {
       return Math.round(amount * 100) / 100;
     }
     const rate = this.getRateToEur(code);
+    if (rate <= 0) {
+      return 0;
+    }
     return Math.round(amount * rate * 100) / 100;
   }
 

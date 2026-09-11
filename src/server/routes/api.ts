@@ -11,6 +11,7 @@ import { syncOrchestrator } from '../sync/orchestrator.js';
 import { steamAdapter } from '../sources/steam.js';
 import { config } from '../config/index.js';
 import type { WishlistFilterOptions, SourceCode } from '../../shared/types.js';
+import { logWarn } from '../utils/logger.js';
 
 function safeFloat(val: any): number | undefined {
   if (val === undefined || val === null || val === '') return undefined;
@@ -568,6 +569,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
           if (!productNorm.isValid) continue;
           const regionNorm = normalizeRegion(rawOffer.regionRaw);
           if (!regionNorm.isValid) continue;
+
+          if (!(rawOffer.priceEur > 0) || isNaN(rawOffer.priceEur)) {
+            logWarn('Rejected offer with invalid EUR price', {
+              gameId: game.id,
+              sourceCode: 'allkeyshop',
+              rawPrice: rawOffer.rawPrice,
+              currency: rawOffer.rawCurrency
+            });
+            continue;
+          }
           const merchant = merchantRepo.getOrCreate(rawOffer.merchantCode, rawOffer.merchantName, rawOffer.isOfficial, rawOffer.dealUrl);
           const savedOffer = offerRepo.upsertOffer({
             gameId: game.id,

@@ -226,8 +226,11 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
                   rawOriginalPrice = rawPrice;
                 }
 
-                currentPriceEur = convertToEur(rawPrice, rawCurrency);
-                basePriceEur = rawOriginalPrice !== undefined ? convertToEur(rawOriginalPrice, rawCurrency) : currentPriceEur;
+                const convCurrent = convertToEur(rawPrice, rawCurrency);
+                currentPriceEur = (rawPrice > 0 && convCurrent === 0) ? undefined : convCurrent;
+
+                const convBase = rawOriginalPrice !== undefined ? convertToEur(rawOriginalPrice, rawCurrency) : currentPriceEur;
+                basePriceEur = (rawOriginalPrice !== undefined && rawOriginalPrice > 0 && convBase === 0) ? undefined : convBase;
               }
             }
 
@@ -349,10 +352,12 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
         discountPercent = priceOverview.discount_percent || 0;
 
         if (rawPrice !== undefined) {
-          currentPriceEur = convertToEur(rawPrice, rawCurrency);
+          const conv = convertToEur(rawPrice, rawCurrency);
+          currentPriceEur = (rawPrice > 0 && conv === 0) ? undefined : conv;
         }
         if (rawOriginalPrice !== undefined) {
-          basePriceEur = convertToEur(rawOriginalPrice, rawCurrency);
+          const conv = convertToEur(rawOriginalPrice, rawCurrency);
+          basePriceEur = (rawOriginalPrice > 0 && conv === 0) ? undefined : conv;
         } else {
           basePriceEur = currentPriceEur;
         }

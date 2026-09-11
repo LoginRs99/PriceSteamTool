@@ -799,6 +799,16 @@ export class SyncOrchestrator {
     const regionNorm = normalizeRegion(rawOffer.regionRaw);
     if (!regionNorm.isValid) return;
 
+    if (!(rawOffer.priceEur > 0) || isNaN(rawOffer.priceEur)) {
+      logWarn('Rejected offer with invalid EUR price', {
+        gameId,
+        sourceCode,
+        rawPrice: rawOffer.rawPrice,
+        currency: rawOffer.rawCurrency
+      });
+      return undefined;
+    }
+
     const merchant = merchantRepo.getOrCreate(
       rawOffer.merchantCode, 
       rawOffer.merchantName, 
