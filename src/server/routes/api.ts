@@ -487,6 +487,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       minConfidence: z.number().min(0).max(100).optional(),
       notifyAtlOnly: z.boolean().optional(),
       notifyFreeGames: z.boolean().optional(),
+      notifyPricingErrors: z.boolean().optional(),
       cooldownHours: z.number().min(1).max(168).optional()
     });
 

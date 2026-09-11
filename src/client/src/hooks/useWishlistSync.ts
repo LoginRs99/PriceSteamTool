@@ -52,7 +52,11 @@ export function useWishlistSync(onSyncCompleted?: () => void) {
   }, []);
 
   const handleCancelSync = useCallback(async () => {
-    await api.cancelSync();
+    try {
+      await api.cancelSync();
+    } catch (err: any) {
+      console.error('Failed to cancel sync:', err);
+    }
   }, []);
 
   return {

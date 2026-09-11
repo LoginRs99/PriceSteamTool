@@ -67,8 +67,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const handleSetActive = async (id: string) => {
-    await api.setActiveProfile(id);
-    onRefresh();
+    try {
+      setError(null);
+      await api.setActiveProfile(id);
+      onRefresh();
+    } catch (err: any) {
+      console.error('Failed to set active profile:', err);
+      setError(err.message || 'Failed to set active profile');
+    }
   };
 
   const handleToggleFamily = async (id: string, currentStatus: boolean) => {
@@ -104,8 +110,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this Steam profile and its cached wishlist entries?')) {
-      await api.deleteProfile(id);
-      onRefresh();
+      try {
+        setError(null);
+        await api.deleteProfile(id);
+        onRefresh();
+      } catch (err: any) {
+        console.error('Failed to delete profile:', err);
+        setError(err.message || 'Failed to delete profile');
+      }
     }
   };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Send, CheckCircle2, AlertCircle, X, ShieldCheck, Flame, Gift, Clock, Database } from 'lucide-react';
 import { api } from '../api.js';
+import type { DiscordSettings } from '../types.js';
 
 interface DiscordModalProps {
   isOpen: boolean;
@@ -46,14 +47,14 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await api.getDiscordSettings();
+      const data: DiscordSettings = await api.getDiscordSettings();
       setWebhookUrl(data.webhookUrl || '');
       setIsEnabled(data.isEnabled);
       setMinDealScore(data.minDealScore ?? 75);
-      setMinConfidence((data as any).minConfidence ?? 40);
+      setMinConfidence(data.minConfidence ?? 40);
       setNotifyAtlOnly(data.notifyAtlOnly ?? false);
       setNotifyFreeGames(data.notifyFreeGames ?? true);
-      setNotifyPricingErrors((data as any).notifyPricingErrors ?? true);
+      setNotifyPricingErrors(data.notifyPricingErrors ?? true);
       setCooldownHours(data.cooldownHours ?? 24);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to load Discord settings');
@@ -76,7 +77,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
         notifyFreeGames,
         notifyPricingErrors,
         cooldownHours
-      } as any);
+      });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {

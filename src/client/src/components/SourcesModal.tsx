@@ -15,6 +15,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
 
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSources = async () => {
     try {
@@ -42,8 +43,14 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   }, []);
 
   const handleToggle = async (code: SourceCode, isEnabled: boolean) => {
-    await api.toggleSource(code, isEnabled);
-    fetchSources();
+    try {
+      setError(null);
+      await api.toggleSource(code, isEnabled);
+      fetchSources();
+    } catch (err: any) {
+      console.error('Failed to toggle source:', err);
+      setError(err.message || 'Failed to toggle source');
+    }
   };
 
   return (
@@ -60,6 +67,12 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
         </div>
 
         <div className="modal-body">
+          {error && (
+            <div style={{ padding: '8px 12px', background: 'var(--up-dim)', border: '1px solid var(--up)', borderRadius: 6, color: 'var(--up)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertTriangle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
               Each source adapter is isolated with its own token-bucket rate limiter and 4-state Circuit Breaker.

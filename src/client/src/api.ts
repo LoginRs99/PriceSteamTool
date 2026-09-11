@@ -6,64 +6,67 @@ import type {
   SourceStatus, 
   SyncProgressUpdate, 
   WishlistFilterOptions, 
-  WishlistStatistics,
-  Anomaly,
-  SourceCode,
-  PriceIntelligenceResponse
+  WishlistStatistics, 
+  Anomaly, 
+  SourceCode, 
+  PriceIntelligenceResponse,
+  DiscordSettings
 } from './types.js';
 
 const API_BASE = '/api';
 
+export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let body: any;
+    try {
+      body = await res.json();
+    } catch {
+      body = {};
+    }
+    throw new Error(body?.error || `Request failed (HTTP ${res.status})`);
+  }
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
+  const text = await res.text();
+  return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
+}
+
 export const api = {
   // Profiles
   async getProfiles(): Promise<Profile[]> {
-    const res = await fetch(`${API_BASE}/profiles`);
-    return res.json();
+    return apiFetch<Profile[]>(`${API_BASE}/profiles`);
   },
 
   async createProfile(name: string, steamId: string, customUrl?: string, isFamily: boolean = false): Promise<Profile> {
-    const res = await fetch(`${API_BASE}/profiles`, {
+    return apiFetch<Profile>(`${API_BASE}/profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, steamId, customUrl, isFamily })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create profile');
-    }
-    return res.json();
   },
 
   async setActiveProfile(id: string): Promise<void> {
-    await fetch(`${API_BASE}/profiles/${id}/active`, { method: 'PUT' });
+    await apiFetch<void>(`${API_BASE}/profiles/${id}/active`, { method: 'PUT' });
   },
 
   async toggleFamilyProfile(id: string, isFamily?: boolean): Promise<{ success: boolean; isFamily: boolean }> {
-    const res = await fetch(`${API_BASE}/profiles/${id}/family`, {
+    return apiFetch<{ success: boolean; isFamily: boolean }>(`${API_BASE}/profiles/${id}/family`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isFamily })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to toggle family status');
-    }
-    return res.json();
   },
 
   async syncFamilyLibrary(id: string): Promise<{ success: boolean; gameCount: number }> {
-    const res = await fetch(`${API_BASE}/profiles/${id}/sync-family`, {
+    return apiFetch<{ success: boolean; gameCount: number }>(`${API_BASE}/profiles/${id}/sync-family`, {
       method: 'POST'
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to sync family library');
-    }
-    return res.json();
   },
 
   async deleteProfile(id: string): Promise<void> {
-    await fetch(`${API_BASE}/profiles/${id}`, { method: 'DELETE' });
+    await apiFetch<void>(`${API_BASE}/profiles/${id}`, { method: 'DELETE' });
   },
 
   // Games & Wishlist
@@ -101,18 +104,21 @@ export const api = {
     if (options.page) params.set('page', String(options.page));
     if (options.limit) params.set('limit', String(options.limit));
 
-    const res = await fetch(`${API_BASE}/games?${params.toString()}`);
-    return res.json();
+    return apiFetch<{
+      games: Game[];
+      total: number;
+      activeProfile: Profile | null;
+      page: number;
+      limit: number;
+    }>(`${API_BASE}/games?${params.toString()}`);
   },
 
   async getWishlistStatistics(): Promise<WishlistStatistics> {
-    const res = await fetch(`${API_BASE}/wishlist/statistics`);
-    return res.json();
+    return apiFetch<WishlistStatistics>(`${API_BASE}/wishlist/statistics`);
   },
 
   async getBestDeals(limit: number = 50): Promise<{ deals: Game[] }> {
-    const res = await fetch(`${API_BASE}/wishlist/best-deals?limit=${limit}`);
-    return res.json();
+    return apiFetch<{ deals: Game[] }>(`${API_BASE}/wishlist/best-deals?limit=${limit}`);
   },
 
   async getGameDetails(id: string): Promise<{
@@ -120,15 +126,15 @@ export const api = {
     offers: Offer[];
     history: PriceHistoryEntry[];
   }> {
-    const res = await fetch(`${API_BASE}/games/${id}`);
-    if (!res.ok) throw new Error('Failed to load game details');
-    return res.json();
+    return apiFetch<{
+      game: Game;
+      offers: Offer[];
+      history: PriceHistoryEntry[];
+    }>(`${API_BASE}/games/${id}`);
   },
 
   async getPriceIntelligence(id: string): Promise<PriceIntelligenceResponse> {
-    const res = await fetch(`${API_BASE}/games/${id}/intelligence`);
-    if (!res.ok) throw new Error('Failed to load price intelligence');
-    return res.json();
+    return apiFetch<PriceIntelligenceResponse>(`${API_BASE}/games/${id}/intelligence`);
   },
 
   async getAllkeyshopCandidates(id: string): Promise<{
@@ -138,9 +144,13 @@ export const api = {
     currentOverride: string | number | null;
     candidates: { id: number; name: string; slug?: string }[];
   }> {
-    const res = await fetch(`${API_BASE}/games/${id}/allkeyshop-candidates`);
-    if (!res.ok) throw new Error('Failed to load AllKeyShop candidates');
-    return res.json();
+    return apiFetch<{
+      gameId: string;
+      title: string;
+      steamAppId: number;
+      currentOverride: string | number | null;
+      candidates: { id: number; name: string; slug?: string }[];
+    }>(`${API_BASE}/games/${id}/allkeyshop-candidates`);
   },
 
   async setAllkeyshopOverride(id: string, override: string | number | null): Promise<{
@@ -149,59 +159,50 @@ export const api = {
     override: string | number | null;
     offersUpdated: number;
   }> {
-    const res = await fetch(`${API_BASE}/games/${id}/allkeyshop-override`, {
+    return apiFetch<{
+      success: boolean;
+      gameId: string;
+      override: string | number | null;
+      offersUpdated: number;
+    }>(`${API_BASE}/games/${id}/allkeyshop-override`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ override })
     });
-    if (!res.ok) throw new Error('Failed to set AllKeyShop override');
-    return res.json();
   },
 
   async refreshGame(id: string): Promise<{ success: boolean; gameId: string; offersCount: number }> {
-    const res = await fetch(`${API_BASE}/games/${id}/refresh`, {
+    return apiFetch<{ success: boolean; gameId: string; offersCount: number }>(`${API_BASE}/games/${id}/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ includeKeyshops: true })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to refresh game prices');
-    }
-    return res.json();
   },
 
   // Sync
   async startSync(options: { forceRefresh?: boolean; sources?: SourceCode[] } = {}): Promise<SyncProgressUpdate> {
-    const res = await fetch(`${API_BASE}/sync/start`, {
+    return apiFetch<SyncProgressUpdate>(`${API_BASE}/sync/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options)
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to start sync');
-    }
-    return res.json();
   },
 
   async cancelSync(): Promise<void> {
-    await fetch(`${API_BASE}/sync/cancel`, { method: 'POST' });
+    await apiFetch<void>(`${API_BASE}/sync/cancel`, { method: 'POST' });
   },
 
   async getSyncStatus(): Promise<SyncProgressUpdate> {
-    const res = await fetch(`${API_BASE}/sync/status`);
-    return res.json();
+    return apiFetch<SyncProgressUpdate>(`${API_BASE}/sync/status`);
   },
 
   // Sources & Diagnostics
   async getSources(): Promise<SourceStatus[]> {
-    const res = await fetch(`${API_BASE}/sources`);
-    return res.json();
+    return apiFetch<SourceStatus[]>(`${API_BASE}/sources`);
   },
 
   async toggleSource(code: SourceCode, isEnabled: boolean): Promise<void> {
-    await fetch(`${API_BASE}/sources/${code}/toggle`, {
+    await apiFetch<void>(`${API_BASE}/sources/${code}/toggle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isEnabled })
@@ -211,9 +212,7 @@ export const api = {
   // Anomalies
   async getAnomalies(): Promise<Anomaly[]> {
     try {
-      const res = await fetch(`${API_BASE}/anomalies`);
-      if (!res.ok) return [];
-      const data = await res.json();
+      const data = await apiFetch<Anomaly[]>(`${API_BASE}/anomalies`);
       return Array.isArray(data) ? data : [];
     } catch {
       return [];
@@ -221,73 +220,44 @@ export const api = {
   },
 
   async dismissAnomaly(id: string): Promise<void> {
-    await fetch(`${API_BASE}/anomalies/${id}/dismiss`, { method: 'POST' });
+    await apiFetch<void>(`${API_BASE}/anomalies/${id}/dismiss`, { method: 'POST' });
   },
 
   async dismissAllAnomalies(): Promise<void> {
-    await fetch(`${API_BASE}/anomalies/dismiss-all`, { method: 'POST' });
+    await apiFetch<void>(`${API_BASE}/anomalies/dismiss-all`, { method: 'POST' });
   },
 
   // Discord Notifications
-  async getDiscordSettings(): Promise<{
-    webhookUrl: string;
-    isEnabled: boolean;
-    minDealScore: number;
-    notifyAtlOnly: boolean;
-    notifyFreeGames: boolean;
-    cooldownHours: number;
-  }> {
-    const res = await fetch(`${API_BASE}/settings/discord`);
-    return res.json();
+  async getDiscordSettings(): Promise<DiscordSettings> {
+    return apiFetch<DiscordSettings>(`${API_BASE}/settings/discord`);
   },
 
-  async saveDiscordSettings(settings: {
-    webhookUrl?: string;
-    isEnabled?: boolean;
-    minDealScore?: number;
-    notifyAtlOnly?: boolean;
-    notifyFreeGames?: boolean;
-    cooldownHours?: number;
-  }): Promise<any> {
-    const res = await fetch(`${API_BASE}/settings/discord`, {
+  async saveDiscordSettings(settings: Partial<DiscordSettings>): Promise<DiscordSettings> {
+    return apiFetch<DiscordSettings>(`${API_BASE}/settings/discord`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to save Discord settings');
-    }
-    return res.json();
   },
 
   async testDiscordWebhook(webhookUrl?: string): Promise<{ success: boolean; message?: string }> {
-    const res = await fetch(`${API_BASE}/settings/discord/test`, {
+    return apiFetch<{ success: boolean; message?: string }>(`${API_BASE}/settings/discord/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ webhookUrl })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Discord webhook test failed');
-    }
-    return res.json();
   },
 
   async setTargetPrice(gameId: string, targetPriceEur: number | null): Promise<{ success: boolean; gameId: string; targetPriceEur: number | null }> {
-    const res = await fetch(`${API_BASE}/wishlist/${gameId}/target-price`, {
+    return apiFetch<{ success: boolean; gameId: string; targetPriceEur: number | null }>(`${API_BASE}/wishlist/${gameId}/target-price`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetPriceEur })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to update target price');
-    }
-    return res.json();
   },
 
   getOffersExportCsvUrl(): string {
     return `${API_BASE}/export/offers.csv`;
   }
 };
+
