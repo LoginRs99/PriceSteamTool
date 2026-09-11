@@ -104,39 +104,56 @@ export async function createApp(): Promise<FastifyInstance> {
 
 import { initAutoSyncScheduler, stopAutoSyncScheduler, initHistoryPurgeScheduler } from './sync/scheduler.js';
 
+let isShuttingDown = false;
+let currentApp: FastifyInstance | null = null;
+
+export function getIsShuttingDown(): boolean {
+  return isShuttingDown;
+}
+
+export function resetShuttingDownForTest(): void {
+  isShuttingDown = false;
+}
+
+export async function handleShutdown(signal: string, app?: FastifyInstance): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  const targetApp = app || currentApp;
+  targetApp?.log.info(`Received ${signal}. Shutting down gracefully...`);
+  
+  // Safety failsafe: guarantee container terminates within 3 seconds even if connections are open
+  const forceExitTimer = setTimeout(() => {
+    console.warn('Graceful shutdown timeout reached (3s). Forcing clean exit.');
+    try { closeDb(); } catch {}
+    process.exit(process.exitCode !== undefined ? process.exitCode : 0);
+  }, 3000);
+  forceExitTimer.unref();
+
+  try {
+    stopAutoSyncScheduler();
+    syncOrchestrator.cancelSync();
+    if (targetApp) {
+      await targetApp.close();
+    }
+    closeDb();
+  } catch (err) {
+    console.error('Error during graceful shutdown:', err);
+  } finally {
+    process.exit(process.exitCode !== undefined ? process.exitCode : 0);
+  }
+}
+
 async function bootstrap() {
   const app = await createApp();
+  currentApp = app;
 
   // Initialize automatic periodic background sync scheduler
   initAutoSyncScheduler();
   initHistoryPurgeScheduler();
 
-  // Graceful shutdown
-  const handleShutdown = async (signal: string) => {
-    app.log.info(`Received ${signal}. Shutting down gracefully...`);
-    
-    // Safety failsafe: guarantee container terminates within 3 seconds even if connections are open
-    const forceExitTimer = setTimeout(() => {
-      console.warn('Graceful shutdown timeout reached (3s). Forcing clean exit.');
-      try { closeDb(); } catch {}
-      process.exit(0);
-    }, 3000);
-    forceExitTimer.unref();
-
-    try {
-      stopAutoSyncScheduler();
-      syncOrchestrator.cancelSync();
-      await app.close();
-      closeDb();
-    } catch (err) {
-      console.error('Error during graceful shutdown:', err);
-    } finally {
-      process.exit(0);
-    }
-  };
-
-  process.on('SIGINT', () => handleShutdown('SIGINT'));
-  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT', app));
+  process.on('SIGTERM', () => handleShutdown('SIGTERM', app));
 
   // Background error isolation guards: prevent unhandled worker rejections from crashing the HTTP server
   process.on('unhandledRejection', (reason, promise) => {
@@ -145,6 +162,8 @@ async function bootstrap() {
 
   process.on('uncaughtException', (err) => {
     app.log.error({ err }, '[Process Safety] Uncaught Exception intercepted');
+    process.exitCode = 1;
+    handleShutdown('uncaughtException', app);
   });
 
   try {
