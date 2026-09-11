@@ -4,6 +4,7 @@ import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { convertToEur } from '../domain/normalizer.js';
 import { exchangeRateService } from '../domain/exchangeRate.js';
 import { calculateSteamDbRating } from '../domain/rating.js';
+import { logWarn } from '../utils/logger.js';
 
 export interface SteamWishlistItem {
   steamAppId: number;
@@ -163,13 +164,14 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
                 const err: any = new Error(`Steam wishlist pagination failed on page ${page}: ${retryErr?.message || 'Rate limit 429'}`);
                 err.requestCount = requestsMade;
                 err.status = retryErr?.status ?? 429;
-                err.retryAfterSec = retryErr?.retryAfterSec;
+                err.retryAfterSec = retryErr?.retryAfterSec ?? backoffSec;
                 throw err;
               }
             } else {
               const err: any = new Error(`Steam wishlist pagination failed on page ${page}: ${fetchErr?.message || 'Network error'}`);
               err.requestCount = requestsMade;
               err.status = fetchErr?.status;
+              err.retryAfterSec = fetchErr?.retryAfterSec;
               throw err;
             }
           }
@@ -278,14 +280,22 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
           page++;
         }
 
-        (items as any).requestCount = Math.max(1, requestsMade);
-        (items as any).pageCount = Math.max(1, requestsMade);
-        return items;
-      } catch (err) {
-        // Fall back to IWishlistService if wishlistdata was blocked or failed
+        if (items.length > 0) {
+          (items as any).requestCount = Math.max(1, requestsMade);
+          (items as any).pageCount = Math.max(1, requestsMade);
+          return items;
+        }
+      } catch (err: any) {
+        logWarn(`Steam wishlist pagination failed on page ${page}: ${err.message}`, {
+          page,
+          status: err.status,
+          retryAfterSec: err.retryAfterSec,
+          message: err.message
+        });
+        throw err;
       }
 
-      // 2. Fallback: IWishlistService Web API
+      // 2. Fallback: IWishlistService Web API (reachable ONLY when items.length === 0)
       try {
         requestsMade++;
         const url = `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${steamId64}`;
