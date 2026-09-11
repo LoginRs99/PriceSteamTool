@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { PriceChartData, PriceChartPoint } from '../types.js';
 
 interface PriceChartProps {
@@ -10,6 +10,7 @@ type TimeframeOption = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
   const [timeframe, setTimeframe] = useState<TimeframeOption>('ALL');
   const [hoveredPoint, setHoveredPoint] = useState<{ point: PriceChartPoint; x: number; y: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const { points: rawPoints, basePriceEur, historicalLowEur, typicalSaleMedianEur } = data;
 
@@ -158,6 +159,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
 
       <div className="price-chart-svg-wrap">
         <svg 
+          ref={svgRef}
           viewBox={`0 0 ${width} ${height}`} 
           className="price-chart-svg"
           onMouseLeave={() => setHoveredPoint(null)}
@@ -296,33 +298,47 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
         </svg>
 
         {/* Hover Tooltip Overlay */}
-        {hoveredPoint && (
-          <div 
-            className="price-chart-tooltip"
-            style={{
-              left: `${(hoveredPoint.x / width) * 100}%`,
-              top: `${(hoveredPoint.y / height) * 100}%`
-            }}
-          >
-            <div className="tooltip-date">
-              {new Date(hoveredPoint.point.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-            </div>
-            <div className="tooltip-price">
-              €{hoveredPoint.point.priceEur.toFixed(2)}
-              {hoveredPoint.point.discountPercent > 0 && (
-                <span className="tooltip-discount"> -{hoveredPoint.point.discountPercent}%</span>
+        {hoveredPoint && (() => {
+          let tooltipStyle: React.CSSProperties = {
+            left: `${(hoveredPoint.x / width) * 100}%`,
+            top: `${(hoveredPoint.y / height) * 100}%`
+          };
+
+          if (svgRef.current) {
+            const svgRect = svgRef.current.getBoundingClientRect();
+            const wrapRect = svgRef.current.parentElement?.getBoundingClientRect() || svgRect;
+            if (svgRect.width > 0 && svgRect.height > 0) {
+              const left = (svgRect.left - wrapRect.left) + (hoveredPoint.x / width) * svgRect.width;
+              const top = (svgRect.top - wrapRect.top) + (hoveredPoint.y / height) * svgRect.height;
+              tooltipStyle = { left: `${left}px`, top: `${top}px` };
+            }
+          }
+
+          return (
+            <div 
+              className="price-chart-tooltip"
+              style={tooltipStyle}
+            >
+              <div className="tooltip-date">
+                {new Date(hoveredPoint.point.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+              <div className="tooltip-price">
+                €{hoveredPoint.point.priceEur.toFixed(2)}
+                {hoveredPoint.point.discountPercent > 0 && (
+                  <span className="tooltip-discount"> -{hoveredPoint.point.discountPercent}%</span>
+                )}
+              </div>
+              <div className="tooltip-merchant">
+                {hoveredPoint.point.merchantName} {hoveredPoint.point.isOfficial && '• Official'}
+              </div>
+              {hoveredPoint.point.dealScore !== undefined && hoveredPoint.point.dealScore > 0 && (
+                <div className="tooltip-score">
+                  Deal Score: {hoveredPoint.point.dealScore}/100
+                </div>
               )}
             </div>
-            <div className="tooltip-merchant">
-              {hoveredPoint.point.merchantName} {hoveredPoint.point.isOfficial && '• Official'}
-            </div>
-            {hoveredPoint.point.dealScore !== undefined && hoveredPoint.point.dealScore > 0 && (
-              <div className="tooltip-score">
-                Deal Score: {hoveredPoint.point.dealScore}/100
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

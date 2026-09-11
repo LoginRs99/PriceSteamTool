@@ -130,6 +130,9 @@ All persistent runtime data is stored in the `/data` directory:
 
 In Docker, `./data` on the host is mapped to `/data` in the container. Upgrades and container rebuilds **never** destroy your wishlist, observations, or price history.
 
+### 🌐 Fonts & External Assets
+The web interface loads typography (Inter and JetBrains Mono) from the Google Fonts CDN (`src/client/index.html`). In offline or air-gapped deployments, standard system fonts (`sans-serif` and `monospace`) are used automatically as fallbacks.
+
 ---
 
 ## ⚠️ Steam Privacy Requirement

@@ -23,7 +23,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
   onSortChange,
   onRefreshGame
 }) => {
-  const [refreshingId, setRefreshingId] = React.useState<string | null>(null);
+  const [refreshingIds, setRefreshingIds] = React.useState<Set<string>>(new Set());
   const handleHeaderClick = (primarySort: string, altSort: string = primarySort) => {
     if (!onSortChange) return;
     if (currentSort === primarySort) {
@@ -386,22 +386,26 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                     {onRefreshGame && (
                       <button
                         type="button"
-                        disabled={refreshingId === game.id}
+                        disabled={refreshingIds.has(game.id)}
                         className="btn btn-outline btn-xs"
                         style={{ padding: '3px 6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Refresh prices now for this game"
                         aria-label={`Refresh prices for ${game.title}`}
                         onClick={async (e) => {
                           e.stopPropagation();
-                          setRefreshingId(game.id);
+                          setRefreshingIds(prev => new Set(prev).add(game.id));
                           try {
                             await onRefreshGame(game.id);
                           } finally {
-                            setRefreshingId(null);
+                            setRefreshingIds(prev => {
+                              const next = new Set(prev);
+                              next.delete(game.id);
+                              return next;
+                            });
                           }
                         }}
                       >
-                        <RefreshCw size={11} className={refreshingId === game.id ? 'spin-icon' : ''} />
+                        <RefreshCw size={11} className={refreshingIds.has(game.id) ? 'spin-icon' : ''} />
                       </button>
                     )}
                     {game.bestDealUrl ? (
