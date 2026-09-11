@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { convertToEur } from '../domain/normalizer.js';
 import { gameRepo } from '../db/index.js';
+import { logWarn } from '../utils/logger.js';
 
 interface CheapSharkStore {
   storeID: string;
@@ -54,7 +55,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
   }
 
   /**
-   * Batch fetches deals for multiple games using comma-separated steamAppIDs (up to 50 per call)
+   * Batch fetches deals for multiple games by querying each Steam AppID sequentially with pacing
    */
   public async fetchBatchPrices(
     games: { steamAppId: number; title: string; itadId?: string }[],
@@ -67,61 +68,88 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
 
     const chunkSize = 50;
     let processed = 0;
+    let failedChunks = 0;
+    let totalChunks = 0;
+    let totalRequestsMade = 0;
 
     for (let i = 0; i < games.length; i += chunkSize) {
       const chunk = games.slice(i, i + chunkSize);
       const appIds = chunk.map(g => g.steamAppId).filter(id => id > 0);
       if (appIds.length === 0) continue;
 
+      const chunkIndex = totalChunks;
+      totalChunks++;
+
       try {
-        const batchResults = await this.queue.enqueue(async () => {
-          const url = `https://www.cheapshark.com/api/1.0/deals?steamAppID=${appIds.join(',')}&pageSize=60`;
-          const deals: any = await safeFetchJson(url);
-          return Array.isArray(deals) ? deals : [];
+        await this.queue.enqueue(async () => {
+          for (let a = 0; a < appIds.length; a++) {
+            if (a > 0) {
+              await new Promise(r => setTimeout(r, Math.max(250, config.delays.cheapshark)));
+            }
+
+            totalRequestsMade++;
+            const appId = appIds[a];
+            const url = `https://www.cheapshark.com/api/1.0/deals?steamAppID=${appId}`;
+            const deals: any = await safeFetchJson(url);
+
+            if (Array.isArray(deals)) {
+              for (const d of deals) {
+                const dealAppId = parseInt(d.steamAppID, 10);
+                if (dealAppId && dealAppId !== appId) continue;
+
+                const storeName = this.storesMap.get(String(d.storeID)) || `Store ${d.storeID}`;
+                const merchantCode = storeName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                const salePriceUsd = parseFloat(d.salePrice || '0');
+                const retailPriceUsd = parseFloat(d.normalPrice || '0');
+
+                const isNonSteamStore = ['gog', 'origin', 'uplay', 'epic games', 'blizzard', 'battlenet', 'microsoft store', 'xbox'].some(s => storeName.toLowerCase().includes(s));
+                const productTypeRaw = isNonSteamStore ? `${storeName} (Non-Steam)` : (d.storeID === '1' ? 'Direct Purchase' : 'Steam Key');
+
+                const priceEur = convertToEur(salePriceUsd, 'USD');
+                const originalPriceEur = retailPriceUsd > 0 ? convertToEur(retailPriceUsd, 'USD') : undefined;
+
+                const offer: NormalizedSourceOffer = {
+                  merchantCode,
+                  merchantName: storeName,
+                  isOfficial: true,
+                  productTypeRaw,
+                  regionRaw: 'GLOBAL',
+                  priceEur,
+                  originalPriceEur,
+                  rawPrice: salePriceUsd,
+                  rawCurrency: 'USD',
+                  rawOriginalPrice: retailPriceUsd > 0 ? retailPriceUsd : undefined,
+                  dealUrl: `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(d.dealID || '')}`,
+                  rawPayload: d
+                };
+
+                const existing = resultMap.get(appId) || [];
+                existing.push(offer);
+                resultMap.set(appId, existing);
+              }
+            }
+          }
         });
-
-        for (const d of batchResults) {
-          const appId = parseInt(d.steamAppID, 10);
-          if (!appId) continue;
-
-          const storeName = this.storesMap.get(String(d.storeID)) || `Store ${d.storeID}`;
-          const merchantCode = storeName.toLowerCase().replace(/[^a-z0-9]+/g, '');
-          const salePriceUsd = parseFloat(d.salePrice || '0');
-          const retailPriceUsd = parseFloat(d.normalPrice || '0');
-
-          const isNonSteamStore = ['gog', 'origin', 'uplay', 'epic games', 'blizzard', 'battlenet', 'microsoft store', 'xbox'].some(s => storeName.toLowerCase().includes(s));
-          const productTypeRaw = isNonSteamStore ? `${storeName} (Non-Steam)` : (d.storeID === '1' ? 'Direct Purchase' : 'Steam Key');
-
-          const priceEur = convertToEur(salePriceUsd, 'USD');
-          const originalPriceEur = retailPriceUsd > 0 ? convertToEur(retailPriceUsd, 'USD') : undefined;
-
-          const offer: NormalizedSourceOffer = {
-            merchantCode,
-            merchantName: storeName,
-            isOfficial: true,
-            productTypeRaw,
-            regionRaw: 'GLOBAL',
-            priceEur,
-            originalPriceEur,
-            rawPrice: salePriceUsd,
-            rawCurrency: 'USD',
-            rawOriginalPrice: retailPriceUsd > 0 ? retailPriceUsd : undefined,
-            dealUrl: `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(d.dealID || '')}`,
-            rawPayload: d
-          };
-
-          const existing = resultMap.get(appId) || [];
-          existing.push(offer);
-          resultMap.set(appId, existing);
-        }
       } catch (err: any) {
-        // Individual chunk failure gracefully handled
+        failedChunks++;
+        logWarn(`CheapShark chunk failure: ${err?.message || 'Unknown error'}`, {
+          chunkIndex,
+          appIds: appIds.length,
+          message: err?.message,
+          status: err?.status
+        });
       }
 
       processed += chunk.length;
       if (onProgress) {
         onProgress(Math.min(processed, games.length), games.length, `CheapShark: ${Math.min(processed, games.length)}/${games.length} games checked...`);
       }
+    }
+
+    if (totalChunks > 0 && failedChunks === totalChunks) {
+      const aggError: any = new Error(`All ${totalChunks} CheapShark chunks failed during batch fetch.`);
+      aggError.requestCount = totalRequestsMade;
+      throw aggError;
     }
 
     return resultMap;
@@ -176,13 +204,15 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
         const gamesUrl = `https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(gameTitle)}&limit=1`;
         const gameResults: any = await safeFetchJson(gamesUrl);
         if (Array.isArray(gameResults) && gameResults.length > 0 && gameResults[0].cheapestPriceEver) {
-          const cpe = gameResults[0].cheapestPriceEver;
-          const histEur = convertToEur(parseFloat(cpe.price), 'USD');
-          const histDate = cpe.date ? new Date(cpe.date * 1000).toISOString() : new Date().toISOString();
-          
-          const game = gameRepo.getBySteamAppId(steamAppId);
-          if (game) {
-            gameRepo.updateHistoricalLow(game.id, histEur, histDate, 'CheapShark');
+          if (Number(gameResults[0].steamAppID) === steamAppId) {
+            const cpe = gameResults[0].cheapestPriceEver;
+            const histEur = convertToEur(parseFloat(cpe.price), 'USD');
+            const histDate = cpe.date ? new Date(cpe.date * 1000).toISOString() : new Date().toISOString();
+            
+            const game = gameRepo.getBySteamAppId(steamAppId);
+            if (game) {
+              gameRepo.updateHistoricalLow(game.id, histEur, histDate, 'CheapShark');
+            }
           }
         }
       } catch (err: any) {
