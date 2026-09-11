@@ -172,6 +172,9 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
       const result = await syncOrchestrator.refreshGame(game.id, { sources, includeKeyshops });
       return result;
     } catch (err: any) {
+      if (err.message?.includes('not found')) {
+        return reply.status(404).send({ error: err.message });
+      }
       return reply.status(500).send({ error: err.message });
     }
   });

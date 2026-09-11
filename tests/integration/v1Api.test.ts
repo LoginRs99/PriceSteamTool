@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { v1Routes } from '../../src/server/routes/v1.js';
+import { resetRateLimits } from '../../src/server/routes/rateLimit.js';
 import { getDb, profileRepo, gameRepo, merchantRepo, offerRepo, clearStmtCache } from '../../src/server/db/index.js';
 
 describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
@@ -36,6 +37,7 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
 
   beforeEach(() => {
     resetDb();
+    resetRateLimits();
   });
 
   it('1. Provides standard IETF RateLimit and Version headers on all responses', async () => {

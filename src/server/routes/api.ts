@@ -100,10 +100,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.put('/api/profiles/:id/family', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = (request.body || {}) as { isFamily?: boolean };
+    const schema = z.object({
+      isFamily: z.boolean().optional()
+    });
+    const parsed = schema.safeParse(request.body || {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid isFamily parameter', details: parsed.error.issues });
+    }
     const profile = profileRepo.getById(id);
     if (!profile) return reply.status(404).send({ error: 'Profile not found' });
-    const isFamily = body.isFamily !== undefined ? Boolean(body.isFamily) : !profile.isFamily;
+    const isFamily = parsed.data.isFamily !== undefined ? parsed.data.isFamily : !profile.isFamily;
     profileRepo.setFamily(id, isFamily);
     return { success: true, isFamily };
   });
@@ -212,9 +218,17 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       return reply.status(400).send({ error: 'No active profile found' });
     }
     const { gameId } = request.params as { gameId: string };
-    const body = request.body as { targetPriceEur?: number | null } | undefined;
-    const targetPrice = body?.targetPriceEur !== undefined && body?.targetPriceEur !== null
-      ? Math.max(0, Number(body.targetPriceEur))
+
+    const schema = z.object({
+      targetPriceEur: z.number().min(0).nullable()
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid targetPriceEur', details: parsed.error.issues });
+    }
+
+    const targetPrice = parsed.data.targetPriceEur !== null
+      ? Math.max(0, parsed.data.targetPriceEur)
       : null;
 
     const success = gameRepo.setTargetPrice(activeProfile.id, gameId, targetPrice);
