@@ -3,20 +3,31 @@ import type { PriceEventType, DealScoreTier, ConfidenceTier, DealVerdict, DealSc
 export type { DealScoreInput, DealScoreResult, DealVerdict, DealScoreTier, ConfidenceTier };
 
 // ============================================================================
-// Deal Score v2.3 — Tunable Constants (§0, §1, §2, §3)
+// Deal Score v2 — Exact Formula Weights & Thresholds
 // ============================================================================
-export const LOGISTIC_STEEPNESS = 1.2;             // Sharp separation around the median
-export const BASE_SCORE_CEILING = 65;              // Headroom for base median-relative score (0 - 65)
-export const RECORD_BONUS_MAX = 35;                // Max bonus for breaking historical low (0 - 35)
-export const RECORD_BONUS_AT_ATL = 20;             // Base record bonus for matching existing ATL (0 - 20)
-export const UNDERCUT_FULL_DEPTH_RATIO = 0.20;     // 20% undercut below old ATL earns full extra undercut bonus (+15)
-export const IQR_TO_SIGMA = 1.349;                 // Standard normal IQR-to-sigma conversion
-export const MIN_SCALE_PCT_OF_MEDIAN = 0.08;       // 8% floor for zero/low-volatility games
-export const ABSOLUTE_MIN_SCALE_EUR = 0.30;        // 0.30 € absolute floor for sub-euro/cheap games
-export const NO_HISTORY_FALLBACK_CAP = 25;         // Max score when zero historical data exists
-export const ATL_FULL_DEPTH_RATIO = 0.35;          // ATL depth below median that earns 100% of base record bonus
-export const DATA_SUFFICIENCY_MIN_SAMPLES = 3;     // Min historical observations to establish full distribution
-export const PROVISIONAL_SCORE_CAP = 65;           // Max score when N = 1 or 2 (prevents false Exceptional on sparse data)
-export const PROVISIONAL_DEEP_DISCOUNT_CAP = 80;   // Dynamic cap for deep discounts (>=60% off MSRP on sparse data)
-export const SAVINGS_TIER_HIGH_EUR = 25.0;         // €25+ absolute savings threshold (+5 score boost)
-export const SAVINGS_TIER_MASSIVE_EUR = 40.0;      // €40+ absolute savings threshold (+10 score boost)
+export const W_ATL = 40;
+export const W_DISCOUNT = 30;
+export const W_HISTORY = 20;
+export const W_MARKET = 10;
+export const MAX_REALISTIC_DISCOUNT_PCT = 75;
+export const FAKE_BASELINE_RATIO = 1.5;
+export const SINGLE_OFFER_MARKET_SCORE = 7;
+export const NO_HISTORY_CAP = 40;
+export const PROVISIONAL_CAP = 65;
+export const PROVISIONAL_DEEP_CAP = 80;
+export const STALE_CAP = 50;
+export const DATA_SUFFICIENCY_MIN_SAMPLES = 3;
+
+// Aliases for backward compatibility
+export const NO_HISTORY_FALLBACK_CAP = NO_HISTORY_CAP;
+export const PROVISIONAL_SCORE_CAP = PROVISIONAL_CAP;
+export const PROVISIONAL_DEEP_DISCOUNT_CAP = PROVISIONAL_DEEP_CAP;
+export const RECORD_BONUS_MAX = 35;
+export const RECORD_BONUS_AT_ATL = 20;
+export const ATL_FULL_DEPTH_RATIO = 0.35;
+export const UNDERCUT_FULL_DEPTH_RATIO = 0.20;
+export const LOGISTIC_STEEPNESS = 1.2;
+export const BASE_SCORE_CEILING = 65;
+export const IQR_TO_SIGMA = 1.349;
+export const MIN_SCALE_PCT_OF_MEDIAN = 0.08;
+export const ABSOLUTE_MIN_SCALE_EUR = 0.30;

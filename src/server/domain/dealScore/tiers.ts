@@ -4,10 +4,10 @@ import type { DealScoreTier, ConfidenceTier } from '../../../shared/types.js';
  * Classifies Deal Score into qualitative tiers
  */
 export function getDealScoreTier(score: number): DealScoreTier {
-  if (score >= 85) return 'Exceptional';
+  if (score >= 80) return 'Exceptional';
   if (score >= 70) return 'Great';
-  if (score >= 55) return 'Good';
-  if (score >= 35) return 'Fair';
+  if (score >= 60) return 'Good';
+  if (score >= 40) return 'Fair';
   return 'Weak';
 }
 

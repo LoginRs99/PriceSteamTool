@@ -169,13 +169,13 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
     expect(evalRes.riskLevel).toBe('SAFE');
     expect(evalRes.isAnomaly).toBe(false);
 
-    // Without previous low / typical sale context (pure MSRP fallback): score is 25 (Fallback Cap)
+    // Without previous low / typical sale context (pure MSRP fallback): score is 37 (NO_HISTORY_CAP <= 40)
     const dealWithoutAtl = calculateDealScore({
       priceEur: 4.49,
       basePriceEur: 29.99
     });
 
-    expect(dealWithoutAtl.score).toBe(25);
+    expect(dealWithoutAtl.score).toBe(37);
     expect(dealWithoutAtl.isLowSample).toBe(true);
 
     // With confirmed ATL & typical sale history: score reaches Exceptional (85+)

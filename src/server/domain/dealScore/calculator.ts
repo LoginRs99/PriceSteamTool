@@ -1,136 +1,229 @@
-import type { DealScoreInput, DealScoreResult } from './types.js';
-import { 
-  NO_HISTORY_FALLBACK_CAP, 
-  DATA_SUFFICIENCY_MIN_SAMPLES, 
-  PROVISIONAL_SCORE_CAP,
-  PROVISIONAL_DEEP_DISCOUNT_CAP,
-  SAVINGS_TIER_HIGH_EUR,
-  SAVINGS_TIER_MASSIVE_EUR
+import type { DealScoreInput, DealScoreResult, DealVerdict } from './types.js';
+import {
+  W_ATL,
+  W_DISCOUNT,
+  W_HISTORY,
+  W_MARKET,
+  MAX_REALISTIC_DISCOUNT_PCT,
+  FAKE_BASELINE_RATIO,
+  SINGLE_OFFER_MARKET_SCORE,
+  NO_HISTORY_CAP,
+  PROVISIONAL_CAP,
+  PROVISIONAL_DEEP_CAP,
+  STALE_CAP,
+  DATA_SUFFICIENCY_MIN_SAMPLES
 } from './types.js';
 import { getDealScoreTier } from './tiers.js';
-import { calculateBaseScore } from './baseScore.js';
-import { calculateRecordBonus } from './recordBonus.js';
 import { calculateDataConfidence } from './confidence.js';
 
+function clamp(val: number, min: number, max: number): number {
+  if (isNaN(val)) return min;
+  return Math.min(Math.max(val, min), max);
+}
+
 /**
- * Deterministic Deal Score v2.3 Calculation (0 - 100)
- * Pure mathematical price scoring with explicit Data Sufficiency Guard.
+ * DealScore v2 Calculator
+ * Trust-free scoring using 4 mathematical pillars:
+ * 1. S_atl: Proximity to All-Time Low (0 - 40)
+ * 2. S_disc: Discount Depth vs Reliable Anchor (0 - 30)
+ * 3. S_hist: Historical Sale Distribution Position (0 - 20)
+ * 4. S_mkt: Cross-Market Competitiveness (0 - 10)
  */
 export function calculateDealScore(input: DealScoreInput): DealScoreResult {
-  const priceEur = Math.max(0, input.priceEur);
-  const median = input.typicalSaleMedianEur;
+  // Defensive: if pricing error, callers skip scoring -> return score 0, verdict 'WAIT'
+  if (input.isPricingError) {
+    return {
+      score: 0,
+      tier: 'Weak',
+      verdict: 'WAIT',
+      baseScore: 0,
+      rarityBonus: 0,
+      confidenceScore: 0,
+      confidenceTier: 'Low',
+      isLowSample: true,
+      isProvisional: false,
+      components: {
+        atlProximity: 0,
+        discountDepth: 0,
+        historicalValue: 0,
+        marketPosition: 0,
+        subtotal: 0,
+        rawScore: 0
+      },
+      explanation: {
+        medianSavingEur: 0,
+        atlDistanceEur: 0,
+        confidenceFactors: {}
+      }
+    };
+  }
+
+  const price = Math.max(0, input.priceEur);
+  const anchor = input.basePriceEur ?? input.originalPriceEur;
   const atl = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
+  const med = input.typicalSaleMedianEur ?? (input as any).recentMedianEur;
+  const maxHistoricalPrice = (input as any).maxHistoricalPrice;
 
-  // 1. Stage 1: Base Score (0 - 75)
-  const { baseScore, zScore, effectiveSigma } = calculateBaseScore(
-    priceEur,
-    median,
-    input.typicalSaleQ1Eur,
-    input.typicalSaleQ3Eur
-  );
-
-  // 2. Stage 2: Record Bonus (0 - 35)
-  let { recordBonus, atlDistanceEur } = calculateRecordBonus(
-    priceEur,
-    median,
-    atl
-  );
-
-  // If ATL is unconfirmed (single-source keyshop outlier without corroboration), halve the record bonus
-  if (input.isConfirmedAtl === false || input.isSingleSourceLow === true) {
-    recordBonus = Number((recordBonus * 0.5).toFixed(2));
-  }
-
-  // 3. Stage 3: Sum & Absolute Savings Booster
-  let rawScore = baseScore + recordBonus;
-
-  // Absolute Savings Booster:
-  // When buying expensive AA/AAA titles (50€ - 90€+), saving €25 or €40+ is a massive real-world saving
-  // that deserves a score boost beyond pure relative percentage, provided the price is genuinely below typical median.
-  const msrp = input.basePriceEur ?? input.originalPriceEur ?? median ?? 0;
-  const isBelowTypicalMedian = median && priceEur < median - 0.01;
-  const absoluteSavingEur = msrp > priceEur ? (msrp - priceEur) : 0;
-  let savingsBoost = 0;
-  if (isBelowTypicalMedian) {
-    if (absoluteSavingEur >= SAVINGS_TIER_MASSIVE_EUR) {
-      savingsBoost = 10;
-    } else if (absoluteSavingEur >= SAVINGS_TIER_HIGH_EUR) {
-      savingsBoost = 5;
-    }
-  }
-  rawScore += savingsBoost;
-
-  let riskPenalty = 0;
-
-  // Fallback for 0-history items (e.g. brand new unreleased games with no median)
-  const isNoHistory = (median === null || median === undefined || median <= 0);
-  if (isNoHistory) {
-    const basePrice = input.basePriceEur ?? input.originalPriceEur;
-    const discountPct = (basePrice && basePrice > 0 && priceEur < basePrice)
-      ? ((basePrice - priceEur) / basePrice) * 100
-      : 0;
-    rawScore = Math.min(NO_HISTORY_FALLBACK_CAP, discountPct * 0.3);
-  } else {
-    // Pricing error penalty if not skipped upstream
-    if (input.isPricingError) {
-      riskPenalty = 25;
-      rawScore = Math.max(0, rawScore - riskPenalty);
+  // Pillar 1: S_atl (ATL Proximity: 0 - 40)
+  let S_atl = 0;
+  if (atl !== undefined && atl !== null) {
+    const bandTop = anchor ?? maxHistoricalPrice ?? (atl * 2);
+    const band = Math.max(bandTop - atl, 0.01);
+    S_atl = W_ATL * (1 - clamp((price - atl) / band, 0, 1));
+    if (input.isConfirmedAtl === false || input.isSingleSourceLow === true) {
+      S_atl *= 0.5;
     }
   }
 
-  let finalScore = Math.round(Math.max(0, Math.min(100, rawScore)));
+  // Pillar 2: S_disc (Discount Depth: 0 - 30)
+  let discountPct = 0;
+  let S_disc = 0;
+  if (anchor !== undefined && anchor !== null && anchor > 0) {
+    if (input.basePriceEur !== undefined && input.originalPriceEur !== undefined && input.originalPriceEur > FAKE_BASELINE_RATIO * input.basePriceEur) {
+      // Fake baseline: ignore claimed original
+      discountPct = 0;
+      S_disc = 0;
+    } else {
+      discountPct = clamp((anchor - price) / anchor, 0, 1) * 100;
+      S_disc = W_DISCOUNT * clamp(discountPct / MAX_REALISTIC_DISCOUNT_PCT, 0, 1);
+    }
+  }
 
-  // 4. Data Sufficiency Guard:
-  // If historical sample is very sparse (N = 1 or 2), the statistical distribution is not yet established.
-  // Standard cap is PROVISIONAL_SCORE_CAP (65 - Good).
-  // Dynamic deep discount expansion: when msrp > 0 && priceEur <= msrp * 0.40 (>=60% off),
-  // cap at PROVISIONAL_DEEP_DISCOUNT_CAP (80) instead of 65.
-  const sampleCount = input.sampleCount ?? (isNoHistory ? 0 : 5);
-  const isProvisional = !isNoHistory && sampleCount > 0 && sampleCount < DATA_SUFFICIENCY_MIN_SAMPLES;
+  // Pillar 3: S_hist (Historical Sale Distribution: 0 - 20)
+  let S_hist = 0;
+  if (med !== undefined && med !== null) {
+    if (price > med) {
+      S_hist = 0;
+    } else {
+      const atlRef = atl ?? 0;
+      const band = Math.max(med - atlRef, 0.01);
+      S_hist = W_HISTORY * (1 - clamp((price - atlRef) / band, 0, 1));
+    }
+  }
+
+  // Pillar 4: S_mkt (Cross-Market Position: 0 - 10)
+  const offersCount = input.offersCount ?? (input.otherOfferCount !== undefined ? input.otherOfferCount + 1 : 1);
+  let S_mkt = SINGLE_OFFER_MARKET_SCORE;
+  if (offersCount > 1) {
+    const mktMin = input.minOfferEur ?? input.marketMinPriceEur ?? price;
+    const mktMax = input.maxOfferEur ?? (input as any).marketMaxPriceEur ?? price;
+    if (mktMax === mktMin) {
+      S_mkt = SINGLE_OFFER_MARKET_SCORE;
+    } else {
+      S_mkt = W_MARKET * (1 - clamp((price - mktMin) / (mktMax - mktMin), 0, 1));
+    }
+  }
+
+  // Raw score: S_raw = S_atl + S_disc + S_hist + S_mkt
+  const S_raw = S_atl + S_disc + S_hist + S_mkt;
+  let score = S_raw;
+
+  // History presence and sample count
+  const hasSomeHistory = (atl !== undefined && atl !== null) || (med !== undefined && med !== null) || ((input.sampleCount ?? 0) > 0);
+  const sampleCount = input.sampleCount !== undefined ? input.sampleCount : (hasSomeHistory ? 5 : 0);
+  const isProvisional = !hasSomeHistory || sampleCount < DATA_SUFFICIENCY_MIN_SAMPLES;
+
+  // Caps applied in sequence:
+  // 1. Data sufficiency: if sampleCount < DATA_SUFFICIENCY_MIN_SAMPLES (or no history at all):
+  //    if discountPct >= 60 → PROVISIONAL_DEEP_CAP (80),
+  //    else if has some history → PROVISIONAL_CAP (65),
+  //    else if no history at all → NO_HISTORY_CAP (40).
   if (isProvisional) {
-    const isDeepDiscount = msrp > 0 && priceEur <= msrp * 0.40;
-    const cap = isDeepDiscount ? PROVISIONAL_DEEP_DISCOUNT_CAP : PROVISIONAL_SCORE_CAP;
-    finalScore = Math.min(finalScore, cap);
+    if (discountPct >= 60) {
+      score = Math.min(score, PROVISIONAL_DEEP_CAP);
+    } else if (hasSomeHistory) {
+      score = Math.min(score, PROVISIONAL_CAP);
+    } else {
+      score = Math.min(score, NO_HISTORY_CAP);
+    }
   }
 
-  const tier = getDealScoreTier(finalScore);
+  // 2. Stale history: if daysSinceLastSample > 90 → score = min(score, STALE_CAP)
+  const isStale = Boolean(input.isStalePrice || (input.daysSinceLastSample !== undefined && input.daysSinceLastSample > 90));
+  if (isStale) {
+    score = Math.min(score, STALE_CAP);
+  }
 
-  // 5. Data Confidence (Strictly independent)
+  const finalScore = Math.round(clamp(score, 0, 100));
+
+  // Verdict / tier mapping: 0-39 WAIT, 40-59 FAIR, 60-79 GOOD, 80-100 BUY
+  let verdict: DealVerdict;
+  if (finalScore >= 80) {
+    verdict = 'INSTANT_BUY';
+  } else if (finalScore >= 60) {
+    verdict = 'GREAT_DEAL';
+  } else if (finalScore >= 40) {
+    verdict = 'FAIR_DEAL';
+  } else {
+    verdict = 'WAIT';
+  }
+
+  const effectiveSampleCount = input.sampleCount ?? (hasSomeHistory ? 5 : 0);
   const confidenceData = calculateDataConfidence({
-    sampleCount,
+    sampleCount: effectiveSampleCount,
     firstObservedAt: input.firstObservedAt,
     lastObservedAt: input.lastObservedAt,
     sourceCount: input.sourceCount ?? 1
   });
 
-  const verdict = 
-    finalScore >= 85 ? 'INSTANT_BUY' :
-    finalScore >= 70 ? 'GREAT_DEAL' :
-    finalScore >= 50 ? 'FAIR_DEAL' :
-    finalScore >= 30 ? 'WAIT' : 'OVERPRICED';
+  const tier = getDealScoreTier(finalScore);
+
+  const medianSavingEur = med !== undefined && med !== null
+    ? Number((med - price).toFixed(2))
+    : 0;
+
+  const atlDistanceEur = atl !== undefined && atl !== null
+    ? Number((price - atl).toFixed(2))
+    : 0;
 
   return {
     score: finalScore,
     tier,
     verdict,
-    baseScore,
-    rarityBonus: recordBonus,
+    baseScore: Number(S_disc.toFixed(2)),
+    rarityBonus: Number(S_atl.toFixed(2)),
     confidenceScore: confidenceData.confidence,
     confidenceTier: confidenceData.tier,
     isLowSample: confidenceData.confidence < 40,
     isProvisional,
     components: {
-      atlProximity: recordBonus,
-      discountDepth: baseScore,
-      historicalValue: savingsBoost,
-      marketPosition: 0,
+      atlProximity: Number(S_atl.toFixed(2)),
+      discountDepth: Number(S_disc.toFixed(2)),
+      historicalValue: Number(S_hist.toFixed(2)),
+      marketPosition: Number(S_mkt.toFixed(2)),
       subtotal: finalScore,
-      rawScore: Number(rawScore.toFixed(2))
+      rawScore: Number(S_raw.toFixed(2))
     },
     explanation: {
-      medianSavingEur: median ? Number((median - priceEur).toFixed(2)) : 0,
-      atlDistanceEur: atlDistanceEur ?? 0,
+      medianSavingEur,
+      atlDistanceEur,
       confidenceFactors: confidenceData.factors
     }
+  };
+}
+
+/**
+ * Folded calculateBaseScore function for backward compatibility
+ */
+export function calculateBaseScore(
+  priceEur: number,
+  medianPriceEur: number | null | undefined,
+  q1PriceEur?: number,
+  q3PriceEur?: number
+): { baseScore: number; zScore: number; effectiveSigma: number } {
+  if (medianPriceEur === null || medianPriceEur === undefined || medianPriceEur <= 0) {
+    return { baseScore: 0, zScore: 0, effectiveSigma: 0.30 };
+  }
+  const iqr = (q1PriceEur !== undefined && q3PriceEur !== undefined)
+    ? Math.max(0, q3PriceEur - q1PriceEur)
+    : 0;
+  const effectiveSigma = Math.max(iqr / 1.349, medianPriceEur * 0.08, 0.30);
+  const z = (medianPriceEur - priceEur) / effectiveSigma;
+  const zScore = Number(z.toFixed(3));
+  const baseScore = 65 / (1 + Math.exp(-1.2 * z));
+  return {
+    baseScore: Number(baseScore.toFixed(2)),
+    zScore,
+    effectiveSigma: Number(effectiveSigma.toFixed(3))
   };
 }

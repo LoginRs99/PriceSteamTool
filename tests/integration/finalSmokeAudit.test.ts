@@ -153,7 +153,7 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
         basePriceEur: 60.00,
         sampleCount: 0
       });
-      expect(resultN0.score).toBeLessThanOrEqual(25);
+      expect(resultN0.score).toBeLessThanOrEqual(40);
 
     });
   });

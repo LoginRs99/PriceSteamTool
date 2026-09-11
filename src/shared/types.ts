@@ -530,7 +530,11 @@ export interface DealScoreInput {
   isPricingError?: boolean;
   marketMinPriceEur?: number;
   otherOfferCount?: number;
+  offersCount?: number;
+  minOfferEur?: number;
+  maxOfferEur?: number;
   isStalePrice?: boolean;
+  daysSinceLastSample?: number;
 
   // Edge cases
   originalPriceEur?: number;

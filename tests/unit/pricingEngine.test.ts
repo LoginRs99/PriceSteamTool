@@ -807,8 +807,9 @@ describe('2D Pricing Engine — Comprehensive Audit & Edge Cases Suite', () => {
         isPricingError: true
       });
 
-      // Deal score is calculated purely from price & median, ignoring anomaly status
-      expect(dealCalc.score).toBeGreaterThanOrEqual(65);
+      // Defensive: pricing errors return score 0, verdict WAIT
+      expect(dealCalc.score).toBe(0);
+      expect(dealCalc.verdict).toBe('WAIT');
     });
 
     it('12. anomalous offer produces PROVISIONAL decision in Action Signal', () => {
