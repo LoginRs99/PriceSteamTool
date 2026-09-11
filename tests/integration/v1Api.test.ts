@@ -98,7 +98,9 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
       basePriceEur: 59.99,
       historicalLowEur: 14.99,
       historicalLowDate: '2025-06-25T14:30:00Z',
-      historicalLowSource: 'Steam Store'
+      historicalLowSource: 'Steam Store',
+      metacriticScore: 86,
+      metacriticUrl: 'https://www.metacritic.com/game/pc/cyberpunk-2077'
     });
 
     // Lookup by UUID
@@ -110,6 +112,8 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
     const jsonId = JSON.parse(resId.body);
     expect(jsonId.title).toBe('Cyberpunk 2077');
     expect(jsonId.steamAppId).toBe(1091500);
+    expect(jsonId.metacriticScore).toBe(86);
+    expect(jsonId.metacriticUrl).toBe('https://www.metacritic.com/game/pc/cyberpunk-2077');
 
     // Lookup by steam:1091500 prefix
     const resSteam = await app.inject({
@@ -120,6 +124,8 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
     const jsonSteam = JSON.parse(resSteam.body);
     expect(jsonSteam.id).toBe(g.id);
     expect(jsonSteam.historicalLowEur).toBe(14.99);
+    expect(jsonSteam.metacriticScore).toBe(86);
+    expect(jsonSteam.metacriticUrl).toBe('https://www.metacritic.com/game/pc/cyberpunk-2077');
 
     // Lookup by direct numeric AppID
     const resNumeric = await app.inject({
@@ -129,6 +135,22 @@ describe('V1 REST API Integration & Anti-Rate-Limit Suite (/api/v1/*)', () => {
     expect(resNumeric.statusCode).toBe(200);
     const jsonNumeric = JSON.parse(resNumeric.body);
     expect(jsonNumeric.id).toBe(g.id);
+    expect(jsonNumeric.metacriticScore).toBe(86);
+    expect(jsonNumeric.metacriticUrl).toBe('https://www.metacritic.com/game/pc/cyberpunk-2077');
+
+    // Check null fallback for games without metacritic data
+    const gWithoutMeta = gameRepo.upsert({
+      steamAppId: 1091501,
+      title: 'Game Without Metacritic'
+    });
+    const resNoMeta = await app.inject({
+      method: 'GET',
+      url: `/api/v1/games/${gWithoutMeta.id}`
+    });
+    expect(resNoMeta.statusCode).toBe(200);
+    const jsonNoMeta = JSON.parse(resNoMeta.body);
+    expect(jsonNoMeta.metacriticScore).toBeNull();
+    expect(jsonNoMeta.metacriticUrl).toBeNull();
   });
 
   it('4. POST /api/v1/games/resolve handles bulk AppID and title matching', async () => {

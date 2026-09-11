@@ -144,7 +144,9 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
       bestPriceEur: game.bestPriceEur ?? null,
       bestMerchantName: game.bestMerchantName ?? null,
       bestDealScore: game.bestDealScore ?? null,
-      riskLevel: game.bestRiskLevel ?? 'SAFE'
+      riskLevel: game.bestRiskLevel ?? 'SAFE',
+      metacriticScore: game.metacriticScore ?? null,
+      metacriticUrl: game.metacriticUrl ?? null
     };
   });
 

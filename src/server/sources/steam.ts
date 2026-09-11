@@ -247,7 +247,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
             const metacriticScore = (infoObj.metacritic_score !== undefined && infoObj.metacritic_score !== null)
               ? Number(infoObj.metacritic_score)
               : (infoObj.metacritic?.score !== undefined && infoObj.metacritic?.score !== null ? Number(infoObj.metacritic.score) : undefined);
-            const metacriticUrl = infoObj.metacritic?.url || infoObj.metacritic_url || undefined;
+            const metacriticUrl = infoObj.metacritic_fullurl || infoObj.metacritic?.url || infoObj.metacritic_url || undefined;
 
             items.push({
               steamAppId: appId,
