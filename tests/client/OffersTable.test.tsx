@@ -204,4 +204,48 @@ describe('OffersTable Component & Badge Integrity', () => {
     expect(screen.getByText('HIGH RISK')).toBeInTheDocument();
     expect(screen.getByText('Unverified outlier price (Flagged in Data Safety)')).toBeInTheDocument();
   });
+
+  it('does not mutate the offers prop array via in-place sorting', () => {
+    const originalOffers: Offer[] = [
+      { ...sampleOffers[1], priceEur: 20 },
+      { ...sampleOffers[0], priceEur: 5 },
+      { ...sampleOffers[2], priceEur: 10 }
+    ];
+    Object.freeze(originalOffers);
+
+    expect(() => {
+      render(
+        <OffersTable
+          offers={originalOffers}
+          copiedVoucherId={null}
+          onCopyVoucher={() => {}}
+        />
+      );
+    }).not.toThrow();
+
+    expect(originalOffers[0].priceEur).toBe(20);
+    expect(originalOffers[1].priceEur).toBe(5);
+    expect(originalOffers[2].priceEur).toBe(10);
+  });
+
+  it('does not mutate the offers prop array when all offers are stale/expired (fallback path)', () => {
+    const staleOffers: Offer[] = [
+      { ...sampleOffers[0], isFresh: false, isValid: false, priceEur: 25 },
+      { ...sampleOffers[1], isFresh: false, isValid: false, priceEur: 5 }
+    ];
+    Object.freeze(staleOffers);
+
+    expect(() => {
+      render(
+        <OffersTable
+          offers={staleOffers}
+          copiedVoucherId={null}
+          onCopyVoucher={() => {}}
+        />
+      );
+    }).not.toThrow();
+
+    expect(staleOffers[0].priceEur).toBe(25);
+    expect(staleOffers[1].priceEur).toBe(5);
+  });
 });

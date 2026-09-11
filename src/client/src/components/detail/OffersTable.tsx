@@ -30,12 +30,12 @@ export const OffersTable: React.FC<OffersTableProps> = ({
   const filterByStore = (list: Offer[]) => {
     if (storeFilter === 'OFFICIAL') return list.filter(o => o.isOfficial);
     if (storeFilter === 'KEYSHOP') return list.filter(o => !o.isOfficial);
-    return list;
+    return [...list];
   };
 
   // Fallback: If no offers are strictly fresh, show all in active table so user still sees data.
   // Both sections strictly sorted by price ascending (cheapest first).
-  const baseActive = activeOffers.length > 0 ? activeOffers : offers;
+  const baseActive = activeOffers.length > 0 ? [...activeOffers] : [...offers];
   const displayActive = filterByStore(baseActive).sort((a, b) => a.priceEur - b.priceEur);
   const displayExpired = filterByStore(activeOffers.length > 0 ? expiredOffers : []).sort((a, b) => a.priceEur - b.priceEur);
 
