@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Profile } from '../types.js';
 import { api } from '../api.js';
 import { X, UserPlus, Check, Trash2, Users, RefreshCw } from 'lucide-react';
@@ -16,6 +16,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onRefresh,
 }) => {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   const [name, setName] = useState('');
   const [steamId, setSteamId] = useState('');
   const [isFamilyNew, setIsFamilyNew] = useState(false);
@@ -24,13 +29,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { Game } from '../types.js';
 import { X, HelpCircle, Award, ShieldCheck, Database, Calendar, TrendingDown, Info, AlertTriangle } from 'lucide-react';
 
@@ -8,13 +8,18 @@ interface ScoreExplainModalProps {
 }
 
 export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onClose }) => {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, []);
 
   if (!game) return null;
 

@@ -293,4 +293,94 @@ describe('App Root Component (Monolith & Decomposed Regression Tests)', () => {
       expect(gamesSpy).toHaveBeenCalled();
     });
   });
+
+  it('with GameDetailModal open during sync, SSE events produce zero additional modal network requests', async () => {
+    const getDetailsSpy = vi.spyOn(api, 'getGameDetails').mockResolvedValue({
+      game: mockGames[0],
+      offers: [],
+      history: []
+    });
+    const getIntelSpy = vi.spyOn(api, 'getPriceIntelligence').mockResolvedValue({} as any);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Terraria')[0]).toBeInTheDocument();
+    });
+
+    const terrariaCard = screen.getAllByText('Terraria')[0];
+    await act(async () => {
+      fireEvent.click(terrariaCard);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    expect(getDetailsSpy).toHaveBeenCalledTimes(1);
+    expect(getIntelSpy).toHaveBeenCalledTimes(1);
+
+    const es = MockEventSource.instances[0];
+
+    // Emit 5 SSE progress events during sync
+    for (let i = 1; i <= 5; i++) {
+      await act(async () => {
+        es.emitMessage({
+          status: 'RUNNING',
+          currentAction: `Syncing batch ${i}...`,
+          processedGames: i * 10,
+          totalGames: 50,
+          sourceProgress: {} as any
+        });
+      });
+    }
+
+    // Modal network requests MUST remain at 1 each (ZERO additional requests)
+    expect(getDetailsSpy).toHaveBeenCalledTimes(1);
+    expect(getIntelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('with DiscordModal open during sync, SSE events produce zero additional network requests', async () => {
+    const getSettingsSpy = vi.spyOn(api, 'getDiscordSettings').mockResolvedValue({
+      webhookUrl: 'https://discord.com/api/webhooks/test',
+      isEnabled: true,
+      minDealScore: 70,
+      notifyAtlOnly: false,
+      notifyFreeGames: true,
+      cooldownHours: 24
+    } as any);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Terraria')[0]).toBeInTheDocument();
+    });
+
+    const discordBtn = screen.getByTitle(/Discord Webhook Deal Alerts/i);
+    await act(async () => {
+      fireEvent.click(discordBtn);
+    });
+
+    await waitFor(() => {
+      expect(getSettingsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    const es = MockEventSource.instances[0];
+
+    // Emit 5 SSE progress events during sync
+    for (let i = 1; i <= 5; i++) {
+      await act(async () => {
+        es.emitMessage({
+          status: 'RUNNING',
+          currentAction: `Syncing batch ${i}...`,
+          processedGames: i * 10,
+          totalGames: 50,
+          sourceProgress: {} as any
+        });
+      });
+    }
+
+    // Settings fetch MUST remain at 1 call (ZERO additional requests)
+    expect(getSettingsSpy).toHaveBeenCalledTimes(1);
+  });
 });

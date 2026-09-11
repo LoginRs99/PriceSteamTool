@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import type { SourceStatus, SourceCode } from '../types.js';
 import { api } from '../api.js';
 import { X, RefreshCw, Play, FileText, CheckSquare, Square, Info } from 'lucide-react';
@@ -10,6 +10,11 @@ interface SyncModalProps {
 }
 
 export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSyncing }) => {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [selectedSources, setSelectedSources] = useState<Record<SourceCode, boolean>>({
     steam: true,
@@ -23,7 +28,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
 
@@ -38,7 +43,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
     }).catch(() => setLoading(false));
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, []);
 
   const toggleSource = (code: SourceCode) => {
     setSelectedSources(prev => ({

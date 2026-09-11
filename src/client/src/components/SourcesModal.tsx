@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import type { SourceStatus, SourceCode } from '../types.js';
 import { api } from '../api.js';
 import { X, Activity, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
@@ -8,6 +8,11 @@ interface SourcesModalProps {
 }
 
 export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,7 +29,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
 
@@ -34,7 +39,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
       clearInterval(interval);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, []);
 
   const handleToggle = async (code: SourceCode, isEnabled: boolean) => {
     await api.toggleSource(code, isEnabled);

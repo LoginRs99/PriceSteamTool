@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Game, Offer, PriceHistoryEntry, PriceIntelligenceResponse } from '../../types.js';
 import { api } from '../../api.js';
 
@@ -158,12 +158,23 @@ export function useGameIntelligence(
     }
   };
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     Promise.all([
       api.getGameDetails(gameId),
@@ -190,9 +201,8 @@ export function useGameIntelligence(
 
     return () => {
       isMounted = false;
-      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [gameId, onClose]);
+  }, [gameId]);
 
   return {
     data,

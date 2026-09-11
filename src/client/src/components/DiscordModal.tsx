@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Send, CheckCircle2, AlertCircle, X, ShieldCheck, Flame, Gift, Clock, Database } from 'lucide-react';
 import { api } from '../api.js';
 
@@ -8,6 +8,11 @@ interface DiscordModalProps {
 }
 
 export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) => {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   const [webhookUrl, setWebhookUrl] = useState('');
   const [isEnabled, setIsEnabled] = useState(true);
   const [minDealScore, setMinDealScore] = useState(75);
@@ -31,12 +36,12 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
       setErrorMessage('');
 
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape') onCloseRef.current();
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const loadSettings = async () => {
     try {

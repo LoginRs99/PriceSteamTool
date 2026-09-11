@@ -109,6 +109,30 @@ export const App: React.FC = () => {
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
+  const handleCloseDetailModal = useCallback(() => setSelectedGameId(null), []);
+  const handleCloseExplainModal = useCallback(() => setExplainGame(null), []);
+  const handleCloseProfilesModal = useCallback(() => setShowProfilesModal(false), []);
+  const handleCloseSourcesModal = useCallback(() => setShowSourcesModal(false), []);
+  const handleCloseDiscordModal = useCallback(() => setShowDiscordModal(false), []);
+  const handleCloseSyncModal = useCallback(() => setShowSyncModal(false), []);
+
+  const handleTargetPriceUpdated = useCallback((gameId: string, targetPrice: number | null) => {
+    setGames(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
+    setTopDeals(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
+  }, []);
+
+  const handleGameUpdated = useCallback(() => {
+    loadGames();
+    loadStatsAndDeals();
+  }, [loadGames, loadStatsAndDeals]);
+
+  const handleProfileRefresh = useCallback(async () => {
+    await loadProfiles();
+    loadGames();
+    loadFreeGames();
+    loadStatsAndDeals();
+  }, [loadProfiles, loadGames, loadFreeGames, loadStatsAndDeals]);
+
   // Scroll to top
   const [showScrollTop, setShowScrollTop] = useState(false);
   useEffect(() => {
@@ -485,22 +509,16 @@ export const App: React.FC = () => {
       {selectedGameId && (
         <GameDetailModal
           gameId={selectedGameId}
-          onClose={() => setSelectedGameId(null)}
-          onTargetPriceUpdated={(gameId, targetPrice) => {
-            setGames(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
-            setTopDeals(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
-          }}
-          onGameUpdated={() => {
-            loadGames();
-            loadStatsAndDeals();
-          }}
+          onClose={handleCloseDetailModal}
+          onTargetPriceUpdated={handleTargetPriceUpdated}
+          onGameUpdated={handleGameUpdated}
         />
       )}
 
       {explainGame && (
         <ScoreExplainModal
           game={explainGame}
-          onClose={() => setExplainGame(null)}
+          onClose={handleCloseExplainModal}
         />
       )}
 
@@ -508,23 +526,18 @@ export const App: React.FC = () => {
         <ProfileModal
           profiles={profiles}
           activeProfile={activeProfile}
-          onClose={() => setShowProfilesModal(false)}
-          onRefresh={async () => {
-            await loadProfiles();
-            loadGames();
-            loadFreeGames();
-            loadStatsAndDeals();
-          }}
+          onClose={handleCloseProfilesModal}
+          onRefresh={handleProfileRefresh}
         />
       )}
 
       {showSourcesModal && (
-        <SourcesModal onClose={() => setShowSourcesModal(false)} />
+        <SourcesModal onClose={handleCloseSourcesModal} />
       )}
 
       {showSyncModal && (
         <SyncModal
-          onClose={() => setShowSyncModal(false)}
+          onClose={handleCloseSyncModal}
           onStartSync={handleExecuteSync}
           isSyncing={syncProgress?.status === 'RUNNING'}
         />
@@ -533,7 +546,7 @@ export const App: React.FC = () => {
       {showDiscordModal && (
         <DiscordModal
           isOpen={showDiscordModal}
-          onClose={() => setShowDiscordModal(false)}
+          onClose={handleCloseDiscordModal}
         />
       )}
 
