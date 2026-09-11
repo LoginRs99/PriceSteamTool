@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import type { SyncProgressUpdate, SourceCode } from '../types.js';
 import { api } from '../api.js';
 
+const TERMINAL_STATUSES = ['COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED', 'CANCELLED'] as const;
+
 export function useWishlistSync(onSyncCompleted?: () => void) {
   const [syncProgress, setSyncProgress] = useState<SyncProgressUpdate | null>(null);
 
@@ -14,7 +16,7 @@ export function useWishlistSync(onSyncCompleted?: () => void) {
         const update: SyncProgressUpdate = JSON.parse(event.data);
         setSyncProgress(update);
 
-        if (update.status === 'COMPLETED' && onSyncCompleted) {
+        if ((update.status === 'COMPLETED' || update.status === 'COMPLETED_WITH_WARNINGS') && onSyncCompleted) {
           onSyncCompleted();
         }
       } catch (e) {
@@ -26,6 +28,20 @@ export function useWishlistSync(onSyncCompleted?: () => void) {
       eventSource.close();
     };
   }, [onSyncCompleted]);
+
+  useEffect(() => {
+    if (!syncProgress || !TERMINAL_STATUSES.includes(syncProgress.status as any)) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSyncProgress(null);
+    }, 10000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [syncProgress?.status]);
 
   const handleExecuteSync = useCallback(async (forceRefresh: boolean, selectedSources?: SourceCode[]) => {
     try {

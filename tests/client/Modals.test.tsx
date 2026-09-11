@@ -245,6 +245,42 @@ describe('Modals & Ancillary Components', () => {
       expect(screen.getByText('(489 offers • 22 unpriced)')).toBeInTheDocument();
       expect(screen.queryByText(/deals/i)).not.toBeInTheDocument();
     });
+
+    it('renders COMPLETED_WITH_WARNINGS with amber alert and no cancel button', () => {
+      render(
+        <SyncBanner
+          progress={{
+            status: 'COMPLETED_WITH_WARNINGS',
+            currentAction: 'Sync completed with warnings',
+            processedGames: 20,
+            totalGames: 20,
+            sourceProgress: {} as any
+          }}
+          onCancel={() => {}}
+        />
+      );
+
+      expect(screen.getByText('Sync Finished (with warnings)')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Cancel/i })).not.toBeInTheDocument();
+    });
+
+    it('renders COMPLETED with green check and no cancel button', () => {
+      render(
+        <SyncBanner
+          progress={{
+            status: 'COMPLETED',
+            currentAction: 'Sync completed successfully',
+            processedGames: 20,
+            totalGames: 20,
+            sourceProgress: {} as any
+          }}
+          onCancel={() => {}}
+        />
+      );
+
+      expect(screen.getByText('Sync Finished')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Cancel/i })).not.toBeInTheDocument();
+    });
   });
 
   describe('AnomaliesView', () => {

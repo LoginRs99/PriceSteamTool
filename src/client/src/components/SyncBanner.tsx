@@ -39,6 +39,11 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
               <CheckCircle size={18} color="#10b981" />
               <span>Sync Finished</span>
             </>
+          ) : progress.status === 'COMPLETED_WITH_WARNINGS' ? (
+            <>
+              <AlertCircle size={18} color="#f59e0b" />
+              <span>Sync Finished (with warnings)</span>
+            </>
           ) : (
             <>
               <AlertCircle size={18} color="#ef4444" />
