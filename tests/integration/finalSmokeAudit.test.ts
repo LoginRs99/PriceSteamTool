@@ -121,11 +121,11 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
   // ----------------------------------------------------
   describe('2. Provisional Consistency & Data Sufficiency Guard', () => {
     it('caps Deal Score at max 65 when N=1 or N=2 and marks isProvisional = true', () => {
-      // 1 observation with huge apparent discount
+      // 1 observation with regular discount (< 60% off, capped at 65)
       const resultN1 = calculateDealScore({
-        priceEur: 5.00,
+        priceEur: 30.00,
         basePriceEur: 60.00,
-        typicalSaleMedianEur: 25.00,
+        typicalSaleMedianEur: 35.00,
         sampleCount: 1,
         isConfirmedAtl: false
       });
@@ -134,6 +134,18 @@ describe('Final Production Smoke Audit & Integration Verification', () => {
       expect(resultN1.isProvisional).toBe(true);
       expect(resultN1.tier).not.toBe('Exceptional');
       expect(resultN1.confidenceScore).toBeLessThanOrEqual(35);
+
+      // 1 observation with deep discount (>= 60% off, capped at PROVISIONAL_DEEP_DISCOUNT_CAP = 80)
+      const resultDeep = calculateDealScore({
+        priceEur: 5.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 25.00,
+        sampleCount: 1,
+        isConfirmedAtl: false
+      });
+      expect(resultDeep.score).toBeLessThanOrEqual(80);
+      expect(resultDeep.isProvisional).toBe(true);
+      expect(resultDeep.tier).not.toBe('Exceptional');
 
       // N=0 with fallback
       const resultN0 = calculateDealScore({

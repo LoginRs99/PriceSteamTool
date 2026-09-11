@@ -13,7 +13,8 @@ import {
   ABSOLUTE_MIN_SCALE_EUR,
   NO_HISTORY_FALLBACK_CAP,
   DATA_SUFFICIENCY_MIN_SAMPLES,
-  PROVISIONAL_SCORE_CAP
+  PROVISIONAL_SCORE_CAP,
+  PROVISIONAL_DEEP_DISCOUNT_CAP
 } from '../../src/server/domain/dealScore.js';
 
 describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
@@ -630,9 +631,9 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
       expect(res.score).toBeGreaterThanOrEqual(75);
     });
 
-    it('Edge 8: Pure price calculation separates risk from math', () => {
-      // Mathematical Deal Score evaluates price, caller checks riskLevel / isAnomaly
-      const res = calculateDealScore({
+    it('Edge 8: Risk pillar penalizes anomalies and high risk offers', () => {
+      // isAnomaly: true at ATL must score <= 75
+      const resAnomaly = calculateDealScore({
         priceEur: 10.00,
         typicalSaleMedianEur: 50.00,
         allTimeLowEur: 10.00,
@@ -640,7 +641,49 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         riskLevel: 'HIGH',
         sampleCount: 30
       });
-      expect(res.score).toBeGreaterThanOrEqual(85);
+      expect(resAnomaly.score).toBeLessThanOrEqual(75);
+      expect(resAnomaly.components?.riskPenalty).toBe(25);
+      expect(resAnomaly.components?.discountScore).toBeDefined();
+      expect(resAnomaly.components?.historicalScore).toBeDefined();
+      expect(resAnomaly.components?.trustScore).toBeDefined();
+
+      // Normal safe offer at same ATL achieves >= 85
+      const resSafe = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 10.00,
+        sampleCount: 30
+      });
+      expect(resSafe.score).toBeGreaterThanOrEqual(85);
+      expect(resSafe.components?.riskPenalty).toBe(0);
+
+      // Verify graduated penalties for risk levels without anomaly flag
+      const resHigh = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 10.00,
+        riskLevel: 'HIGH',
+        sampleCount: 30
+      });
+      expect(resHigh.components?.riskPenalty).toBe(20);
+
+      const resSuspicious = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 10.00,
+        riskLevel: 'SUSPICIOUS',
+        sampleCount: 30
+      });
+      expect(resSuspicious.components?.riskPenalty).toBe(12);
+
+      const resMedium = calculateDealScore({
+        priceEur: 10.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 10.00,
+        riskLevel: 'MEDIUM',
+        sampleCount: 30
+      });
+      expect(resMedium.components?.riskPenalty).toBe(5);
     });
 
     it('Edge 9: Negative or zero price handled cleanly by math', () => {
@@ -704,6 +747,31 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
 
       // At 10€ vs 15€ ATL, full recordBonus would be 35.0 -> halved to 17.5
       expect(resSingleSource.rarityBonus).toBe(17.5);
+    });
+
+    it('Edge 13: Provisional >=60%-off offer may reach PROVISIONAL_DEEP_DISCOUNT_CAP (80) but never above', () => {
+      // 70% off MSRP on sparse data (N = 2)
+      const resDeep = calculateDealScore({
+        priceEur: 18.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 18.00,
+        sampleCount: 2
+      });
+      expect(resDeep.isProvisional).toBe(true);
+      expect(resDeep.score).toBe(PROVISIONAL_DEEP_DISCOUNT_CAP); // 80
+      expect(resDeep.score).toBeLessThanOrEqual(80);
+
+      // 40% off MSRP on sparse data (N = 2): not >= 60% off, stays capped at 65
+      const resRegular = calculateDealScore({
+        priceEur: 36.00,
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 50.00,
+        allTimeLowEur: 36.00,
+        sampleCount: 2
+      });
+      expect(resRegular.isProvisional).toBe(true);
+      expect(resRegular.score).toBe(PROVISIONAL_SCORE_CAP); // 65
     });
   });
 });

@@ -3,6 +3,7 @@ import {
   NO_HISTORY_FALLBACK_CAP, 
   DATA_SUFFICIENCY_MIN_SAMPLES, 
   PROVISIONAL_SCORE_CAP,
+  PROVISIONAL_DEEP_DISCOUNT_CAP,
   SAVINGS_TIER_HIGH_EUR,
   SAVINGS_TIER_MASSIVE_EUR
 } from './types.js';
@@ -59,6 +60,8 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   }
   rawScore += savingsBoost;
 
+  let riskPenalty = 0;
+
   // Fallback for 0-history items (e.g. brand new unreleased games with no median)
   const isNoHistory = (median === null || median === undefined || median <= 0);
   if (isNoHistory) {
@@ -67,6 +70,18 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
       ? ((basePrice - priceEur) / basePrice) * 100
       : 0;
     rawScore = Math.min(NO_HISTORY_FALLBACK_CAP, discountPct * 0.3);
+  } else {
+    // Risk pillar
+    if (input.isAnomaly === true) {
+      riskPenalty = 25;
+    } else if (input.riskLevel === 'HIGH') {
+      riskPenalty = 20;
+    } else if (input.riskLevel === 'SUSPICIOUS') {
+      riskPenalty = 12;
+    } else if (input.riskLevel === 'MEDIUM') {
+      riskPenalty = 5;
+    }
+    rawScore = Math.max(0, rawScore - riskPenalty);
   }
 
   let finalScore = Math.round(Math.max(0, Math.min(100, rawScore)));
@@ -74,12 +89,14 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   // 4. Data Sufficiency Guard:
   // If historical sample is very sparse (N = 1 or 2), the statistical distribution is not yet established.
   // Standard cap is PROVISIONAL_SCORE_CAP (65 - Good).
-  // DYNAMIC PROVISIONAL UPGRADE: If a major title (MSRP >= 30€) has a deep discount (>=45%),
-  // allow the cap to expand to PROVISIONAL_DEEP_DISCOUNT_CAP (80 - Great) so new AAA sales are not choked.
+  // Dynamic deep discount expansion: when msrp > 0 && priceEur <= msrp * 0.40 (>=60% off),
+  // cap at PROVISIONAL_DEEP_DISCOUNT_CAP (80) instead of 65.
   const sampleCount = input.sampleCount ?? (isNoHistory ? 0 : 5);
   const isProvisional = !isNoHistory && sampleCount > 0 && sampleCount < DATA_SUFFICIENCY_MIN_SAMPLES;
   if (isProvisional) {
-    finalScore = Math.min(finalScore, PROVISIONAL_SCORE_CAP);
+    const isDeepDiscount = msrp > 0 && priceEur <= msrp * 0.40;
+    const cap = isDeepDiscount ? PROVISIONAL_DEEP_DISCOUNT_CAP : PROVISIONAL_SCORE_CAP;
+    finalScore = Math.min(finalScore, cap);
   }
 
   const tier = getDealScoreTier(finalScore);
@@ -103,9 +120,13 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     isProvisional,
     zScore,
     components: {
+      discountScore: baseScore,
+      historicalScore: recordBonus,
+      trustScore: savingsBoost,
       subtotal: finalScore,
+      // Confidence is reported via confidenceScore/confidenceTier and consumed downstream, not multiplied into the score
       confidenceMultiplier: 1.0,
-      riskPenalty: 0,
+      riskPenalty,
       rawScore: Number(rawScore.toFixed(2))
     },
     explanation: {
