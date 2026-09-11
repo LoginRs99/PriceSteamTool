@@ -3,7 +3,8 @@ import type {
   Offer, 
   PriceIntelligenceResponse, 
   TypicalSalePrice, 
-  PurchaseAdvice 
+  PurchaseAdvice,
+  ActionSignal
 } from '../../../shared/types.js';
 
 /**
@@ -13,7 +14,8 @@ export function evaluatePurchaseAdvice(
   game: Game,
   currentBestOffer: Offer | undefined,
   periodLows: PriceIntelligenceResponse['periodLows'],
-  typicalSale: TypicalSalePrice
+  typicalSale: TypicalSalePrice,
+  actionSignal?: ActionSignal
 ): PurchaseAdvice {
   const currentPrice = currentBestOffer?.priceEur ?? game.bestPriceEur ?? 0;
   const basePrice = game.basePriceEur ?? currentBestOffer?.originalPriceEur ?? 0;
@@ -41,7 +43,7 @@ export function evaluatePurchaseAdvice(
   if (currentBestOffer && (currentBestOffer.isAnomaly || currentBestOffer.riskLevel === 'HIGH')) {
     return {
       decision: 'WAIT',
-      confidence: 'HIGH',
+      confidence: actionSignal?.decision === 'PROVISIONAL' ? 'LOW' : 'HIGH',
       headline: 'High Risk Price Anomaly',
       reasoning: [
         'Current offer is flagged as an unverified pricing error or high-risk seller.',
@@ -50,12 +52,51 @@ export function evaluatePurchaseAdvice(
     };
   }
 
-  // 3. BUY Rule (First match wins)
+  // 3. Flags for reasoning explanation builders
   const isAtOrBelowATL = atl !== null && atl > 0 && currentPrice <= (atl + 0.05);
   const isDeepTypicalSale = typicalSale.medianPriceEur !== null && currentPrice <= (typicalSale.medianPriceEur * 0.85);
   const isHighDealScore = dealScore >= 80;
 
-  if (isAtOrBelowATL || isDeepTypicalSale || isHighDealScore) {
+  const isWithinTypicalBand = typicalSale.medianPriceEur !== null && 
+    currentPrice <= (typicalSale.medianPriceEur * 1.10) && 
+    currentPrice >= (typicalSale.medianPriceEur * 0.85);
+
+  const isDecentSale = discount >= 30 && dealScore >= 50;
+  const isNear90dLow = periodLows.low90d.priceEur !== null && 
+    currentPrice <= (periodLows.low90d.priceEur * 1.05) &&
+    discount >= 25 &&
+    (typicalSale.medianPriceEur === null || currentPrice <= typicalSale.medianPriceEur * 1.15);
+
+  let decision: 'BUY' | 'FAIR' | 'WAIT';
+  let confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+
+  if (actionSignal) {
+    if (actionSignal.decision === 'STRONG_BUY' || actionSignal.decision === 'BUY') {
+      decision = 'BUY';
+      confidence = 'HIGH';
+    } else if (actionSignal.decision === 'FAIR') {
+      decision = 'FAIR';
+      confidence = 'MEDIUM';
+    } else {
+      // WAIT | HOLD | PROVISIONAL
+      decision = 'WAIT';
+      confidence = actionSignal.decision === 'PROVISIONAL' ? 'LOW' : 'MEDIUM';
+    }
+  } else {
+    // Fallback when actionSignal is not supplied
+    if (isAtOrBelowATL || isDeepTypicalSale || isHighDealScore) {
+      decision = 'BUY';
+      confidence = 'HIGH';
+    } else if (isWithinTypicalBand || isDecentSale || isNear90dLow) {
+      decision = 'FAIR';
+      confidence = 'MEDIUM';
+    } else {
+      decision = 'WAIT';
+      confidence = 'MEDIUM';
+    }
+  }
+
+  if (decision === 'BUY') {
     const reasons: string[] = [];
     if (isAtOrBelowATL && atl !== null) {
       reasons.push(`Matches confirmed All-Time Low price (€${atl.toFixed(2)}).`);
@@ -70,24 +111,13 @@ export function evaluatePurchaseAdvice(
 
     return {
       decision: 'BUY',
-      confidence: 'HIGH',
+      confidence,
       headline: 'Exceptional Buying Opportunity',
       reasoning: reasons.length > 0 ? reasons : ['Outstanding price relative to historical anchors.']
     };
   }
 
-  // 4. FAIR Rule
-  const isWithinTypicalBand = typicalSale.medianPriceEur !== null && 
-    currentPrice <= (typicalSale.medianPriceEur * 1.10) && 
-    currentPrice >= (typicalSale.medianPriceEur * 0.85);
-
-  const isDecentSale = discount >= 30 && dealScore >= 50;
-  const isNear90dLow = periodLows.low90d.priceEur !== null && 
-    currentPrice <= (periodLows.low90d.priceEur * 1.05) &&
-    discount >= 25 &&
-    (typicalSale.medianPriceEur === null || currentPrice <= typicalSale.medianPriceEur * 1.15);
-
-  if (isWithinTypicalBand || isDecentSale || isNear90dLow) {
+  if (decision === 'FAIR') {
     const reasons: string[] = [];
     if (isWithinTypicalBand && typicalSale.medianPriceEur) {
       reasons.push(`Consistent with the typical sale price of €${typicalSale.medianPriceEur.toFixed(2)}.`);
@@ -101,13 +131,13 @@ export function evaluatePurchaseAdvice(
 
     return {
       decision: 'FAIR',
-      confidence: 'MEDIUM',
+      confidence,
       headline: 'Fair Sale Price',
       reasoning: reasons.length > 0 ? reasons : ['Fair market price for this title.']
     };
   }
 
-  // 5. WAIT Fallback
+  // decision === 'WAIT'
   const waitReasons: string[] = [];
   if (discount === 0 && basePrice > 0) {
     waitReasons.push(`Currently at full MSRP (€${basePrice.toFixed(2)}).`);
@@ -121,7 +151,7 @@ export function evaluatePurchaseAdvice(
 
   return {
     decision: 'WAIT',
-    confidence: 'MEDIUM',
+    confidence,
     headline: 'Wait for Better Discount',
     reasoning: waitReasons.length > 0 ? waitReasons : ['Wait for deeper seasonal discount.']
   };

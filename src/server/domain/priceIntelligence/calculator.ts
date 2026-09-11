@@ -18,6 +18,7 @@ import { generateActionSignal } from '../actionSignal/index.js';
  */
 export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceIntelligenceResponse {
   const { game, offers, history } = input;
+  const now = input.currentDate || new Date();
   const bestOffer = offers.find(o => o.isBestDeal) || offers[0];
 
   const periodLows = calculatePeriodLows(game, history, bestOffer);
@@ -25,28 +26,8 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
   const marketComparison = calculateMarketComparison(offers, bestOffer);
   const frequency = groupSaleEvents(game.basePriceEur, history);
   const volatility = calculatePriceVolatility(history, bestOffer);
-  const advice = evaluatePurchaseAdvice(game, bestOffer, periodLows, typicalSale);
-  const chartData = buildPriceChartData(game, history, bestOffer, typicalSale.medianPriceEur);
 
-  // Generate factual historical summary
   const currentPrice = bestOffer?.priceEur ?? game.bestPriceEur ?? 0;
-  const summaryParts: string[] = [];
-  summaryParts.push(`Current price is €${currentPrice.toFixed(2)}.`);
-
-  if (periodLows.allTimeLow.priceEur && currentPrice <= periodLows.allTimeLow.priceEur + 0.05) {
-    summaryParts.push('Matches confirmed all-time low.');
-  }
-  if (typicalSale.medianPriceEur !== null) {
-    if (currentPrice < typicalSale.medianPriceEur) {
-      const pct = Math.round(((typicalSale.medianPriceEur - currentPrice) / typicalSale.medianPriceEur) * 100);
-      summaryParts.push(`${pct}% below typical sale price (€${typicalSale.medianPriceEur.toFixed(2)}).`);
-    } else if (currentPrice > typicalSale.medianPriceEur * 1.05) {
-      const pct = Math.round(((currentPrice - typicalSale.medianPriceEur) / typicalSale.medianPriceEur) * 100);
-      summaryParts.push(`${pct}% above typical sale price (€${typicalSale.medianPriceEur.toFixed(2)}).`);
-    } else {
-      summaryParts.push(`Matches typical sale price (€${typicalSale.medianPriceEur.toFixed(2)}).`);
-    }
-  }
 
   const isSingleSourceLow = Boolean(periodLows.low1y.isSingleSourceLow ?? periodLows.low90d.isSingleSourceLow ?? periodLows.low30d.isSingleSourceLow ?? periodLows.low7d.isSingleSourceLow);
 
@@ -72,8 +53,11 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
 
   const actionSignal = generateActionSignal({
     dealScore: bestOffer?.dealScore ?? game.bestDealScore ?? freshDealCalc.score,
-    confidenceScore: game.bestConfidenceScore ?? (freshDealCalc.confidenceScore ?? 50),
-    isProvisional: Boolean(game.bestIsProvisional ?? freshDealCalc.isProvisional),
+    confidenceScore: game.bestConfidenceScore ?? 
+      bestOffer?.confidenceScore ?? 
+      (bestOffer?.evaluationConfidence !== undefined ? bestOffer.evaluationConfidence * 100 : undefined) ?? 
+      (freshDealCalc.confidenceScore ?? 50),
+    isProvisional: Boolean(game.bestIsProvisional ?? bestOffer?.isProvisional ?? freshDealCalc.isProvisional),
     isAnomaly: bestOffer?.isAnomaly ?? false,
     currentPriceEur: currentPrice,
     basePriceEur: game.basePriceEur,
@@ -83,8 +67,31 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     typicalSaleSampleCount: typicalSale.sampleCount,
     historicalLowEur: periodLows.allTimeLow.priceEur || game.historicalLowEur,
     low90dEur: periodLows.low90d.priceEur || undefined,
-    history
+    history,
+    currentDate: now
   });
+
+  const advice = evaluatePurchaseAdvice(game, bestOffer, periodLows, typicalSale, actionSignal);
+  const chartData = buildPriceChartData(game, history, bestOffer, typicalSale.medianPriceEur);
+
+  // Generate factual historical summary
+  const summaryParts: string[] = [];
+  summaryParts.push(`Current price is €${currentPrice.toFixed(2)}.`);
+
+  if (periodLows.allTimeLow.priceEur && currentPrice <= periodLows.allTimeLow.priceEur + 0.05) {
+    summaryParts.push('Matches confirmed all-time low.');
+  }
+  if (typicalSale.medianPriceEur !== null) {
+    if (currentPrice < typicalSale.medianPriceEur) {
+      const pct = Math.round(((typicalSale.medianPriceEur - currentPrice) / typicalSale.medianPriceEur) * 100);
+      summaryParts.push(`${pct}% below typical sale price (€${typicalSale.medianPriceEur.toFixed(2)}).`);
+    } else if (currentPrice > typicalSale.medianPriceEur * 1.05) {
+      const pct = Math.round(((currentPrice - typicalSale.medianPriceEur) / typicalSale.medianPriceEur) * 100);
+      summaryParts.push(`${pct}% above typical sale price (€${typicalSale.medianPriceEur.toFixed(2)}).`);
+    } else {
+      summaryParts.push(`Matches typical sale price (€${typicalSale.medianPriceEur.toFixed(2)}).`);
+    }
+  }
 
   return {
     gameId: game.id,

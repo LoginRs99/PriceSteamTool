@@ -67,7 +67,6 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
   }
 
   const isNearAtl = historicalLowEur !== undefined && (currentPriceEur <= historicalLowEur * 1.05);
-  const isBetterThanMedian = typicalSaleMedianEur !== undefined && (currentPriceEur < typicalSaleMedianEur);
 
   // 2. STRONG BUY: Exceptional deal with reliable data
   if (dealScore >= 85 && confidenceScore >= 50) {

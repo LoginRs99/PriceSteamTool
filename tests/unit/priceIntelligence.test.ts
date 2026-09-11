@@ -290,10 +290,16 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
   describe('7. Consolidated Price Intelligence Generator', () => {
     it('generates full response structure for game detail modal', () => {
       const res = generatePriceIntelligence({
-        game: baseGame,
+        game: {
+          ...baseGame,
+          bestConfidenceScore: 80,
+          bestIsProvisional: false
+        },
         offers: [sampleOffer],
         history: [
-          { id: 'ph-1', gameId: 'game-1', sourceCode: 'steam', priceEur: 29.99, recordedAt: '2026-08-10T12:00:00Z' }
+          { id: 'ph-1', gameId: 'game-1', sourceCode: 'steam', priceEur: 39.99, recordedAt: '2026-06-10T12:00:00Z' },
+          { id: 'ph-2', gameId: 'game-1', sourceCode: 'steam', priceEur: 34.99, recordedAt: '2026-07-10T12:00:00Z' },
+          { id: 'ph-3', gameId: 'game-1', sourceCode: 'steam', priceEur: 29.99, recordedAt: '2026-08-10T12:00:00Z' }
         ]
       });
 
@@ -303,6 +309,68 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
       expect(res.advice.decision).toBe('BUY');
       expect(res.chartData.points.length).toBeGreaterThan(0);
       expect(res.historicalContextSummary).toContain('€29.99');
+    });
+
+    it('enforces single source of truth: for dealScore 60, discount >= 30%, imminent Steam sale -> both advice and actionSignal are WAIT', () => {
+      // 5 days before Steam Summer Sale (June 25)
+      const fakeNow = new Date('2026-06-20T00:00:00Z');
+      const waitOffer: Offer = {
+        ...sampleOffer,
+        priceEur: 42.00,
+        originalPriceEur: 60.00,
+        discountPercent: 30,
+        dealScore: 60,
+        dealTier: 'Good'
+      };
+
+      const res = generatePriceIntelligence({
+        game: {
+          ...baseGame,
+          basePriceEur: 60.00,
+          historicalLowEur: 20.00
+        },
+        offers: [waitOffer],
+        history: [],
+        currentDate: fakeNow
+      });
+
+      expect(res.actionSignal?.decision).toBe('WAIT');
+      expect(res.advice.decision).toBe('WAIT');
+      expect(res.advice.confidence).toBe('MEDIUM');
+    });
+
+    it('enforces single source of truth: for dealScore 72 -> both advice and actionSignal are BUY', () => {
+      // Normal date far from seasonal sales
+      const fakeNow = new Date('2026-08-15T00:00:00Z');
+      const buyOffer: Offer = {
+        ...sampleOffer,
+        priceEur: 30.00,
+        originalPriceEur: 60.00,
+        discountPercent: 50,
+        dealScore: 72,
+        dealTier: 'Great'
+      };
+
+      const res = generatePriceIntelligence({
+        game: {
+          ...baseGame,
+          basePriceEur: 60.00,
+          historicalLowEur: 25.00,
+          bestConfidenceScore: 75,
+          bestIsProvisional: false
+        },
+        offers: [buyOffer],
+        history: [
+          { id: 'ph-1', gameId: 'game-1', sourceCode: 'steam', priceEur: 45.00, recordedAt: '2026-05-01T00:00:00Z' },
+          { id: 'ph-2', gameId: 'game-1', sourceCode: 'steam', priceEur: 40.00, recordedAt: '2026-06-01T00:00:00Z' },
+          { id: 'ph-3', gameId: 'game-1', sourceCode: 'steam', priceEur: 35.00, recordedAt: '2026-07-01T00:00:00Z' }
+        ],
+        currentDate: fakeNow
+      });
+
+      expect(res.actionSignal?.decision).toBe('BUY');
+      expect(res.advice.decision).toBe('BUY');
+      expect(res.advice.confidence).toBe('HIGH');
     });
   });
 });

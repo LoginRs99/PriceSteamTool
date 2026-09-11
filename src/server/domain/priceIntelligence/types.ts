@@ -4,6 +4,7 @@ export interface PriceIntelligenceInput {
   game: Game;
   offers: Offer[];
   history: PriceHistoryEntry[];
+  currentDate?: Date;
 }
 
 /**
