@@ -30,27 +30,72 @@ export function useGameIntelligence(
   const [savingAksOverride, setSavingAksOverride] = useState(false);
   const [aksOverrideSuccess, setAksOverrideSuccess] = useState(false);
   const [refreshingGame, setRefreshingGame] = useState(false);
+  const mountedRef = useRef(true);
+  const delayedRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (delayedRefreshTimeoutRef.current) {
+        clearTimeout(delayedRefreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleRefreshGame = async () => {
     if (!data?.game || refreshingGame) return;
     setRefreshingGame(true);
     try {
-      await api.refreshGame(data.game.id);
-      const [updatedDetails, updatedIntel] = await Promise.all([
-        api.getGameDetails(gameId),
-        api.getPriceIntelligence(gameId).catch(() => null)
-      ]);
-      setData({
-        ...updatedDetails,
-        intelligence: updatedIntel || undefined
-      });
-      if (onGameUpdated) {
-        onGameUpdated(gameId);
+      const res = await api.refreshGame(data.game.id);
+      if (mountedRef.current) {
+        if (res?.game) {
+          setData({
+            game: res.game,
+            offers: res.offers || [],
+            history: res.history || [],
+            intelligence: res.intelligence || undefined
+          });
+          if (res.game.targetPriceEur !== undefined && res.game.targetPriceEur !== null) {
+            setTargetPriceInput(res.game.targetPriceEur.toFixed(2));
+          } else {
+            setTargetPriceInput('');
+          }
+        }
+        if (onGameUpdated) {
+          onGameUpdated(gameId);
+        }
       }
+
+      if (delayedRefreshTimeoutRef.current) {
+        clearTimeout(delayedRefreshTimeoutRef.current);
+      }
+      delayedRefreshTimeoutRef.current = setTimeout(async () => {
+        if (!mountedRef.current) return;
+        try {
+          const [updatedDetails, updatedIntel] = await Promise.all([
+            api.getGameDetails(gameId),
+            api.getPriceIntelligence(gameId).catch(() => null)
+          ]);
+          if (mountedRef.current) {
+            setData({
+              ...updatedDetails,
+              intelligence: updatedIntel || undefined
+            });
+            if (onGameUpdated) {
+              onGameUpdated(gameId);
+            }
+          }
+        } catch (err) {
+          console.error('Failed delayed refresh of game details:', err);
+        }
+      }, 10000);
     } catch (err) {
       console.error('Failed to refresh game prices:', err);
     } finally {
-      setRefreshingGame(false);
+      if (mountedRef.current) {
+        setRefreshingGame(false);
+      }
     }
   };
 
@@ -150,11 +195,15 @@ export function useGameIntelligence(
 
   const handleClearTargetPrice = async () => {
     if (!data?.game) return;
-    setTargetPriceInput('');
-    await api.setTargetPrice(data.game.id, null);
-    setData(prev => prev ? { ...prev, game: { ...prev.game, targetPriceEur: undefined } } : null);
-    if (onTargetPriceUpdated) {
-      onTargetPriceUpdated(data.game.id, null);
+    try {
+      await api.setTargetPrice(data.game.id, null);
+      setTargetPriceInput('');
+      setData(prev => prev ? { ...prev, game: { ...prev.game, targetPriceEur: undefined } } : null);
+      if (onTargetPriceUpdated) {
+        onTargetPriceUpdated(data.game.id, null);
+      }
+    } catch (err) {
+      console.error('Failed to clear target price:', err);
     }
   };
 

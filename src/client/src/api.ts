@@ -33,6 +33,19 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
 }
 
+export interface RefreshGameResult {
+  success: boolean;
+  game: Game;
+  offers: Offer[];
+  history: PriceHistoryEntry[];
+  intelligence: PriceIntelligenceResponse | null;
+  refreshedAt: string;
+  sourcesChecked: SourceCode[];
+  sourcesFailed: SourceCode[];
+  sourcesSkipped: SourceCode[];
+  circuitStates: Record<string, string>;
+}
+
 export const api = {
   // Profiles
   async getProfiles(): Promise<Profile[]> {
@@ -171,8 +184,8 @@ export const api = {
     });
   },
 
-  async refreshGame(id: string): Promise<{ success: boolean; gameId: string; offersCount: number }> {
-    return apiFetch<{ success: boolean; gameId: string; offersCount: number }>(`${API_BASE}/games/${id}/refresh`, {
+  async refreshGame(id: string): Promise<RefreshGameResult> {
+    return apiFetch<RefreshGameResult>(`${API_BASE}/games/${id}/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ includeKeyshops: true })
