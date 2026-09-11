@@ -274,6 +274,22 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 019] Notice:', err?.message);
       }
     }
+  },
+  {
+    name: '020_add_source_observations_offer_source_index',
+    up: (db) => {
+      try {
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_observations_offer_source ON source_observations(offer_id, source_code);
+          UPDATE offers 
+          SET deal_url = 'https://' || ltrim(deal_url, '/') 
+          WHERE deal_url NOT LIKE 'http://%' AND deal_url NOT LIKE 'https://%';
+          ${BEST_DEAL_RECOMPUTE_ALL_SQL}
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 020] Notice:', err?.message);
+      }
+    }
   }
 ];
 

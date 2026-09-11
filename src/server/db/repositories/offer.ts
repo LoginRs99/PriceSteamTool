@@ -71,6 +71,18 @@ export function isCompatiblePeerOffer(
   return false;
 }
 
+function ensureAbsoluteUrl(url?: string): string {
+  if (!url || typeof url !== 'string') return 'https://store.steampowered.com';
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
+  }
+  return `https://${trimmed.replace(/^\/+/, '')}`;
+}
+
 export const offerRepo = {
   upsertOffer(data: {
     gameId: string;
@@ -88,12 +100,13 @@ export const offerRepo = {
     voucherCode?: string;
     dealUrl: string;
     isValid?: boolean;
-    sourceCode: SourceCode;
+    sourceCode?: SourceCode;
     rawObservationJson?: string;
   }): Offer {
     const db = getDb();
     const now = new Date().toISOString();
-    const discount = data.discountPercent !== undefined ? data.discountPercent : 
+    const dealUrl = ensureAbsoluteUrl(data.dealUrl);
+    const discount = (data as any).discountPercent !== undefined ? (data as any).discountPercent : 
       (data.originalPriceEur && data.originalPriceEur > data.priceEur 
         ? Math.round(((data.originalPriceEur - data.priceEur) / data.originalPriceEur) * 100) 
         : 0);
@@ -131,7 +144,7 @@ export const offerRepo = {
           data.rawOriginalPrice !== undefined ? data.rawOriginalPrice : null,
           discount,
           data.voucherCode || null,
-          data.dealUrl,
+          dealUrl,
           data.isValid !== false ? 1 : 0,
           now,
           now,
@@ -142,7 +155,7 @@ export const offerRepo = {
 
       // 1. Record / update individual source observation in source_observations
       const obsMeta = {
-        dealUrl: data.dealUrl,
+        dealUrl,
         voucherCode: data.voucherCode || null,
         originalPriceEur: data.originalPriceEur || null,
         rawPrice: data.rawPrice !== undefined ? data.rawPrice : null,
@@ -204,7 +217,7 @@ export const offerRepo = {
           originalPriceEur: meta.originalPriceEur !== null && meta.originalPriceEur !== undefined ? Number(meta.originalPriceEur) : undefined,
           discountPercent: meta.discountPercent !== undefined ? Number(meta.discountPercent) : 0,
           voucherCode: meta.voucherCode || undefined,
-          dealUrl: meta.dealUrl || data.dealUrl,
+          dealUrl: ensureAbsoluteUrl(meta.dealUrl || dealUrl),
           isValid: meta.isValid !== false && !isNaN(Number(obs.observed_price_eur)) && Number(obs.observed_price_eur) >= 0,
           observedAt: obs.observed_at
         };
@@ -238,7 +251,7 @@ export const offerRepo = {
       });
 
       const active: CandidateObs = eligiblePool.length > 0 ? eligiblePool[0] : {
-        sourceCode: data.sourceCode,
+        sourceCode: data.sourceCode || 'steam',
         priceEur: data.priceEur,
         rawPrice: data.rawPrice,
         rawCurrency: data.rawCurrency || 'EUR',
@@ -246,7 +259,7 @@ export const offerRepo = {
         originalPriceEur: data.originalPriceEur,
         discountPercent: discount,
         voucherCode: data.voucherCode,
-        dealUrl: data.dealUrl,
+        dealUrl: dealUrl,
         isValid: data.isValid !== false,
         observedAt: now
       };

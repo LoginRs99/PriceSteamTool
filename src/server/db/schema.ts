@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS source_observations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_observations_offer ON source_observations(offer_id);
+CREATE INDEX IF NOT EXISTS idx_observations_offer_source ON source_observations(offer_id, source_code);
 
 -- 7. Price History Table
 CREATE TABLE IF NOT EXISTS price_history (
