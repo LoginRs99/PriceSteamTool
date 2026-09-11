@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { WishlistFilterOptions } from '../types.js';
 import { 
   Search, 
@@ -28,6 +28,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onViewModeChange
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(filters.search || '');
+  const lastEmittedRef = useRef(filters.search || '');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const {
     searchInputRef,
     activeFilterCount,
@@ -35,6 +39,77 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     resetAllFilters,
     setPill
   } = useFilterState(filters, onFilterChange);
+
+  // Sync external resets (Reset filters, Escape-clear) back into local state
+  useEffect(() => {
+    const externalSearch = filters.search || '';
+    if (externalSearch !== lastEmittedRef.current) {
+      lastEmittedRef.current = externalSearch;
+      setSearchTerm(externalSearch);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    }
+  }, [filters.search]);
+
+  // Clear pending timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
+  const flushSearch = useCallback((value: string) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (value !== lastEmittedRef.current) {
+      lastEmittedRef.current = value;
+      onFilterChange({ search: value, page: 1 });
+    }
+  }, [onFilterChange]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      if (value !== lastEmittedRef.current) {
+        lastEmittedRef.current = value;
+        onFilterChange({ search: value, page: 1 });
+      }
+    }, 300);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      flushSearch(searchTerm);
+    }
+  };
+
+  const handleBlur = () => {
+    flushSearch(searchTerm);
+  };
+
+  const handleClearSearch = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setSearchTerm('');
+    lastEmittedRef.current = '';
+    onFilterChange({ search: '', page: 1 });
+    searchInputRef.current?.focus();
+  };
 
   return (
     <div className="filter-bar-container">
@@ -46,19 +121,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             ref={searchInputRef}
             type="text"
             placeholder="Search wishlist games... (press /)"
-            value={filters.search || ''}
-            onChange={(e) => onFilterChange({ search: e.target.value, page: 1 })}
+            value={searchTerm}
+            onChange={handleSearchChange}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
             className="search-input"
             aria-label="Search wishlist games by title"
           />
-          {filters.search ? (
+          {searchTerm ? (
             <button
               type="button"
               className="search-clear-btn"
-              onClick={() => {
-                onFilterChange({ search: '', page: 1 });
-                searchInputRef.current?.focus();
-              }}
+              onClick={handleClearSearch}
               title="Clear search"
               aria-label="Clear search"
             >

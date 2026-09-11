@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
+import React, { act } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FilterBar } from '../../src/client/src/components/FilterBar.js';
@@ -38,7 +38,8 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     expect(screen.getByRole('button', { name: /On Sale/i })).toBeInTheDocument();
   });
 
-  it('fires onFilterChange when typing in search input', () => {
+  it('debounces onFilterChange when typing in search input (emits after 300ms)', () => {
+    vi.useFakeTimers();
     const handleFilterChange = vi.fn();
     render(
       <FilterBar 
@@ -51,10 +52,72 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     const searchInput = screen.getByPlaceholderText('Search wishlist games... (press /)');
     fireEvent.change(searchInput, { target: { value: 'Witcher' } });
 
+    expect(handleFilterChange).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(handleFilterChange).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(handleFilterChange).toHaveBeenCalledWith({ search: 'Witcher', page: 1 });
+    vi.useRealTimers();
   });
 
-  it('clears search when clear button is clicked', () => {
+  it('flushes search immediately on Enter keydown', () => {
+    vi.useFakeTimers();
+    const handleFilterChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={defaultFilters}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText('Search wishlist games... (press /)');
+    fireEvent.change(searchInput, { target: { value: 'Portal' } });
+    expect(handleFilterChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+    expect(handleFilterChange).toHaveBeenCalledWith({ search: 'Portal', page: 1 });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(handleFilterChange).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('flushes search immediately on blur', () => {
+    vi.useFakeTimers();
+    const handleFilterChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={defaultFilters}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText('Search wishlist games... (press /)');
+    fireEvent.change(searchInput, { target: { value: 'Hades' } });
+    expect(handleFilterChange).not.toHaveBeenCalled();
+
+    fireEvent.blur(searchInput);
+    expect(handleFilterChange).toHaveBeenCalledWith({ search: 'Hades', page: 1 });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(handleFilterChange).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('clears search immediately and cancels timer when clear button is clicked', () => {
+    vi.useFakeTimers();
     const handleFilterChange = vi.fn();
     render(
       <FilterBar 
@@ -68,6 +131,36 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     fireEvent.click(clearBtn);
 
     expect(handleFilterChange).toHaveBeenCalledWith({ search: '', page: 1 });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(handleFilterChange).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('syncs external resets back into local state', () => {
+    const handleFilterChange = vi.fn();
+    const { rerender } = render(
+      <FilterBar 
+        filters={{ ...defaultFilters, search: 'Witcher' }}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText('Search wishlist games... (press /)') as HTMLInputElement;
+    expect(searchInput.value).toBe('Witcher');
+
+    rerender(
+      <FilterBar 
+        filters={{ ...defaultFilters, search: '' }}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    expect(searchInput.value).toBe('');
   });
 
   it('fires onFilterChange when sort strategy is changed', () => {
