@@ -28,9 +28,10 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
 
-### 2. 2D Pricing Engine & Anomaly Detection
-* **Decoupled Magnitude & Risk**: Separates price drop significance (`PriceEventType`) from data risk (`PriceRiskLevel`).
-* **Multi-Signal Corroboration**: Dampens false alarms when multiple independent sources agree, while isolating unverified sub-euro anomalies (e.g. 0.49 € on a 60 € game) with a strict Deal Score hard-cap (max 35).
+### 2. Pricing Error Detection & Data Safety Engine
+* **Dedicated Data Safety Architecture**: Isolates suspected pricing errors from best-deal selection and Deal Score calculation into a dedicated `pricing_errors` system with full dismissal lifecycle.
+* **Canonical Error Classification**: Automatic categorization for `DECIMAL_SHIFT` (e.g. €0.59 on a €59.99 game), `CATALOG_GLITCH`, `UNREASONABLE_CUT`, and unverified outliers.
+* **Discord Glitch Hunter**: Real-time push alerts to Discord webhooks with crimson red embeds linking directly to the flagged offer and reporting error confidence.
 * **Corroboration Tradeoff**: Two merchants mirroring the same glitched feed can corroborate each other in `detectPricingError` (a deliberate false-negative tradeoff to avoid false positive alarms on genuine sales).
 * **Market Floor Visibility**: `isCompatiblePeerOffer` intentionally allows cheaper error-flagged peers into `marketPrices` so the pricing error detector can evaluate against the true market floor.
 
@@ -39,10 +40,10 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
   * **Discount Pillar (0–45 pts)**: Scales linearly with discount depth.
   * **Historical Pillar (0–35 pts)**: Rewards `NEW_HISTORICAL_LOW` (+35), `AT_HISTORICAL_LOW` (+28), and `NEAR_HISTORICAL_LOW` (+20).
   * **Trust Pillar (0–20 pts)**: Official retailer (+10) and multi-source consensus (+4 to +10).
-  * **Risk Penalties & Confidence**: Multiplier based on data freshness and evidence depth.
-* **Best Deals Dashboard**: Top deals carousel ranked by Deal Score with tier badges (`Exceptional`, `Great`, `Fair`, `Weak`).
-* **Wishlist Statistics**: Live overview of total games, active discounts, confirmed all-time lows, major drops, and average savings.
-* **Smart Filter Bar**: Filter by Major Deals ($\ge 50\%$ off or $\ge 15\text{ €}$ drop), Confirmed ATL, Trusted Stores Only, and Maximum Price.
+  * **Confidence Dampening**: Multiplier based on historical sample depth and observation freshness.
+* **Best Deals Dashboard**: Top deals carousel ranked by Deal Score with aligned tier badges (`Exceptional` $\ge 80$, `Great` $\ge 70$, `Fair` $\ge 50$, `Weak`).
+* **Wishlist Statistics**: Live overview of total games, active discounts, confirmed all-time lows, active pricing errors, and average savings.
+* **Smart Filter Bar**: Filter by Major Deals ($\ge 50\%$ off or $\ge 15\text{ €}$ drop), Confirmed ATL, Trusted Stores Only, Active Anomalies, and Maximum Price.
 
 ### 4. Price Intelligence & Decision Advisor
 * **BUY / FAIR / WAIT Advice**: Deterministic recommendation engine explaining *why* a deal is worth buying now or if you should wait, backed by factual reasons.
@@ -109,7 +110,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (47 test suites / 447 unit & integration tests)
+# 3. Run test suite (66 test suites / 573 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck
@@ -153,7 +154,7 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 * [`docs/sync.md`](./docs/sync.md) — Sync orchestrator, queue token buckets, and multi-source pacing.
 * [`docs/sources.md`](./docs/sources.md) — Source comparison matrix, rate limits, and API analysis.
 * [`docs/development.md`](./docs/development.md) — Development workflow, testing guidelines, and CI/CD.
-* [`CHANGELOG.md`](./CHANGELOG.md) — Version history from v1.0.0 through v1.7.0.
+* [`CHANGELOG.md`](./CHANGELOG.md) — Version history from v1.0.0 through v2.0.0.
 
 ---
 

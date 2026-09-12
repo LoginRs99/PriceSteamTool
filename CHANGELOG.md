@@ -5,6 +5,33 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-09-12
+
+### Added
+* **Pricing Error Architecture & Data Safety Engine**:
+  * Replaced legacy anomaly tables with a dedicated `pricing_errors` system and backward-compatible `anomalies` view with `INSTEAD OF` triggers.
+  * Added canonical error categorization (`DECIMAL_SHIFT`, `CATALOG_GLITCH`, `UNREASONABLE_CUT`) with fine-tuned detection thresholds ($\ge 90\%$ below MSRP for decimal shifts).
+  * Rendered distinct error type badges in the Data Safety tab and added canonical error fields to CSV exports.
+  * Active-only error counting (`is_valid = 1`) ensuring expired or resolved glitches do not keep the "Anomaly" filter chip lit.
+* **Discord Glitch Hunter & Deal Alerts**:
+  * Fast-track Glitch Hunter notifications targeting the specific flagged offer's price and merchant URL rather than the safe best deal.
+  * Aligned Exceptional deal alerts and headline score cutoff to Deal Score $\ge 80$.
+  * Added 72-hour stale observation guard preventing notifications on outdated pricing data.
+* **Non-Blocking Price History Seeding**:
+  * Converted ITAD history seeding on game detail and sync to non-blocking background promises with single-shot client follow-up refetching.
+  * Ensured seeded ITAD merchants correctly record `is_official = 0` for keyshops (Kinguin, G2A, etc.) to prevent false ATL corroboration.
+* **UI & Deal Score Threshold Alignment**:
+  * Unified Exceptional deal tier across all views to Deal Score $\ge 80$.
+  * Added `OVERPRICED` verdict in Price Intelligence when current price exceeds typical historical sale median.
+  * Synced `RECORD_DROP` badge and ★ "Matches All-Time Low" callout across Grid, List, and Table views.
+
+### Changed
+* **Database Boot & Migration Resilience**:
+  * Moved migration-dependent DDL out of `SCHEMA_SQL` into migration `024_post_migration_indexes_and_anomalies_view` for 100% crash-free upgrades on legacy databases.
+  * Added automated table-to-view conversion and offer backfill safety nets.
+
+---
+
 ## [1.7.1] - 2026-09-09
 
 ### Added
