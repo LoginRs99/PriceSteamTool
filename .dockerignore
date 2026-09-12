@@ -16,5 +16,8 @@ LICENSE
 .github
 *.tsbuildinfo
 docs
-*.htm
-*.html
+*.db
+*.db-wal
+*.db-shm
+repomix*.txt
+!src/client/index.html
