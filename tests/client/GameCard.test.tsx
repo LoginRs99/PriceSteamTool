@@ -82,6 +82,18 @@ describe('GameCard Component', () => {
     expect(screen.getByText('★ Matches All-Time Low')).toBeInTheDocument();
   });
 
+  it('renders ATL badge and Matches All-Time Low callout when bestPriceEvent is RECORD_DROP', () => {
+    const recordDropGame: Game = {
+      ...mockGameBase,
+      bestPriceEvent: 'RECORD_DROP',
+      bestIsProvisional: false
+    };
+    render(<GameCard game={recordDropGame} onClick={() => {}} />);
+
+    expect(screen.getByText('ATL')).toBeInTheDocument();
+    expect(screen.getByText('★ Matches All-Time Low')).toBeInTheDocument();
+  });
+
   it('renders target price HIT and PENDING badges appropriately', () => {
     // Target HIT (bestPriceEur <= targetPriceEur)
     const hitGame: Game = {
