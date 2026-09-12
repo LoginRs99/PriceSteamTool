@@ -333,7 +333,7 @@ export const gameRepo = {
         m.is_official as best_merchant_is_official,
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
+        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared,
@@ -508,7 +508,7 @@ export const gameRepo = {
         m.is_official as best_merchant_is_official,
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
+        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
@@ -560,7 +560,7 @@ export const gameRepo = {
       m.is_official as best_merchant_is_official,
       (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-      (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
+      (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
       (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
       (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
