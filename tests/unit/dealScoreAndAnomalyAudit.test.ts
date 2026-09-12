@@ -449,7 +449,7 @@ describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () =
       // Score calculation remains sound, finite, and positive
       expect(scoreGlitchAtl.score).toBeGreaterThan(0);
       expect(scoreGlitchAtl.score).toBeLessThanOrEqual(100);
-      expect(scoreGlitchAtl.explanation.atlDistanceEur).toBe(2.00); // 5.00 - 3.00 = 2.00
+      expect(scoreGlitchAtl.explanation?.atlDistanceEur).toBe(2.00); // 5.00 - 3.00 = 2.00
     });
 
     it('Issue 8: MARKET_OUTLIER accurately detects extreme drops with >=2 peers without redundant logic', () => {
@@ -523,6 +523,10 @@ describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () =
         bestDiscountPercent: 75,
         bestDealScore: 85,
         bestDealTier: 'Exceptional',
+        isDlc: false,
+        isFree: false,
+        hasPricingError: false,
+        offersCount: 1,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -532,10 +536,14 @@ describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () =
         gameId: 'g-test',
         merchantId: 'm-1',
         merchantName: 'Steam',
-        productType: 'KEY',
+        merchantCode: 'steam',
+        productType: 'STEAM_KEY',
         regionType: 'GLOBAL',
         priceEur: 14.99,
         discountPercent: 75,
+        dealUrl: 'https://store.steampowered.com',
+        priceEvent: 'NONE',
+        sources: [],
         isOfficial: true,
         isValid: true,
         isBestDeal: true,
@@ -549,11 +557,11 @@ describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () =
       };
 
       const periodLows: PriceIntelligenceResponse['periodLows'] = {
-        low7d: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
-        low30d: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
-        low90d: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
-        low1y: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
-        allTimeLow: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true }
+        low7d: { priceEur: 14.99, observationCount: 1, isExactPeriodData: true },
+        low30d: { priceEur: 14.99, observationCount: 1, isExactPeriodData: true },
+        low90d: { priceEur: 14.99, observationCount: 1, isExactPeriodData: true },
+        low1y: { priceEur: 14.99, observationCount: 1, isExactPeriodData: true },
+        allTimeLow: { priceEur: 14.99, isConfirmed: true }
       };
 
       const typicalSale: TypicalSalePrice = {

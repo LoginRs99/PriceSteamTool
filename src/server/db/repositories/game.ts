@@ -466,8 +466,9 @@ export const gameRepo = {
         FROM offers o
         JOIN games g ON g.id = o.game_id
         WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          AND g.historical_low_eur IS NOT NULL AND g.historical_low_eur > 0
         GROUP BY o.game_id
-        HAVING MIN(o.price_eur) < COALESCE(g.historical_low_eur, 999999)
+        HAVING MIN(o.price_eur) < g.historical_low_eur
       )
     `).run();
     return res.changes;
@@ -1042,9 +1043,9 @@ function mapGameRow(r: any): Game {
 
   const bestPrice = (r.best_price_eur !== null && r.best_price_eur !== undefined) ? Number(r.best_price_eur) : undefined;
   const rawHistLow = (r.historical_low_eur !== null && r.historical_low_eur !== undefined) ? Number(r.historical_low_eur) : undefined;
-  const effectiveHistLow = rawHistLow !== undefined
-    ? (bestPrice !== undefined && bestPrice > 0 ? Math.min(rawHistLow, bestPrice) : rawHistLow)
-    : bestPrice;
+  const effectiveHistLow = (rawHistLow !== undefined && bestPrice !== undefined && bestPrice > 0)
+    ? Math.min(rawHistLow, bestPrice)
+    : rawHistLow;
 
   if (bestPrice !== undefined) {
     const isOfficial = r.best_merchant_is_official !== undefined && r.best_merchant_is_official !== null

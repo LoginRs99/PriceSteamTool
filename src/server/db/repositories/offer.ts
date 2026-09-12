@@ -492,7 +492,7 @@ export const offerRepo = {
       const hasPriceChanged = !isSameAsLatestMerchant && !isSameAsLatestSource;
 
       // Update historical low only on genuine price drop
-      if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW')) {
+      if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW' || pricingEval.event === 'UNCONFIRMED_RECORD_DROP')) {
         gameRepo.updateHistoricalLow(data.gameId, active.priceEur, now, active.sourceCode);
       }
 
@@ -965,8 +965,8 @@ export const offerRepo = {
       prepareStmt(`UPDATE offers SET is_best_deal = 1 WHERE id = ?`).run(best.id);
 
       const gameRow = prepareStmt(`SELECT historical_low_eur FROM games WHERE id = ?`).get(gameId) as any;
-      if (gameRow && Number(best.price_eur) > 0) {
-        if (gameRow.historical_low_eur === null || Number(best.price_eur) < Number(gameRow.historical_low_eur)) {
+      if (gameRow && gameRow.historical_low_eur !== null && gameRow.historical_low_eur !== undefined && Number(gameRow.historical_low_eur) > 0 && Number(best.price_eur) > 0) {
+        if (Number(best.price_eur) < Number(gameRow.historical_low_eur)) {
           const source = best.merchant_name || (best.is_official ? 'Official Store' : 'Merchant');
           gameRepo.updateHistoricalLow(gameId, Number(best.price_eur), new Date().toISOString(), source);
         }

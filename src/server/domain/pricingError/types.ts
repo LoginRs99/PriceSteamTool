@@ -42,6 +42,7 @@ export interface PriceEvaluationInput {
   sourceAgreementCount?: number;
   independentMerchantCount?: number;
   isOfficialMerchant?: boolean;
+  merchantTrustScore?: number;
   gameReleaseDate?: string;
   productType?: string;
   regionConfidence?: number;
@@ -69,6 +70,7 @@ export interface PriceMovementInput {
   sourceAgreementCount?: number;
   independentMerchantCount?: number;
   isOfficialMerchant?: boolean;
+  merchantTrustScore?: number;
   gameReleaseDate?: string;
   suspectedEditionInversion?: boolean;
   isDelisted?: boolean;
@@ -94,6 +96,9 @@ export interface OfferAnomalyInput {
   otherPrices?: number[];
   marketPricesEur?: number[];
   independentMerchantCount?: number;
+  isOfficial?: boolean;
+  isOfficialMerchant?: boolean;
+  merchantTrustScore?: number;
   gameReleaseDate?: string;
   isDelisted?: boolean;
   isUnreleased?: boolean;

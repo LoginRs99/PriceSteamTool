@@ -128,8 +128,9 @@ export function backfillDealScoreStats(): void {
           FROM offers o
           JOIN games g ON g.id = o.game_id
           WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+            AND g.historical_low_eur IS NOT NULL AND g.historical_low_eur > 0
           GROUP BY o.game_id
-          HAVING MIN(o.price_eur) < COALESCE(g.historical_low_eur, 999999)
+          HAVING MIN(o.price_eur) < g.historical_low_eur
         );
       `);
     } catch (reconcileErr: any) {
