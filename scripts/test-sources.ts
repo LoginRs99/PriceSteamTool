@@ -32,7 +32,7 @@ async function runLiveSourceDiagnostics() {
   console.log('======================================================\n');
 
   // 1. Steam Storefront
-  console.log('--- [1/6] Testing Steam Storefront Adapter ---');
+  console.log('--- [1/7] Testing Steam Storefront Adapter ---');
   try {
     const steamDetails = await steamAdapter.fetchAppDetails(testAppId);
     if (steamDetails) {
@@ -49,8 +49,36 @@ async function runLiveSourceDiagnostics() {
     console.log(`❌ Steam Store error: ${err.message}`);
   }
 
-  // 2. CheapShark (Public API)
-  console.log('\n--- [2/6] Testing CheapShark Adapter (100% Public) ---');
+  // 2. Steam Wishlist Ingestion (Testing IWishlistService fallback)
+  console.log('\n--- [2/7] Testing Steam Wishlist Ingestion & Fallback ---');
+  try {
+    const testSteamId = process.env.TEST_STEAM_ID || '76561198033127514';
+    const wishlistItems = await steamAdapter.fetchWishlist(testSteamId);
+    console.log(`✅ Steam Wishlist responded:`);
+    console.log(`   Items Returned: ${wishlistItems.length}`);
+    if (wishlistItems.length > 0) {
+      console.log(`   Sample Item:   AppID ${wishlistItems[0].steamAppId} ("${wishlistItems[0].title}")`);
+    }
+  } catch (err: any) {
+    console.log(`❌ Steam Wishlist error: ${err.message}`);
+  }
+
+  // 3. Live Exchange Rates
+  console.log('\n--- [3/7] Testing Exchange Rate Service ---');
+  try {
+    const { exchangeRateService } = await import('../src/server/domain/exchangeRate.js');
+    await exchangeRateService.refreshRates();
+    const usdRate = exchangeRateService.getRateToEur('USD');
+    const gbpRate = exchangeRateService.getRateToEur('GBP');
+    const hufRate = exchangeRateService.getRateToEur('HUF');
+    console.log(`✅ Live Exchange Rates active:`);
+    console.log(`   1 USD = €${usdRate.toFixed(4)} | 1 GBP = €${gbpRate.toFixed(4)} | 1000 HUF = €${(hufRate * 1000).toFixed(2)}`);
+  } catch (err: any) {
+    console.log(`❌ Exchange Rate error: ${err.message}`);
+  }
+
+  // 4. CheapShark (Public API)
+  console.log('\n--- [4/7] Testing CheapShark Adapter (100% Public) ---');
   try {
     const cheapSharkOffers = await cheapsharkAdapter.fetchPricesForGame(testAppId, testTitle);
     console.log(`✅ CheapShark returned ${cheapSharkOffers.length} deals:`);
@@ -64,8 +92,8 @@ async function runLiveSourceDiagnostics() {
     console.log(`❌ CheapShark error: ${err.message}`);
   }
 
-  // 3. IsThereAnyDeal
-  console.log('\n--- [3/6] Testing IsThereAnyDeal Adapter ---');
+  // 5. IsThereAnyDeal
+  console.log('\n--- [5/7] Testing IsThereAnyDeal Adapter ---');
   if (!config.itadApiKey) {
     console.log('ℹ️ ITAD_API_KEY is not set in .env. Skipping ITAD live call.');
   } else {
@@ -84,8 +112,8 @@ async function runLiveSourceDiagnostics() {
     }
   }
 
-  // 4. GG.deals
-  console.log('\n--- [4/6] Testing GG.deals Adapter ---');
+  // 6. GG.deals
+  console.log('\n--- [6/7] Testing GG.deals Adapter ---');
   try {
     const ggOffers = await ggdealsAdapter.fetchPricesForGame(testAppId, testTitle);
     console.log(`ℹ️ GG.deals returned ${ggOffers.length} deals:`);
@@ -96,8 +124,8 @@ async function runLiveSourceDiagnostics() {
     console.log(`ℹ️ GG.deals: ${err.message}`);
   }
 
-  // 5. AllKeyShop
-  console.log('\n--- [5/5] Testing AllKeyShop Adapter ---');
+  // 7. AllKeyShop
+  console.log('\n--- [7/7] Testing AllKeyShop Adapter ---');
   try {
     const aksOffers = await allkeyshopAdapter.fetchPricesForGame(testAppId, testTitle);
     console.log(`ℹ️ AllKeyShop returned ${aksOffers.length} deals:`);

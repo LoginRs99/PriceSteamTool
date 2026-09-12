@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { 
   profileRepo, 
@@ -515,7 +516,14 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   fastify.get('/api/settings/discord', async (request) => {
     const { getDiscordSettings } = await import('../domain/discordNotifier.js');
-    const isFullAuth = Boolean(config.apiToken && request.headers['x-api-token'] === config.apiToken);
+    let isFullAuth = false;
+    if (config.apiToken) {
+      const clientToken = request.headers['x-api-token'];
+      const rawToken = typeof clientToken === 'string' ? clientToken : '';
+      const clientBuf = Buffer.from(rawToken);
+      const expectedBuf = Buffer.from(config.apiToken);
+      isFullAuth = clientBuf.length === expectedBuf.length && crypto.timingSafeEqual(clientBuf, expectedBuf);
+    }
     return getDiscordSettings(!isFullAuth);
   });
 
