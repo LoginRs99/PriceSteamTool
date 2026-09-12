@@ -18,16 +18,24 @@ import type {
 const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000));
 
 export function isCompatiblePeerOffer(
-  target: { productType: string; regionType: string },
+  target: { productType: string; regionType: string; priceEur?: number },
   peer: {
-    productType: string;
-    regionType: string;
+    productType?: string;
+    regionType?: string;
     isValid?: boolean;
     isAnomaly?: boolean;
     isLikelyPricingError?: boolean;
     riskLevel?: string;
     lastObservedAt?: string;
     fetchedAt?: string;
+    priceEur?: number;
+    price_eur?: number;
+    product_type?: string;
+    region_type?: string;
+    is_valid?: number | boolean;
+    is_likely_pricing_error?: number | boolean;
+    last_observed_at?: string;
+    fetched_at?: string;
   },
   options: {
     nowMs?: number;
@@ -39,18 +47,26 @@ export function isCompatiblePeerOffer(
   const nowMs = options.nowMs ?? Date.now();
   const freshnessWindowMs = options.freshnessWindowMs ?? FRESHNESS_WINDOW_MS;
 
-  if (peer.isValid === false) return false;
+  const isValid = peer.isValid !== undefined ? peer.isValid : (peer.is_valid !== undefined ? Boolean(peer.is_valid) : true);
+  if (isValid === false) return false;
   
+  const peerPrice = peer.price_eur !== undefined ? Number(peer.price_eur) : (peer.priceEur !== undefined ? Number(peer.priceEur) : undefined);
+  const isCheaperPeer = target.priceEur !== undefined && peerPrice !== undefined && peerPrice < target.priceEur;
+
   const disallowErrors = options.allowPricingErrors !== undefined ? !options.allowPricingErrors : !options.allowAnomalies;
-  if (disallowErrors) {
-    if (peer.isLikelyPricingError === true || peer.isAnomaly === true) return false;
+  if (disallowErrors && !isCheaperPeer) {
+    const isError = peer.isLikelyPricingError ?? (peer.is_likely_pricing_error !== undefined ? Boolean(peer.is_likely_pricing_error) : peer.isAnomaly);
+    if (isError === true) return false;
     if (peer.riskLevel === 'HIGH') return false;
   }
   
-  if (peer.productType !== target.productType) return false;
+  const peerProductType = peer.productType ?? peer.product_type;
+  if (peerProductType !== target.productType && !(target.productType === 'STEAM_GIFT' && peerProductType === 'STEAM_KEY')) {
+    return false;
+  }
 
   // Stale peer check: observations older than 72 hours cannot participate in live market evaluation
-  const ts = peer.lastObservedAt || peer.fetchedAt;
+  const ts = peer.lastObservedAt || peer.fetchedAt || peer.last_observed_at || peer.fetched_at;
   if (ts) {
     const t = new Date(ts).getTime();
     if (!isNaN(t) && (nowMs - t) > freshnessWindowMs) {
@@ -62,13 +78,14 @@ export function isCompatiblePeerOffer(
   // - GLOBAL key activates anywhere -> valid peer for GLOBAL, EU, and HU offers
   // - EU key activates within the EU (including Hungary) -> valid peer for EU and HU offers, but NOT GLOBAL
   // - HU key activates only in Hungary -> valid peer only for HU offers, NOT GLOBAL or EU
-  if (peer.regionType === 'GLOBAL') {
+  const peerRegionType = peer.regionType ?? peer.region_type;
+  if (peerRegionType === 'GLOBAL') {
     return target.regionType === 'GLOBAL' || target.regionType === 'EU' || target.regionType === 'HU';
   }
-  if (peer.regionType === 'EU') {
+  if (peerRegionType === 'EU') {
     return target.regionType === 'EU' || target.regionType === 'HU';
   }
-  if (peer.regionType === 'HU') {
+  if (peerRegionType === 'HU') {
     return target.regionType === 'HU';
   }
 
@@ -284,9 +301,12 @@ export const offerRepo = {
         WHERE o.game_id = ? AND o.merchant_id != ?
       `).all(data.gameId, data.merchantId) as any[];
 
-      // All valid active offers for this game participate in the real market price baseline
-      const corroborationPeers = otherOffersRows.filter(row => Boolean(row.is_valid));
-      const marketPrices = corroborationPeers
+      const freshPeerRows = otherOffersRows.filter(row => isCompatiblePeerOffer(
+        { productType: data.productType, regionType: data.regionType, priceEur: data.priceEur },
+        { ...row, isLikelyPricingError: Boolean(row.is_likely_pricing_error) }
+      ));
+
+      const marketPrices = freshPeerRows
         .filter(row => Number(row.price_eur) > 0)
         .map(p => Number(p.price_eur));
       const distinctSources = new Set(allObservations.map(o => o.source_code));
@@ -294,7 +314,7 @@ export const offerRepo = {
 
       // Count distinct independent merchants with compatible prices (within 30% of active price)
       const corroboratingMerchants = new Set<string>();
-      for (const peer of corroborationPeers) {
+      for (const peer of freshPeerRows) {
         const peerPrice = Number(peer.price_eur);
         if (peerPrice >= 0 && active.priceEur >= 0) {
           const minP = Math.min(peerPrice, active.priceEur);
