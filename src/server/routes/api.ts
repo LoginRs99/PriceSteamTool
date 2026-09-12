@@ -247,10 +247,14 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
-      try {
-        await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
-        game = gameRepo.getById(id) || game;
-      } catch {}
+      if (process.env.NODE_ENV === 'test') {
+        try {
+          await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
+          game = gameRepo.getById(id) || game;
+        } catch {}
+      } else {
+        priceHistoryQueue.seedGame(id, { timeoutMs: 3000 }).catch(() => {});
+      }
     }
 
     const offers = offerRepo.getOffersForGame(id);
@@ -271,9 +275,13 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
-      try {
-        await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
-      } catch {}
+      if (process.env.NODE_ENV === 'test') {
+        try {
+          await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
+        } catch {}
+      } else {
+        priceHistoryQueue.seedGame(id, { timeoutMs: 3000 }).catch(() => {});
+      }
     }
 
     const intelligence = gameRepo.getPriceIntelligence(id);

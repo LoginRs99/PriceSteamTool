@@ -32,6 +32,8 @@ export function useGameIntelligence(
   const [refreshingGame, setRefreshingGame] = useState(false);
   const mountedRef = useRef(true);
   const delayedRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seededFollowUpRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -39,6 +41,9 @@ export function useGameIntelligence(
       mountedRef.current = false;
       if (delayedRefreshTimeoutRef.current) {
         clearTimeout(delayedRefreshTimeoutRef.current);
+      }
+      if (seedTimeoutRef.current) {
+        clearTimeout(seedTimeoutRef.current);
       }
     };
   }, []);
@@ -241,6 +246,33 @@ export function useGameIntelligence(
             setTargetPriceInput('');
           }
           setLoading(false);
+
+          if (details.history.length === 0 && !seededFollowUpRef.current.has(gameId)) {
+            seededFollowUpRef.current.add(gameId);
+            if (seedTimeoutRef.current) {
+              clearTimeout(seedTimeoutRef.current);
+            }
+            seedTimeoutRef.current = setTimeout(async () => {
+              if (!mountedRef.current || !isMounted) return;
+              try {
+                const [updatedDetails, updatedIntel] = await Promise.all([
+                  api.getGameDetails(gameId),
+                  api.getPriceIntelligence(gameId).catch(() => null)
+                ]);
+                if (mountedRef.current && isMounted) {
+                  setData({
+                    ...updatedDetails,
+                    intelligence: updatedIntel || undefined
+                  });
+                  if (onGameUpdated) {
+                    onGameUpdated(gameId);
+                  }
+                }
+              } catch (err) {
+                console.error('Failed follow-up refresh of seeded history:', err);
+              }
+            }, 4000);
+          }
         }
       })
       .catch(err => {
@@ -250,6 +282,9 @@ export function useGameIntelligence(
 
     return () => {
       isMounted = false;
+      if (seedTimeoutRef.current) {
+        clearTimeout(seedTimeoutRef.current);
+      }
     };
   }, [gameId]);
 

@@ -1005,11 +1005,7 @@ export class SyncOrchestrator {
     }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
-      try {
-        await priceHistoryQueue.seedGame(gameId);
-      } catch (err: any) {
-        logWarn(`[Force Refresh] Price history seeding warning for "${game.title}": ${err.message}`);
-      }
+      priceHistoryQueue.seedGame(gameId, { timeoutMs: 5000 }).catch(() => {});
     }
 
     return {
