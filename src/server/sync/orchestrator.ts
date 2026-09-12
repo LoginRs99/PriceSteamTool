@@ -18,6 +18,7 @@ import { circuitBreakers } from './circuitBreaker.js';
 import { calculateCoreSyncStatus } from './syncOutcome.js';
 import { normalizeProductType, normalizeRegion } from '../domain/normalizer.js';
 import { sendDealNotifications } from '../domain/discordNotifier.js';
+import { resolveAndCacheSteamAssets } from '../domain/steamAssets.js';
 import { steamAdapter } from '../sources/steam.js';
 import { itadAdapter } from '../sources/itad.js';
 import { cheapsharkAdapter } from '../sources/cheapshark.js';
@@ -369,6 +370,13 @@ export class SyncOrchestrator {
                   metacriticScore: details.metacriticScore,
                   metacriticUrl: details.metacriticUrl
                 });
+              }
+
+              if (details) {
+                resolveAndCacheSteamAssets(g.steamAppId, {
+                  headerImage: details.headerImage,
+                  capsuleImage: details.capsuleImage
+                }).catch(() => {});
               }
 
               this.ingestOffer(g.id, 'steam', offer);
@@ -917,6 +925,12 @@ export class SyncOrchestrator {
                   metacriticScore: details.metacriticScore,
                   metacriticUrl: details.metacriticUrl
                 });
+              }
+              if (details) {
+                resolveAndCacheSteamAssets(game.steamAppId, {
+                  headerImage: details.headerImage,
+                  capsuleImage: details.capsuleImage
+                }).catch(() => {});
               }
             }
           } else if (sourceCode === 'itad') {

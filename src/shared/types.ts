@@ -94,6 +94,7 @@ export interface Game {
   slug: string;
   headerImage?: string;
   capsuleImage?: string;
+  iconUrl?: string;
   releaseDate?: string;
   isDlc: boolean;
   isFree: boolean;

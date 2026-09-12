@@ -334,7 +334,8 @@ export const gameRepo = {
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
-        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared,
+        (SELECT sa.asset_url FROM steam_assets sa WHERE sa.steam_app_id = g.steam_app_id AND sa.asset_type = 'icon') as icon_url
       FROM games g
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
       LEFT JOIN merchants m ON bo.merchant_id = m.id
@@ -1057,6 +1058,7 @@ function mapGameRow(r: any): Game {
     slug: r.slug,
     headerImage: r.header_image || undefined,
     capsuleImage: r.capsule_image || undefined,
+    iconUrl: r.icon_url || undefined,
     releaseDate: r.release_date || undefined,
     isDlc: Boolean(r.is_dlc),
     isFree: Boolean(r.is_free),

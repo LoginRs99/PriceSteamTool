@@ -8,6 +8,7 @@ interface GameImageProps {
     title: string;
     headerImage?: string;
     capsuleImage?: string;
+    iconUrl?: string;
   };
   alt?: string;
   className?: string;
@@ -29,6 +30,9 @@ export function GameImage({
   const candidates = React.useMemo(() => {
     if (type === 'capsule') {
       const urls: string[] = [];
+      if (game.iconUrl && !game.iconUrl.includes('cdn.akamai.')) {
+        urls.push(game.iconUrl);
+      }
       if (game.capsuleImage && !game.capsuleImage.includes('cdn.akamai.')) {
         urls.push(game.capsuleImage);
       }
@@ -40,7 +44,7 @@ export function GameImage({
       return urls.filter(Boolean);
     }
     return getGameCoverCandidates(game);
-  }, [game.steamAppId, game.headerImage, game.capsuleImage, type]);
+  }, [game.steamAppId, game.headerImage, game.capsuleImage, game.iconUrl, type]);
 
   // Reset state whenever the game changes to avoid state/image bleed between games
   useEffect(() => {

@@ -8,3 +8,4 @@ export * from './repositories/source.js';
 export * from './repositories/pricingError.js';
 export * from './repositories/settings.js';
 export * from './repositories/notifications.js';
+export * from './repositories/steamAsset.js';
