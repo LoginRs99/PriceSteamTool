@@ -610,6 +610,63 @@ export const MIGRATIONS: Migration[] = [
         if (!e.message?.includes('duplicate column')) throw e;
       }
     }
+  },
+  {
+    name: '026_cleanup_false_sub_euro_glitches',
+    up: (db) => {
+      // 1. Dismiss false Sub-Euro pricing errors on offers >= €1.00
+      try {
+        db.exec(`
+          UPDATE pricing_errors
+          SET is_dismissed = 1
+          WHERE is_dismissed = 0
+            AND offer_id IN (
+              SELECT id FROM offers WHERE price_eur >= 1.005
+            )
+            AND (reason LIKE '%Sub-Euro%' OR error_type = 'DECIMAL_SHIFT');
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 026] pricing_errors cleanup notice:', err?.message);
+      }
+
+      // 2. Clear is_likely_pricing_error flag on those unflagged offers
+      try {
+        db.exec(`
+          UPDATE offers
+          SET is_likely_pricing_error = 0
+          WHERE is_likely_pricing_error = 1
+            AND price_eur >= 1.005
+            AND id NOT IN (SELECT offer_id FROM pricing_errors WHERE is_dismissed = 0);
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 026] offers unflag notice:', err?.message);
+      }
+
+      // 3. Recompute all best deals with newly unflagged offers
+      try {
+        const FRESHNESS_WINDOW_HOURS = 72;
+        db.exec(`
+          UPDATE offers SET is_best_deal = 0;
+          WITH ranked AS (
+            SELECT id, ROW_NUMBER() OVER (
+              PARTITION BY game_id
+              ORDER BY
+                CASE
+                  WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
+                  ELSE 1
+                END ASC,
+                price_eur ASC,
+                COALESCE(last_observed_at, fetched_at) DESC
+            ) as rn
+            FROM offers
+            WHERE is_valid = 1 AND is_likely_pricing_error = 0
+          )
+          UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 026] recompute best deals notice:', err?.message);
+      }
+    }
   }
 ];
 

@@ -66,10 +66,21 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   const atlRaw = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
   const med = input.typicalSaleMedianEur;
 
-  // Reconcile ATL with typical sale median: ATL cannot exceed the typical sale median
-  const atl = (atlRaw !== undefined && atlRaw !== null && med !== undefined && med !== null)
-    ? Math.min(atlRaw, med)
-    : (atlRaw ?? undefined);
+  // Reconcile ATL with typical sale median: ATL cannot exceed the typical sale median, and heal unconfirmed glitch ATL
+  let atl: number | undefined;
+  if (atlRaw !== undefined && atlRaw !== null) {
+    if (med !== undefined && med !== null) {
+      atl = Math.min(atlRaw, med);
+      // If ATL is suspiciously far below median AND from unconfirmed/single source, use median * 0.20 as floor
+      if (atl < med * 0.15 && (input.isConfirmedAtl === false || input.isSingleSourceLow === true)) {
+        atl = Math.max(atl, med * 0.20);
+      }
+    } else {
+      atl = atlRaw;
+    }
+  } else {
+    atl = undefined;
+  }
 
   // Pillar 1: S_atl (ATL Proximity: 0 - 40)
   // At confirmed ATL (price == atl), awards ATL_MATCH_BASE (36 points).
@@ -104,7 +115,9 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     } else {
       const discountFrac = clamp((anchor - price) / anchor, 0, 1);
       discountPct = discountFrac * 100;
-      S_disc = W_DISCOUNT * Math.pow(discountFrac, 0.65);
+      // Only award discount depth points for meaningful discounts (>= 10%)
+      const effectiveDiscount = discountFrac >= 0.10 ? discountFrac : discountFrac * 0.5;
+      S_disc = W_DISCOUNT * Math.pow(effectiveDiscount, 0.75);
     }
   }
 
@@ -128,7 +141,9 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   // Pillar 4: S_mkt (Cross-Market Position: 0 - 10)
   const offersCount = input.offersCount ?? (input.otherOfferCount !== undefined ? input.otherOfferCount + 1 : 1);
   let S_mkt = SINGLE_OFFER_MARKET_SCORE;
-  if (offersCount > 1) {
+  if (offersCount <= 1 && input.isOfficialStore === true) {
+    S_mkt = 7; // Official store single offer gets higher market confidence
+  } else if (offersCount > 1) {
     const mktMin = input.minOfferEur ?? input.marketMinPriceEur ?? price;
     const mktMax = input.maxOfferEur ?? price;
     const spread = mktMax - mktMin;
@@ -151,12 +166,15 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
 
   // Caps applied in sequence:
   // 1. Data sufficiency: if sampleCount < DATA_SUFFICIENCY_MIN_SAMPLES (or no history at all):
-  //    if discountPct >= 60 → PROVISIONAL_DEEP_CAP (80),
+  //    if discountPct >= 60 → PROVISIONAL_DEEP_CAP (80, or 85 for official stores with known MSRP),
   //    else if has some history → PROVISIONAL_CAP (65),
   //    else if no history at all → NO_HISTORY_CAP (40).
   if (isProvisional) {
     if (discountPct >= 60) {
-      score = Math.min(score, PROVISIONAL_DEEP_CAP);
+      const deepCap = (input.isOfficialStore === true && anchor !== undefined && anchor > 0)
+        ? Math.min(PROVISIONAL_DEEP_CAP + 5, 85)
+        : PROVISIONAL_DEEP_CAP;
+      score = Math.min(score, deepCap);
     } else if (hasSomeHistory) {
       score = Math.min(score, PROVISIONAL_CAP);
     } else {
@@ -172,7 +190,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
 
   // 3. Score 100 reservation: cap at 99 unless price beats confirmed ATL by >= 5%
   const beatsConfirmedAtlBy5Pct =
-    input.isConfirmedAtl !== false &&
+    input.isConfirmedAtl === true &&
     input.isSingleSourceLow !== true &&
     atl !== undefined &&
     atl > 0 &&

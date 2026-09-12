@@ -4,7 +4,7 @@ export * from './priceEvents.js';
 
 import { detectPricingError, getTriggeredSignals } from './detector.js';
 import { detectPriceEvent } from './priceEvents.js';
-import type { PricingErrorInput } from './types.js';
+import type { PricingErrorInput, PriceMovementInput, OfferAnomalyInput, PriceRiskInput } from './types.js';
 
 /**
  * Re-exports and backward compatibility wrappers for evaluating price movements and store history.
@@ -26,7 +26,7 @@ export function evaluateSourceOwnHistoryAnomaly(
   const q1 = sorted[Math.floor(sorted.length * 0.25)];
   const q3 = sorted[Math.floor(sorted.length * 0.75)];
   const iqr = Math.max(0, q3 - q1);
-  const scale = Math.max(iqr / 1.349, median * 0.03, 0.01);
+  const scale = Math.max(iqr / 1.349, median * 0.08, 0.50);
 
   const z = (median - currentPriceEur) / scale;
   const isBreak = z > Z_THRESHOLD;
@@ -34,7 +34,7 @@ export function evaluateSourceOwnHistoryAnomaly(
   return { applicable: true, isBreak, zScore: z, ownMedian: median };
 }
 
-export function evaluatePriceMovement(input: any) {
+export function evaluatePriceMovement(input: PriceMovementInput) {
   const price = input.currentPriceEur ?? input.priceEur ?? 0;
   const errorInput: PricingErrorInput = {
     priceEur: price,
@@ -44,7 +44,7 @@ export function evaluatePriceMovement(input: any) {
     atlIsConfirmed: input.atlIsConfirmed ?? (input.isConfirmedAtl !== false),
     typicalSaleMedianEur: input.typicalSaleMedianEur ?? input.medianEur,
     otherFreshPricesEur: input.marketPricesEur ?? input.otherFreshPricesEur,
-    independentMerchantCount: input.independentMerchantCount ?? (input.sourceAgreementCount >= 2 && input.isOfficialMerchant ? 2 : undefined),
+    independentMerchantCount: input.independentMerchantCount ?? ((input.sourceAgreementCount !== undefined && input.sourceAgreementCount >= 2 && input.isOfficialMerchant) ? 2 : undefined),
     ownHistoryEur: input.sourceHistoryEur,
     gameReleaseDate: input.gameReleaseDate,
     suspectedEditionInversion: input.suspectedEditionInversion,
@@ -66,7 +66,10 @@ export function evaluatePriceMovement(input: any) {
   for (const s of rawSignals) {
     if (s.type === 'DECIMAL_SHIFT') {
       if (errorEval.isLikelyPricingError) {
-        riskFlags.push('DECIMAL_SHIFT', 'SUB_EURO_PREMIUM_GLITCH');
+        riskFlags.push('DECIMAL_SHIFT');
+        if (price <= 1.005) {
+          riskFlags.push('SUB_EURO_PREMIUM_GLITCH');
+        }
       }
     } else if (s.type === 'MARKET_OUTLIER') {
       riskFlags.push('MARKET_OUTLIER', 'LONE_BOTTOM_OUTLIER', 'EXTREME_MEDIAN_OUTLIER');
@@ -85,7 +88,7 @@ export function evaluatePriceMovement(input: any) {
 
   // Check for corroborated signals
   if (!errorEval.isLikelyPricingError) {
-    if (rawSignals.some(s => s.type === 'DECIMAL_SHIFT')) {
+    if (rawSignals.some(s => s.type === 'DECIMAL_SHIFT') && price <= 1.005) {
       riskFlags.push('SUB_EURO_PREMIUM_GLITCH_CORROBORATED');
     }
     if (rawSignals.some(s => s.type === 'OWN_HISTORY_BREAK')) {
@@ -131,10 +134,12 @@ export function evaluatePriceMovement(input: any) {
 
   let summary = EVENT_SUMMARIES[event] || 'Standard Pricing';
   if (errorEval.isLikelyPricingError && event === 'PRICING_ERROR') {
-    if (riskFlags.includes('SUB_EURO_PREMIUM_GLITCH')) {
+    if (price <= 1.005 && riskFlags.includes('SUB_EURO_PREMIUM_GLITCH')) {
       summary = '⚡ Sub-Euro Price Glitch (<€1.00)';
     } else if (riskFlags.includes('SOURCE_OWN_HISTORY_BREAK')) {
       summary = '⚠️ Merchant Own History Sudden Collapse';
+    } else if (errorEval.reason && errorEval.reason.startsWith('Market outlier')) {
+      summary = errorEval.reason;
     } else if (riskFlags.includes('LONE_BOTTOM_OUTLIER')) {
       summary = '⚠️ Lone Outlier (>50% below other stores)';
     } else if (errorEval.reason) {
@@ -157,7 +162,7 @@ export function evaluatePriceMovement(input: any) {
   };
 }
 
-export function evaluateOfferAnomaly(input: any) {
+export function evaluateOfferAnomaly(input: OfferAnomalyInput) {
   const price = input.priceEur ?? input.currentPriceEur ?? 0;
   const errorInput: PricingErrorInput = {
     priceEur: price,
@@ -196,7 +201,7 @@ export function evaluateOfferAnomaly(input: any) {
   };
 }
 
-export function calculatePriceRisk(input: any, flags?: Set<any>) {
+export function calculatePriceRisk(input: PriceRiskInput, flags?: Set<any>) {
   const errorInput: PricingErrorInput = {
     priceEur: input.currentPriceEur ?? input.priceEur ?? 0,
     steamBasePriceEur: input.basePriceEur,
@@ -205,7 +210,7 @@ export function calculatePriceRisk(input: any, flags?: Set<any>) {
     atlIsConfirmed: input.atlIsConfirmed ?? (input.isConfirmedAtl !== false),
     typicalSaleMedianEur: input.typicalSaleMedianEur ?? input.medianEur,
     otherFreshPricesEur: input.marketPricesEur ?? input.otherFreshPricesEur,
-    independentMerchantCount: input.independentMerchantCount ?? (input.sourceAgreementCount >= 2 && input.isOfficialMerchant ? 2 : undefined),
+    independentMerchantCount: input.independentMerchantCount ?? ((input.sourceAgreementCount !== undefined && input.sourceAgreementCount >= 2 && input.isOfficialMerchant) ? 2 : undefined),
     ownHistoryEur: input.sourceHistoryEur,
     gameReleaseDate: input.gameReleaseDate,
     suspectedEditionInversion: input.suspectedEditionInversion,
@@ -221,7 +226,7 @@ export function calculatePriceRisk(input: any, flags?: Set<any>) {
   const errorEval = detectPricingError(errorInput);
   if (flags && errorEval.type) {
     flags.add(errorEval.type);
-    if (errorEval.type === 'DECIMAL_SHIFT') {
+    if (errorEval.type === 'DECIMAL_SHIFT' && errorInput.priceEur <= 1.005) {
       flags.add('SUB_EURO_PREMIUM_GLITCH');
     }
   }
@@ -230,9 +235,9 @@ export function calculatePriceRisk(input: any, flags?: Set<any>) {
   return { riskScore: errorEval.confidence, riskLevel };
 }
 
-export function calculateRiskEvidenceConfidence(input: any, flags?: Set<any>) {
+export function calculateRiskEvidenceConfidence(input: PriceMovementInput, flags?: Set<any>) {
   let score = 0.50;
-  if (input.sourceAgreementCount >= 2) score += 0.25;
+  if (input.sourceAgreementCount !== undefined && input.sourceAgreementCount >= 2) score += 0.25;
   if (input.marketPricesEur && input.marketPricesEur.length >= 2) score += 0.15;
   if (input.basePriceEur) score += 0.10;
   return Math.max(0.10, Math.min(1.0, Math.round(score * 100) / 100));

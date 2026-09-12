@@ -96,6 +96,46 @@ export function getDb(): Database.Database {
 export function backfillDealScoreStats(): void {
   try {
     const db = getDb();
+
+    // Auto-heal any games where active valid offer beats historical_low_eur
+    try {
+      db.exec(`
+        UPDATE games
+        SET historical_low_eur = (
+          SELECT MIN(o.price_eur)
+          FROM offers o
+          WHERE o.game_id = games.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+        ),
+        atl_is_confirmed = (
+          SELECT CASE WHEN m.is_official = 1 THEN 1 ELSE 0 END
+          FROM offers o
+          JOIN merchants m ON o.merchant_id = m.id
+          WHERE o.game_id = games.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          ORDER BY o.price_eur ASC, o.id ASC
+          LIMIT 1
+        ),
+        historical_low_source = COALESCE((
+          SELECT m.name
+          FROM offers o
+          JOIN merchants m ON o.merchant_id = m.id
+          WHERE o.game_id = games.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          ORDER BY o.price_eur ASC, o.id ASC
+          LIMIT 1
+        ), games.historical_low_source),
+        updated_at = datetime('now')
+        WHERE id IN (
+          SELECT o.game_id
+          FROM offers o
+          JOIN games g ON g.id = o.game_id
+          WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          GROUP BY o.game_id
+          HAVING MIN(o.price_eur) < COALESCE(g.historical_low_eur, 999999)
+        );
+      `);
+    } catch (reconcileErr: any) {
+      logInfo(`[Startup] Historical low reconciliation notice: ${reconcileErr.message}`);
+    }
+
     const uncalculatedGames = prepareStmt(`
       SELECT g.id, g.steam_app_id, g.title, g.slug, g.base_price_eur, g.historical_low_eur, g.historical_low_date, g.historical_low_source, g.atl_is_confirmed, g.atl_is_single_source_low, g.is_dlc, g.is_free, g.created_at, g.updated_at
       FROM games g

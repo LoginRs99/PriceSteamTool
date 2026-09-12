@@ -252,6 +252,27 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
 
           {/* Context Line: Selective Mega/Great Deal Badge & savings vs typical */}
           <div className="hist-context-line" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--dim)', marginTop: 4 }}>
+            {(game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75)) && (
+              <span 
+                className="deal-tier-tag tier-tag-glitch" 
+                style={{
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.3) 100%)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  borderRadius: 4,
+                  padding: '1px 6px',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.03em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3
+                }}
+                title="⚡ Potential Pricing Error / Glitch Deal"
+              >
+                ⚡ GLITCH
+              </span>
+            )}
             {dealTier === 'Exceptional' && (
               <span 
                 className="deal-tier-tag tier-tag-exceptional" 

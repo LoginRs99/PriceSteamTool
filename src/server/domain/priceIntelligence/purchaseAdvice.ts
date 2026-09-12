@@ -82,6 +82,18 @@ export function evaluatePurchaseAdvice(
       decision = 'WAIT';
       confidence = actionSignal.decision === 'PROVISIONAL' ? 'LOW' : 'MEDIUM';
     }
+
+    // Guardrails: don't let advice wildly contradict deal score
+    // If deal score >= 80, advice should be at least FAIR (never pure WAIT unless pricing error)
+    if (dealScore >= 80 && decision === 'WAIT' && !currentBestOffer?.isLikelyPricingError) {
+      decision = 'FAIR';
+      confidence = 'MEDIUM';
+    }
+    // If deal score < 35, advice should never be BUY
+    if (dealScore < 35 && decision === 'BUY') {
+      decision = 'FAIR';
+      confidence = 'LOW';
+    }
   } else {
     // Fallback when actionSignal is not supplied
     if (isAtOrBelowATL || isDeepTypicalSale || isHighDealScore) {

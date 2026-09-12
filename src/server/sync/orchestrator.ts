@@ -584,6 +584,12 @@ export class SyncOrchestrator {
         if (invalidateRes.invalidatedCount > 0) {
           logInfo(`[Cleanup] Invalidated ${invalidateRes.invalidatedCount} expired offer(s) older than 14 days.`);
         }
+
+        // Reconcile any games where an active valid offer is lower than the recorded historical low
+        const healedCount = gameRepo.reconcileAllHistoricalLows();
+        if (healedCount > 0) {
+          logInfo(`[Sync] Reconciled ${healedCount} game(s) where valid active offers established new all-time lows.`);
+        }
       } catch (purgeErr: any) {
         logWarn(`[Cleanup] Failed to purge old price history / invalidate offers: ${purgeErr.message}`);
       }
@@ -751,6 +757,12 @@ export class SyncOrchestrator {
 
       this.lastEnrichmentAt = new Date().toISOString();
       logInfo(`[Enrichment] Keyshop background enrichment completed. Found ${this.enrichmentStatus.offersFound} offers.`);
+
+      const healedCount = gameRepo.reconcileAllHistoricalLows();
+      if (healedCount > 0) {
+        logInfo(`[Enrichment] Reconciled ${healedCount} game(s) with new keyshop-driven all-time lows.`);
+      }
+
       if (isSourceOnly) {
         this.progress.currentAction = `AllKeyShop refresh complete for ${prioritizedGames.length} games.`;
         this.broadcast();

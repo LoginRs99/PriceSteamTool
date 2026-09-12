@@ -119,7 +119,24 @@ export const OffersTable: React.FC<OffersTableProps> = ({
             )}
           </td>
                     <td>
-                      {score > 0 ? (
+                      {offer.isLikelyPricingError ? (
+                        <span 
+                          className="ticker-num"
+                          title={offer.pricingErrorReason || '⚡ Pricing Anomaly / Glitch Deal'}
+                          style={{ 
+                            fontSize: 11, 
+                            fontWeight: 800, 
+                            padding: '2px 8px', 
+                            borderRadius: 'var(--radius-sm)', 
+                            background: 'rgba(239, 68, 68, 0.2)', 
+                            color: '#f87171',
+                            border: '1px solid rgba(239, 68, 68, 0.45)',
+                            display: 'inline-block'
+                          }}
+                        >
+                          ⚡ GLITCH
+                        </span>
+                      ) : score > 0 ? (
                         <span 
                           className="ticker-num"
                           style={{ 

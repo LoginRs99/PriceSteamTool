@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { calculateDealScore } from '../../src/server/domain/dealScore/calculator.js';
 import { detectPricingError } from '../../src/server/domain/pricingError/detector.js';
-import { evaluatePriceMovement } from '../../src/server/domain/pricingError/index.js';
+import { evaluatePriceMovement, evaluateSourceOwnHistoryAnomaly } from '../../src/server/domain/pricingError/index.js';
+import { evaluatePurchaseAdvice } from '../../src/server/domain/priceIntelligence/purchaseAdvice.js';
+import type { Game, Offer, PriceIntelligenceResponse, TypicalSalePrice, ActionSignal } from '../../src/shared/types.js';
 
 describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () => {
   describe('Issue A — ATL > typical_sale_median Reconciliation', () => {
@@ -347,6 +349,251 @@ describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () =
       });
       expect(isNaN(resNeg.score)).toBe(false);
       expect(resNeg.score).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('Priority Tier 1: Issue 7, 8 & 13 Verification', () => {
+    it('Issue 7: Single peer on a normal price (>€1.005) does NOT corroborate anomaly when merchant independence is unconfirmed', () => {
+      // 59.99€ game with confirmed ATL of 25.00€; price drops to 5.00€ (<50% of ATL, triggers BELOW_ATL_IMPLAUSIBLE)
+      // and only 1 peer is at 5.20€ with unknown merchant independence
+      const resSinglePeerUnconfirmed = detectPricingError({
+        priceEur: 5.00,
+        steamBasePriceEur: 59.99,
+        confirmedAtlEur: 25.00,
+        atlIsConfirmed: true,
+        otherFreshPricesEur: [5.20], // Only 1 matching peer
+        independentMerchantCount: undefined // Unknown independence
+      });
+
+      // Must NOT be corroborated: 1 peer without confirmed independent merchants cannot clear BELOW_ATL_IMPLAUSIBLE
+      expect(resSinglePeerUnconfirmed.isLikelyPricingError).toBe(true);
+      expect(resSinglePeerUnconfirmed.type).toBe('BELOW_ATL_IMPLAUSIBLE');
+    });
+
+    it('Issue 7: Two matching peers corroborate normal price (>€1.005)', () => {
+      const resTwoPeers = detectPricingError({
+        priceEur: 5.00,
+        steamBasePriceEur: 59.99,
+        confirmedAtlEur: 25.00,
+        atlIsConfirmed: true,
+        otherFreshPricesEur: [4.95, 5.05] // 2 independent matching peers
+      });
+
+      expect(resTwoPeers.isLikelyPricingError).toBe(false);
+    });
+
+    it('Issue 7: Single peer with confirmed independent merchant count >= 2 corroborates', () => {
+      const resConfirmedMerchants = detectPricingError({
+        priceEur: 5.00,
+        steamBasePriceEur: 59.99,
+        confirmedAtlEur: 25.00,
+        atlIsConfirmed: true,
+        otherFreshPricesEur: [5.10],
+        independentMerchantCount: 2 // Explicitly 2 independent merchants
+      });
+
+      expect(resConfirmedMerchants.isLikelyPricingError).toBe(false);
+    });
+
+    it('Issue 7: Sub-euro price (<=1.005) preserves single-peer corroboration within 30%', () => {
+      const resSubEuro = detectPricingError({
+        priceEur: 0.50,
+        steamBasePriceEur: 59.99,
+        otherFreshPricesEur: [0.60] // Single peer within 30%
+      });
+
+      expect(resSubEuro.isLikelyPricingError).toBe(false);
+    });
+
+    it('Issue 13: Unconfirmed suspiciously low ATL (<15% of median) heals floor and does NOT suppress anomaly', () => {
+      // €59.99 game with unconfirmed past glitch ATL of €0.49, median sale €20.00
+      // An unconfirmed €0.49 offer should NOT be excused by the previous unconfirmed glitch ATL!
+      const resUnconfirmedGlitch = detectPricingError({
+        priceEur: 0.49,
+        steamBasePriceEur: 59.99,
+        typicalSaleMedianEur: 20.00,
+        confirmedAtlEur: 0.49,
+        atlIsConfirmed: false // Unconfirmed glitch in history!
+      });
+
+      expect(resUnconfirmedGlitch.isLikelyPricingError).toBe(true);
+      expect(resUnconfirmedGlitch.type).toBe('DECIMAL_SHIFT');
+    });
+
+    it('Issue 13: Confirmed ATL (<15% of median) is trusted and excuses known low', () => {
+      // If a publisher legitimately set a confirmed promotional ATL of €0.49
+      const resConfirmedPromo = detectPricingError({
+        priceEur: 0.49,
+        steamBasePriceEur: 59.99,
+        typicalSaleMedianEur: 20.00,
+        confirmedAtlEur: 0.49,
+        atlIsConfirmed: true
+      });
+
+      // Confirmed ATL is recognized as known historic level, not an unverified decimal shift
+      expect(resConfirmedPromo.isLikelyPricingError).toBe(false);
+    });
+
+    it('Issue 13: DealScore heals unconfirmed glitch ATL to prevent score inversion', () => {
+      // Glitch ATL of €0.49 on a €29.99 game with median €15.00
+      const scoreGlitchAtl = calculateDealScore({
+        priceEur: 5.00,
+        basePriceEur: 29.99,
+        typicalSaleMedianEur: 15.00,
+        allTimeLowEur: 0.49,
+        isConfirmedAtl: false,
+        isSingleSourceLow: true
+      });
+
+      // Effective ATL heals to max(0.49, 15 * 0.20) = 3.00
+      // Score calculation remains sound, finite, and positive
+      expect(scoreGlitchAtl.score).toBeGreaterThan(0);
+      expect(scoreGlitchAtl.score).toBeLessThanOrEqual(100);
+      expect(scoreGlitchAtl.explanation.atlDistanceEur).toBe(2.00); // 5.00 - 3.00 = 2.00
+    });
+
+    it('Issue 8: MARKET_OUTLIER accurately detects extreme drops with >=2 peers without redundant logic', () => {
+      const resOutlier = detectPricingError({
+        priceEur: 2.00,
+        steamBasePriceEur: 29.99,
+        otherFreshPricesEur: [10.00, 15.00]
+      });
+
+      expect(resOutlier.isLikelyPricingError).toBe(true);
+      expect(resOutlier.type).toBe('MARKET_OUTLIER');
+    });
+  });
+
+  describe('Priority Tier 2: Issue 9, 10, 14, 15 & 16 Verification', () => {
+    it('Issue 9: BELOW_ATL_IMPLAUSIBLE uses consistent threshold (40%) and does NOT over-penalize cheap games', () => {
+      // Game with confirmed ATL €3.00: 50% drop to €1.50 is normal keyshop variation
+      const resCheapNormal = detectPricingError({
+        priceEur: 1.50,
+        steamBasePriceEur: 19.99,
+        confirmedAtlEur: 3.00,
+        atlIsConfirmed: true
+      });
+      expect(resCheapNormal.type).not.toBe('BELOW_ATL_IMPLAUSIBLE');
+
+      // True implausible collapse: <40% of confirmed ATL (€1.10 on €3.00 ATL)
+      const resCheapGlitch = detectPricingError({
+        priceEur: 1.10,
+        steamBasePriceEur: 19.99,
+        confirmedAtlEur: 3.00,
+        atlIsConfirmed: true
+      });
+      expect(resCheapGlitch.isLikelyPricingError).toBe(true);
+      expect(resCheapGlitch.type).toBe('BELOW_ATL_IMPLAUSIBLE');
+    });
+
+    it('Issue 10: OWN_HISTORY_BREAK scale floor prevents false positives on small coupons / sales', () => {
+      // Store consistently charges €9.99; runs a small promo at €9.10
+      const resSmallDiscount = evaluateSourceOwnHistoryAnomaly(9.10, [9.99, 9.99, 9.99]);
+      expect(resSmallDiscount.applicable).toBe(true);
+      expect(resSmallDiscount.isBreak).toBe(false); // Must NOT flag as store collapse!
+
+      // Store suddenly collapses from €19.99 to €2.00
+      const resTrueCollapse = evaluateSourceOwnHistoryAnomaly(2.00, [19.99, 19.99, 19.99]);
+      expect(resTrueCollapse.applicable).toBe(true);
+      expect(resTrueCollapse.isBreak).toBe(true); // Must flag true collapse!
+    });
+
+    it('Issue 15: Outlier summary reports exact peer minimum and median for multi-peer outliers', () => {
+      const resMultiPeer = evaluatePriceMovement({
+        currentPriceEur: 3.00,
+        basePriceEur: 59.99,
+        marketPricesEur: [25.00, 27.00, 30.00],
+        sourceAgreementCount: 1,
+        isOfficialMerchant: false
+      });
+
+      expect(resMultiPeer.isAnomaly).toBe(true);
+      expect(resMultiPeer.summary).toContain('Market outlier');
+      expect(resMultiPeer.summary).toContain('€25.00');
+    });
+
+    it('Issue 16: Purchase advice guardrails prevent wild disagreement with DealScore', () => {
+      const mockGame: Game = {
+        id: 'g-test',
+        steamAppId: 99999,
+        title: 'Guardrail Test Game',
+        slug: 'guardrail-test-game',
+        basePriceEur: 59.99,
+        bestPriceEur: 14.99,
+        bestDiscountPercent: 75,
+        bestDealScore: 85,
+        bestDealTier: 'Exceptional',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const mockOffer: Offer = {
+        id: 'o-test',
+        gameId: 'g-test',
+        merchantId: 'm-1',
+        merchantName: 'Steam',
+        productType: 'KEY',
+        regionType: 'GLOBAL',
+        priceEur: 14.99,
+        discountPercent: 75,
+        isOfficial: true,
+        isValid: true,
+        isBestDeal: true,
+        isLikelyPricingError: false,
+        dealScore: 85,
+        dealTier: 'Exceptional',
+        lastObservedAt: new Date().toISOString(),
+        fetchedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const periodLows: PriceIntelligenceResponse['periodLows'] = {
+        low7d: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
+        low30d: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
+        low90d: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
+        low1y: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true },
+        allTimeLow: { priceEur: 14.99, recordedAt: null, sourceCode: null, merchantName: null, isConfirmed: true }
+      };
+
+      const typicalSale: TypicalSalePrice = {
+        medianPriceEur: 29.99,
+        q1PriceEur: 19.99,
+        q3PriceEur: 39.99,
+        sampleCount: 10,
+        isLowConfidence: false
+      };
+
+      // 1. ActionSignal says WAIT (e.g. upcoming Steam sale in 5 days), but DealScore is 85
+      const actionWait: ActionSignal = {
+        decision: 'WAIT',
+        badgeLabel: 'Wait (Steam Sale)',
+        badgeColor: '#f59e0b',
+        urgency: 'LOW',
+        primaryReason: 'Steam Summer Sale in 5 days',
+        timingContext: 'Recommended to wait'
+      };
+
+      const adviceHighDealScore = evaluatePurchaseAdvice(mockGame, mockOffer, periodLows, typicalSale, actionWait);
+      // Guardrail upgrades from pure WAIT to FAIR because deal score is 85!
+      expect(adviceHighDealScore.decision).toBe('FAIR');
+      expect(adviceHighDealScore.confidence).toBe('MEDIUM');
+
+      // 2. ActionSignal says BUY, but DealScore is terrible (<35)
+      const poorOffer: Offer = { ...mockOffer, dealScore: 25, priceEur: 55.00 };
+      const actionBuy: ActionSignal = {
+        decision: 'BUY',
+        badgeLabel: 'Buy',
+        badgeColor: '#06b6d4',
+        urgency: 'MEDIUM',
+        primaryReason: 'Some trigger',
+        timingContext: 'Some timing'
+      };
+
+      const adviceLowDealScore = evaluatePurchaseAdvice(mockGame, poorOffer, periodLows, typicalSale, actionBuy);
+      // Guardrail clamps from BUY to FAIR with LOW confidence because deal score is 25!
+      expect(adviceLowDealScore.decision).toBe('FAIR');
+      expect(adviceLowDealScore.confidence).toBe('LOW');
     });
   });
 });

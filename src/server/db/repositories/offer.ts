@@ -655,6 +655,7 @@ export const offerRepo = {
           historicalLowEur: periodLows.allTimeLow.priceEur || (gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined),
           isConfirmedAtl: periodLows.allTimeLow.isConfirmed,
           isSingleSourceLow: Boolean(periodLows.allTimeLow.isConfirmed === false || periodLows.low90d.isSingleSourceLow),
+          isOfficialStore: Boolean(merchantInfo?.is_official),
           isPricingError: pricingEval.isAnomaly,
           // Pass the same context fields the read paths use so write-time and read-time scores match
           sampleCount: typicalSale.sampleCount,
@@ -752,6 +753,7 @@ export const offerRepo = {
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       isConfirmedAtl,
       isSingleSourceLow,
+      isOfficialStore: isOfficial,
       sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
       firstObservedAt: r.price_tracking_first_observed_at || undefined,
       lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
@@ -883,6 +885,7 @@ export const offerRepo = {
         historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
         isConfirmedAtl,
         isSingleSourceLow,
+        isOfficialStore: isOfficial,
         sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
         firstObservedAt: r.price_tracking_first_observed_at || undefined,
         lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
@@ -943,20 +946,31 @@ export const offerRepo = {
     prepareStmt(`UPDATE offers SET is_best_deal = 0 WHERE game_id = ?`).run(gameId);
 
     const best = prepareStmt(`
-      SELECT id FROM offers
-      WHERE game_id = ? AND is_valid = 1 AND is_likely_pricing_error = 0
+      SELECT o.id, o.price_eur, o.merchant_id, o.last_observed_at, o.fetched_at,
+             m.is_official, m.name as merchant_name
+      FROM offers o
+      JOIN merchants m ON o.merchant_id = m.id
+      WHERE o.game_id = ? AND o.is_valid = 1 AND o.is_likely_pricing_error = 0
       ORDER BY
         CASE
-          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
+          WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
-        price_eur ASC,
-        COALESCE(last_observed_at, fetched_at) DESC
+        o.price_eur ASC,
+        COALESCE(o.last_observed_at, o.fetched_at) DESC
       LIMIT 1
     `).get(gameId) as any;
 
     if (best) {
       prepareStmt(`UPDATE offers SET is_best_deal = 1 WHERE id = ?`).run(best.id);
+
+      const gameRow = prepareStmt(`SELECT historical_low_eur FROM games WHERE id = ?`).get(gameId) as any;
+      if (gameRow && Number(best.price_eur) > 0) {
+        if (gameRow.historical_low_eur === null || Number(best.price_eur) < Number(gameRow.historical_low_eur)) {
+          const source = best.merchant_name || (best.is_official ? 'Official Store' : 'Merchant');
+          gameRepo.updateHistoricalLow(gameId, Number(best.price_eur), new Date().toISOString(), source);
+        }
+      }
     }
   },
 

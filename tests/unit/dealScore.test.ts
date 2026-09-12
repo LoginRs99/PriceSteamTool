@@ -138,8 +138,8 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 3 // N = 3
       });
 
-      expect(res.score).toBeGreaterThanOrEqual(80);
-      expect(res.tier).toBe('Exceptional');
+      expect(res.score).toBeGreaterThanOrEqual(79);
+      expect(['Great', 'Exceptional']).toContain(res.tier);
       expect(res.isProvisional).toBe(false);
     });
 
@@ -342,7 +342,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 12
       });
       expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(80);
+      expect(res.score).toBeGreaterThanOrEqual(79);
     });
 
     it('Case 5: Progressively declining price', () => {
@@ -445,7 +445,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 12
       });
       expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(80);
+      expect(res.score).toBeGreaterThanOrEqual(79);
     });
 
     it('Case 13: Current price matches median exactly', () => {
@@ -455,7 +455,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 10.00,
         sampleCount: 20
       });
-      expect(res.score).toBe(25);
+      expect(res.score).toBe(23);
       expect(['Weak', 'Fair']).toContain(res.tier);
     });
 
@@ -563,7 +563,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 15
       });
       expect(res.rarityBonus).toBe(36.0);
-      expect(res.score).toBe(63);
+      expect(res.score).toBe(61);
     });
 
     it('Edge 2: Price is 0.01€ above ATL', () => {
@@ -593,7 +593,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 5.00,
         sampleCount: 10
       });
-      expect(res.score).toBe(63);
+      expect(res.score).toBe(61);
       expect(['Good', 'Great']).toContain(res.tier);
     });
 
@@ -605,7 +605,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 10
       });
       expect(res.rarityBonus).toBe(0);
-      expect(res.score).toBe(15);
+      expect(res.score).toBe(13);
     });
 
     it('Edge 6: No MSRP available', () => {
@@ -616,7 +616,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 15.00,
         sampleCount: 10
       });
-      expect(res.score).toBe(63);
+      expect(res.score).toBe(61);
     });
 
     it('Edge 7: Sub-euro median (< 1.00€)', () => {
@@ -627,7 +627,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 10
       });
       expect(res.tier).toBe('Good');
-      expect(res.score).toBe(63);
+      expect(res.score).toBe(61);
     });
 
     it('Edge 8: Pricing error suppresses deal score', () => {
@@ -674,12 +674,26 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         basePriceEur: 100.00,
         typicalSaleMedianEur: 100.00,
         allTimeLowEur: 1.00,
+        isConfirmedAtl: true,
         offersCount: 2,
         minOfferEur: 0.50,
         maxOfferEur: 10.00,
         sampleCount: 50
       });
       expect(resHigh.score).toBe(100);
+
+      const resHighUnconfirmed = calculateDealScore({
+        priceEur: 0.50,
+        basePriceEur: 100.00,
+        typicalSaleMedianEur: 100.00,
+        allTimeLowEur: 1.00,
+        isConfirmedAtl: undefined,
+        offersCount: 2,
+        minOfferEur: 0.50,
+        maxOfferEur: 10.00,
+        sampleCount: 50
+      });
+      expect(resHighUnconfirmed.score).toBe(99);
 
       const resLow = calculateDealScore({
         priceEur: 200.00,

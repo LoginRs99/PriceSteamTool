@@ -545,6 +545,7 @@ export interface DealScoreInput {
   originalPriceEur?: number;
   isConfirmedAtl?: boolean;
   isSingleSourceLow?: boolean;
+  isOfficialStore?: boolean;
   isDelisted?: boolean;
   isUnreleased?: boolean;
 }
