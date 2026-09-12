@@ -414,7 +414,7 @@ export const offerRepo = {
         pricingEval.event,
         pricingEval.isAnomaly ? 1 : 0,
         pricingEval.riskScore,
-        (pricingEval.riskFlags && pricingEval.riskFlags[0]) || null,
+        (pricingEval.pricingErrorType || pricingEval.riskFlags?.[0]) || null,
         pricingEval.summary || null,
         data.regionConfidence !== undefined ? data.regionConfidence : 1.0,
         active.observedAt,
@@ -655,7 +655,7 @@ export const offerRepo = {
         const previousPriceEur = existing?.price_eur !== null && existing?.price_eur !== undefined 
           ? Number(existing.price_eur) 
           : undefined;
-        pricingErrorRepo.record(data.gameId, offerId, errorType, pricingEval.riskScore, pricingEval.summary, data.priceEur, previousPriceEur);
+        pricingErrorRepo.record(data.gameId, offerId, pricingEval.pricingErrorType || errorType, pricingEval.riskScore, pricingEval.summary, data.priceEur, previousPriceEur);
       } else {
         pricingErrorRepo.resolveForOffer(offerId);
       }
