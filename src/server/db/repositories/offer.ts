@@ -689,6 +689,11 @@ export const offerRepo = {
     const maxOfferEur = agg?.maxp != null ? Number(agg.maxp) : undefined;
     const offersCount = agg?.cnt != null ? Number(agg.cnt) : undefined;
 
+    const rawObs = r.last_observed_at || r.fetched_at;
+    const obsTime = rawObs ? new Date(rawObs).getTime() : NaN;
+    const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
+    const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
+
     const dealCalc = calculateDealScore({
       priceEur: Number(r.price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -708,11 +713,9 @@ export const offerRepo = {
       isPricingError: Boolean(r.is_likely_pricing_error),
       offersCount,
       minOfferEur,
-      maxOfferEur
+      maxOfferEur,
+      daysSinceLastSample
     });
-
-    const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
-    const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
 
     return {
       id: r.id,
@@ -817,6 +820,11 @@ export const offerRepo = {
         ? Boolean(r.atl_is_single_source_low)
         : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
 
+      const rawObs = r.last_observed_at || r.fetched_at;
+      const obsTime = rawObs ? new Date(rawObs).getTime() : NaN;
+      const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
+      const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
+
       const dealCalc = calculateDealScore({
         priceEur: Number(r.price_eur),
         basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -836,11 +844,9 @@ export const offerRepo = {
         isPricingError: Boolean(r.is_likely_pricing_error),
         offersCount,
         minOfferEur,
-        maxOfferEur
+        maxOfferEur,
+        daysSinceLastSample
       });
-
-      const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
-      const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
 
       return {
         id: r.id,

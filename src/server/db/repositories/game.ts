@@ -1006,6 +1006,9 @@ function mapGameRow(r: any): Game {
       ? Boolean(r.atl_is_single_source_low)
       : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
 
+    const obsTime = r.best_last_observed_at ? new Date(r.best_last_observed_at).getTime() : NaN;
+    const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
+
     const dealResult = calculateDealScore({
       priceEur: Number(r.best_price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -1026,7 +1029,8 @@ function mapGameRow(r: any): Game {
         : undefined,
       offersCount: Number(r.offers_count || 0) || undefined,
       minOfferEur: r.market_min_eur != null ? Number(r.market_min_eur) : undefined,
-      maxOfferEur: r.market_max_eur != null ? Number(r.market_max_eur) : undefined
+      maxOfferEur: r.market_max_eur != null ? Number(r.market_max_eur) : undefined,
+      daysSinceLastSample
     });
 
     bestDealScore = dealResult.score;
