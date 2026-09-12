@@ -296,13 +296,20 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
           retryAfterSec: err.retryAfterSec,
           message: err.message
         });
-        throw err;
+        // If pagination fails after page 0 (partial items collected), rethrow to avoid partial wishlist truncation.
+        // Rate-limiting (429) also rethrows immediately to honor backoff intervals.
+        if (page > 0 || err?.status === 429) {
+          throw err;
+        }
+        // If page 0 failed (e.g. legacy endpoint HTML redirect, deprecation, or network failure),
+        // proceed to the official IWishlistService fallback below.
       }
 
-      // 2. Fallback: IWishlistService Web API (reachable ONLY when items.length === 0)
+      // 2. Fallback: IWishlistService Web API (reachable when items.length === 0 or page 0 fails)
       try {
         requestsMade++;
-        const url = `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${steamId64}`;
+        const apiKeyParam = config.steamApiKey ? `&key=${encodeURIComponent(config.steamApiKey)}` : '';
+        const url = `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${steamId64}${apiKeyParam}`;
         const data: any = await safeFetchJson(url);
         
         if (data?.response?.items && Array.isArray(data.response.items)) {

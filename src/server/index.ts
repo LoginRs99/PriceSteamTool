@@ -35,7 +35,11 @@ export async function createApp(): Promise<FastifyInstance> {
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     });
     if (process.env.NODE_ENV !== 'test') {
-      console.warn(`[SECURITY] Warning: TRUSTED_ORIGINS is unset. API CORS is open (*) and unauthenticated on bind address http://${config.host}:${config.port}`);
+      const authState = config.apiToken ? 'protected by API_TOKEN' : 'unauthenticated';
+      console.warn(`[SECURITY] Warning: TRUSTED_ORIGINS is unset. API CORS is open (*) and ${authState} on bind address http://${config.host}:${config.port}`);
+      if (!config.apiToken && (config.host === '0.0.0.0' || config.host === '::')) {
+        console.warn(`[SECURITY] Warning: Server is bound to all network interfaces (${config.host}) without API_TOKEN. Set API_TOKEN and TRUSTED_ORIGINS for production deployments.`);
+      }
     }
   }
 

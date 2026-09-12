@@ -290,7 +290,6 @@ export const MIGRATIONS: Migration[] = [
           UPDATE offers 
           SET deal_url = 'https://' || ltrim(deal_url, '/') 
           WHERE deal_url NOT LIKE 'http://%' AND deal_url NOT LIKE 'https://%';
-          ${BEST_DEAL_RECOMPUTE_ALL_SQL}
         `);
       } catch (err: any) {
         console.warn('[Migration 020] Notice:', err?.message);

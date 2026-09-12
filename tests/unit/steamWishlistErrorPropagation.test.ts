@@ -29,10 +29,20 @@ describe('Steam Wishlist Error Propagation & Retry-After', () => {
     (steamAdapter as any).queue.jitterMs = origJitter;
   });
 
-  it('logs warning and rethrows when pagination fails with 500, without invoking IWishlistService', async () => {
+  it('logs warning and rethrows when pagination fails on page > 0, without invoking IWishlistService', async () => {
     const logWarnSpy = vi.spyOn(logger, 'logWarn');
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('wishlistdata')) {
+      if (url.includes('wishlistdata/?p=0')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({
+            '10': { name: 'Counter-Strike', priority: 0 }
+          })),
+          headers: new Headers()
+        });
+      }
+      if (url.includes('wishlistdata/?p=1')) {
         return Promise.resolve({
           ok: false,
           status: 500,
@@ -40,7 +50,7 @@ describe('Steam Wishlist Error Propagation & Retry-After', () => {
           headers: new Headers()
         });
       }
-      // IWishlistService should not be called
+      // IWishlistService should not be called when pagination fails midway
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -59,14 +69,14 @@ describe('Steam Wishlist Error Propagation & Retry-After', () => {
 
     expect(caughtErr).not.toBeNull();
     expect(caughtErr.status).toBe(500);
-    expect(caughtErr.requestCount).toBeGreaterThanOrEqual(1);
-    expect(caughtErr.message).toContain('Steam wishlist pagination failed');
+    expect(caughtErr.requestCount).toBeGreaterThanOrEqual(2);
+    expect(caughtErr.message).toContain('Steam wishlist pagination failed on page 1');
 
-    // Verify logWarn was called with page, status, message
+    // Verify logWarn was called with page 1, status 500
     expect(logWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Steam wishlist pagination failed on page 0'),
+      expect.stringContaining('Steam wishlist pagination failed on page 1'),
       expect.objectContaining({
-        page: 0,
+        page: 1,
         status: 500,
         message: expect.stringContaining('500')
       })
@@ -77,6 +87,55 @@ describe('Steam Wishlist Error Propagation & Retry-After', () => {
       String(args[0]).includes('IWishlistService')
     );
     expect(wishlistServiceCalls.length).toBe(0);
+  });
+
+  it('falls back to IWishlistService when page 0 fails (e.g. HTML redirect or endpoint failure)', async () => {
+    const logWarnSpy = vi.spyOn(logger, 'logWarn');
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('wishlistdata')) {
+        // Simulates Steam redirecting to HTML login/store page on page 0
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve('<!DOCTYPE html><html><head><title>Welcome to Steam</title></head><body></body></html>'),
+          headers: new Headers({ 'content-type': 'text/html' })
+        });
+      }
+      if (url.includes('IWishlistService')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({
+            response: {
+              items: [
+                { appid: 570, priority: 2, date_added: 1600000000 }
+              ]
+            }
+          })),
+          headers: new Headers({ 'content-type': 'application/json' })
+        });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+    global.fetch = fetchMock;
+
+    const items = await steamAdapter.fetchWishlist('76561198000000000');
+    expect(items.length).toBe(1);
+    expect(items[0].steamAppId).toBe(570);
+
+    // Verify warning was logged for page 0 parse failure
+    expect(logWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Steam wishlist pagination failed on page 0'),
+      expect.objectContaining({
+        page: 0
+      })
+    );
+
+    // Verify IWishlistService fallback WAS called
+    const wishlistServiceCalls = fetchMock.mock.calls.filter(args =>
+      String(args[0]).includes('IWishlistService')
+    );
+    expect(wishlistServiceCalls.length).toBe(1);
   });
 
   it('rethrows with status 429 and retryAfterSec when rate-limited', async () => {
