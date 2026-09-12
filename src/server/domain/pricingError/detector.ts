@@ -20,11 +20,11 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   const minPeer = freshPeers.length > 0 ? Math.min(...freshPeers) : undefined;
 
   // Signal 1: DECIMAL_SHIFT (0.45)
-  // steamBasePriceEur >= 10 && priceEur < steamBasePriceEur * 0.15, OR (priceEur < 1.0 && steamBasePriceEur >= 10 && otherFreshPricesEur min >= 5)
+  // steamBasePriceEur >= 10 && priceEur < steamBasePriceEur * 0.10, OR (priceEur < 1.0 && steamBasePriceEur >= 10 && otherFreshPricesEur min >= 5)
   // Also catches extreme sub-euro / sub-5% glitches on titles with MSRP
   const isCheapestInMarket = minPeer === undefined || price <= minPeer;
   const isDecimalShift = isCheapestInMarket && (
-    (msrp !== undefined && msrp >= 10 && price < msrp * 0.15) ||
+    (msrp !== undefined && msrp >= 10 && price <= msrp * 0.10) ||
     (price < 1.0 && msrp !== undefined && msrp >= 10 && minPeer !== undefined && minPeer >= 5) ||
     (price < 1.0 && msrp !== undefined && price < msrp * 0.05)
   );
