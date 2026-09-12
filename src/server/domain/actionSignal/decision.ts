@@ -69,7 +69,7 @@ export function generateActionSignal(input: ActionSignalInput): ActionSignal {
   const isNearAtl = historicalLowEur !== undefined && (currentPriceEur <= historicalLowEur * 1.05);
 
   // 2. STRONG BUY: Exceptional deal with reliable data
-  if (dealScore >= 85 && confidenceScore >= 50) {
+  if (dealScore >= 80 && confidenceScore >= 50) {
     const reason = isNearAtl
       ? `Exceptional buying opportunity: price matches or approaches all-time low (€${historicalLowEur?.toFixed(2)}).`
       : `Outstanding deal: price is significantly below the typical sale median of €${typicalSaleMedianEur?.toFixed(2)}.`;

@@ -147,7 +147,9 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
 
   // Verdict / tier mapping: 0-39 WAIT, 40-59 FAIR, 60-79 GOOD, 80-100 BUY
   let verdict: DealVerdict;
-  if (finalScore >= 80) {
+  if (anchor !== undefined && anchor > 0 && price > anchor + 0.005) {
+    verdict = 'OVERPRICED';
+  } else if (finalScore >= 80) {
     verdict = 'INSTANT_BUY';
   } else if (finalScore >= 60) {
     verdict = 'GREAT_DEAL';

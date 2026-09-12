@@ -312,7 +312,7 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     } else if (game.bestIsProvisional) {
       embedColor = 0xF1C40F; // Gold/Yellow
       headline = '⚡ **Provisional Deal Alert (Limited History)**';
-    } else if (dealScore >= 85) {
+    } else if (dealScore >= 80) {
       embedColor = 0xFF4500; // Flame Orange
       headline = '🔥 **Exceptional Deal Detected!**';
     } else if (dealScore >= 70) {
