@@ -22,12 +22,13 @@ export const DATA_SUFFICIENCY_MIN_SAMPLES = 3;
 export const NO_HISTORY_FALLBACK_CAP = NO_HISTORY_CAP;
 export const PROVISIONAL_SCORE_CAP = PROVISIONAL_CAP;
 export const PROVISIONAL_DEEP_DISCOUNT_CAP = PROVISIONAL_DEEP_CAP;
+/** @deprecated Preserved for backward test compatibility */
 export const RECORD_BONUS_MAX = 35;
-export const RECORD_BONUS_AT_ATL = 20;
-export const ATL_FULL_DEPTH_RATIO = 0.35;
-export const UNDERCUT_FULL_DEPTH_RATIO = 0.20;
+/** @deprecated Preserved for backward test compatibility */
 export const LOGISTIC_STEEPNESS = 1.2;
+/** @deprecated Preserved for backward test compatibility */
 export const BASE_SCORE_CEILING = 65;
-export const IQR_TO_SIGMA = 1.349;
+/** @deprecated Preserved for backward test compatibility */
 export const MIN_SCALE_PCT_OF_MEDIAN = 0.08;
+/** @deprecated Preserved for backward test compatibility */
 export const ABSOLUTE_MIN_SCALE_EUR = 0.30;

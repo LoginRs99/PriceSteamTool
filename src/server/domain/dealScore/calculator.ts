@@ -202,29 +202,3 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     }
   };
 }
-
-/**
- * Folded calculateBaseScore function for backward compatibility
- */
-export function calculateBaseScore(
-  priceEur: number,
-  medianPriceEur: number | null | undefined,
-  q1PriceEur?: number,
-  q3PriceEur?: number
-): { baseScore: number; zScore: number; effectiveSigma: number } {
-  if (medianPriceEur === null || medianPriceEur === undefined || medianPriceEur <= 0) {
-    return { baseScore: 0, zScore: 0, effectiveSigma: 0.30 };
-  }
-  const iqr = (q1PriceEur !== undefined && q3PriceEur !== undefined)
-    ? Math.max(0, q3PriceEur - q1PriceEur)
-    : 0;
-  const effectiveSigma = Math.max(iqr / 1.349, medianPriceEur * 0.08, 0.30);
-  const z = (medianPriceEur - priceEur) / effectiveSigma;
-  const zScore = Number(z.toFixed(3));
-  const baseScore = 65 / (1 + Math.exp(-1.2 * z));
-  return {
-    baseScore: Number(baseScore.toFixed(2)),
-    zScore,
-    effectiveSigma: Number(effectiveSigma.toFixed(3))
-  };
-}

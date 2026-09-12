@@ -686,11 +686,6 @@ export const offerRepo = {
       SELECT source_code FROM source_observations WHERE offer_id = ?
     `).all(id) as any[];
 
-    let riskFlags: any[] = [];
-    if (r.risk_flags) {
-      try { riskFlags = JSON.parse(r.risk_flags); } catch {}
-    }
-
     const isOfficial = Boolean(r.is_official);
     const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
       ? Boolean(r.atl_is_confirmed)
@@ -826,11 +821,6 @@ export const offerRepo = {
 
     return rows.map(r => {
       const sources = sourcesByOffer.get(r.id) || [];
-
-      let riskFlags: any[] = [];
-      if (r.risk_flags) {
-        try { riskFlags = JSON.parse(r.risk_flags); } catch {}
-      }
 
       const isOfficial = Boolean(r.is_official);
       const isConfirmedAtl = r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined
