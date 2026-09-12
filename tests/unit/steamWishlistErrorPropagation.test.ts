@@ -13,6 +13,7 @@ describe('Steam Wishlist Error Propagation & Retry-After', () => {
   beforeEach(() => {
     circuitBreakers.resetAll();
     config.delays.steam = 0;
+    (steamAdapter as any).queue.reset();
     (steamAdapter as any).queue.minIntervalMs = 0;
     (steamAdapter as any).queue.jitterMs = 0;
     vi.restoreAllMocks();
@@ -21,6 +22,7 @@ describe('Steam Wishlist Error Propagation & Retry-After', () => {
   afterEach(() => {
     vi.useRealTimers();
     circuitBreakers.resetAll();
+    (steamAdapter as any).queue.reset();
     global.fetch = origFetch;
     config.delays.steam = origSteamDelay;
     (steamAdapter as any).queue.minIntervalMs = origInterval;

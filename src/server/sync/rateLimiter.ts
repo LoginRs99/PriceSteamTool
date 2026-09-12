@@ -46,6 +46,14 @@ export class PacedSourceQueue {
       const task = this.queue.shift();
       task?.reject(new Error(`Queue for ${this.sourceCode} was cleared/cancelled`));
     }
+    this.isProcessing = false;
+    this.lastExecutionTime = 0;
+  }
+
+  public reset(): void {
+    this.clear();
+    this.isProcessing = false;
+    this.lastExecutionTime = 0;
   }
 
   private async processQueue(): Promise<void> {
@@ -65,7 +73,9 @@ export class PacedSourceQueue {
 
       const now = Date.now();
       const jitter = calculateExponentialJitter(this.jitterMs);
-      const elapsed = now - this.lastExecutionTime;
+      const elapsed = (this.lastExecutionTime > 0 && now >= this.lastExecutionTime)
+        ? (now - this.lastExecutionTime)
+        : Infinity;
       const waitTime = Math.max(0, (this.minIntervalMs + jitter) - elapsed);
 
       if (waitTime > 0) {

@@ -144,8 +144,13 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       try {
         while (page < maxPages) {
           if (page > 0) {
-            // Polite pacing between Steam Storefront wishlist pages (1.5s)
-            await new Promise(r => setTimeout(r, Math.max(1500, config.delays.steam)));
+            // Polite pacing between Steam Storefront wishlist pages (1.5s in production, 0 in test if configured)
+            const delayMs = (process.env.NODE_ENV === 'test' || config.delays.steam === 0)
+              ? config.delays.steam
+              : Math.max(1500, config.delays.steam);
+            if (delayMs > 0) {
+              await new Promise(r => setTimeout(r, delayMs));
+            }
           }
           const url = `https://store.steampowered.com/wishlist/${targetPath}/wishlistdata/?p=${page}`;
           let data: any = null;
