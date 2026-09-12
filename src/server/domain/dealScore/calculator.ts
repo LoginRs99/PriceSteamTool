@@ -61,13 +61,12 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   const price = Math.max(0, input.priceEur);
   const anchor = input.basePriceEur ?? input.originalPriceEur;
   const atl = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
-  const med = input.typicalSaleMedianEur ?? (input as any).recentMedianEur;
-  const maxHistoricalPrice = (input as any).maxHistoricalPrice;
+  const med = input.typicalSaleMedianEur;
 
   // Pillar 1: S_atl (ATL Proximity: 0 - 40)
   let S_atl = 0;
   if (atl !== undefined && atl !== null) {
-    const bandTop = anchor ?? maxHistoricalPrice ?? (atl * 2);
+    const bandTop = anchor ?? (atl * 2);
     const band = Math.max(bandTop - atl, 0.01);
     S_atl = W_ATL * (1 - clamp((price - atl) / band, 0, 1));
     if (input.isConfirmedAtl === false || input.isSingleSourceLow === true) {
@@ -106,7 +105,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   let S_mkt = SINGLE_OFFER_MARKET_SCORE;
   if (offersCount > 1) {
     const mktMin = input.minOfferEur ?? input.marketMinPriceEur ?? price;
-    const mktMax = input.maxOfferEur ?? (input as any).marketMaxPriceEur ?? price;
+    const mktMax = input.maxOfferEur ?? price;
     if (mktMax === mktMin) {
       S_mkt = SINGLE_OFFER_MARKET_SCORE;
     } else {

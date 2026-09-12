@@ -334,6 +334,8 @@ export const gameRepo = {
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
+        (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
+        (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared,
         (SELECT sa.asset_url FROM steam_assets sa WHERE sa.steam_app_id = g.steam_app_id AND sa.asset_type = 'icon') as icon_url
       FROM games g
@@ -507,6 +509,8 @@ export const gameRepo = {
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
+        (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
+        (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
@@ -557,6 +561,8 @@ export const gameRepo = {
       (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
+      (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
+      (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
     `;
 
@@ -1017,7 +1023,10 @@ function mapGameRow(r: any): Game {
       lastObservedAt: r.best_last_observed_at || r.last_observed_at || undefined,
       sourceCount: r.best_offer_source_count !== null && r.best_offer_source_count !== undefined
         ? Number(r.best_offer_source_count)
-        : undefined
+        : undefined,
+      offersCount: Number(r.offers_count || 0) || undefined,
+      minOfferEur: r.market_min_eur != null ? Number(r.market_min_eur) : undefined,
+      maxOfferEur: r.market_max_eur != null ? Number(r.market_max_eur) : undefined
     });
 
     bestDealScore = dealResult.score;

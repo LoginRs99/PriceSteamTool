@@ -31,6 +31,12 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
 
   const isSingleSourceLow = Boolean(periodLows.low1y.isSingleSourceLow ?? periodLows.low90d.isSingleSourceLow ?? periodLows.low30d.isSingleSourceLow ?? periodLows.low7d.isSingleSourceLow);
 
+  const compatiblePrices = offers
+    .filter(o => o.isValid && !o.isLikelyPricingError && ['GLOBAL', 'EU', 'HU'].includes(o.regionType) && o.priceEur > 0)
+    .map(o => o.priceEur);
+  const minOfferEur = compatiblePrices.length > 0 ? Math.min(...compatiblePrices) : undefined;
+  const maxOfferEur = compatiblePrices.length > 0 ? Math.max(...compatiblePrices) : undefined;
+
   const freshDealCalc = calculateDealScore({
     priceEur: currentPrice,
     basePriceEur: game.basePriceEur,
@@ -47,7 +53,10 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     firstObservedAt: (game as any).priceTrackingFirstObservedAt || (game as any).price_tracking_first_observed_at || (history.length > 0 ? history[history.length - 1].recordedAt : undefined),
     lastObservedAt: bestOffer?.lastObservedAt || (history.length > 0 ? history[0].recordedAt : undefined),
     sourceCount: bestOffer?.sources?.length ?? (game as any).bestOfferSourceCount ?? (game as any).best_offer_source_count ?? 1,
-    isPricingError: Boolean(bestOffer?.isLikelyPricingError)
+    isPricingError: Boolean(bestOffer?.isLikelyPricingError),
+    offersCount: marketComparison.totalCompatibleOffers || offers.length,
+    minOfferEur,
+    maxOfferEur
   });
 
   const actionSignal = generateActionSignal({

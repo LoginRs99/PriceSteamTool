@@ -679,6 +679,16 @@ export const offerRepo = {
       ? Boolean(r.atl_is_single_source_low)
       : (r.historical_low_source ? isKeyshopSourceStr(r.historical_low_source) : false);
 
+    const agg = prepareStmt(`
+      SELECT MIN(price_eur) AS minp, MAX(price_eur) AS maxp, COUNT(*) AS cnt 
+      FROM offers 
+      WHERE game_id = ? AND is_valid = 1 AND is_likely_pricing_error = 0
+    `).get(r.game_id) as { minp: number | null; maxp: number | null; cnt: number } | undefined;
+
+    const minOfferEur = agg?.minp != null ? Number(agg.minp) : undefined;
+    const maxOfferEur = agg?.maxp != null ? Number(agg.maxp) : undefined;
+    const offersCount = agg?.cnt != null ? Number(agg.cnt) : undefined;
+
     const dealCalc = calculateDealScore({
       priceEur: Number(r.price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -695,7 +705,10 @@ export const offerRepo = {
       firstObservedAt: r.price_tracking_first_observed_at || undefined,
       lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
       sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
-      isPricingError: Boolean(r.is_likely_pricing_error)
+      isPricingError: Boolean(r.is_likely_pricing_error),
+      offersCount,
+      minOfferEur,
+      maxOfferEur
     });
 
     const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
@@ -781,6 +794,13 @@ export const offerRepo = {
       }
     }
 
+    const validPrices = rows
+      .filter(r => Boolean(r.is_valid) && !r.is_likely_pricing_error && Number(r.price_eur) > 0)
+      .map(r => Number(r.price_eur));
+    const minOfferEur = validPrices.length > 0 ? Math.min(...validPrices) : undefined;
+    const maxOfferEur = validPrices.length > 0 ? Math.max(...validPrices) : undefined;
+    const offersCount = rows.length;
+
     return rows.map(r => {
       const sources = sourcesByOffer.get(r.id) || [];
 
@@ -803,7 +823,7 @@ export const offerRepo = {
         typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
         typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
         typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
-          low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
+        low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
         low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
         allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
         historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
@@ -813,7 +833,10 @@ export const offerRepo = {
         firstObservedAt: r.price_tracking_first_observed_at || undefined,
         lastObservedAt: r.last_observed_at || r.fetched_at || undefined,
         sourceCount: sources.length > 0 ? sources.length : (r.best_offer_source_count ? Number(r.best_offer_source_count) : 1),
-        isPricingError: Boolean(r.is_likely_pricing_error)
+        isPricingError: Boolean(r.is_likely_pricing_error),
+        offersCount,
+        minOfferEur,
+        maxOfferEur
       });
 
       const obsTime = new Date(r.last_observed_at || r.fetched_at).getTime();
