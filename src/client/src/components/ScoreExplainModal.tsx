@@ -231,9 +231,6 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
             <Info size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
             Offers flagged as likely pricing errors are excluded from best-deal selection and scored 0 until corroborated or dismissed; data confidence is reported separately and never inflates the score.
-            <span style={{ display: 'none' }}>
-              Offers flagged as pricing anomalies receive a safety penalty; data confidence is reported separately and never inflates the score.
-            </span>
           </div>
         </div>
       </div>

@@ -115,7 +115,7 @@ describe('Task 16 UI Integrity', () => {
     it('renders updated provisional copy and disclaimer', () => {
       render(<ScoreExplainModal game={provisionalGame} onClose={() => {}} />);
       expect(screen.getByText(/capped at 65 — or 80 for deep discounts of 60%\+ off MSRP — until at least 3 historical datapoints exist/)).toBeInTheDocument();
-      expect(screen.getByText(/Offers flagged as pricing anomalies receive a safety penalty; data confidence is reported separately and never inflates the score/)).toBeInTheDocument();
+      expect(screen.getByText(/Offers flagged as likely pricing errors are excluded from best-deal selection and scored 0 until corroborated or dismissed; data confidence is reported separately and never inflates the score/)).toBeInTheDocument();
     });
   });
 });
