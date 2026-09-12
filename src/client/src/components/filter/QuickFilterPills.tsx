@@ -29,7 +29,7 @@ export const getActivePill = (filters: WishlistFilterOptions): string => {
   if (filters.underPrice === 20 || filters.maxPrice === 20) return 'under_20';
   if (filters.merchantType === 'official') return 'official';
   if (filters.merchantType === 'keyshop') return 'keyshop';
-  if ((filters.minDealScore ?? 0) >= 85) return 'exceptional';
+  if ((filters.minDealScore ?? 0) >= 80) return 'exceptional';
   if ((filters.minDealScore ?? 0) >= 70) return 'best_deals';
   if (filters.saleOnly) return 'sale';
   return 'all';
@@ -82,7 +82,7 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
         className={`pill-btn pill-gold ${currentPill === 'exceptional' ? 'active' : ''}`}
         onClick={() => onPillSelect('exceptional')}
       >
-        🔥 Exceptional (85+)
+        🔥 Exceptional (80+)
       </button>
 
       <button

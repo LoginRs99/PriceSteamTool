@@ -149,7 +149,7 @@ export async function sendTestNotification(webhookUrlOverride?: string): Promise
         fields: [
           {
             name: '🎯 Min Deal Score Alert Threshold',
-            value: `**${settings.minDealScore} / 100** (${settings.minDealScore >= 85 ? 'Exceptional only' : settings.minDealScore >= 70 ? 'Great & Exceptional' : 'Fair+'})`,
+            value: `**${settings.minDealScore} / 100** (${settings.minDealScore >= 80 ? 'Exceptional only' : settings.minDealScore >= 70 ? 'Great & Exceptional' : 'Fair+'})`,
             inline: true
           },
           {

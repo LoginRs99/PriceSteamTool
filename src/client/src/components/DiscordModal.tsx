@@ -208,8 +208,8 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
                 <Flame size={15} className="text-warning inline-icon" />
                 Minimum Deal Score: <strong className="text-accent">{minDealScore} / 100</strong>
               </label>
-              <span className={`deal-tier-pill tier-${minDealScore >= 85 ? 'exceptional' : minDealScore >= 70 ? 'great' : 'fair'}`}>
-                {minDealScore >= 85 ? 'Exceptional Only (85+)' : minDealScore >= 70 ? 'Great & Exceptional (70+)' : 'Fair+'}
+              <span className={`deal-tier-pill tier-${minDealScore >= 80 ? 'exceptional' : minDealScore >= 70 ? 'great' : 'fair'}`}>
+                {minDealScore >= 80 ? 'Exceptional Only (80+)' : minDealScore >= 70 ? 'Great & Exceptional (70+)' : 'Fair+'}
               </span>
             </div>
             <input
@@ -225,7 +225,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
             <div className="range-ticks">
               <span onClick={() => setMinDealScore(50)} className={minDealScore === 50 ? 'active' : ''}>50 (Fair)</span>
               <span onClick={() => setMinDealScore(70)} className={minDealScore === 70 ? 'active' : ''}>70 (Great)</span>
-              <span onClick={() => setMinDealScore(85)} className={minDealScore === 85 ? 'active' : ''}>85 (Exceptional)</span>
+              <span onClick={() => setMinDealScore(80)} className={minDealScore === 80 ? 'active' : ''}>80 (Exceptional)</span>
             </div>
           </div>
 

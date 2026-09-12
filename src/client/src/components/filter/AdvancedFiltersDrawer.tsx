@@ -31,7 +31,7 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
           <span className="ticker-num" style={{
             fontSize: 12,
             fontWeight: 700,
-            color: (filters.minDealScore || 0) >= 85 ? 'var(--accent-purple)' : (filters.minDealScore || 0) >= 70 ? 'var(--down)' : 'var(--ink)',
+            color: (filters.minDealScore || 0) >= 80 ? 'var(--accent-purple)' : (filters.minDealScore || 0) >= 70 ? 'var(--down)' : 'var(--ink)',
             background: 'var(--bg-void)',
             padding: '2px 8px',
             borderRadius: 'var(--radius-sm)',

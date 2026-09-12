@@ -142,7 +142,7 @@ export function useFilterState(
       case 'exceptional':
         onFilterChange({
           ...QUICK_PILL_BASE,
-          minDealScore: 85,
+          minDealScore: 80,
           sort: 'deal_score_desc'
         });
         break;
