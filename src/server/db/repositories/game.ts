@@ -46,13 +46,6 @@ export function buildWishlistFilterClause(
   const params: any[] = [profileId];
   const whereClauses = [`w.profile_id = ?`, `w.is_active = 1`];
 
-  // Free vs Paid filtering
-  if (options.isFreeOnly === true) {
-    whereClauses.push(`(g.is_free = 1 OR g.base_price_eur = 0)`);
-  } else if (!options.includeFreeGames) {
-    whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL)`);
-  }
-
   if (options.search && options.search.trim() !== '') {
     whereClauses.push(`g.title LIKE ?`);
     params.push(`%${options.search.trim()}%`);
@@ -110,6 +103,7 @@ export function buildWishlistFilterClause(
   if (options.hideUnreleased) {
     whereClauses.push(`(
       (bo.price_eur IS NOT NULL AND bo.price_eur > 0) OR
+      (g.base_price_eur IS NOT NULL AND g.base_price_eur > 0) OR
       (
         g.release_date IS NOT NULL 
         AND LOWER(g.release_date) NOT LIKE '%coming soon%'
@@ -139,7 +133,7 @@ export function buildWishlistFilterClause(
 
   // Free games filtering (isFreeOnly vs includeFreeGames)
   if (options.isFreeOnly === true) {
-    whereClauses.push(`(g.is_free = 1 OR bo.price_eur = 0)`);
+    whereClauses.push(`((g.is_free = 1 OR g.base_price_eur = 0) OR bo.price_eur = 0)`);
   } else if (!options.includeFreeGames) {
     whereClauses.push(`(g.is_free = 0 OR g.is_free IS NULL) AND (bo.price_eur IS NULL OR bo.price_eur > 0)`);
   }
