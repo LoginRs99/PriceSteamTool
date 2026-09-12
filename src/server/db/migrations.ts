@@ -440,8 +440,8 @@ export const MIGRATIONS: Migration[] = [
       try {
         db.exec(`
           UPDATE offers
-          SET is_likely_pricing_error = COALESCE(is_likely_pricing_error, is_anomaly, 0),
-              pricing_error_confidence = COALESCE(pricing_error_confidence, anomaly_score, 0.0),
+          SET is_likely_pricing_error = CASE WHEN is_anomaly = 1 THEN 1 ELSE is_likely_pricing_error END,
+              pricing_error_confidence = CASE WHEN anomaly_score > 0 THEN anomaly_score ELSE pricing_error_confidence END,
               pricing_error_reason = COALESCE(pricing_error_reason, anomaly_reason)
           WHERE is_anomaly = 1 OR anomaly_score > 0
         `);
@@ -588,6 +588,17 @@ export const MIGRATIONS: Migration[] = [
         `);
       } catch (err: any) {
         console.warn('[Migration 024] trg_insert_anomalies notice:', err?.message);
+      }
+
+      // f. Ensure offers with active pricing errors have is_likely_pricing_error = 1
+      try {
+        db.exec(`
+          UPDATE offers 
+          SET is_likely_pricing_error = 1 
+          WHERE id IN (SELECT offer_id FROM pricing_errors WHERE is_dismissed = 0);
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 024] offers is_likely_pricing_error sync notice:', err?.message);
       }
     }
   }
