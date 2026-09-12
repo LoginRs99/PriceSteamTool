@@ -204,9 +204,14 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
     it('uses 48h TTL and retains valid on-disk cache if remote refresh fails', async () => {
       const adapter = new AllKeyShopSourceAdapter();
       const origSolver = config.allkeyshopSolverUrl;
+      const cachePath = `${config.dataDir}/aks_catalog_v2.json`;
 
       try {
         config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        if (!fs.existsSync(config.dataDir)) {
+          fs.mkdirSync(config.dataDir, { recursive: true });
+        }
+        fs.writeFileSync(cachePath, JSON.stringify({ status: 'success', games: [{ id: 1, name: 'Test Cached Game', slug: 'test-cached-game' }] }));
 
         // Mock solver returning 502
         global.fetch = vi.fn().mockResolvedValue({

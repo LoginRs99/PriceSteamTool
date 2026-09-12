@@ -132,7 +132,9 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
     return this.queue.enqueue(async () => {
       const country = config.preferredCountry || 'US';
       // Default to 2 years back for rich historical depth
-      const since = sinceIso || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000 * 2).toISOString();
+      // ITAD v2 strictly rejects fractional seconds (.sssZ) in ISO timestamps (HTTP 400: "Invalid 'since' format")
+      const rawSince = sinceIso || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000 * 2).toISOString();
+      const since = rawSince.replace(/\.\d+Z$/, 'Z');
       const url = `https://api.isthereanydeal.com/games/history/v2?key=${config.itadApiKey}&id=${resolvedItadId}&country=${country}&since=${encodeURIComponent(since)}`;
 
       try {

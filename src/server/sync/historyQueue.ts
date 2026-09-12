@@ -23,7 +23,7 @@ export class PriceHistoryQueue {
    * Seeds historical price data for a single game from ITAD v2.
    * Deduplicates concurrent calls for the same gameId via an in-flight Promise map.
    */
-  public async seedGame(gameId: string, options?: { timeoutMs?: number }): Promise<boolean> {
+  public async seedGame(gameId: string, options?: { timeoutMs?: number; force?: boolean }): Promise<boolean> {
     if (this.inFlight.has(gameId)) {
       return this.inFlight.get(gameId)!;
     }
@@ -33,8 +33,8 @@ export class PriceHistoryQueue {
         const game = gameRepo.getById(gameId);
         if (!game) return false;
 
-        // Skip if already seeded
-        if (game.priceHistorySeededAt) {
+        // Skip if already seeded unless force is requested
+        if (game.priceHistorySeededAt && !options?.force) {
           return false;
         }
 

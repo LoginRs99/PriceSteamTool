@@ -248,13 +248,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
-      if (process.env.NODE_ENV === 'test') {
-        try {
-          await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
-          game = gameRepo.getById(id) || game;
-        } catch {}
-      } else {
-        priceHistoryQueue.seedGame(id, { timeoutMs: 3000 }).catch(() => {});
+      try {
+        await priceHistoryQueue.seedGame(id, { timeoutMs: 2500 });
+        game = gameRepo.getById(id) || game;
+      } catch {
+        priceHistoryQueue.seedGame(id, { timeoutMs: 10000 }).catch(() => {});
       }
     }
 
@@ -276,12 +274,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
-      if (process.env.NODE_ENV === 'test') {
-        try {
-          await priceHistoryQueue.seedGame(id, { timeoutMs: 3000 });
-        } catch {}
-      } else {
-        priceHistoryQueue.seedGame(id, { timeoutMs: 3000 }).catch(() => {});
+      try {
+        await priceHistoryQueue.seedGame(id, { timeoutMs: 2500 });
+      } catch {
+        priceHistoryQueue.seedGame(id, { timeoutMs: 10000 }).catch(() => {});
       }
     }
 

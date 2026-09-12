@@ -380,4 +380,24 @@ describe('One-time Price History Seeding & Backfill', () => {
       (config as any).itadApiKey = origApiKey;
     }
   });
+
+  it('formats since timestamp without millisecond fractions to avoid ITAD HTTP 400 rejection', async () => {
+    const origApiKey = config.itadApiKey;
+    try {
+      (config as any).itadApiKey = 'test-itad-key';
+      let requestedUrl = '';
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any) => {
+        requestedUrl = String(url);
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } });
+      });
+
+      await itadAdapter.fetchPriceHistory(292030, 'mock-itad-id', '2024-01-01T12:00:00.123Z');
+
+      expect(requestedUrl).toContain('since=2024-01-01T12%3A00%3A00Z');
+      expect(requestedUrl).not.toContain('.123');
+      fetchSpy.mockRestore();
+    } finally {
+      (config as any).itadApiKey = origApiKey;
+    }
+  });
 });
