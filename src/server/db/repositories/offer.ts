@@ -334,7 +334,6 @@ export const offerRepo = {
         sourceAgreementCount: Math.max(1, distinctSourceCount),
         independentMerchantCount,
         isOfficialMerchant: merchantInfo ? Boolean(merchantInfo.is_official) : false,
-        merchantTrustScore: merchantInfo?.trust_score !== undefined && merchantInfo?.trust_score !== null ? Number(merchantInfo.trust_score) : 0.60,
         gameReleaseDate: gameInfo?.release_date || undefined,
         productType: data.productType,
         regionConfidence: data.regionConfidence,

@@ -38,7 +38,6 @@ export interface PriceEvaluationInput {
   sourceAgreementCount?: number;
   independentMerchantCount?: number;
   isOfficialMerchant?: boolean;
-  merchantTrustScore?: number;
   gameReleaseDate?: string;
   productType?: string;
   regionConfidence?: number;
