@@ -817,7 +817,7 @@ export const offerRepo = {
       .map(r => Number(r.price_eur));
     const minOfferEur = validPrices.length > 0 ? Math.min(...validPrices) : undefined;
     const maxOfferEur = validPrices.length > 0 ? Math.max(...validPrices) : undefined;
-    const offersCount = rows.length;
+    const offersCount = rows.filter(r => Boolean(r.is_valid)).length;
 
     return rows.map(r => {
       const sources = sourcesByOffer.get(r.id) || [];
