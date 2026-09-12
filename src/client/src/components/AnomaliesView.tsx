@@ -122,6 +122,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
       cheapestPrice?: number;
       cheapestMerchant?: string;
       topReason?: string;
+      topErrorType?: string;
       items: Anomaly[];
     }>();
 
@@ -139,6 +140,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
           cheapestPrice: a.priceEur,
           cheapestMerchant: a.merchantName,
           topReason: a.reason,
+          topErrorType: a.errorType,
           items: []
         };
         map.set(key, group);
@@ -147,6 +149,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
       if ((a.confidence ?? 0) > group.highestScore) {
         group.highestScore = a.confidence ?? 0;
         group.topReason = a.reason || group.topReason;
+        group.topErrorType = a.errorType || group.topErrorType;
       }
       if (a.priceEur !== undefined && a.priceEur !== null) {
         if (group.cheapestPrice === undefined || a.priceEur < group.cheapestPrice) {
@@ -560,6 +563,23 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                       >
                         Severity: {scorePct}% {isCriticalRisk ? '(High Risk)' : '(Medium Risk)'}
                       </span>
+
+                      {group.topErrorType && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: 'var(--text-secondary, var(--dim))',
+                            borderRadius: 'var(--radius-sm)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}
+                        >
+                          {group.topErrorType}
+                        </span>
+                      )}
                     </div>
 
                     {/* Summary line */}
@@ -668,6 +688,22 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                               <span style={{ fontSize: 11, color: 'var(--dim)' }}>
                                 Risk Score: {itemScorePct}%
                               </span>
+                              {a.errorType && (
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: '1px 5px',
+                                    background: 'rgba(255, 255, 255, 0.08)',
+                                    color: 'var(--text-secondary, var(--dim))',
+                                    borderRadius: 'var(--radius-sm)',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                  }}
+                                >
+                                  {a.errorType}
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--amber, #f59e0b)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                               <AlertTriangle size={12} />

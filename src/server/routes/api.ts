@@ -468,17 +468,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       return str;
     };
 
-    const formatRiskFlags = (flagsJson: string | null): string => {
-      if (!flagsJson) return '';
-      try {
-        const parsed = JSON.parse(flagsJson);
-        if (Array.isArray(parsed)) {
-          return parsed.join(';');
-        }
-        return String(parsed);
-      } catch {
-        return String(flagsJson);
-      }
+    const formatRiskFlags = (flags: string | null): string => {
+      return flags ? String(flags) : '';
     };
 
     const lines: string[] = [
