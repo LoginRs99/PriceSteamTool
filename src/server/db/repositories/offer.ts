@@ -359,6 +359,10 @@ export const offerRepo = {
         }
       }
 
+      const isDelisted = Boolean((gameInfo as any)?.is_delisted) ||
+        (!gameInfo?.base_price_eur && Boolean(gameInfo?.release_date) && new Date(gameInfo.release_date).getTime() < Date.now());
+      const isUnreleased = Boolean(gameInfo?.release_date && new Date(gameInfo.release_date).getTime() > Date.now());
+
       const evalInput: PriceEvaluationInput = {
         currentPriceEur: active.priceEur,
         originalPriceEur: active.originalPriceEur,
@@ -374,7 +378,11 @@ export const offerRepo = {
         productType: data.productType,
         regionConfidence: data.regionConfidence,
         isStaleObservation,
-        suspectedEditionInversion
+        suspectedEditionInversion,
+        isDelisted,
+        isUnreleased,
+        atlIsConfirmed: gameInfo?.atl_is_confirmed !== null && gameInfo?.atl_is_confirmed !== undefined ? Boolean(gameInfo.atl_is_confirmed) : undefined,
+        typicalSaleMedianEur: gameInfo?.typical_sale_median_eur ? Number(gameInfo.typical_sale_median_eur) : undefined
       };
 
       const pricingEval = evaluatePriceMovement(evalInput);
@@ -533,17 +541,30 @@ export const offerRepo = {
         const basePrice = gameInfo?.base_price_eur ? Number(gameInfo.base_price_eur) : undefined;
         const typicalSale = calculateTypicalSalePrice(basePrice, fullHistory);
 
+        const isNewLowEvent = hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW');
+        const effectiveHistLow = isNewLowEvent
+          ? active.priceEur
+          : (gameInfo.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined);
+        const effectiveHistDate = isNewLowEvent ? now : (gameInfo.historical_low_date || undefined);
+        const effectiveHistSource = isNewLowEvent ? active.sourceCode : (gameInfo.historical_low_source || undefined);
+        const effectiveAtlConfirmed = isNewLowEvent
+          ? isOfficialStoreSource(active.sourceCode)
+          : (gameInfo.atl_is_confirmed !== null && gameInfo.atl_is_confirmed !== undefined ? Boolean(gameInfo.atl_is_confirmed) : undefined);
+        const effectiveAtlSingleSource = isNewLowEvent
+          ? isKeyshopSourceStr(active.sourceCode)
+          : (gameInfo.atl_is_single_source_low !== null && gameInfo.atl_is_single_source_low !== undefined ? Boolean(gameInfo.atl_is_single_source_low) : undefined);
+
         const mappedGame: Game = {
           id: gameInfo.id,
           steamAppId: Number(gameInfo.steam_app_id),
           title: gameInfo.title,
           slug: gameInfo.slug,
           basePriceEur: basePrice,
-          historicalLowEur: gameInfo.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
-          historicalLowDate: gameInfo.historical_low_date || undefined,
-          historicalLowSource: gameInfo.historical_low_source || undefined,
-          atlIsConfirmed: gameInfo.atl_is_confirmed !== null && gameInfo.atl_is_confirmed !== undefined ? Boolean(gameInfo.atl_is_confirmed) : undefined,
-          atlIsSingleSourceLow: gameInfo.atl_is_single_source_low !== null && gameInfo.atl_is_single_source_low !== undefined ? Boolean(gameInfo.atl_is_single_source_low) : undefined,
+          historicalLowEur: effectiveHistLow,
+          historicalLowDate: effectiveHistDate,
+          historicalLowSource: effectiveHistSource,
+          atlIsConfirmed: effectiveAtlConfirmed,
+          atlIsSingleSourceLow: effectiveAtlSingleSource,
           isDlc: Boolean(gameInfo.is_dlc),
           isFree: Boolean(gameInfo.is_free),
           hasPricingError: false,
@@ -622,7 +643,7 @@ export const offerRepo = {
           data.gameId
         );
 
-        const dealCalc = calculateDealScore({
+        const dealCalcInput = {
           priceEur: active.priceEur,
           basePriceEur: basePrice,
           typicalSaleMedianEur: typicalSale.medianPriceEur,
@@ -638,10 +659,10 @@ export const offerRepo = {
           // Pass the same context fields the read paths use so write-time and read-time scores match
           sampleCount: typicalSale.sampleCount,
           sourceCount: Math.max(1, distinctSourceCount),
-
           lastObservedAt: active.observedAt || now,
           firstObservedAt
-        });
+        };
+        const dealCalc = calculateDealScore(dealCalcInput);
 
         const fxRate = active.rawPrice && active.rawPrice > 0 
           ? Math.round((active.priceEur / active.rawPrice) * 10000) / 10000 
@@ -719,7 +740,7 @@ export const offerRepo = {
     const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
     const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
 
-    const dealCalc = calculateDealScore({
+    const readDealCalcInput = {
       priceEur: Number(r.price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
       typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : null,
@@ -740,7 +761,8 @@ export const offerRepo = {
       minOfferEur,
       maxOfferEur,
       daysSinceLastSample
-    });
+    };
+    const dealCalc = calculateDealScore(readDealCalcInput);
 
     return {
       id: r.id,
@@ -845,6 +867,10 @@ export const offerRepo = {
       const isFresh = !isNaN(obsTime) ? (Date.now() - obsTime) <= FRESHNESS_WINDOW_MS : false;
       const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
 
+      const isDelisted = Boolean((r as any).is_delisted) ||
+        (!r.base_price_eur && Boolean(r.release_date) && new Date(r.release_date).getTime() < Date.now());
+      const isUnreleased = Boolean(r.release_date && new Date(r.release_date).getTime() > Date.now());
+
       const dealCalc = calculateDealScore({
         priceEur: Number(r.price_eur),
         basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -865,7 +891,9 @@ export const offerRepo = {
         offersCount,
         minOfferEur,
         maxOfferEur,
-        daysSinceLastSample
+        daysSinceLastSample,
+        isDelisted,
+        isUnreleased
       });
 
       return {

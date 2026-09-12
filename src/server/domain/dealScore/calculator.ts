@@ -1,6 +1,9 @@
 import type { DealScoreInput, DealScoreResult, DealVerdict } from './types.js';
 import {
   W_ATL,
+  ATL_MATCH_BASE,
+  ATL_BEAT_BONUS_MAX,
+  ATL_BEAT_FULL_UNDERCUT_RATIO,
   W_DISCOUNT,
   W_HISTORY,
   W_MARKET,
@@ -60,31 +63,48 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
 
   const price = Math.max(0, input.priceEur);
   const anchor = input.basePriceEur ?? input.originalPriceEur;
-  const atl = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
+  const atlRaw = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
   const med = input.typicalSaleMedianEur;
 
+  // Reconcile ATL with typical sale median: ATL cannot exceed the typical sale median
+  const atl = (atlRaw !== undefined && atlRaw !== null && med !== undefined && med !== null)
+    ? Math.min(atlRaw, med)
+    : (atlRaw ?? undefined);
+
   // Pillar 1: S_atl (ATL Proximity: 0 - 40)
+  // At confirmed ATL (price == atl), awards ATL_MATCH_BASE (36 points).
+  // Undercutting confirmed ATL awards up to ATL_BEAT_BONUS_MAX (+4 points, maxing at 20% undercut).
   let S_atl = 0;
   if (atl !== undefined && atl !== null) {
     const bandTop = anchor ?? (atl * 2);
-    const band = Math.max(bandTop - atl, 0.01);
-    S_atl = W_ATL * (1 - clamp((price - atl) / band, 0, 1));
+    // Prevent degenerate band when anchor ≈ ATL or when anchor is narrow
+    const band = Math.max(bandTop - atl, atl * 0.25, 0.01);
+    const baseAtlScore = ATL_MATCH_BASE * (1 - clamp((price - atl) / band, 0, 1));
+    const beatBonus = (atl > 0 && price < atl)
+      ? ATL_BEAT_BONUS_MAX * clamp((atl - price) / (atl * ATL_BEAT_FULL_UNDERCUT_RATIO), 0, 1)
+      : 0;
+    S_atl = baseAtlScore + beatBonus;
     if (input.isConfirmedAtl === false || input.isSingleSourceLow === true) {
       S_atl *= 0.5;
     }
   }
 
   // Pillar 2: S_disc (Discount Depth: 0 - 30)
+  // Diminishing-returns curve on discount fraction:
+  // S_disc = 30 * ((anchor - price) / anchor)^0.65
+  // Never prematurely saturates at 75%, differentiating €1 vs €8 while preserving
+  // healthy scores for standard 50%-80% sales, with safe division-by-zero guards.
   let discountPct = 0;
   let S_disc = 0;
-  if (anchor !== undefined && anchor !== null && anchor > 0) {
+  if (!input.isDelisted && !input.isUnreleased && anchor !== undefined && anchor !== null && anchor > 0 && price >= 0) {
     if (input.basePriceEur !== undefined && input.originalPriceEur !== undefined && input.originalPriceEur > FAKE_BASELINE_RATIO * input.basePriceEur) {
       // Fake baseline: ignore claimed original
       discountPct = 0;
       S_disc = 0;
     } else {
-      discountPct = clamp((anchor - price) / anchor, 0, 1) * 100;
-      S_disc = W_DISCOUNT * clamp(discountPct / MAX_REALISTIC_DISCOUNT_PCT, 0, 1);
+      const discountFrac = clamp((anchor - price) / anchor, 0, 1);
+      discountPct = discountFrac * 100;
+      S_disc = W_DISCOUNT * Math.pow(discountFrac, 0.65);
     }
   }
 
@@ -95,8 +115,13 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
       S_hist = 0;
     } else {
       const atlRef = atl ?? 0;
-      const band = Math.max(med - atlRef, 0.01);
-      S_hist = W_HISTORY * (1 - clamp((price - atlRef) / band, 0, 1));
+      const spread = med - atlRef;
+      if (spread < 0.01) {
+        // Price is at or below the only known historic sale level
+        S_hist = W_HISTORY;
+      } else {
+        S_hist = W_HISTORY * (1 - clamp((price - atlRef) / spread, 0, 1));
+      }
     }
   }
 
@@ -106,10 +131,12 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   if (offersCount > 1) {
     const mktMin = input.minOfferEur ?? input.marketMinPriceEur ?? price;
     const mktMax = input.maxOfferEur ?? price;
-    if (mktMax === mktMin) {
-      S_mkt = SINGLE_OFFER_MARKET_SCORE;
+    const spread = mktMax - mktMin;
+    if (spread <= 0.02) {
+      // All offers are within FX rounding tolerance (everyone matches market low)
+      S_mkt = W_MARKET;
     } else {
-      S_mkt = W_MARKET * (1 - clamp((price - mktMin) / (mktMax - mktMin), 0, 1));
+      S_mkt = W_MARKET * (1 - clamp((price - mktMin) / spread, 0, 1));
     }
   }
 
@@ -143,11 +170,22 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     score = Math.min(score, STALE_CAP);
   }
 
-  const finalScore = Math.round(clamp(score, 0, 100));
+  // 3. Score 100 reservation: cap at 99 unless price beats confirmed ATL by >= 5%
+  const beatsConfirmedAtlBy5Pct =
+    input.isConfirmedAtl !== false &&
+    input.isSingleSourceLow !== true &&
+    atl !== undefined &&
+    atl > 0 &&
+    price <= (atl * 0.95 + 0.0001);
+
+  let finalScore = Math.round(clamp(score, 0, 100));
+  if (finalScore >= 100 && !beatsConfirmedAtlBy5Pct) {
+    finalScore = 99;
+  }
 
   // Verdict / tier mapping: 0-39 WAIT, 40-59 FAIR, 60-79 GOOD, 80-100 BUY
   let verdict: DealVerdict;
-  if (anchor !== undefined && anchor > 0 && price > anchor + 0.005) {
+  if (!input.isDelisted && !input.isUnreleased && anchor !== undefined && anchor > 0 && price > anchor + 0.005) {
     verdict = 'OVERPRICED';
   } else if (finalScore >= 80) {
     verdict = 'INSTANT_BUY';

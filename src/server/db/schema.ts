@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS games (
   release_date TEXT,
   is_dlc INTEGER NOT NULL DEFAULT 0,
   is_free INTEGER NOT NULL DEFAULT 0,
+  is_delisted INTEGER NOT NULL DEFAULT 0,
   base_price_eur REAL,
   historical_low_eur REAL,
   historical_low_date TEXT,

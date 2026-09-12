@@ -108,6 +108,14 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
                 const priceEur = convertToEur(salePriceUsd, 'USD');
                 const originalPriceEur = retailPriceUsd > 0 ? convertToEur(retailPriceUsd, 'USD') : undefined;
 
+                const rawMetaScore = parseInt(d.metacriticScore, 10);
+                const metacriticScore = (!isNaN(rawMetaScore) && rawMetaScore > 0) ? rawMetaScore : undefined;
+                let metacriticUrl: string | undefined = undefined;
+                if (d.metacriticLink && typeof d.metacriticLink === 'string' && d.metacriticLink.trim()) {
+                  const link = d.metacriticLink.trim();
+                  metacriticUrl = link.startsWith('http') ? link : `https://www.metacritic.com${link.startsWith('/') ? '' : '/'}${link}`;
+                }
+
                 const offer: NormalizedSourceOffer = {
                   merchantCode,
                   merchantName: storeName,
@@ -120,7 +128,9 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
                   rawCurrency: 'USD',
                   rawOriginalPrice: retailPriceUsd > 0 ? retailPriceUsd : undefined,
                   dealUrl: `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(d.dealID || '')}`,
-                  rawPayload: d
+                  rawPayload: d,
+                  metacriticScore,
+                  metacriticUrl
                 };
 
                 const existing = resultMap.get(appId) || [];
@@ -180,6 +190,14 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
             const priceEur = convertToEur(salePriceUsd, 'USD');
             const originalPriceEur = retailPriceUsd > 0 ? convertToEur(retailPriceUsd, 'USD') : undefined;
 
+            const rawMetaScore = parseInt(d.metacriticScore, 10);
+            const metacriticScore = (!isNaN(rawMetaScore) && rawMetaScore > 0) ? rawMetaScore : undefined;
+            let metacriticUrl: string | undefined = undefined;
+            if (d.metacriticLink && typeof d.metacriticLink === 'string' && d.metacriticLink.trim()) {
+              const link = d.metacriticLink.trim();
+              metacriticUrl = link.startsWith('http') ? link : `https://www.metacritic.com${link.startsWith('/') ? '' : '/'}${link}`;
+            }
+
             const isNonSteamStore = ['gog', 'origin', 'uplay', 'epic games', 'blizzard', 'battlenet', 'microsoft store', 'xbox'].some(s => storeName.toLowerCase().includes(s));
             const productTypeRaw = isNonSteamStore ? `${storeName} (Non-Steam)` : (d.storeID === '1' ? 'Direct Purchase' : 'Steam Key');
 
@@ -195,8 +213,21 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
               rawCurrency: 'USD',
               rawOriginalPrice: retailPriceUsd > 0 ? retailPriceUsd : undefined,
               dealUrl: `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(d.dealID || '')}`,
-              rawPayload: d
+              rawPayload: d,
+              metacriticScore,
+              metacriticUrl
             });
+          }
+
+          const metaOffer = offers.find(o => o.metacriticScore !== undefined && o.metacriticScore > 0);
+          if (metaOffer?.metacriticScore) {
+            const game = gameRepo.getBySteamAppId(steamAppId);
+            if (game && (!game.metacriticScore || (!game.metacriticUrl && metaOffer.metacriticUrl))) {
+              gameRepo.updateMetadata(steamAppId, {
+                metacriticScore: game.metacriticScore ?? metaOffer.metacriticScore,
+                metacriticUrl: game.metacriticUrl ?? metaOffer.metacriticUrl
+              });
+            }
           }
         }
 

@@ -174,5 +174,50 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
       expect(normalizeGameTitle(undefined as any)).toBe('');
     });
   });
+
+  describe('Mojibake Encoding Repair (CP1250 / CP1252 to UTF-8)', () => {
+    it('repairs Windows-1250 and Windows-1252 corrupted strings', async () => {
+      const { repairMojibake, normalizeGameTitle } = await import('../../src/server/domain/normalizer.js');
+
+      // 1. ARMORED CORE VI with CP1250 mojibake for trademark symbol ™
+      expect(repairMojibake('ARMORED COREâ„˘ VI')).toBe('ARMORED CORE™ VI');
+      expect(normalizeGameTitle('ARMORED COREâ„˘ VI')).toBe('armoredcore6');
+
+      // 2. CP1252 trademark symbol â„¢
+      expect(repairMojibake('ARMORED COREâ„¢ VI')).toBe('ARMORED CORE™ VI');
+      expect(normalizeGameTitle('ARMORED COREâ„¢ VI')).toBe('armoredcore6');
+
+      // 3. Crash Bandicoot 4 with right single quotation mark / apostrophe
+      expect(repairMojibake("Crash Bandicootâ„˘ 4: Itâ€™s About Time")).toBe("Crash Bandicoot™ 4: It’s About Time");
+      expect(normalizeGameTitle("Crash Bandicootâ„˘ 4: Itâ€™s About Time")).toBe("crashbandicoot4itsabouttime");
+
+      // 4. Sense - 不祥的预感 (Sense - 不祥的預感)
+      const senseRepaired = repairMojibake('Sense - ä¸ŤçĄĄçš„é˘„ć„ź');
+      expect(senseRepaired).not.toBe('Sense - ä¸ŤçĄĄçš„é˘„ć„ź');
+      expect(normalizeGameTitle('Sense - ä¸ŤçĄĄçš„é˘„ć„ź')).toContain('sense');
+
+      // 5. Warm Snow (暖雪)
+      expect(repairMojibake('ćš–é›Ş Warm Snow')).toBe('暖雪 Warm Snow');
+      expect(normalizeGameTitle('ćš–é›Ş Warm Snow')).toContain('warmsnow');
+
+      // 6. Bloody Spell (嗜血印)
+      expect(repairMojibake('ĺ—śčˇ€ĺŤ° Bloody Spell')).toBe('嗜血印 Bloody Spell');
+      expect(normalizeGameTitle('ĺ—śčˇ€ĺŤ° Bloody Spell')).toContain('bloodyspell');
+    });
+
+    it('preserves authentic European names without corrupting them', async () => {
+      const { repairMojibake, normalizeGameTitle } = await import('../../src/server/domain/normalizer.js');
+
+      expect(repairMojibake('Petőfi')).toBe('Petőfi');
+      expect(repairMojibake('Kraków')).toBe('Kraków');
+      expect(repairMojibake('Dvořák')).toBe('Dvořák');
+      expect(repairMojibake('François')).toBe('François');
+      expect(repairMojibake('Müller')).toBe('Müller');
+
+      expect(normalizeGameTitle('Petőfi Sándor')).toBe('petofisandor');
+      expect(normalizeGameTitle('The Witcher: Kraków Edition')).toBe('thewitcherkrakow');
+    });
+  });
 });
+
 

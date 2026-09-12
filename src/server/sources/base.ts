@@ -17,6 +17,8 @@ export interface NormalizedSourceOffer {
   historicalLowDate?: string;
   rawPayload?: any;
   editionName?: string;
+  metacriticScore?: number;
+  metacriticUrl?: string;
 }
 
 export interface PriceSourceAdapter {

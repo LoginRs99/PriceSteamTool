@@ -5,11 +5,15 @@ export interface PricingErrorInput {
   steamBasePriceEur?: number;
   claimedOriginalPriceEur?: number;
   confirmedAtlEur?: number;
+  atlIsConfirmed?: boolean;
+  typicalSaleMedianEur?: number;
   otherFreshPricesEur?: number[];
   independentMerchantCount?: number;
   ownHistoryEur?: number[];
   gameReleaseDate?: string;
   suspectedEditionInversion?: boolean;
+  isDelisted?: boolean;
+  isUnreleased?: boolean;
 }
 
 export interface PriceEventInput {
@@ -43,6 +47,10 @@ export interface PriceEvaluationInput {
   regionConfidence?: number;
   isStaleObservation?: boolean;
   suspectedEditionInversion?: boolean;
+  isDelisted?: boolean;
+  isUnreleased?: boolean;
+  atlIsConfirmed?: boolean;
+  typicalSaleMedianEur?: number;
 }
 
 export type { PricingErrorType, PricingErrorEvaluation, PriceEventType };

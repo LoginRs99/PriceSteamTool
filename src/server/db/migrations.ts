@@ -600,6 +600,16 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 024] offers is_likely_pricing_error sync notice:', err?.message);
       }
     }
+  },
+  {
+    name: '025_add_games_is_delisted',
+    up: (db) => {
+      try {
+        db.exec("ALTER TABLE games ADD COLUMN is_delisted INTEGER NOT NULL DEFAULT 0");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+    }
   }
 ];
 

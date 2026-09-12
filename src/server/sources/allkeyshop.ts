@@ -4,7 +4,7 @@ import { config } from '../config/index.js';
 import { type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { allkeyshopQueue } from '../sync/allkeyshop/index.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
-import { normalizeGameTitle, convertRomanNumerals } from '../domain/normalizer.js';
+import { normalizeGameTitle, convertRomanNumerals, repairMojibake } from '../domain/normalizer.js';
 
 export class AllKeyShopUnavailableError extends Error {
   public status?: number;
@@ -269,11 +269,17 @@ export class AllKeyShopCatalogIndex {
       if (g.slug) this.bySlug.set(g.slug.toLowerCase(), g);
 
       if (g.name) {
-        const clean = g.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (clean) {
+        const repaired = repairMojibake(g.name);
+        const cleanNames = new Set([
+          g.name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+          repaired.toLowerCase().replace(/[^a-z0-9]/g, '')
+        ]);
+
+        for (const clean of cleanNames) {
+          if (!clean) continue;
           const list = this.byCleanName.get(clean);
           if (list) {
-            list.push(g);
+            if (!list.includes(g)) list.push(g);
           } else {
             this.byCleanName.set(clean, [g]);
           }
@@ -282,7 +288,7 @@ export class AllKeyShopCatalogIndex {
           if (pfx) {
             const pList = this.byPrefix.get(pfx);
             if (pList) {
-              pList.push(g);
+              if (!pList.includes(g)) pList.push(g);
             } else {
               this.byPrefix.set(pfx, [g]);
             }
@@ -349,9 +355,10 @@ export function findCandidateGamesInCatalog(
     }
   }
 
-  const cleanTarget = gameTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const repairedTarget = repairMojibake(gameTitle);
+  const cleanTarget = repairedTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (!cleanTarget) return [];
-  const normalizedTarget = normalizeGameTitle(gameTitle);
+  const normalizedTarget = normalizeGameTitle(repairedTarget);
   const targetNumbers = cleanTarget.match(/\d+/g)?.join('') || '';
   const normalizedNumbers = normalizedTarget.match(/\d+/g)?.join('') || '';
   const steamReleaseYear = extractYear(releaseDate) || extractYear(gameTitle);

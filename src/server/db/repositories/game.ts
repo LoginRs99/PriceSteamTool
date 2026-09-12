@@ -7,6 +7,7 @@ import { generatePriceIntelligence } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource, isAggregatorSource } from '../../domain/priceIntelligence/types.js';
 import { FRESHNESS_WINDOW_MS } from '../../domain/constants.js';
 import { calculateSteamDbRating } from '../../domain/rating.js';
+import { repairMojibake } from '../../domain/normalizer.js';
 import type { 
   Game, 
   WishlistFilterOptions, 
@@ -32,6 +33,8 @@ export interface WishlistSyncGame {
   allkeyshopLastPriceEur?: number;
   targetPriceEur?: number;
   priority?: number;
+  metacriticScore?: number;
+  metacriticUrl?: string;
 }
 
 export interface WishlistFilterClauseResult {
@@ -663,6 +666,8 @@ export const gameRepo = {
         g.itad_id, 
         g.title,
         g.release_date,
+        g.metacritic_score,
+        g.metacritic_url,
         g.price_history_seeded_at,
         g.allkeyshop_last_checked_at,
         g.allkeyshop_check_interval_hours,
@@ -682,6 +687,8 @@ export const gameRepo = {
       itadId: r.itad_id || undefined,
       title: r.title,
       releaseDate: r.release_date || undefined,
+      metacriticScore: r.metacritic_score !== null && r.metacritic_score !== undefined ? Number(r.metacritic_score) : undefined,
+      metacriticUrl: r.metacritic_url || undefined,
       priceHistorySeededAt: r.price_history_seeded_at || undefined,
       allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
       allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
@@ -748,6 +755,8 @@ export const gameRepo = {
         g.itad_id, 
         g.title,
         g.release_date,
+        g.metacritic_score,
+        g.metacritic_url,
         g.allkeyshop_last_checked_at,
         g.allkeyshop_check_interval_hours,
         g.allkeyshop_unchanged_streak,
@@ -769,6 +778,8 @@ export const gameRepo = {
       itadId: r.itad_id || undefined,
       title: r.title,
       releaseDate: r.release_date || undefined,
+      metacriticScore: r.metacritic_score !== null && r.metacritic_score !== undefined ? Number(r.metacritic_score) : undefined,
+      metacriticUrl: r.metacritic_url || undefined,
       allkeyshopLastCheckedAt: r.allkeyshop_last_checked_at || undefined,
       allkeyshopCheckIntervalHours: r.allkeyshop_check_interval_hours !== null && r.allkeyshop_check_interval_hours !== undefined 
         ? Number(r.allkeyshop_check_interval_hours) 
@@ -850,7 +861,8 @@ export const gameRepo = {
       for (const item of items) {
         const existing = stmtFindGame.get(item.steamAppId) as any;
         const rawTitle = item.title || existing?.title || `Game ${item.steamAppId}`;
-        const slug = rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const title = repairMojibake(rawTitle);
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const steamdbRating = item.steamdbRating !== undefined 
           ? item.steamdbRating 
           : (item.reviewsPercent !== undefined && item.reviewsTotal ? calculateSteamDbRating(item.reviewsPercent, item.reviewsTotal) : undefined);
@@ -859,7 +871,7 @@ export const gameRepo = {
         if (existing) {
           gameId = existing.id;
           stmtUpdateGame.run(
-            item.title,
+            title,
             slug,
             item.headerImage || null,
             item.capsuleImage || null,
@@ -881,7 +893,7 @@ export const gameRepo = {
           stmtInsertGame.run(
             gameId,
             item.steamAppId,
-            item.title,
+            title,
             slug,
             item.headerImage || null,
             item.capsuleImage || null,
@@ -948,7 +960,8 @@ export const gameRepo = {
     if (Array.isArray(queries.titles)) {
       for (const title of queries.titles) {
         if (!title || typeof title !== 'string') continue;
-        const exact = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE LOWER(title) = LOWER(?) LIMIT 1`).get(title.trim()) as any;
+        const cleanQuery = repairMojibake(title.trim());
+        const exact = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE LOWER(title) = LOWER(?) OR LOWER(title) = LOWER(?) LIMIT 1`).get(cleanQuery, title.trim()) as any;
         if (exact) {
           resolved.push({
             query: title,
@@ -958,7 +971,7 @@ export const gameRepo = {
             confidence: 1.0
           });
         } else {
-          const likeMatch = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE title LIKE ? LIMIT 1`).get(`%${title.trim()}%`) as any;
+          const likeMatch = prepareStmt(`SELECT id, steam_app_id, title FROM games WHERE title LIKE ? OR title LIKE ? LIMIT 1`).get(`%${cleanQuery}%`, `%${title.trim()}%`) as any;
           if (likeMatch) {
             resolved.push({
               query: title,
@@ -1005,6 +1018,10 @@ function mapGameRow(r: any): Game {
     const obsTime = r.best_last_observed_at ? new Date(r.best_last_observed_at).getTime() : NaN;
     const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
 
+    const isDelisted = Boolean(r.is_delisted) ||
+      (!r.base_price_eur && Boolean(r.release_date) && new Date(r.release_date).getTime() < Date.now());
+    const isUnreleased = Boolean(r.release_date && new Date(r.release_date).getTime() > Date.now());
+
     const dealResult = calculateDealScore({
       priceEur: Number(r.best_price_eur),
       basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
@@ -1026,7 +1043,9 @@ function mapGameRow(r: any): Game {
       offersCount: Number(r.offers_count || 0) || undefined,
       minOfferEur: r.market_min_eur != null ? Number(r.market_min_eur) : undefined,
       maxOfferEur: r.market_max_eur != null ? Number(r.market_max_eur) : undefined,
-      daysSinceLastSample
+      daysSinceLastSample,
+      isDelisted,
+      isUnreleased
     });
 
     bestDealScore = dealResult.score;

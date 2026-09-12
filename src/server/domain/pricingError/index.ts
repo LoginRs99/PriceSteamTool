@@ -40,12 +40,16 @@ export function evaluatePriceMovement(input: any) {
     priceEur: price,
     steamBasePriceEur: input.basePriceEur,
     claimedOriginalPriceEur: input.originalPriceEur,
-    confirmedAtlEur: input.historicalLowEur,
+    confirmedAtlEur: input.historicalLowEur ?? input.confirmedAtlEur,
+    atlIsConfirmed: input.atlIsConfirmed ?? (input.isConfirmedAtl !== false),
+    typicalSaleMedianEur: input.typicalSaleMedianEur ?? input.medianEur,
     otherFreshPricesEur: input.marketPricesEur ?? input.otherFreshPricesEur,
     independentMerchantCount: input.independentMerchantCount ?? (input.sourceAgreementCount >= 2 && input.isOfficialMerchant ? 2 : undefined),
     ownHistoryEur: input.sourceHistoryEur,
     gameReleaseDate: input.gameReleaseDate,
-    suspectedEditionInversion: input.suspectedEditionInversion
+    suspectedEditionInversion: input.suspectedEditionInversion,
+    isDelisted: input.isDelisted,
+    isUnreleased: input.isUnreleased
   };
 
   const errorEval = detectPricingError(errorInput);
@@ -102,6 +106,9 @@ export function evaluatePriceMovement(input: any) {
 
   // Confidence calculation
   let confidence = Math.max(0.1, Math.min(1.0, 1 - errorEval.confidence));
+  if (errorEval.isLikelyPricingError) {
+    confidence = Math.min(confidence, 0.50);
+  }
   if (input.isStaleObservation) {
     confidence = Math.min(confidence, 0.40);
   }
@@ -156,10 +163,14 @@ export function evaluateOfferAnomaly(input: any) {
     priceEur: price,
     steamBasePriceEur: input.basePriceEur,
     claimedOriginalPriceEur: input.originalPriceEur,
-    confirmedAtlEur: input.historicalLowEur,
+    confirmedAtlEur: input.historicalLowEur ?? input.confirmedAtlEur,
+    atlIsConfirmed: input.atlIsConfirmed ?? (input.isConfirmedAtl !== false),
+    typicalSaleMedianEur: input.typicalSaleMedianEur ?? input.medianEur,
     otherFreshPricesEur: input.otherPrices ?? input.marketPricesEur,
     independentMerchantCount: input.independentMerchantCount,
-    gameReleaseDate: input.gameReleaseDate
+    gameReleaseDate: input.gameReleaseDate,
+    isDelisted: input.isDelisted,
+    isUnreleased: input.isUnreleased
   };
 
   const errorEval = detectPricingError(errorInput);
@@ -190,12 +201,16 @@ export function calculatePriceRisk(input: any, flags?: Set<any>) {
     priceEur: input.currentPriceEur ?? input.priceEur ?? 0,
     steamBasePriceEur: input.basePriceEur,
     claimedOriginalPriceEur: input.originalPriceEur,
-    confirmedAtlEur: input.historicalLowEur,
+    confirmedAtlEur: input.historicalLowEur ?? input.confirmedAtlEur,
+    atlIsConfirmed: input.atlIsConfirmed ?? (input.isConfirmedAtl !== false),
+    typicalSaleMedianEur: input.typicalSaleMedianEur ?? input.medianEur,
     otherFreshPricesEur: input.marketPricesEur ?? input.otherFreshPricesEur,
     independentMerchantCount: input.independentMerchantCount ?? (input.sourceAgreementCount >= 2 && input.isOfficialMerchant ? 2 : undefined),
     ownHistoryEur: input.sourceHistoryEur,
     gameReleaseDate: input.gameReleaseDate,
-    suspectedEditionInversion: input.suspectedEditionInversion
+    suspectedEditionInversion: input.suspectedEditionInversion,
+    isDelisted: input.isDelisted,
+    isUnreleased: input.isUnreleased
   };
 
   const prevPrice = input.previousPriceEur;

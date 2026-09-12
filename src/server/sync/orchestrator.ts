@@ -448,6 +448,16 @@ export class SyncOrchestrator {
                   gameRepo.updateMetadata(appId, { title: csTitle.trim() });
                   game.title = csTitle.trim();
                 }
+
+                const metaOffer = offers.find(o => o.metacriticScore !== undefined && o.metacriticScore > 0);
+                if (metaOffer?.metacriticScore && (!game.metacriticScore || (!game.metacriticUrl && metaOffer.metacriticUrl))) {
+                  gameRepo.updateMetadata(appId, {
+                    metacriticScore: game.metacriticScore ?? metaOffer.metacriticScore,
+                    metacriticUrl: game.metacriticUrl ?? metaOffer.metacriticUrl
+                  });
+                  game.metacriticScore = game.metacriticScore ?? metaOffer.metacriticScore;
+                  game.metacriticUrl = game.metacriticUrl ?? metaOffer.metacriticUrl;
+                }
                 for (const offer of offers) {
                   this.ingestOffer(game.id, 'cheapshark', offer);
                   this.progress.sourceProgress.cheapshark.offersFound++;
@@ -938,6 +948,15 @@ export class SyncOrchestrator {
             offers = await itadAdapter.fetchPricesForGame(game.steamAppId, game.title, game.itadId || undefined);
           } else if (sourceCode === 'cheapshark') {
             offers = await cheapsharkAdapter.fetchPricesForGame(game.steamAppId, game.title);
+            const metaOffer = offers.find(o => o.metacriticScore !== undefined && o.metacriticScore > 0);
+            if (metaOffer?.metacriticScore && (!game.metacriticScore || (!game.metacriticUrl && metaOffer.metacriticUrl))) {
+              gameRepo.updateMetadata(game.steamAppId, {
+                metacriticScore: game.metacriticScore ?? metaOffer.metacriticScore,
+                metacriticUrl: game.metacriticUrl ?? metaOffer.metacriticUrl
+              });
+              game.metacriticScore = game.metacriticScore ?? metaOffer.metacriticScore;
+              game.metacriticUrl = game.metacriticUrl ?? metaOffer.metacriticUrl;
+            }
           } else if (sourceCode === 'ggdeals') {
             offers = await ggdealsAdapter.fetchPricesForGame(game.steamAppId, game.title);
           }

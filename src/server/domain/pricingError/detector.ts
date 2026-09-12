@@ -19,19 +19,38 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   const msrp = input.steamBasePriceEur ?? input.claimedOriginalPriceEur;
   const minPeer = freshPeers.length > 0 ? Math.min(...freshPeers) : undefined;
 
+  // Reconciled effective ATL
+  const atlRaw = input.confirmedAtlEur;
+  const med = input.typicalSaleMedianEur;
+  const atlEff = (atlRaw !== undefined && med !== undefined)
+    ? Math.min(atlRaw, med)
+    : atlRaw;
+
+  // Known historic price check: if price is at or above a known confirmed low, it's not a market outlier or glitch
+  const isKnownAtl = atlEff !== undefined && atlEff > 0 && price >= (atlEff - 0.05);
+
   // Signal 1: DECIMAL_SHIFT (0.45)
-  // steamBasePriceEur >= 10 && priceEur < steamBasePriceEur * 0.10, OR (priceEur < 1.0 && steamBasePriceEur >= 10 && otherFreshPricesEur min >= 5)
-  // Also catches extreme sub-euro / sub-5% glitches on titles with MSRP
-  const isCheapestInMarket = minPeer === undefined || price <= minPeer;
-  const isDecimalShift = isCheapestInMarket && (
-    (msrp !== undefined && msrp >= 10 && price <= msrp * 0.10) ||
-    (price < 1.0 && msrp !== undefined && msrp >= 10 && minPeer !== undefined && minPeer >= 5) ||
-    (price < 1.0 && msrp !== undefined && price < msrp * 0.05)
+  // Missing digit pattern: price is ~1/10 (0.08 to 0.12) or ~1/100 (0.008 to 0.012) of MSRP (MSRP >= 10)
+  // Or sub-euro glitch (<1.00) on premium title when market is >= 5, or extreme <5% drop on MSRP >= 5
+  const isCheapestInMarket = minPeer === undefined || price <= minPeer + 0.02;
+  const ratio = (msrp && msrp > 0) ? price / msrp : undefined;
+  const isDecimalRatio = ratio !== undefined && (
+    (ratio >= 0.08 && ratio <= 0.12) ||
+    (ratio >= 0.008 && ratio <= 0.012)
+  );
+  const peersAlreadyCheap = minPeer !== undefined && minPeer <= (msrp ?? 0) * 0.25;
+  const isSubEuroGlitch = price <= 1.005 && msrp !== undefined && (
+    (msrp >= 10 && (minPeer === undefined || minPeer >= 1.0)) ||
+    (msrp >= 5 && price < msrp * 0.05)
+  );
+
+  const isDecimalShift = isCheapestInMarket && !isKnownAtl && msrp !== undefined && (
+    (msrp >= 10 && isDecimalRatio && !peersAlreadyCheap) || isSubEuroGlitch
   );
 
   if (isDecimalShift) {
     const anchor = msrp ?? (minPeer ?? 0);
-    const reasonText = price < 1.00
+    const reasonText = price <= 1.005
       ? `Sub-euro price glitch (€${price.toFixed(2)} on €${anchor.toFixed(2)} title)`
       : `Suspected decimal shift (€${price.toFixed(2)} vs expected ~€${anchor.toFixed(2)})`;
     triggered.push({
@@ -42,44 +61,45 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   }
 
   // Signal 2: MARKET_OUTLIER (0.40 multi-peer / 0.25 single-peer)
-  // if otherFreshPricesEur >= 2, median(peers) >= 5 && priceEur < median * 0.25 -> 0.40.
-  // If exactly 1 peer, peer >= 5 && priceEur < peer * 0.25 -> 0.25
-  if (freshPeers.length === 1) {
-    const peer = freshPeers[0];
-    if (peer >= 5 && price < peer * 0.25) {
-      triggered.push({
-        type: 'MARKET_OUTLIER',
-        weight: 0.25,
-        reason: `Lone market outlier (€${price.toFixed(2)} vs single peer €${peer.toFixed(2)})`
-      });
-    } else if (price < peer * 0.50) {
-      triggered.push({
-        type: 'MARKET_OUTLIER',
-        weight: 0.25,
-        reason: `Lone market outlier (€${price.toFixed(2)} is >50% below single peer €${peer.toFixed(2)})`
-      });
-    }
-  } else if (freshPeers.length >= 2) {
-    const sorted = [...freshPeers].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    const minP = sorted[0];
-    if ((median >= 5 && price < median * 0.25) || (median >= 2.0 && price < median * 0.25) || (price < minP * 0.50)) {
-      triggered.push({
-        type: 'MARKET_OUTLIER',
-        weight: 0.40,
-        reason: `Market outlier (€${price.toFixed(2)} vs peer minimum €${minP.toFixed(2)}, median €${median.toFixed(2)})`
-      });
+  // Exclude if price is at/above a known confirmed ATL
+  if (!isKnownAtl) {
+    if (freshPeers.length === 1) {
+      const peer = freshPeers[0];
+      if (peer >= 5 && price < peer * 0.25) {
+        triggered.push({
+          type: 'MARKET_OUTLIER',
+          weight: 0.25,
+          reason: `Lone market outlier (€${price.toFixed(2)} vs single peer €${peer.toFixed(2)})`
+        });
+      } else if (price < peer * 0.50) {
+        triggered.push({
+          type: 'MARKET_OUTLIER',
+          weight: 0.25,
+          reason: `Lone market outlier (€${price.toFixed(2)} is >50% below single peer €${peer.toFixed(2)})`
+        });
+      }
+    } else if (freshPeers.length >= 2) {
+      const sorted = [...freshPeers].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const minP = sorted[0];
+      if ((median >= 5 && price < median * 0.25) || (median >= 2.0 && price < median * 0.25) || (price < minP * 0.50)) {
+        triggered.push({
+          type: 'MARKET_OUTLIER',
+          weight: 0.40,
+          reason: `Market outlier (€${price.toFixed(2)} vs peer minimum €${minP.toFixed(2)}, median €${median.toFixed(2)})`
+        });
+      }
     }
   }
 
   // Signal 3: BELOW_ATL_IMPLAUSIBLE (0.30)
-  // confirmedAtlEur >= 5 && priceEur < confirmedAtlEur * 0.50
-  const atl = input.confirmedAtlEur;
-  if (atl !== undefined && ((atl >= 5.0 && price < (atl * 0.50) - 0.005) || (atl >= 2.0 && price < (atl * 0.30) - 0.005))) {
+  // Must require confirmed ATL to avoid circularity against untrusted scrapers
+  const isAtlConfirmed = input.atlIsConfirmed !== false;
+  if (isAtlConfirmed && atlEff !== undefined && ((atlEff >= 5.0 && price < (atlEff * 0.50) - 0.005) || (atlEff >= 2.0 && price < (atlEff * 0.30) - 0.005))) {
     triggered.push({
       type: 'BELOW_ATL_IMPLAUSIBLE',
       weight: 0.30,
-      reason: `Price (€${price.toFixed(2)}) is implausibly far below confirmed all-time low (€${atl.toFixed(2)})`
+      reason: `Price (€${price.toFixed(2)}) is implausibly far below confirmed all-time low (€${atlEff.toFixed(2)})`
     });
   }
 
@@ -130,8 +150,10 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   }
 
   // Signal 7: FAKE_BASELINE (0.15)
-  // claimedOriginalPriceEur > 1.5 * steamBasePriceEur
+  // claimedOriginalPriceEur > 1.5 * steamBasePriceEur (exempt for delisted/unreleased scarcity)
   if (
+    !input.isDelisted &&
+    !input.isUnreleased &&
     input.claimedOriginalPriceEur !== undefined &&
     input.steamBasePriceEur !== undefined &&
     input.steamBasePriceEur > 0 &&
@@ -160,18 +182,21 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
   }
 
   // 2. Corroboration override:
-  // If >= 2 independent merchants have a fresh price within +/- 40% of priceEur -> not an error
+  // Tightened to +/- 15% (or <= 0.02 EUR for FX rounding; for sub-euro prices, +/- 30% or <= 0.02 EUR)
   const freshPeers = (input.otherFreshPricesEur ?? []).filter(
     p => p !== undefined && p !== null && p > 0 && !isNaN(p)
   );
-  const matchingPeers = freshPeers.filter(
-    p => Math.abs(p - price) / price <= 0.40
-  );
+  const matchingPeers = freshPeers.filter(p => {
+    const diff = Math.abs(p - price);
+    if (diff <= 0.02) return true;
+    if (price <= 1.005) return diff / price <= 0.3001;
+    return diff / Math.max(p, price) <= 0.15;
+  });
 
   const isCorroborated =
     (input.independentMerchantCount !== undefined && input.independentMerchantCount >= 2) ||
     matchingPeers.length >= 2 ||
-    (matchingPeers.length >= 1 && (input.independentMerchantCount === undefined || input.independentMerchantCount >= 2));
+    (matchingPeers.length >= 1 && (input.independentMerchantCount === undefined || input.independentMerchantCount >= 2 || price <= 1.005));
 
   if (isCorroborated) {
     return { isLikelyPricingError: false, confidence: 0, type: null, reason: null };

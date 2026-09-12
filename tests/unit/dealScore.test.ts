@@ -138,7 +138,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 3 // N = 3
       });
 
-      expect(res.score).toBeGreaterThanOrEqual(85);
+      expect(res.score).toBeGreaterThanOrEqual(80);
       expect(res.tier).toBe('Exceptional');
       expect(res.isProvisional).toBe(false);
     });
@@ -286,9 +286,9 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 10
       });
 
-      // Price 18 is below true ATL 20, breaking the all-time record.
-      // It receives full record bonus (>= 40 points).
-      expect(result18.rarityBonus).toBeGreaterThanOrEqual(40);
+      // Price 18 is below true ATL 20 (10% undercut), breaking the all-time record.
+      // It receives base ATL match (36) plus beat bonus (>= 38 points).
+      expect(result18.rarityBonus).toBeGreaterThanOrEqual(38);
     });
   });
 
@@ -419,7 +419,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 80
       });
       expect(['Good', 'Great']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(70);
+      expect(res.score).toBeGreaterThanOrEqual(65);
     });
 
     it('Case 11: Frequent -80% sale at exact median', () => {
@@ -431,7 +431,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 40
       });
       expect(['Good', 'Great']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(70);
+      expect(res.score).toBeGreaterThanOrEqual(65);
     });
 
     it('Case 12: Rare -50% sale on game that is almost never discounted', () => {
@@ -455,7 +455,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 10.00,
         sampleCount: 20
       });
-      expect(res.score).toBe(27);
+      expect(res.score).toBe(25);
       expect(['Weak', 'Fair']).toContain(res.tier);
     });
 
@@ -562,8 +562,8 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 10.00,
         sampleCount: 15
       });
-      expect(res.rarityBonus).toBe(40.0);
-      expect(res.score).toBe(67);
+      expect(res.rarityBonus).toBe(36.0);
+      expect(res.score).toBe(63);
     });
 
     it('Edge 2: Price is 0.01€ above ATL', () => {
@@ -573,7 +573,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 10.00,
         sampleCount: 15
       });
-      expect(res.rarityBonus).toBeCloseTo(39.96, 1);
+      expect(res.rarityBonus).toBeCloseTo(35.96, 1);
     });
 
     it('Edge 3: Price is 0.01€ below ATL', () => {
@@ -583,7 +583,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 10.00,
         sampleCount: 15
       });
-      expect(res.rarityBonus).toBe(40.0);
+      expect(res.rarityBonus).toBeCloseTo(36.02, 2);
     });
 
     it('Edge 4: Median equals ATL (all sales at same price)', () => {
@@ -593,7 +593,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 5.00,
         sampleCount: 10
       });
-      expect(res.score).toBe(67);
+      expect(res.score).toBe(63);
       expect(['Good', 'Great']).toContain(res.tier);
     });
 
@@ -616,7 +616,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 15.00,
         sampleCount: 10
       });
-      expect(res.score).toBe(67);
+      expect(res.score).toBe(63);
     });
 
     it('Edge 7: Sub-euro median (< 1.00€)', () => {
@@ -627,7 +627,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 10
       });
       expect(res.tier).toBe('Good');
-      expect(res.score).toBe(67);
+      expect(res.score).toBe(63);
     });
 
     it('Edge 8: Pricing error suppresses deal score', () => {
@@ -710,8 +710,8 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 20
       });
 
-      expect(resConfirmed.rarityBonus).toBe(40.0);
-      expect(resUnconfirmed.rarityBonus).toBe(20.0);
+      expect(resConfirmed.rarityBonus).toBe(36.0);
+      expect(resUnconfirmed.rarityBonus).toBe(18.0);
       expect(resConfirmed.score).toBeGreaterThan(resUnconfirmed.score);
     });
 

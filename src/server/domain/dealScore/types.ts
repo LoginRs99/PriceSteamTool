@@ -6,6 +6,9 @@ export type { DealScoreInput, DealScoreResult, DealVerdict, DealScoreTier, Confi
 // Deal Score v2 — Exact Formula Weights & Thresholds
 // ============================================================================
 export const W_ATL = 40;
+export const ATL_MATCH_BASE = 36;
+export const ATL_BEAT_BONUS_MAX = 4;
+export const ATL_BEAT_FULL_UNDERCUT_RATIO = 0.20;
 export const W_DISCOUNT = 30;
 export const W_HISTORY = 20;
 export const W_MARKET = 10;

@@ -175,7 +175,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
       basePriceEur: 29.99
     });
 
-    expect(dealWithoutAtl.score).toBe(37);
+    expect(dealWithoutAtl.score).toBe(34);
     expect(dealWithoutAtl.isLowSample).toBe(true);
 
     // With confirmed ATL & typical sale history: score reaches Exceptional (85+)
