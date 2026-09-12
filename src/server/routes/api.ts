@@ -188,7 +188,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
         gamesOnSale: 0,
         gamesAtHistoricalLow: 0,
         majorDropsCount: 0,
-        gamesWithHighRiskOffers: 0,
+        gamesWithPricingErrors: 0,
         averageDiscountPercent: 0
       };
     }
