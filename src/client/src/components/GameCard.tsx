@@ -5,6 +5,7 @@ import { TickerFlag } from './TickerFlag.js';
 import { GameImage } from './GameImage.js';
 import { AlertTriangle, ShieldCheck, Info, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
 import { getSteamReviewSentiment } from '../utils/steamMeta.js';
+import { isRecordDropEvent } from '../utils/priceEvents.js';
 
 interface GameCardProps {
   game: Game;
@@ -24,7 +25,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
   const dealTier = game.bestDealTier || 'Fair';
 
   // Rail color by tier / status
-  const isConfirmedATL = (game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW') && !game.bestIsProvisional;
+  const isConfirmedATL = isRecordDropEvent(game.bestPriceEvent) && !game.bestIsProvisional;
   const isHighRisk = Boolean(game.hasPricingError);
   const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75);
 
