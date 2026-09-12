@@ -230,13 +230,25 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       continue;
     }
 
-    // 0.1 High Risk & Anomaly Guard:
-    // Normal high-risk offers (unverified slight shifts, dubious single-source small drops) are suppressed.
-    // HOWEVER: True Pricing Errors (PRICING_ERROR event, >=75% discount or sub-euro glitch) can be FAST-TRACKED
-    // as Glitch Hunter alerts when notifyPricingErrors is enabled!
+    const offers = offerRepo.getOffersForGame(game.id);
+    let flaggedOffer = offers.find(o => o.isLikelyPricingError && o.isValid !== false);
+    if (!flaggedOffer && offers.length === 0 && game.hasPricingError && game.bestPriceEvent === 'PRICING_ERROR') {
+      flaggedOffer = {
+        priceEur: bestPrice,
+        dealUrl: game.bestDealUrl || `https://store.steampowered.com/app/${game.steamAppId}`,
+        merchantName: game.bestMerchantName || 'Store',
+        isOfficial: game.bestMerchantIsOfficial ?? false,
+        discountPercent: game.bestDiscountPercent ?? 0,
+        originalPriceEur: game.basePriceEur,
+        isLikelyPricingError: true,
+        pricingErrorConfidence: 0.9,
+        pricingErrorReason: 'Suspected Pricing Error'
+      } as any;
+    }
+
     const isPricingErrorAlert = Boolean(settings.notifyPricingErrors) && 
-      (game.bestPriceEvent === 'PRICING_ERROR' || (game.bestDiscountPercent && game.bestDiscountPercent >= 75)) && 
-      Boolean(game.hasPricingError);
+      Boolean(flaggedOffer) && 
+      flaggedOffer!.priceEur <= (bestPrice + 0.05);
 
     if (game.hasPricingError && !isPricingErrorAlert) {
       continue;
@@ -256,7 +268,9 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     const confScore = game.bestConfidenceScore ?? 50;
     let isQualifyingDeal = false;
 
-    if (hasTargetHit) {
+    if (isPricingErrorAlert) {
+      isQualifyingDeal = true;
+    } else if (hasTargetHit) {
       isQualifyingDeal = true;
     } else if (!isFree && dealScore >= settings.minDealScore && confScore >= settings.minConfidence) {
       if (settings.notifyAtlOnly) {
@@ -285,17 +299,27 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       continue;
     }
 
-    // 5. Fetch Best Offer details (for voucher code, merchant, etc.)
-    const offers = offerRepo.getOffersForGame(game.id);
+    // 5. Best Offer details (for voucher code, merchant, etc.)
     const bestOffer = offers.find(o => o.isBestDeal && o.isValid) || offers[0];
 
     // 6. Construct Rich Embed
     const steamUrl = `https://store.steampowered.com/app/${game.steamAppId}`;
-    const dealUrl = bestOffer?.dealUrl || game.bestDealUrl || steamUrl;
-    const merchantName = bestOffer?.merchantName || game.bestMerchantName || 'Steam Store';
-    const isOfficial = bestOffer?.isOfficial ?? game.bestMerchantIsOfficial ?? true;
-    const discountPct = game.bestDiscountPercent || bestOffer?.discountPercent || 0;
-    const basePrice = game.basePriceEur || (discountPct > 0 ? (bestPrice / (1 - discountPct / 100)) : undefined);
+    const embedPrice = (isPricingErrorAlert && flaggedOffer) ? flaggedOffer.priceEur : bestPrice;
+    const dealUrl = (isPricingErrorAlert && flaggedOffer)
+      ? (flaggedOffer.dealUrl || steamUrl)
+      : (bestOffer?.dealUrl || game.bestDealUrl || steamUrl);
+    const merchantName = (isPricingErrorAlert && flaggedOffer)
+      ? (flaggedOffer.merchantName || 'Store')
+      : (bestOffer?.merchantName || game.bestMerchantName || 'Steam Store');
+    const isOfficial = (isPricingErrorAlert && flaggedOffer)
+      ? (flaggedOffer.isOfficial ?? false)
+      : (bestOffer?.isOfficial ?? game.bestMerchantIsOfficial ?? true);
+    const discountPct = (isPricingErrorAlert && flaggedOffer)
+      ? (flaggedOffer.discountPercent ?? 0)
+      : (game.bestDiscountPercent || bestOffer?.discountPercent || 0);
+    const basePrice = (isPricingErrorAlert && flaggedOffer)
+      ? (flaggedOffer.originalPriceEur || game.basePriceEur)
+      : (game.basePriceEur || (discountPct > 0 ? (bestPrice / (1 - discountPct / 100)) : undefined));
 
     let embedColor = 0x3498DB; // Default Blue
     let headline = '🏷️ **New Sale Price on Your Wishlist**';
@@ -331,17 +355,27 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     } else {
       fields.push({
         name: '💰 Price',
-        value: `**€${bestPrice.toFixed(2)}** ${basePrice ? `~~€${basePrice.toFixed(2)}~~` : ''} ${discountPct > 0 ? `(-${discountPct}%)` : ''}`,
+        value: `**€${embedPrice.toFixed(2)}** ${basePrice ? `~~€${basePrice.toFixed(2)}~~` : ''} ${discountPct > 0 ? `(-${discountPct}%)` : ''}`,
         inline: true
       });
       
-      const confLabel = game.bestConfidenceTier ? `${game.bestConfidenceTier} Conf` : `${confScore}% Conf`;
-      const provTag = game.bestIsProvisional ? ' *(Provisional)*' : '';
-      fields.push({
-        name: '🏆 Deal Score',
-        value: `**${dealScore} / 100** • ${game.bestDealTier || 'Good'}${provTag}\n*(${confScore}% ${confLabel})*`,
-        inline: true
-      });
+      if (isPricingErrorAlert && flaggedOffer) {
+        const confPct = Math.round((flaggedOffer.pricingErrorConfidence ?? 0.8) * 100);
+        const reasonText = flaggedOffer.pricingErrorReason ? `\n*(${flaggedOffer.pricingErrorReason})*` : '';
+        fields.push({
+          name: 'Flagged Price',
+          value: `**${confPct}% Confidence**${reasonText}`,
+          inline: true
+        });
+      } else {
+        const confLabel = game.bestConfidenceTier ? `${game.bestConfidenceTier} Conf` : `${confScore}% Conf`;
+        const provTag = game.bestIsProvisional ? ' *(Provisional)*' : '';
+        fields.push({
+          name: '🏆 Deal Score',
+          value: `**${dealScore} / 100** • ${game.bestDealTier || 'Good'}${provTag}\n*(${confScore}% ${confLabel})*`,
+          inline: true
+        });
+      }
     }
 
     if (hasTargetHit) {
