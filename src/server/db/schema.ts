@@ -131,7 +131,6 @@ CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
 CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
 CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
-CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error);
 CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
 CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
 
@@ -169,7 +168,6 @@ CREATE TABLE IF NOT EXISTS price_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_id, recorded_at);
-CREATE INDEX IF NOT EXISTS idx_price_history_reliable ON price_history(game_id, is_pricing_error);
 CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id);
 
 
@@ -222,35 +220,6 @@ CREATE TABLE IF NOT EXISTS pricing_errors (
 
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_game ON pricing_errors(game_id);
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_dismissed ON pricing_errors(is_dismissed);
-
--- Backward compatibility view for legacy queries and test fixture tear-down
-CREATE VIEW IF NOT EXISTS anomalies AS 
-SELECT 
-  id, 
-  game_id, 
-  offer_id, 
-  error_type AS anomaly_type, 
-  confidence AS score, 
-  reason, 
-  detected_at, 
-  is_dismissed 
-FROM pricing_errors;
-CREATE TRIGGER IF NOT EXISTS trg_delete_anomalies INSTEAD OF DELETE ON anomalies BEGIN
-  DELETE FROM pricing_errors WHERE id = OLD.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_update_anomalies INSTEAD OF UPDATE ON anomalies BEGIN
-  UPDATE pricing_errors 
-  SET is_dismissed = NEW.is_dismissed,
-      error_type = COALESCE(NEW.anomaly_type, error_type),
-      confidence = COALESCE(NEW.score, confidence),
-      reason = COALESCE(NEW.reason, reason),
-      detected_at = COALESCE(NEW.detected_at, detected_at)
-  WHERE id = OLD.id;
-END;
-CREATE TRIGGER IF NOT EXISTS trg_insert_anomalies INSTEAD OF INSERT ON anomalies BEGIN
-  INSERT INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
-  VALUES (NEW.id, NEW.game_id, NEW.offer_id, NEW.anomaly_type, NEW.score, NEW.reason, NEW.detected_at, NEW.is_dismissed);
-END;
 
 -- 11. Application Settings Table
 CREATE TABLE IF NOT EXISTS settings (

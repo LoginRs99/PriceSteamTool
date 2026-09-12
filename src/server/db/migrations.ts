@@ -500,6 +500,96 @@ export const MIGRATIONS: Migration[] = [
         }
       }
     }
+  },
+  {
+    name: '024_post_migration_indexes_and_anomalies_view',
+    up: (db) => {
+      // a. CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error)
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error)");
+      } catch (err: any) {
+        console.warn('[Migration 024] idx_offers_pricing_error notice:', err?.message);
+      }
+
+      // b. CREATE INDEX IF NOT EXISTS idx_price_history_reliable ON price_history(game_id, is_pricing_error)
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_reliable ON price_history(game_id, is_pricing_error)");
+      } catch (err: any) {
+        console.warn('[Migration 024] idx_price_history_reliable notice:', err?.message);
+      }
+
+      // c. Legacy safety net: check if anomalies is still a TABLE
+      try {
+        const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='anomalies'").get();
+        if (tableCheck) {
+          db.exec(`
+            INSERT OR IGNORE INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
+            SELECT id, game_id, offer_id, COALESCE(anomaly_type,'PRICE_GLITCH'), COALESCE(score,0.0), COALESCE(reason,''), detected_at, COALESCE(is_dismissed,0)
+            FROM anomalies;
+          `);
+          db.exec("DROP TABLE anomalies");
+        }
+      } catch (err: any) {
+        console.warn('[Migration 024] legacy anomalies table safety net notice:', err?.message);
+      }
+
+      // d. CREATE VIEW IF NOT EXISTS anomalies
+      try {
+        db.exec(`
+          CREATE VIEW IF NOT EXISTS anomalies AS 
+          SELECT 
+            id, 
+            game_id, 
+            offer_id, 
+            error_type AS anomaly_type, 
+            confidence AS score, 
+            reason, 
+            detected_at, 
+            is_dismissed 
+          FROM pricing_errors;
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 024] anomalies view create notice:', err?.message);
+      }
+
+      // e. Re-create the three INSTEAD OF triggers
+      try {
+        db.exec(`
+          CREATE TRIGGER IF NOT EXISTS trg_delete_anomalies INSTEAD OF DELETE ON anomalies BEGIN
+            DELETE FROM pricing_errors WHERE id = OLD.id;
+          END;
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 024] trg_delete_anomalies notice:', err?.message);
+      }
+
+      try {
+        db.exec(`
+          CREATE TRIGGER IF NOT EXISTS trg_update_anomalies INSTEAD OF UPDATE ON anomalies BEGIN
+            UPDATE pricing_errors 
+            SET is_dismissed = NEW.is_dismissed,
+                error_type = COALESCE(NEW.anomaly_type, error_type),
+                confidence = COALESCE(NEW.score, confidence),
+                reason = COALESCE(NEW.reason, reason),
+                detected_at = COALESCE(NEW.detected_at, detected_at)
+            WHERE id = OLD.id;
+          END;
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 024] trg_update_anomalies notice:', err?.message);
+      }
+
+      try {
+        db.exec(`
+          CREATE TRIGGER IF NOT EXISTS trg_insert_anomalies INSTEAD OF INSERT ON anomalies BEGIN
+            INSERT INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
+            VALUES (NEW.id, NEW.game_id, NEW.offer_id, NEW.anomaly_type, NEW.score, NEW.reason, NEW.detected_at, NEW.is_dismissed);
+          END;
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 024] trg_insert_anomalies notice:', err?.message);
+      }
+    }
   }
 ];
 
