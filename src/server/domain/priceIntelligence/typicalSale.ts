@@ -41,6 +41,8 @@ export function calculateTypicalSalePrice(
 
     return {
       medianPriceEur: Number(median.toFixed(2)),
+      q1PriceEur: Number(candidates[0].toFixed(2)),
+      q3PriceEur: Number(candidates[candidates.length - 1].toFixed(2)),
       sampleCount: candidates.length,
       isLowConfidence: true
     };

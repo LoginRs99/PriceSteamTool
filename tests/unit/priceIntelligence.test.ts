@@ -158,6 +158,29 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
       // The 0.49 glitch was filtered out by Tukey's fences!
       expect(res.sampleCount).toBe(5);
     });
+
+    it('computes clean median and populates non-undefined q1 and q3 when only 1 or 2 sales exist', () => {
+      const singleSale: PriceHistoryEntry[] = [
+        { id: 'ph-1', gameId: 'game-1', sourceCode: 'steam', priceEur: 29.99, recordedAt: '2026-01-01T00:00:00Z' }
+      ];
+      const res1 = calculateTypicalSalePrice(59.99, singleSale);
+      expect(res1.medianPriceEur).toBe(29.99);
+      expect(res1.q1PriceEur).toBe(29.99);
+      expect(res1.q3PriceEur).toBe(29.99);
+      expect(res1.sampleCount).toBe(1);
+      expect(res1.isLowConfidence).toBe(true);
+
+      const twoSales: PriceHistoryEntry[] = [
+        { id: 'ph-1', gameId: 'game-1', sourceCode: 'steam', priceEur: 24.99, recordedAt: '2026-01-01T00:00:00Z' },
+        { id: 'ph-2', gameId: 'game-1', sourceCode: 'cheapshark', priceEur: 29.99, recordedAt: '2026-01-02T00:00:00Z' }
+      ];
+      const res2 = calculateTypicalSalePrice(59.99, twoSales);
+      expect(res2.medianPriceEur).toBe(27.49);
+      expect(res2.q1PriceEur).toBe(24.99);
+      expect(res2.q3PriceEur).toBe(29.99);
+      expect(res2.sampleCount).toBe(2);
+      expect(res2.isLowConfidence).toBe(true);
+    });
   });
 
   describe('3. Sale Event Grouping (3 Mandatory Test Cases)', () => {

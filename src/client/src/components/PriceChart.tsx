@@ -37,13 +37,18 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
     return filtered;
   }, [rawPoints, timeframe]);
 
-  if (!rawPoints || rawPoints.length < 2) {
+  const rawSpan = rawPoints && rawPoints.length >= 2 
+    ? new Date(rawPoints[rawPoints.length - 1].timestamp).getTime() - new Date(rawPoints[0].timestamp).getTime()
+    : 0;
+
+  if (!rawPoints || rawPoints.length < 2 || rawSpan < 60000) {
+    const latest = rawPoints && rawPoints.length > 0 ? rawPoints[rawPoints.length - 1] : null;
     return (
       <div className="price-chart-empty">
         <p>Price tracking initialized. Timeline history graph will develop with subsequent sync observations.</p>
-        {rawPoints && rawPoints.length === 1 && (
+        {latest && (
           <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-            Latest recorded price: <strong>€{rawPoints[0].priceEur.toFixed(2)}</strong> ({rawPoints[0].merchantName})
+            Latest recorded price: <strong>€{latest.priceEur.toFixed(2)}</strong> ({latest.merchantName})
           </div>
         )}
       </div>

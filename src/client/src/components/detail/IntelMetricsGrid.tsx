@@ -24,7 +24,9 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
         </div>
         <span className="intel-sub">
           {typicalSale?.medianPriceEur != null
-            ? `IQR Range: €${typicalSale.q1PriceEur?.toFixed(2)} – €${typicalSale.q3PriceEur?.toFixed(2)} (${typicalSale.sampleCount} sales)`
+            ? (typicalSale.q1PriceEur != null && typicalSale.q3PriceEur != null && (typicalSale.sampleCount ?? 0) >= 3
+                ? `IQR Range: €${typicalSale.q1PriceEur.toFixed(2)} – €${typicalSale.q3PriceEur.toFixed(2)} (${typicalSale.sampleCount} sales)`
+                : `Based on ${typicalSale.sampleCount} recorded sale${typicalSale.sampleCount === 1 ? '' : 's'}`)
             : 'Insufficient historical sales'}
         </span>
       </div>
