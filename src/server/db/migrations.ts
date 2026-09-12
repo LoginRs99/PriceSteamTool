@@ -310,15 +310,100 @@ export const MIGRATIONS: Migration[] = [
   {
     name: '022_pricing_error_detector',
     up: (db) => {
-      // 1. Rename anomalies table to pricing_errors if anomalies exists and pricing_errors doesn't
+      // 1. Migrate legacy anomalies table to pricing_errors via copy-then-drop
       try {
-        const tableCheck = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='anomalies'`).get();
-        const newTableCheck = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_errors'`).get();
-        if (tableCheck && !newTableCheck) {
-          db.exec("ALTER TABLE anomalies RENAME TO pricing_errors");
+        const hasOldTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='anomalies'").get();
+        if (hasOldTable) {
+          try {
+            db.exec(`
+              CREATE TABLE IF NOT EXISTS pricing_errors (
+                id TEXT PRIMARY KEY,
+                game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+                offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+                error_type TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                reason TEXT NOT NULL,
+                detected_at TEXT NOT NULL,
+                is_dismissed INTEGER NOT NULL DEFAULT 0
+              );
+            `);
+          } catch (e: any) {
+            console.warn('[Migration 022] pricing_errors create notice:', e?.message);
+          }
+
+          try {
+            db.exec(`
+              INSERT OR IGNORE INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
+              SELECT id, game_id, offer_id, COALESCE(anomaly_type, 'PRICE_GLITCH'), COALESCE(score, 0.0), COALESCE(reason, ''), detected_at, COALESCE(is_dismissed, 0)
+              FROM anomalies;
+            `);
+          } catch (e: any) {
+            console.warn('[Migration 022] anomalies copy notice:', e?.message);
+          }
+
+          try {
+            db.exec("DROP TABLE anomalies;");
+          } catch (e: any) {
+            console.warn('[Migration 022] anomalies drop notice:', e?.message);
+          }
+
+          try {
+            db.exec(`
+              CREATE VIEW IF NOT EXISTS anomalies AS 
+              SELECT 
+                id, 
+                game_id, 
+                offer_id, 
+                error_type AS anomaly_type, 
+                confidence AS score, 
+                reason, 
+                detected_at, 
+                is_dismissed 
+              FROM pricing_errors;
+            `);
+          } catch (e: any) {
+            console.warn('[Migration 022] anomalies compat view notice:', e?.message);
+          }
+
+          try {
+            db.exec(`
+              CREATE TRIGGER IF NOT EXISTS trg_delete_anomalies INSTEAD OF DELETE ON anomalies BEGIN
+                DELETE FROM pricing_errors WHERE id = OLD.id;
+              END;
+            `);
+          } catch (e: any) {
+            console.warn('[Migration 022] trg_delete_anomalies notice:', e?.message);
+          }
+
+          try {
+            db.exec(`
+              CREATE TRIGGER IF NOT EXISTS trg_update_anomalies INSTEAD OF UPDATE ON anomalies BEGIN
+                UPDATE pricing_errors 
+                SET is_dismissed = NEW.is_dismissed,
+                    error_type = COALESCE(NEW.anomaly_type, error_type),
+                    confidence = COALESCE(NEW.score, confidence),
+                    reason = COALESCE(NEW.reason, reason),
+                    detected_at = COALESCE(NEW.detected_at, detected_at)
+                WHERE id = OLD.id;
+              END;
+            `);
+          } catch (e: any) {
+            console.warn('[Migration 022] trg_update_anomalies notice:', e?.message);
+          }
+
+          try {
+            db.exec(`
+              CREATE TRIGGER IF NOT EXISTS trg_insert_anomalies INSTEAD OF INSERT ON anomalies BEGIN
+                INSERT INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
+                VALUES (NEW.id, NEW.game_id, NEW.offer_id, NEW.anomaly_type, NEW.score, NEW.reason, NEW.detected_at, NEW.is_dismissed);
+              END;
+            `);
+          } catch (e: any) {
+            console.warn('[Migration 022] trg_insert_anomalies notice:', e?.message);
+          }
         }
       } catch (err: any) {
-        console.warn('[Migration 022] Table rename notice:', err?.message);
+        console.warn('[Migration 022] anomalies migration check notice:', err?.message);
       }
 
       // Ensure pricing_errors table structure
@@ -328,9 +413,9 @@ export const MIGRATIONS: Migration[] = [
             id TEXT PRIMARY KEY,
             game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
             offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
-            error_type TEXT NOT NULL DEFAULT 'PRICE_GLITCH',
-            confidence REAL NOT NULL DEFAULT 0.0,
-            reason TEXT NOT NULL DEFAULT '',
+            error_type TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            reason TEXT NOT NULL,
             detected_at TEXT NOT NULL,
             is_dismissed INTEGER NOT NULL DEFAULT 0
           );
@@ -338,24 +423,6 @@ export const MIGRATIONS: Migration[] = [
       } catch (err: any) {
         console.warn('[Migration 022] pricing_errors create notice:', err?.message);
       }
-
-      // Add error_type and confidence columns to pricing_errors if missing, backfill from anomaly_type and score
-      try { db.exec("ALTER TABLE pricing_errors ADD COLUMN error_type TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
-      try { db.exec("ALTER TABLE pricing_errors ADD COLUMN confidence REAL"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
-
-      // Backfill from legacy columns if they existed
-      try {
-        db.exec(`
-          UPDATE pricing_errors 
-          SET error_type = COALESCE(error_type, anomaly_type, 'PRICE_GLITCH'),
-              confidence = COALESCE(confidence, score, 0.0)
-          WHERE error_type IS NULL OR confidence IS NULL
-        `);
-      } catch {}
-
-      // Drop old columns from pricing_errors if present
-      try { db.exec("ALTER TABLE pricing_errors DROP COLUMN anomaly_type"); } catch {}
-      try { db.exec("ALTER TABLE pricing_errors DROP COLUMN score"); } catch {}
 
       // Recreate pricing_errors indexes
       try { db.exec("DROP INDEX IF EXISTS idx_anomalies_game"); } catch {}
