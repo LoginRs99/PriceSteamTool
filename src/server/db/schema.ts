@@ -91,7 +91,6 @@ CREATE TABLE IF NOT EXISTS merchants (
   name TEXT NOT NULL,
   default_url TEXT,
   is_official INTEGER NOT NULL DEFAULT 1,
-  trust_score REAL NOT NULL DEFAULT 1.0,
   created_at TEXT NOT NULL
 );
 
@@ -117,13 +116,10 @@ CREATE TABLE IF NOT EXISTS offers (
   is_best_deal INTEGER NOT NULL DEFAULT 0,
   is_valid INTEGER NOT NULL DEFAULT 1,
   price_event TEXT NOT NULL DEFAULT 'NONE',
-  risk_level TEXT NOT NULL DEFAULT 'SAFE',
-  risk_score REAL NOT NULL DEFAULT 0.0,
-  risk_flags TEXT,
-  evaluation_confidence REAL NOT NULL DEFAULT 1.0,
-  is_anomaly INTEGER NOT NULL DEFAULT 0,
-  anomaly_score REAL NOT NULL DEFAULT 0.0,
-  anomaly_reason TEXT,
+  is_likely_pricing_error INTEGER NOT NULL DEFAULT 0,
+  pricing_error_confidence REAL NOT NULL DEFAULT 0.0,
+  pricing_error_type TEXT,
+  pricing_error_reason TEXT,
   fetched_at TEXT NOT NULL,
   last_observed_at TEXT,
   created_at TEXT NOT NULL,
@@ -135,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
 CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
 CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
-CREATE INDEX IF NOT EXISTS idx_offers_risk_level ON offers(risk_level);
+CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error);
 CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
 CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
 
@@ -168,13 +164,12 @@ CREATE TABLE IF NOT EXISTS price_history (
   discount_percent INTEGER,
   price_event TEXT,
   deal_score INTEGER,
-  is_anomaly INTEGER NOT NULL DEFAULT 0,
-  risk_level TEXT NOT NULL DEFAULT 'SAFE',
+  is_pricing_error INTEGER NOT NULL DEFAULT 0,
   recorded_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_id, recorded_at);
-CREATE INDEX IF NOT EXISTS idx_price_history_trusted ON price_history(game_id, is_anomaly, risk_level);
+CREATE INDEX IF NOT EXISTS idx_price_history_reliable ON price_history(game_id, is_pricing_error);
 CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id);
 
 
@@ -213,20 +208,49 @@ CREATE TABLE IF NOT EXISTS sync_runs (
   error_message TEXT
 );
 
--- 10. Anomalies Table
-CREATE TABLE IF NOT EXISTS anomalies (
+-- 10. Pricing Errors Table
+CREATE TABLE IF NOT EXISTS pricing_errors (
   id TEXT PRIMARY KEY,
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
-  anomaly_type TEXT NOT NULL,
-  score REAL NOT NULL,
+  error_type TEXT NOT NULL,
+  confidence REAL NOT NULL,
   reason TEXT NOT NULL,
   detected_at TEXT NOT NULL,
   is_dismissed INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_anomalies_game ON anomalies(game_id);
-CREATE INDEX IF NOT EXISTS idx_anomalies_dismissed ON anomalies(is_dismissed);
+CREATE INDEX IF NOT EXISTS idx_pricing_errors_game ON pricing_errors(game_id);
+CREATE INDEX IF NOT EXISTS idx_pricing_errors_dismissed ON pricing_errors(is_dismissed);
+
+-- Backward compatibility view for legacy queries and test fixture tear-down
+CREATE VIEW IF NOT EXISTS anomalies AS 
+SELECT 
+  id, 
+  game_id, 
+  offer_id, 
+  error_type AS anomaly_type, 
+  confidence AS score, 
+  reason, 
+  detected_at, 
+  is_dismissed 
+FROM pricing_errors;
+CREATE TRIGGER IF NOT EXISTS trg_delete_anomalies INSTEAD OF DELETE ON anomalies BEGIN
+  DELETE FROM pricing_errors WHERE id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_update_anomalies INSTEAD OF UPDATE ON anomalies BEGIN
+  UPDATE pricing_errors 
+  SET is_dismissed = NEW.is_dismissed,
+      error_type = COALESCE(NEW.anomaly_type, error_type),
+      confidence = COALESCE(NEW.score, confidence),
+      reason = COALESCE(NEW.reason, reason),
+      detected_at = COALESCE(NEW.detected_at, detected_at)
+  WHERE id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_insert_anomalies INSTEAD OF INSERT ON anomalies BEGIN
+  INSERT INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
+  VALUES (NEW.id, NEW.game_id, NEW.offer_id, NEW.anomaly_type, NEW.score, NEW.reason, NEW.detected_at, NEW.is_dismissed);
+END;
 
 -- 11. Application Settings Table
 CREATE TABLE IF NOT EXISTS settings (
@@ -256,6 +280,18 @@ CREATE TABLE IF NOT EXISTS family_owned_apps (
 );
 
 CREATE INDEX IF NOT EXISTS idx_family_owned_apps_app_id ON family_owned_apps(steam_app_id);
+
+-- 14. Steam Assets Table
+CREATE TABLE IF NOT EXISTS steam_assets (
+  steam_app_id INTEGER NOT NULL,
+  asset_type TEXT NOT NULL,
+  asset_url TEXT NOT NULL,
+  local_path TEXT,
+  last_updated_at TEXT NOT NULL,
+  PRIMARY KEY (steam_app_id, asset_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_steam_assets_app ON steam_assets(steam_app_id);
 `;
 
 export const SEED_SOURCES_SQL = `

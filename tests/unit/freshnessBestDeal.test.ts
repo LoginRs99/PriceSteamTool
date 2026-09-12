@@ -32,15 +32,15 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
     // Insert Offer A: €5.00, stale (5 days ago)
     const offerAId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 0, 'SAFE', 0, ?, ?, 'https://store-a.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 0, 0.0, 0, ?, ?, 'https://store-a.com', ?, ?)
     `).run(offerAId, game.id, merchantA.id, fiveDaysAgo, fiveDaysAgo, fiveDaysAgo, fiveDaysAgo);
 
     // Insert Offer B: €8.00, fresh (5 minutes ago)
     const offerBId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 8.00, 1, 0, 'SAFE', 0, ?, ?, 'https://store-b.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 8.00, 1, 0, 0.0, 0, ?, ?, 'https://store-b.com', ?, ?)
     `).run(offerBId, game.id, merchantB.id, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo);
 
     // Recompute best deal
@@ -77,14 +77,14 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
 
     const offerAId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 0, 'SAFE', 0, ?, ?, 'https://store-a.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 0, 0.0, 0, ?, ?, 'https://store-a.com', ?, ?)
     `).run(offerAId, game.id, merchantA.id, tenMinutesAgo, tenMinutesAgo, tenMinutesAgo, tenMinutesAgo);
 
     const offerBId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 8.00, 1, 0, 'SAFE', 0, ?, ?, 'https://store-b.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 8.00, 1, 0, 0.0, 0, ?, ?, 'https://store-b.com', ?, ?)
     `).run(offerBId, game.id, merchantB.id, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo);
 
     offerRepo.recomputeBestDealForGame(game.id);
@@ -95,32 +95,32 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
     expect(recomputedGame.bestIsFresh).toBe(true);
   });
 
-  it('Case C: Fresh lowest price beats higher price regardless of anomaly status', () => {
-    const game = gameRepo.upsert({ steamAppId: 1003, title: 'Case C Game', basePriceEur: 60.0 });
+  it('Case C: High risk / pricing error offers are excluded from best deal selection', () => {
+    const game = gameRepo.upsert({ steamAppId: 1003, title: 'Case C Game', basePriceEur: 20.0 });
     const merchantA = merchantRepo.getOrCreate('shady_keys', 'Shady Keys', false);
     const merchantB = merchantRepo.getOrCreate('legit_store', 'Legit Store', true);
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    // Offer A: €5.00, fresh, HIGH risk / anomaly
+    // Offer A: €5.00, fresh, pricing error
     const offerAId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 1, 'HIGH', 0, ?, ?, 'https://shady.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 1, 0.9, 0, ?, ?, 'https://shady.com', ?, ?)
     `).run(offerAId, game.id, merchantA.id, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo);
 
-    // Offer B: €6.00, fresh, SAFE
+    // Offer B: €6.00, fresh, valid, not a pricing error
     const offerBId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 6.00, 1, 0, 'SAFE', 0, ?, ?, 'https://legit.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 6.00, 1, 0, 0.0, 0, ?, ?, 'https://legit.com', ?, ?)
     `).run(offerBId, game.id, merchantB.id, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo, fiveMinutesAgo);
 
     offerRepo.recomputeBestDealForGame(game.id);
 
     const recomputedGame = gameRepo.getById(game.id)!;
-    expect(recomputedGame.bestOfferId).toBe(offerAId);
-    expect(recomputedGame.bestPriceEur).toBe(5.00);
+    expect(recomputedGame.bestOfferId).toBe(offerBId);
+    expect(recomputedGame.bestPriceEur).toBe(6.00);
     expect(recomputedGame.hasPricingError).toBe(true);
     expect(recomputedGame.bestIsFresh).toBe(true);
   });
@@ -135,14 +135,14 @@ describe('Canonical Freshness & Best Deal Selection Suite', () => {
 
     const offerAId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 0, 'SAFE', 0, ?, ?, 'https://store-a.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 5.00, 1, 0, 0.0, 0, ?, ?, 'https://store-a.com', ?, ?)
     `).run(offerAId, game.id, merchantA.id, fiveDaysAgo, fiveDaysAgo, fiveDaysAgo, fiveDaysAgo);
 
     const offerBId = randomUUID();
     prepareStmt(`
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_anomaly, risk_level, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
-      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 8.00, 1, 0, 'SAFE', 0, ?, ?, 'https://store-b.com', ?, ?)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, is_valid, is_likely_pricing_error, pricing_error_confidence, is_best_deal, last_observed_at, fetched_at, deal_url, created_at, updated_at)
+      VALUES (?, ?, ?, 'KEY', 'GLOBAL', 8.00, 1, 0, 0.0, 0, ?, ?, 'https://store-b.com', ?, ?)
     `).run(offerBId, game.id, merchantB.id, sixDaysAgo, sixDaysAgo, sixDaysAgo, sixDaysAgo);
 
     offerRepo.recomputeBestDealForGame(game.id);

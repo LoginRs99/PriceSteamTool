@@ -136,7 +136,7 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
 
     const stats = gameRepo.getWishlistStatistics(profile.id);
     expect(stats.totalGames).toBe(4);
-    expect(stats.gamesOnSale).toBe(3); // g1 (75%), g2 (20%), g4 (99%)
+    expect(stats.gamesOnSale).toBe(2); // g1 (75%), g2 (20%); g4 is pricing error excluded from best deal
     expect(stats.gamesAtHistoricalLow).toBe(1); // g1 is NEW_HISTORICAL_LOW
     expect(stats.gamesWithPricingErrors).toBe(1); // g4 has pricing error
     expect(stats.averageDiscountPercent).toBeGreaterThan(0);
@@ -234,10 +234,10 @@ describe('v1.2 Deal Score, Statistics & Discovery Filter Tests', () => {
 
     const bestDeals = gameRepo.getBestDeals(profile.id, 10);
     
-    // Anomalies are NOT excluded from Best Deals per user requirements
-    expect(bestDeals.some(d => d.id === g3.id)).toBe(true);
+    // Per Task 4, pricing errors are excluded from best deals
+    expect(bestDeals.some(d => d.id === g3.id)).toBe(false);
 
-    expect(bestDeals.length).toBe(3);
+    expect(bestDeals.length).toBe(2);
     expect(bestDeals[0].bestDealScore).toBeGreaterThanOrEqual(65);
     expect(['Good', 'Great', 'Exceptional']).toContain(bestDeals[0].bestDealTier);
   });

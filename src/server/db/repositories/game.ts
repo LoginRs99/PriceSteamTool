@@ -96,7 +96,7 @@ export function buildWishlistFilterClause(
   }
 
   if (options.hasPricingErrors) {
-    whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) > 0`);
+    whereClauses.push(`(SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) > 0`);
   }
 
   if (options.targetReachedOnly) {
@@ -327,15 +327,13 @@ export const gameRepo = {
         bo.region_type as best_region_type,
         bo.deal_url as best_deal_url,
         bo.price_event as best_price_event,
-        bo.risk_level as best_risk_level,
         bo.last_observed_at as best_last_observed_at,
         m.name as best_merchant_name,
         m.code as best_merchant_code,
         m.is_official as best_merchant_is_official,
-        m.trust_score as best_merchant_trust_score,
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count,
+        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
       FROM games g
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
@@ -463,7 +461,7 @@ export const gameRepo = {
         COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.discount_percent > 0 OR (g.base_price_eur > 0 AND bo.price_eur < g.base_price_eur)) THEN w.game_id END) as games_on_sale,
         COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.price_event IN ('RECORD_DROP', 'UNCONFIRMED_RECORD_DROP', 'NEW_HISTORICAL_LOW', 'AT_HISTORICAL_LOW') OR (g.historical_low_eur IS NOT NULL AND g.historical_low_eur > 0 AND bo.price_eur <= g.historical_low_eur * 1.02)) THEN w.game_id END) as games_at_historical_low,
         COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') OR bo.discount_percent >= 50 OR (g.base_price_eur > 0 AND bo.price_eur <= g.base_price_eur * 0.5)) THEN w.game_id END) as major_drops_count,
-        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND EXISTS (SELECT 1 FROM offers ho WHERE ho.game_id = w.game_id AND ho.risk_level = 'HIGH' AND ho.is_valid = 1) THEN w.game_id END) as games_with_high_risk,
+        COUNT(DISTINCT CASE WHEN (g.is_free = 0 OR g.is_free IS NULL) AND EXISTS (SELECT 1 FROM offers ho WHERE ho.game_id = w.game_id AND ho.is_likely_pricing_error = 1 AND ho.is_valid = 1) THEN w.game_id END) as games_with_high_risk,
         AVG(CASE 
           WHEN (g.is_free = 0 OR g.is_free IS NULL) AND (bo.discount_percent > 0 OR (g.base_price_eur > 0 AND bo.price_eur < g.base_price_eur)) THEN 
             CASE 
@@ -501,15 +499,13 @@ export const gameRepo = {
         bo.region_type as best_region_type,
         bo.deal_url as best_deal_url,
         bo.price_event as best_price_event,
-        bo.risk_level as best_risk_level,
         bo.last_observed_at as best_last_observed_at,
         m.name as best_merchant_name,
         m.code as best_merchant_code,
         m.is_official as best_merchant_is_official,
-        m.trust_score as best_merchant_trust_score,
         (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count,
+        (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
@@ -553,15 +549,13 @@ export const gameRepo = {
       bo.region_type as best_region_type,
       bo.deal_url as best_deal_url,
       bo.price_event as best_price_event,
-      bo.risk_level as best_risk_level,
       bo.last_observed_at as best_last_observed_at,
       m.name as best_merchant_name,
       m.code as best_merchant_code,
       m.is_official as best_merchant_is_official,
-      m.trust_score as best_merchant_trust_score,
       (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
-      (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_anomaly = 1) as anomaly_count,
+      (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1) as anomaly_count,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
     `;
 

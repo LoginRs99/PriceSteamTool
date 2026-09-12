@@ -3,69 +3,68 @@ import { prepareStmt } from '../core.js';
 import type { PricingError } from '../../../shared/types.js';
 import { logWarn } from '../../utils/logger.js';
 
-export const ANOMALY_RETRIGGER_AFTER_DAYS = 30;
+export const PRICING_ERROR_RETRIGGER_AFTER_DAYS = 30;
 
-export const anomalyRepo = {
+export const pricingErrorRepo = {
   record(
     gameId: string, 
     offerId: string, 
     type: string, 
-    score: number, 
+    confidence: number, 
     reason: string, 
     currentPriceEur?: number,
     previousPriceEur?: number
   ): void {
     const now = new Date().toISOString();
     
-    // 1. Check if an active (non-dismissed) anomaly record exists for this game
-    const activeGameAnomaly = prepareStmt(`
-      SELECT a.id, a.offer_id, o.price_eur
-      FROM anomalies a
-      LEFT JOIN offers o ON a.offer_id = o.id
-      WHERE a.game_id = ? AND a.is_dismissed = 0
+    // 1. Check if an active (non-dismissed) pricing error record exists for this game
+    const activeGameError = prepareStmt(`
+      SELECT pe.id, pe.offer_id, o.price_eur
+      FROM pricing_errors pe
+      LEFT JOIN offers o ON pe.offer_id = o.id
+      WHERE pe.game_id = ? AND pe.is_dismissed = 0
     `).get(gameId) as any;
 
-    if (activeGameAnomaly) {
-      const activePrice = activeGameAnomaly.price_eur !== null && activeGameAnomaly.price_eur !== undefined
-        ? Number(activeGameAnomaly.price_eur)
+    if (activeGameError) {
+      const activePrice = activeGameError.price_eur !== null && activeGameError.price_eur !== undefined
+        ? Number(activeGameError.price_eur)
         : Infinity;
       const newPrice = currentPriceEur ?? Infinity;
 
-      if (activeGameAnomaly.offer_id === offerId) {
-        // Update active anomaly record in-place for same offer
+      if (activeGameError.offer_id === offerId) {
+        // Update active pricing error record in-place for same offer
         prepareStmt(`
-          UPDATE anomalies
-          SET score = ?, reason = ?, anomaly_type = ?, detected_at = ?
+          UPDATE pricing_errors
+          SET confidence = ?, reason = ?, error_type = ?, detected_at = ?
           WHERE id = ?
-        `).run(score, reason, type, now, activeGameAnomaly.id);
+        `).run(confidence, reason, type, now, activeGameError.id);
         return;
       } else if (newPrice < activePrice - 0.005) {
-        // New offer is a cheaper / primary deal anomaly -> replace the existing active game anomaly
+        // New offer is a cheaper / primary deal pricing error -> replace the existing active game pricing error
         prepareStmt(`
-          UPDATE anomalies
-          SET offer_id = ?, score = ?, reason = ?, anomaly_type = ?, detected_at = ?
+          UPDATE pricing_errors
+          SET offer_id = ?, confidence = ?, reason = ?, error_type = ?, detected_at = ?
           WHERE id = ?
-        `).run(offerId, score, reason, type, now, activeGameAnomaly.id);
+        `).run(offerId, confidence, reason, type, now, activeGameError.id);
         return;
       } else {
-        // Existing active anomaly is cheaper -> do not create duplicate secondary anomaly row
+        // Existing active pricing error is cheaper -> do not create duplicate secondary pricing error row
         return;
       }
     }
 
-    // 2. Check if a dismissed anomaly record exists for this offer
+    // 2. Check if a dismissed pricing error record exists for this offer
     const dismissedExisting = prepareStmt(`
-      SELECT id, anomaly_type, score, detected_at
-      FROM anomalies
+      SELECT id, error_type, confidence, detected_at
+      FROM pricing_errors
       WHERE game_id = ? AND offer_id = ? AND is_dismissed = 1
       ORDER BY detected_at DESC LIMIT 1
     `).get(gameId, offerId) as any;
 
     if (dismissedExisting) {
-      // Same anomaly type (accounting for v1.8 renaming) AND price did not drop further below previous price
-      const isSameType = (dismissedExisting.anomaly_type === type) ||
-        (dismissedExisting.anomaly_type === 'DECIMAL_SHIFT' && type === 'SUB_EURO_PREMIUM_GLITCH') ||
-        (dismissedExisting.anomaly_type === 'SUB_EURO_PREMIUM_GLITCH' && type === 'DECIMAL_SHIFT');
+      const isSameType = (dismissedExisting.error_type === type) ||
+        (dismissedExisting.error_type === 'DECIMAL_SHIFT' && type === 'SUB_EURO_PREMIUM_GLITCH') ||
+        (dismissedExisting.error_type === 'SUB_EURO_PREMIUM_GLITCH' && type === 'DECIMAL_SHIFT');
       const isPriceDrop = (previousPriceEur !== undefined && currentPriceEur !== undefined && currentPriceEur < previousPriceEur - 0.005);
 
       let isExpiredDismissal = false;
@@ -73,7 +72,7 @@ export const anomalyRepo = {
         const detectedTime = new Date(dismissedExisting.detected_at).getTime();
         if (!isNaN(detectedTime)) {
           const ageDays = (Date.now() - detectedTime) / (1000 * 60 * 60 * 24);
-          if (ageDays >= ANOMALY_RETRIGGER_AFTER_DAYS) {
+          if (ageDays >= PRICING_ERROR_RETRIGGER_AFTER_DAYS) {
             isExpiredDismissal = true;
           }
         }
@@ -85,14 +84,14 @@ export const anomalyRepo = {
       }
     }
 
-    // 3. New active anomaly event (first-time detection, post-resolution, price drop, or type change)
+    // 3. New active pricing error event (first-time detection, post-resolution, price drop, or type change)
     const id = randomUUID();
     prepareStmt(`
-      INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
+      INSERT INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-    `).run(id, gameId, offerId, type, score, reason, now);
+    `).run(id, gameId, offerId, type, confidence, reason, now);
 
-    if (score >= 0.60) {
+    if (confidence >= 0.60) {
       try {
         const gameRow = prepareStmt(`SELECT title FROM games WHERE id = ?`).get(gameId) as any;
         const merchantRow = prepareStmt(`
@@ -101,7 +100,7 @@ export const anomalyRepo = {
         const gTitle = gameRow?.title || 'Game';
         const mName = merchantRow?.name || 'Store';
         const pStr = currentPriceEur !== undefined ? `€${currentPriceEur.toFixed(2)}` : 'N/A';
-        logWarn(`Pricing Anomaly Detected | game="${gTitle}" | store="${mName}" | price="${pStr}" | type="${type}" | score=${score.toFixed(2)}`);
+        logWarn(`Pricing Error Detected | game="${gTitle}" | store="${mName}" | price="${pStr}" | type="${type}" | confidence=${confidence.toFixed(2)}`);
       } catch (e) {
         // Suppress logging error
       }
@@ -109,9 +108,9 @@ export const anomalyRepo = {
   },
 
   resolveForOffer(offerId: string): void {
-    // When an offer price returns to normal (isAnomaly === false), resolve active anomaly record
+    // When an offer price returns to normal (isLikelyPricingError === false), resolve active pricing error record
     prepareStmt(`
-      UPDATE anomalies 
+      UPDATE pricing_errors 
       SET is_dismissed = 1 
       WHERE offer_id = ? AND is_dismissed = 0
     `).run(offerId);
@@ -119,29 +118,29 @@ export const anomalyRepo = {
 
   list(onlyActive: boolean = true): PricingError[] {
     const sql = onlyActive 
-      ? `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
-         FROM anomalies a 
-         LEFT JOIN games g ON a.game_id = g.id
-         LEFT JOIN offers o ON a.offer_id = o.id
+      ? `SELECT pe.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
+         FROM pricing_errors pe 
+         LEFT JOIN games g ON pe.game_id = g.id
+         LEFT JOIN offers o ON pe.offer_id = o.id
          LEFT JOIN merchants m ON o.merchant_id = m.id
-         WHERE a.is_dismissed = 0 
-           AND o.is_anomaly = 1 
+         WHERE pe.is_dismissed = 0 
+           AND o.is_likely_pricing_error = 1 
            AND o.is_valid = 1
            AND (o.price_event IS NULL OR o.price_event != 'PRICE_INCREASE')
            AND NOT EXISTS (
              SELECT 1 FROM offers o2 
-             WHERE o2.game_id = a.game_id 
+             WHERE o2.game_id = pe.game_id 
                AND o2.id != o.id 
                AND o2.is_valid = 1 
                AND o2.price_eur < o.price_eur - 0.01
            )
-         ORDER BY a.detected_at DESC`
-      : `SELECT a.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
-         FROM anomalies a 
-         LEFT JOIN games g ON a.game_id = g.id
-         LEFT JOIN offers o ON a.offer_id = o.id
+         ORDER BY pe.detected_at DESC`
+      : `SELECT pe.*, o.price_eur, o.original_price_eur, o.deal_url, g.title as game_title, g.steam_app_id, m.name as merchant_name, m.default_url as merchant_default_url 
+         FROM pricing_errors pe 
+         LEFT JOIN games g ON pe.game_id = g.id
+         LEFT JOIN offers o ON pe.offer_id = o.id
          LEFT JOIN merchants m ON o.merchant_id = m.id
-         ORDER BY a.detected_at DESC`;
+         ORDER BY pe.detected_at DESC`;
 
     const rows = prepareStmt(sql).all() as any[];
     return rows.map(r => {
@@ -159,9 +158,9 @@ export const anomalyRepo = {
         priceEur: r.price_eur !== null && r.price_eur !== undefined ? Number(r.price_eur) : undefined,
         originalPriceEur: r.original_price_eur !== null && r.original_price_eur !== undefined ? Number(r.original_price_eur) : undefined,
         dealUrl: targetUrl || undefined,
-        errorType: r.anomaly_type || 'PRICE_GLITCH',
-        confidence: Number(r.score || 0),
-        reason: r.reason || 'Flagged price anomaly',
+        errorType: r.error_type || 'PRICE_GLITCH',
+        confidence: Number(r.confidence || 0),
+        reason: r.reason || 'Flagged price error',
         detectedAt: r.detected_at || new Date().toISOString(),
         isDismissed: Boolean(r.is_dismissed)
       };
@@ -169,10 +168,15 @@ export const anomalyRepo = {
   },
 
   dismiss(id: string): void {
-    prepareStmt(`UPDATE anomalies SET is_dismissed = 1 WHERE id = ?`).run(id);
+    prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE id = ?`).run(id);
   },
 
   dismissAll(): void {
-    prepareStmt(`UPDATE anomalies SET is_dismissed = 1 WHERE is_dismissed = 0`).run();
+    prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE is_dismissed = 0`).run();
   }
 };
+
+// Compatibility aliases
+export const anomalyRepo = pricingErrorRepo;
+export const ANOMALY_RETRIGGER_AFTER_DAYS = PRICING_ERROR_RETRIGGER_AFTER_DAYS;
+

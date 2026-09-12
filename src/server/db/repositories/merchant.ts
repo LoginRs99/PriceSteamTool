@@ -18,8 +18,8 @@ export const merchantRepo = {
     const id = randomUUID();
     const now = new Date().toISOString();
     prepareStmt(`
-      INSERT INTO merchants (id, code, name, default_url, is_official, trust_score, created_at)
-      VALUES (?, ?, ?, ?, ?, 1.0, ?)
+      INSERT INTO merchants (id, code, name, default_url, is_official, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(id, code, name, defaultUrl || null, isOfficial ? 1 : 0, now);
 
     return { id, code, name, defaultUrl, isOfficial };

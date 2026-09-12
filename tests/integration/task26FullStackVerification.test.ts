@@ -233,7 +233,7 @@ describe('Task 26: Full Stack Verification (Smoke & Acceptance)', () => {
       });
 
       const db = getDb();
-      db.prepare(`UPDATE offers SET risk_level = 'HIGH', is_anomaly = 1 WHERE id = ?`).run(anomalyOffer.id);
+      db.prepare(`UPDATE offers SET is_likely_pricing_error = 1, pricing_error_confidence = 0.95, pricing_error_type = 'PRICE_GLITCH' WHERE id = ?`).run(anomalyOffer.id);
 
       // When hidePricingErrors is active, the anomalous offer does not surface in wishlist
       const filteredRes = gameRepo.getWishlistGames(profile.id, { hidePricingErrors: true });

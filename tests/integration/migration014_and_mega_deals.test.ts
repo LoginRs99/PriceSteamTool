@@ -26,56 +26,52 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
       INSERT INTO games (id, steam_app_id, title, slug, base_price_eur, created_at, updated_at)
       VALUES ('game-1', 12345, 'Tales of Vesperia', 'tales-of-vesperia', 39.99, datetime('now'), datetime('now'));
 
-      INSERT INTO merchants (id, name, code, is_official, trust_score, created_at)
+      INSERT INTO merchants (id, name, code, is_official, created_at)
       VALUES 
-        ('m-1', 'G2A', 'g2a', 0, 0.7, datetime('now')),
-        ('m-2', 'Kinguin', 'kinguin', 0, 0.7, datetime('now'));
+        ('m-1', 'G2A', 'g2a', 0, datetime('now')),
+        ('m-2', 'Kinguin', 'kinguin', 0, datetime('now'));
 
-      -- Falsely flagged price increase as HIGH risk
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, risk_level, is_anomaly, price_event, deal_url, fetched_at, created_at, updated_at)
-      VALUES ('off-1', 'game-1', 'm-1', 'STEAM_KEY', 'GLOBAL', 40.09, 39.99, 1, 0, 'HIGH', 1, 'PRICE_INCREASE', 'https://example.com/1', datetime('now'), datetime('now'), datetime('now'));
+      -- Falsely flagged price increase as pricing error
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, is_likely_pricing_error, pricing_error_confidence, price_event, deal_url, fetched_at, created_at, updated_at)
+      VALUES ('off-1', 'game-1', 'm-1', 'STEAM_KEY', 'GLOBAL', 40.09, 39.99, 1, 0, 1, 0.85, 'PRICE_INCREASE', 'https://example.com/1', datetime('now'), datetime('now'), datetime('now'));
 
       -- Corresponding active anomaly
       INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
       VALUES ('anom-1', 'game-1', 'off-1', 'PRICE_GLITCH', 0.85, 'Spike in price', datetime('now'), 0);
 
-      -- Legitimate cheap glitch that SHOULD remain high risk (sub-euro premium glitch)
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, risk_level, is_anomaly, price_event, deal_url, fetched_at, created_at, updated_at)
-      VALUES ('off-2', 'game-1', 'm-2', 'STEAM_KEY', 'GLOBAL', 0.49, 39.99, 1, 0, 'HIGH', 1, 'EXTREME_DROP', 'https://example.com/2', datetime('now'), datetime('now'), datetime('now'));
+      -- Legitimate cheap glitch that SHOULD remain pricing error (sub-euro premium glitch)
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, is_likely_pricing_error, pricing_error_confidence, price_event, deal_url, fetched_at, created_at, updated_at)
+      VALUES ('off-2', 'game-1', 'm-2', 'STEAM_KEY', 'GLOBAL', 0.49, 39.99, 1, 0, 1, 0.95, 'EXTREME_DROP', 'https://example.com/2', datetime('now'), datetime('now'), datetime('now'));
 
       INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
       VALUES ('anom-2', 'game-1', 'off-2', 'PRICE_GLITCH', 0.95, 'Sub-euro glitch', datetime('now'), 0);
     `);
 
-    // Run the migration 014 logic
+    // Run the migration 014 logic (adapted for current schema columns)
     db.exec(`
       UPDATE offers
-      SET risk_level = 'SAFE',
-          risk_score = 0.0,
-          is_anomaly = 0,
-          anomaly_score = 0.0,
-          anomaly_reason = NULL
-      WHERE risk_level = 'HIGH'
+      SET is_likely_pricing_error = 0,
+          pricing_error_confidence = 0.0,
+          pricing_error_reason = NULL
+      WHERE is_likely_pricing_error = 1
         AND (price_event = 'PRICE_INCREASE' OR price_eur >= 10.0 OR (original_price_eur IS NOT NULL AND price_eur >= original_price_eur));
 
       UPDATE anomalies
       SET is_dismissed = 1
       WHERE offer_id IN (
-        SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
+        SELECT id FROM offers WHERE is_likely_pricing_error = 0
       ) AND is_dismissed = 0;
     `);
 
-    const off1 = db.prepare('SELECT risk_level, is_anomaly FROM offers WHERE id = ?').get('off-1') as any;
-    expect(off1.risk_level).toBe('SAFE');
-    expect(off1.is_anomaly).toBe(0);
+    const off1 = db.prepare('SELECT is_likely_pricing_error FROM offers WHERE id = ?').get('off-1') as any;
+    expect(off1.is_likely_pricing_error).toBe(0);
 
     const anom1 = db.prepare('SELECT is_dismissed FROM anomalies WHERE id = ?').get('anom-1') as any;
     expect(anom1.is_dismissed).toBe(1);
 
-    // Genuine sub-euro glitch remains HIGH
-    const off2 = db.prepare('SELECT risk_level, is_anomaly FROM offers WHERE id = ?').get('off-2') as any;
-    expect(off2.risk_level).toBe('HIGH');
-    expect(off2.is_anomaly).toBe(1);
+    // Genuine sub-euro glitch remains pricing error
+    const off2 = db.prepare('SELECT is_likely_pricing_error FROM offers WHERE id = ?').get('off-2') as any;
+    expect(off2.is_likely_pricing_error).toBe(1);
 
     const anom2 = db.prepare('SELECT is_dismissed FROM anomalies WHERE id = ?').get('anom-2') as any;
     expect(anom2.is_dismissed).toBe(0);
@@ -157,21 +153,21 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
         ('game-hitman', 247430, 'Hitman: Contracts', 'hitman-contracts', 8.99, datetime('now'), datetime('now')),
         ('game-aaa', 1091500, 'Cyberpunk 2077', 'cyberpunk-2077', 59.99, datetime('now'), datetime('now'));
 
-      INSERT OR IGNORE INTO merchants (id, name, code, is_official, trust_score, created_at)
+      INSERT OR IGNORE INTO merchants (id, name, code, is_official, created_at)
       VALUES 
-        ('m-steam', 'Steam Store', 'steam', 1, 0.95, datetime('now')),
-        ('m-shady', 'Shady Keys', 'shady', 0, 0.40, datetime('now'));
+        ('m-steam', 'Steam Store', 'steam', 1, datetime('now')),
+        ('m-shady', 'Shady Keys', 'shady', 0, datetime('now'));
 
       -- False sub-euro glitch on Hitman: Contracts (€0.89 on €8.99 game)
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, risk_level, is_anomaly, risk_flags, anomaly_reason, deal_url, fetched_at, created_at, updated_at)
-      VALUES ('off-hitman', 'game-hitman', 'm-steam', 'DIRECT_PURCHASE', 'GLOBAL', 0.89, 8.99, 1, 1, 'HIGH', 1, '["SUB_EURO_PREMIUM_GLITCH"]', '⚡ Sub-Euro Price Glitch (<€1.00)', 'https://store.steampowered.com/app/247430', datetime('now'), datetime('now'), datetime('now'));
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason, deal_url, fetched_at, created_at, updated_at)
+      VALUES ('off-hitman', 'game-hitman', 'm-steam', 'DIRECT_PURCHASE', 'GLOBAL', 0.89, 8.99, 1, 1, 1, 0.85, 'SUB_EURO_PREMIUM_GLITCH', '⚡ Sub-Euro Price Glitch (<€1.00)', 'https://store.steampowered.com/app/247430', datetime('now'), datetime('now'), datetime('now'));
 
       INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
       VALUES ('anom-hitman', 'game-hitman', 'off-hitman', 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Sub-Euro Price Glitch', datetime('now'), 0);
 
       -- True sub-euro glitch on Cyberpunk 2077 (€0.49 on €59.99 game)
-      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, risk_level, is_anomaly, risk_flags, anomaly_reason, deal_url, fetched_at, created_at, updated_at)
-      VALUES ('off-aaa', 'game-aaa', 'm-shady', 'STEAM_KEY', 'GLOBAL', 0.49, 59.99, 1, 1, 'HIGH', 1, '["SUB_EURO_PREMIUM_GLITCH"]', '⚡ Sub-Euro Price Glitch (<€1.00)', 'https://shady.example/deal', datetime('now'), datetime('now'), datetime('now'));
+      INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur, is_valid, is_best_deal, is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason, deal_url, fetched_at, created_at, updated_at)
+      VALUES ('off-aaa', 'game-aaa', 'm-shady', 'STEAM_KEY', 'GLOBAL', 0.49, 59.99, 1, 1, 1, 0.85, 'SUB_EURO_PREMIUM_GLITCH', '⚡ Sub-Euro Price Glitch (<€1.00)', 'https://shady.example/deal', datetime('now'), datetime('now'), datetime('now'));
 
       INSERT INTO anomalies (id, game_id, offer_id, anomaly_type, score, reason, detected_at, is_dismissed)
       VALUES ('anom-aaa', 'game-aaa', 'off-aaa', 'SUB_EURO_PREMIUM_GLITCH', 0.85, 'Sub-Euro Price Glitch', datetime('now'), 0);
@@ -180,13 +176,12 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
     // Execute Migration 019 logic
     db.exec(`
       UPDATE offers
-      SET risk_level = 'SAFE',
-          risk_score = 0.0,
-          is_anomaly = 0,
-          anomaly_score = 0.0,
-          anomaly_reason = NULL
-      WHERE is_anomaly = 1
-        AND (risk_flags LIKE '%SUB_EURO_PREMIUM_GLITCH%' OR anomaly_reason LIKE '%Sub-Euro%')
+      SET is_likely_pricing_error = 0,
+          pricing_error_confidence = 0.0,
+          pricing_error_type = NULL,
+          pricing_error_reason = NULL
+      WHERE is_likely_pricing_error = 1
+        AND (pricing_error_type LIKE '%SUB_EURO_PREMIUM_GLITCH%' OR pricing_error_reason LIKE '%Sub-Euro%')
         AND game_id IN (
           SELECT id FROM games 
           WHERE (base_price_eur IS NOT NULL AND base_price_eur < 15.0 AND offers.price_eur >= base_price_eur * 0.05)
@@ -195,22 +190,20 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
       UPDATE anomalies
       SET is_dismissed = 1
       WHERE offer_id IN (
-        SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
+        SELECT id FROM offers WHERE is_likely_pricing_error = 0
       ) AND is_dismissed = 0;
     `);
 
-    // Verify Hitman offer is restored to SAFE
-    const hitmanOffer = db.prepare(`SELECT risk_level, is_anomaly FROM offers WHERE id = 'off-hitman'`).get() as any;
-    expect(hitmanOffer.risk_level).toBe('SAFE');
-    expect(hitmanOffer.is_anomaly).toBe(0);
+    // Verify Hitman offer is restored to SAFE / not pricing error
+    const hitmanOffer = db.prepare(`SELECT is_likely_pricing_error FROM offers WHERE id = 'off-hitman'`).get() as any;
+    expect(hitmanOffer.is_likely_pricing_error).toBe(0);
 
     const hitmanAnom = db.prepare(`SELECT is_dismissed FROM anomalies WHERE id = 'anom-hitman'`).get() as any;
     expect(hitmanAnom.is_dismissed).toBe(1);
 
-    // Verify Cyberpunk glitch is still HIGH risk and active anomaly
-    const aaaOffer = db.prepare(`SELECT risk_level, is_anomaly FROM offers WHERE id = 'off-aaa'`).get() as any;
-    expect(aaaOffer.risk_level).toBe('HIGH');
-    expect(aaaOffer.is_anomaly).toBe(1);
+    // Verify Cyberpunk glitch is still active pricing error
+    const aaaOffer = db.prepare(`SELECT is_likely_pricing_error FROM offers WHERE id = 'off-aaa'`).get() as any;
+    expect(aaaOffer.is_likely_pricing_error).toBe(1);
 
     const aaaAnom = db.prepare(`SELECT is_dismissed FROM anomalies WHERE id = 'anom-aaa'`).get() as any;
     expect(aaaAnom.is_dismissed).toBe(0);

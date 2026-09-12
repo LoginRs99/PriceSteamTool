@@ -5,6 +5,6 @@ export * from './repositories/game.js';
 export * from './repositories/merchant.js';
 export * from './repositories/offer.js';
 export * from './repositories/source.js';
-export * from './repositories/anomaly.js';
+export * from './repositories/pricingError.js';
 export * from './repositories/settings.js';
 export * from './repositories/notifications.js';

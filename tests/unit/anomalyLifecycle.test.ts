@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { anomalyRepo } from '../../src/server/db/repositories/anomaly.js';
+import { anomalyRepo } from '../../src/server/db/repositories/pricingError.js';
 import { gameRepo } from '../../src/server/db/repositories/game.js';
 import { merchantRepo } from '../../src/server/db/repositories/merchant.js';
 import { offerRepo } from '../../src/server/db/repositories/offer.js';

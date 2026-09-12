@@ -143,8 +143,8 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
       const offerId = 'test-offer-freshness-1';
       prepareStmt(`
         INSERT INTO offers (
-          id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, risk_level, risk_score, risk_flags, evaluation_confidence, is_anomaly, anomaly_score, fetched_at, created_at, updated_at
-        ) VALUES (?, ?, ?, 'STEAM_KEY', 'GLOBAL', 9.99, 'https://fanatical.com/stale', 1, 1, 'NONE', 'SAFE', 0.0, '[]', 1.0, 0, 0.0, ?, ?, ?)
+          id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, is_likely_pricing_error, pricing_error_confidence, fetched_at, created_at, updated_at
+        ) VALUES (?, ?, ?, 'STEAM_KEY', 'GLOBAL', 9.99, 'https://fanatical.com/stale', 1, 1, 'NONE', 0, 0.0, ?, ?, ?)
       `).run(offerId, game.id, merchant.id, staleDate, staleDate, staleDate);
 
       prepareStmt(`
@@ -402,18 +402,18 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
 
       // Insert 2 normal rows and 1 anomaly row in SQLite
       prepareStmt(`
-        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
-        VALUES (?, ?, ?, 'steam', 69.99, 69.99, 'EUR', 1.0, 0, 'NONE', 50, 0, 'SAFE', '2026-01-01T00:00:00Z')
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_pricing_error, recorded_at)
+        VALUES (?, ?, ?, 'steam', 69.99, 69.99, 'EUR', 1.0, 0, 'NONE', 50, 0, '2026-01-01T00:00:00Z')
       `).run('hist-1', game.id, merchant.id);
 
       prepareStmt(`
-        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
-        VALUES (?, ?, ?, 'steam', 49.99, 49.99, 'EUR', 1.0, 28, 'PRICE_DROP', 75, 0, 'SAFE', '2026-02-01T00:00:00Z')
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_pricing_error, recorded_at)
+        VALUES (?, ?, ?, 'steam', 49.99, 49.99, 'EUR', 1.0, 28, 'PRICE_DROP', 75, 0, '2026-02-01T00:00:00Z')
       `).run('hist-2', game.id, merchant.id);
 
       prepareStmt(`
-        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_anomaly, risk_level, recorded_at)
-        VALUES (?, ?, ?, 'allkeyshop', 0.99, 0.99, 'EUR', 1.0, 98, 'EXTREME_DROP', 99, 1, 'HIGH', '2026-03-01T00:00:00Z')
+        INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_pricing_error, recorded_at)
+        VALUES (?, ?, ?, 'allkeyshop', 0.99, 0.99, 'EUR', 1.0, 98, 'EXTREME_DROP', 99, 1, '2026-03-01T00:00:00Z')
       `).run('hist-3', game.id, merchant.id);
 
       // Verify offerRepo.getPriceHistory preserves metadata
@@ -489,14 +489,14 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
 
       // Offer A: Stale €5.00
       prepareStmt(`
-        INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, risk_level, risk_score, risk_flags, evaluation_confidence, is_anomaly, anomaly_score, fetched_at, last_observed_at, created_at, updated_at)
-        VALUES ('off-stale-5', ?, ?, 'STEAM_KEY', 'GLOBAL', 5.00, 'https://storeA.com', 1, 0, 'NONE', 'SAFE', 0.0, '[]', 1.0, 0, 0.0, ?, ?, ?, ?)
+        INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, is_likely_pricing_error, pricing_error_confidence, fetched_at, last_observed_at, created_at, updated_at)
+        VALUES ('off-stale-5', ?, ?, 'STEAM_KEY', 'GLOBAL', 5.00, 'https://storeA.com', 1, 0, 'NONE', 0, 0.0, ?, ?, ?, ?)
       `).run(game.id, merchantA.id, staleDate, staleDate, staleDate, staleDate);
 
       // Offer B: Fresh €8.00
       prepareStmt(`
-        INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, risk_level, risk_score, risk_flags, evaluation_confidence, is_anomaly, anomaly_score, fetched_at, last_observed_at, created_at, updated_at)
-        VALUES ('off-fresh-8', ?, ?, 'STEAM_KEY', 'GLOBAL', 8.00, 'https://storeB.com', 1, 0, 'NONE', 'SAFE', 0.0, '[]', 1.0, 0, 0.0, ?, ?, ?, ?)
+        INSERT INTO offers (id, game_id, merchant_id, product_type, region_type, price_eur, deal_url, is_valid, is_best_deal, price_event, is_likely_pricing_error, pricing_error_confidence, fetched_at, last_observed_at, created_at, updated_at)
+        VALUES ('off-fresh-8', ?, ?, 'STEAM_KEY', 'GLOBAL', 8.00, 'https://storeB.com', 1, 0, 'NONE', 0, 0.0, ?, ?, ?, ?)
       `).run(game.id, merchantB.id, freshDate, freshDate, freshDate, freshDate);
 
       offerRepo.recomputeBestDealForGame(game.id);

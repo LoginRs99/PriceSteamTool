@@ -60,7 +60,7 @@ describe('Critical Performance, Scale Stress & Data Integrity Suite', () => {
     const insertOffer = db.prepare(`
       INSERT INTO offers (
         id, game_id, merchant_id, product_type, region_type, price_eur, original_price_eur,
-        is_valid, is_best_deal, risk_level, is_anomaly, price_event, deal_url,
+        is_valid, is_best_deal, is_likely_pricing_error, pricing_error_confidence, price_event, deal_url,
         fetched_at, last_observed_at, created_at, updated_at
       ) VALUES (?, ?, ?, 'STEAM_KEY', 'GLOBAL', ?, ?, 1, 0, ?, ?, ?, 'https://example.com', ?, ?, datetime('now'), datetime('now'))
     `);
@@ -93,14 +93,14 @@ describe('Critical Performance, Scale Stress & Data Integrity Suite', () => {
             : new Date().toISOString();
 
           let price = basePrice * (0.3 + (o * 0.025));
-          let riskLevel = 'SAFE';
-          let isAnom = 0;
+          let isPricingError = 0;
+          let confidence = 0.0;
           let event = 'ON_SALE';
 
           if (isAnomaly) {
             price = 0.49; // Extreme glitch
-            riskLevel = 'HIGH';
-            isAnom = 1;
+            isPricingError = 1;
+            confidence = 0.95;
             event = 'EXTREME_DROP';
           }
 
@@ -110,8 +110,8 @@ describe('Critical Performance, Scale Stress & Data Integrity Suite', () => {
             merchant.id,
             price,
             basePrice,
-            riskLevel,
-            isAnom,
+            isPricingError,
+            confidence,
             event,
             obsTime,
             obsTime
@@ -153,10 +153,8 @@ describe('Critical Performance, Scale Stress & Data Integrity Suite', () => {
     expect(bestDeals.length).toBe(100);
 
     for (const b of bestDeals) {
-      // Best deal selects lowest valid price; anomalous offers are not excluded from Best Deal
-      expect(b.price_eur).toBe(0.49);
-      expect(b.is_anomaly).toBe(1);
-      expect(b.risk_level).toBe('HIGH');
+      // Best deal selects lowest valid fresh price; pricing errors are excluded from Best Deal
+      expect(b.is_likely_pricing_error).toBe(0);
 
       // Best deal must be fresh (<72h) since fresh offers were available
       const ageHours = (Date.now() - new Date(b.last_observed_at).getTime()) / (3600 * 1000);

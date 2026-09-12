@@ -21,8 +21,8 @@ describe('Database Versioned Migrations Runner', () => {
     const offerCols = db.prepare(`PRAGMA table_info(offers)`).all() as any[];
     const offerColNames = offerCols.map(c => c.name);
     expect(offerColNames).toContain('price_event');
-    expect(offerColNames).toContain('risk_level');
-    expect(offerColNames).toContain('is_anomaly');
+    expect(offerColNames).toContain('is_likely_pricing_error');
+    expect(offerColNames).toContain('pricing_error_confidence');
 
     // Second run: should be a no-op and not duplicate entries
     runMigrations(db);

@@ -3,7 +3,7 @@ import { prepareStmt, getDb } from '../../src/server/db/core.js';
 import { gameRepo } from '../../src/server/db/repositories/game.js';
 import { merchantRepo } from '../../src/server/db/repositories/merchant.js';
 import { offerRepo } from '../../src/server/db/repositories/offer.js';
-import { anomalyRepo } from '../../src/server/db/repositories/anomaly.js';
+import { anomalyRepo } from '../../src/server/db/repositories/pricingError.js';
 import { calculatePriceRisk, evaluatePriceMovement } from '../../src/server/domain/pricingError.js';
 
 function resetDb() {
@@ -213,9 +213,12 @@ describe('Data Safety & Outlier Detection Refinement Suite', () => {
 
     expect(offers[0].priceEur).toBe(2.50);
     expect(offers[0].merchantName).toBe('Cheapest Glitch Store');
-    expect(offers[0].isBestDeal).toBe(true);
+    // Pricing error glitch is excluded from best-deal assignment per Task 4 spec
+    expect(offers[0].isBestDeal).toBe(false);
+    expect(offers[0].isLikelyPricingError).toBe(true);
 
     expect(offers[1].priceEur).toBe(18.00);
+    expect(offers[1].isBestDeal).toBe(true);
     expect(offers[2].priceEur).toBe(35.00);
   });
 

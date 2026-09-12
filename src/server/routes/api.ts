@@ -5,7 +5,7 @@ import {
   gameRepo, 
   offerRepo, 
   sourceRepo, 
-  anomalyRepo 
+  pricingErrorRepo 
 } from '../db/index.js';
 import { syncOrchestrator } from '../sync/orchestrator.js';
 import { priceHistoryQueue } from '../sync/historyQueue.js';
@@ -406,20 +406,35 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   // ----------------------------------------------------
-  // Anomalies API
+  // Pricing Errors API (with /api/anomalies backward-compatibility aliases)
   // ----------------------------------------------------
+  fastify.get('/api/pricing-errors', async () => {
+    return pricingErrorRepo.list();
+  });
+
+  fastify.post('/api/pricing-errors/:id/dismiss', async (request) => {
+    const { id } = request.params as { id: string };
+    pricingErrorRepo.dismiss(id);
+    return { success: true };
+  });
+
+  fastify.post('/api/pricing-errors/dismiss-all', async () => {
+    pricingErrorRepo.dismissAll();
+    return { success: true };
+  });
+
   fastify.get('/api/anomalies', async () => {
-    return anomalyRepo.list();
+    return pricingErrorRepo.list();
   });
 
   fastify.post('/api/anomalies/:id/dismiss', async (request) => {
     const { id } = request.params as { id: string };
-    anomalyRepo.dismiss(id);
+    pricingErrorRepo.dismiss(id);
     return { success: true };
   });
 
   fastify.post('/api/anomalies/dismiss-all', async () => {
-    anomalyRepo.dismissAll();
+    pricingErrorRepo.dismissAll();
     return { success: true };
   });
 

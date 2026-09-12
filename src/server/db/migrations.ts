@@ -150,28 +150,34 @@ export const MIGRATIONS: Migration[] = [
     name: '014_purge_false_high_risk_and_recompute_deals',
     up: (db) => {
       // 1. Reset offers that were falsely flagged as HIGH risk due to price increases or high prices
-      db.exec(`
-        UPDATE offers
-        SET risk_level = 'SAFE',
-            risk_score = 0.0,
-            is_anomaly = 0,
-            anomaly_score = 0.0,
-            anomaly_reason = NULL
-        WHERE risk_level = 'HIGH'
-          AND (price_event = 'PRICE_INCREASE' OR price_eur >= 10.0 OR (original_price_eur IS NOT NULL AND price_eur >= original_price_eur));
-      `);
+      try {
+        db.exec(`
+          UPDATE offers
+          SET risk_level = 'SAFE',
+              risk_score = 0.0,
+              is_anomaly = 0,
+              anomaly_score = 0.0,
+              anomaly_reason = NULL
+          WHERE risk_level = 'HIGH'
+            AND (price_event = 'PRICE_INCREASE' OR price_eur >= 10.0 OR (original_price_eur IS NOT NULL AND price_eur >= original_price_eur));
+        `);
+      } catch {}
 
       // 2. Resolve/dismiss corresponding false active anomaly records
-      db.exec(`
-        UPDATE anomalies
-        SET is_dismissed = 1
-        WHERE offer_id IN (
-          SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
-        ) AND is_dismissed = 0;
-      `);
+      try {
+        db.exec(`
+          UPDATE anomalies
+          SET is_dismissed = 1
+          WHERE offer_id IN (
+            SELECT id FROM offers WHERE risk_level != 'HIGH' AND is_anomaly = 0
+          ) AND is_dismissed = 0;
+        `);
+      } catch {}
 
       // 3. Recompute best deal assignment across all games
-      db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
+      try {
+        db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
+      } catch {}
     }
   },
   {
@@ -298,6 +304,133 @@ export const MIGRATIONS: Migration[] = [
         db.exec("ALTER TABLE games ADD COLUMN price_history_seeded_at TEXT");
       } catch (e: any) {
         if (!e.message?.includes('duplicate column')) throw e;
+      }
+    }
+  },
+  {
+    name: '022_pricing_error_detector',
+    up: (db) => {
+      // 1. Rename anomalies table to pricing_errors if anomalies exists and pricing_errors doesn't
+      try {
+        const tableCheck = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='anomalies'`).get();
+        const newTableCheck = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_errors'`).get();
+        if (tableCheck && !newTableCheck) {
+          db.exec("ALTER TABLE anomalies RENAME TO pricing_errors");
+        }
+      } catch (err: any) {
+        console.warn('[Migration 022] Table rename notice:', err?.message);
+      }
+
+      // Ensure pricing_errors table structure
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS pricing_errors (
+            id TEXT PRIMARY KEY,
+            game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+            error_type TEXT NOT NULL DEFAULT 'PRICE_GLITCH',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            reason TEXT NOT NULL DEFAULT '',
+            detected_at TEXT NOT NULL,
+            is_dismissed INTEGER NOT NULL DEFAULT 0
+          );
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 022] pricing_errors create notice:', err?.message);
+      }
+
+      // Add error_type and confidence columns to pricing_errors if missing, backfill from anomaly_type and score
+      try { db.exec("ALTER TABLE pricing_errors ADD COLUMN error_type TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+      try { db.exec("ALTER TABLE pricing_errors ADD COLUMN confidence REAL"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+
+      // Backfill from legacy columns if they existed
+      try {
+        db.exec(`
+          UPDATE pricing_errors 
+          SET error_type = COALESCE(error_type, anomaly_type, 'PRICE_GLITCH'),
+              confidence = COALESCE(confidence, score, 0.0)
+          WHERE error_type IS NULL OR confidence IS NULL
+        `);
+      } catch {}
+
+      // Drop old columns from pricing_errors if present
+      try { db.exec("ALTER TABLE pricing_errors DROP COLUMN anomaly_type"); } catch {}
+      try { db.exec("ALTER TABLE pricing_errors DROP COLUMN score"); } catch {}
+
+      // Recreate pricing_errors indexes
+      try { db.exec("DROP INDEX IF EXISTS idx_anomalies_game"); } catch {}
+      try { db.exec("DROP INDEX IF EXISTS idx_anomalies_dismissed"); } catch {}
+      try { db.exec("CREATE INDEX IF NOT EXISTS idx_pricing_errors_game ON pricing_errors(game_id)"); } catch {}
+      try { db.exec("CREATE INDEX IF NOT EXISTS idx_pricing_errors_dismissed ON pricing_errors(is_dismissed)"); } catch {}
+
+      // 2. Add offers pricing error columns
+      try { db.exec("ALTER TABLE offers ADD COLUMN is_likely_pricing_error INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+      try { db.exec("ALTER TABLE offers ADD COLUMN pricing_error_confidence REAL NOT NULL DEFAULT 0.0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+      try { db.exec("ALTER TABLE offers ADD COLUMN pricing_error_type TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+      try { db.exec("ALTER TABLE offers ADD COLUMN pricing_error_reason TEXT"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+
+      // Backfill offers columns from legacy columns
+      try {
+        db.exec(`
+          UPDATE offers
+          SET is_likely_pricing_error = COALESCE(is_likely_pricing_error, is_anomaly, 0),
+              pricing_error_confidence = COALESCE(pricing_error_confidence, anomaly_score, 0.0),
+              pricing_error_reason = COALESCE(pricing_error_reason, anomaly_reason)
+          WHERE is_anomaly = 1 OR anomaly_score > 0
+        `);
+      } catch {}
+
+      // Drop legacy columns from offers
+      try { db.exec("ALTER TABLE offers DROP COLUMN risk_level"); } catch {}
+      try { db.exec("ALTER TABLE offers DROP COLUMN risk_score"); } catch {}
+      try { db.exec("ALTER TABLE offers DROP COLUMN risk_flags"); } catch {}
+      try { db.exec("ALTER TABLE offers DROP COLUMN evaluation_confidence"); } catch {}
+      try { db.exec("ALTER TABLE offers DROP COLUMN is_anomaly"); } catch {}
+      try { db.exec("ALTER TABLE offers DROP COLUMN anomaly_score"); } catch {}
+      try { db.exec("ALTER TABLE offers DROP COLUMN anomaly_reason"); } catch {}
+
+      // Recreate offers indexes
+      try { db.exec("DROP INDEX IF EXISTS idx_offers_risk_level"); } catch {}
+      try { db.exec("CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error)"); } catch {}
+
+      // 3. Update price_history: add is_pricing_error and backfill from is_anomaly
+      try { db.exec("ALTER TABLE price_history ADD COLUMN is_pricing_error INTEGER NOT NULL DEFAULT 0"); } catch (e: any) { if (!e.message?.includes('duplicate column')) console.warn(e.message); }
+      try {
+        db.exec(`UPDATE price_history SET is_pricing_error = COALESCE(is_anomaly, 0) WHERE is_pricing_error = 0 AND is_anomaly = 1`);
+      } catch {}
+
+      try { db.exec("ALTER TABLE price_history DROP COLUMN risk_level"); } catch {}
+      try { db.exec("ALTER TABLE price_history DROP COLUMN is_anomaly"); } catch {}
+
+      // Recreate price_history indexes
+      try { db.exec("DROP INDEX IF EXISTS idx_price_history_trusted"); } catch {}
+      try { db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_reliable ON price_history(game_id, is_pricing_error)"); } catch {}
+
+      // 4. Create steam_assets table
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS steam_assets (
+            steam_app_id INTEGER NOT NULL,
+            asset_type TEXT NOT NULL,
+            asset_url TEXT NOT NULL,
+            local_path TEXT,
+            last_updated_at TEXT NOT NULL,
+            PRIMARY KEY (steam_app_id, asset_type)
+          );
+          CREATE INDEX IF NOT EXISTS idx_steam_assets_app ON steam_assets(steam_app_id);
+        `);
+      } catch {}
+    }
+  },
+  {
+    name: '023_drop_merchant_trust_score',
+    up: (db) => {
+      try {
+        db.exec("ALTER TABLE merchants DROP COLUMN trust_score");
+      } catch (e: any) {
+        if (!e.message?.includes('no such column')) {
+          console.warn('[Migration 023] merchants drop trust_score notice:', e.message);
+        }
       }
     }
   }

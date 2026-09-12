@@ -19,7 +19,7 @@ const stmtCache = new Map<string, Database.Statement>();
 const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000));
 
 export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
-  -- Reset and reassign is_best_deal for all games using canonical freshness and priority (fresh safe lowest > stale > anomaly fallback)
+  -- Reset and reassign is_best_deal for all games using canonical freshness and priority (fresh safe lowest > stale > pricing error excluded)
   UPDATE offers SET is_best_deal = 0;
   WITH ranked AS (
     SELECT id, ROW_NUMBER() OVER (
@@ -33,7 +33,7 @@ export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
         COALESCE(last_observed_at, fetched_at) DESC
     ) as rn
     FROM offers
-    WHERE is_valid = 1
+    WHERE is_valid = 1 AND is_likely_pricing_error = 0
   )
   UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
 `;
@@ -50,16 +50,16 @@ export function getDb(): Database.Database {
     // Run versioned schema migrations
     runMigrations(dbInstance);
 
-    // Auto-resolve historical anomalies that are price increases or no longer bottom outliers
+    // Auto-resolve historical pricing errors that are price increases or no longer bottom outliers
     try {
       dbInstance.exec(`
-        UPDATE anomalies 
+        UPDATE pricing_errors 
         SET is_dismissed = 1 
         WHERE is_dismissed = 0 AND (
           offer_id IN (
             SELECT id FROM offers 
             WHERE price_event = 'PRICE_INCREASE' 
-               OR is_anomaly = 0 
+               OR is_likely_pricing_error = 0 
                OR is_valid = 0
           )
           OR offer_id IN (
@@ -71,7 +71,7 @@ export function getDb(): Database.Database {
       `);
     } catch {}
 
-    // Diagnostic: audit anomalies table content summary at startup
+    // Diagnostic: audit pricing_errors table content summary at startup
     if (process.env.NODE_ENV !== 'test') {
       try {
         const counts = dbInstance.prepare(`
@@ -79,10 +79,10 @@ export function getDb(): Database.Database {
             COUNT(*) as total,
             SUM(CASE WHEN is_dismissed = 0 THEN 1 ELSE 0 END) as active,
             SUM(CASE WHEN is_dismissed = 1 THEN 1 ELSE 0 END) as dismissed
-          FROM anomalies
+          FROM pricing_errors
         `).get() as any;
         if (counts && counts.total > 0) {
-          logInfo(`[Data Safety] Startup anomalies audit complete | totalEntries=${counts.total} active=${counts.active || 0} dismissed=${counts.dismissed || 0}`);
+          logInfo(`[Data Safety] Startup pricing errors audit complete | totalEntries=${counts.total} active=${counts.active || 0} dismissed=${counts.dismissed || 0}`);
         }
       } catch {}
     }
@@ -156,9 +156,7 @@ export function backfillDealScoreStats(): void {
           fxRate: h.fx_rate !== null && h.fx_rate !== undefined ? Number(h.fx_rate) : undefined,
           discountPercent: Number(h.discount_percent || 0),
           priceEvent: h.price_event || 'NONE',
-          dealScore: h.deal_score ? Number(h.deal_score) : undefined,
-          isAnomaly: Boolean(h.is_anomaly),
-          riskLevel: h.risk_level || 'SAFE',
+          isPricingError: Boolean(h.is_pricing_error),
           recordedAt: h.recorded_at
         }));
 
@@ -185,7 +183,7 @@ export function backfillDealScoreStats(): void {
             isBestDeal: true,
             isValid: Boolean(bestRow.is_valid),
             priceEvent: bestRow.price_event || 'NONE',
-            isLikelyPricingError: Boolean(bestRow.is_anomaly),
+            isLikelyPricingError: Boolean(bestRow.is_likely_pricing_error),
             sources: [],
             sourceAgreementCount: sourceCount,
             fetchedAt: bestRow.fetched_at || nowIso,
