@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Game } from '../types.js';
 import { Flame } from 'lucide-react';
+import { isRecordDropEvent } from '../utils/priceEvents.js';
 
 interface TickerFlagProps {
   game: Game;
@@ -10,7 +11,7 @@ interface TickerFlagProps {
 
 const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', style }) => {
   const hasBestDeal = game.bestPriceEur !== undefined;
-  const isConfirmedATL = (game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || game.bestPriceEvent === 'AT_HISTORICAL_LOW') && !game.bestIsProvisional;
+  const isConfirmedATL = isRecordDropEvent(game.bestPriceEvent) && !game.bestIsProvisional;
   const isTargetHit = game.targetPriceEur !== undefined && hasBestDeal && game.bestPriceEur! <= game.targetPriceEur;
   const isTargetPending = game.targetPriceEur !== undefined && (!hasBestDeal || game.bestPriceEur! > game.targetPriceEur);
   const discount = game.bestDiscountPercent ?? 0;

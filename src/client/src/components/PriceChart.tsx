@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import type { PriceChartData, PriceChartPoint } from '../types.js';
+import { isRecordDropEvent } from '../utils/priceEvents.js';
 
 interface PriceChartProps {
   data: PriceChartData;
@@ -250,7 +251,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ data }) => {
             const cx = getX(p.timestamp);
             const cy = getY(p.priceEur);
             const isHovered = hoveredPoint?.point === p;
-            const isKeyDrop = p.priceEvent === 'NEW_HISTORICAL_LOW' || p.priceEvent === 'MAJOR_DROP' || p.priceEvent === 'EXTREME_DROP';
+            const isKeyDrop = isRecordDropEvent(p.priceEvent) || p.priceEvent === 'MAJOR_DROP' || p.priceEvent === 'EXTREME_DROP';
 
             return (
               <g 

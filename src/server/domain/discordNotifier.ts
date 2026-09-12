@@ -262,7 +262,9 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
       if (settings.notifyAtlOnly) {
         // Provisional deals cannot claim verified ATL status
         if (!game.bestIsProvisional) {
-          const isAtl = game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || 
+          const isAtl = game.bestPriceEvent === 'RECORD_DROP' ||
+                        game.bestPriceEvent === 'UNCONFIRMED_RECORD_DROP' ||
+                        game.bestPriceEvent === 'NEW_HISTORICAL_LOW' || 
                         game.bestPriceEvent === 'AT_HISTORICAL_LOW' || 
                         (game.historicalLowEur && bestPrice <= game.historicalLowEur + 0.05);
           if (isAtl) {

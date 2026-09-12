@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Offer } from '../../types.js';
+import { isRecordDropEvent } from '../../utils/priceEvents.js';
 import { 
   ShieldCheck, 
   AlertTriangle, 
@@ -60,7 +61,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
 
       // Badges must be relative to the actual lowest market price, not evaluated in isolation
       const isCompetitivePrice = lowestPrice > 0 && offer.priceEur <= lowestPrice * 1.03;
-      const isAtAtl = (offer.priceEvent === 'NEW_HISTORICAL_LOW' || offer.priceEvent === 'AT_HISTORICAL_LOW') && (Boolean(offer.isBestDeal) || isCompetitivePrice);
+      const isAtAtl = isRecordDropEvent(offer.priceEvent) && (Boolean(offer.isBestDeal) || isCompetitivePrice);
       const isMegaDrop = offer.priceEvent === 'EXTREME_DROP' && (Boolean(offer.isBestDeal) || isCompetitivePrice);
       const isMajorDrop = offer.priceEvent === 'MAJOR_DROP' && (Boolean(offer.isBestDeal) || isCompetitivePrice);
 
