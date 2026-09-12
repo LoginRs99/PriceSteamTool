@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.7.1-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-447%2F447%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-573%2F573%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
