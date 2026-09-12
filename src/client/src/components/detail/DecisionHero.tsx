@@ -46,6 +46,16 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
     ? intelligence.chartData.points.map(p => p.priceEur)
     : undefined;
 
+  const VERDICT_CONFIG: Record<string, { label: string; color: string }> = {
+    INSTANT_BUY: { label: 'Instant Buy', color: '#10b981' },
+    GREAT_DEAL: { label: 'Great Deal', color: '#06b6d4' },
+    FAIR_DEAL: { label: 'Fair', color: '#3b82f6' },
+    WAIT: { label: 'Wait', color: '#f59e0b' },
+    OVERPRICED: { label: 'Overpriced', color: '#ef4444' }
+  };
+  const verdict = game.bestVerdict || bestOffer?.verdict;
+  const verdictConfig = verdict ? VERDICT_CONFIG[verdict] : undefined;
+
   return (
     <div style={{
       background: adviceBg,
@@ -69,6 +79,23 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
             {advice.decision === 'WAIT' && <Clock size={13} />}
             <span>{advice.decision}</span>
           </span>
+
+          {verdictConfig && (
+            <span
+              style={{
+                background: `${verdictConfig.color}22`,
+                color: verdictConfig.color,
+                border: `1px solid ${verdictConfig.color}55`,
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                letterSpacing: 0.3
+              }}
+            >
+              {verdictConfig.label}
+            </span>
+          )}
 
           <span style={{ fontSize: 14, fontWeight: 700, color: adviceColor }}>
             {advice.headline}

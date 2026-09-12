@@ -14,6 +14,7 @@ import type {
   DealScoreTier, 
   ConfidenceTier, 
   DealVerdict,
+  DealScoreResult,
   ActionSignal, 
   PriceIntelligenceResponse 
 } from '../../../shared/types.js';
@@ -987,6 +988,7 @@ function mapGameRow(r: any): Game {
   let bestDealScore: number | undefined;
   let bestDealTier: DealScoreTier | undefined;
   let bestVerdict: DealVerdict | undefined;
+  let bestScoreComponents: DealScoreResult['components'] | undefined;
   let bestConfidenceScore: number | undefined;
   let bestConfidenceTier: ConfidenceTier | undefined;
   let bestIsProvisional: boolean | undefined;
@@ -1036,6 +1038,7 @@ function mapGameRow(r: any): Game {
     bestDealScore = dealResult.score;
     bestDealTier = dealResult.tier;
     bestVerdict = dealResult.verdict;
+    bestScoreComponents = dealResult.components;
     bestConfidenceScore = dealResult.confidenceScore;
     bestConfidenceTier = dealResult.confidenceTier;
     bestIsProvisional = dealResult.isProvisional;
@@ -1112,6 +1115,7 @@ function mapGameRow(r: any): Game {
     bestDealScore,
     bestDealTier,
     bestVerdict,
+    bestScoreComponents,
     bestConfidenceScore,
     bestConfidenceTier,
     bestIsProvisional,

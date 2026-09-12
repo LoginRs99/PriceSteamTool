@@ -332,7 +332,7 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
                         fontWeight: 700,
                         fontSize: '0.75rem'
                       }}
-                      title={`Deal Score: ${dealScore}/100 • ${dealTier}`}
+                      title={`Deal Score: ${dealScore}/100 • ${dealTier}${game.bestVerdict ? ` • ${game.bestVerdict}` : ''}`}
                       onClick={(e) => {
                         if (onExplain) {
                           e.stopPropagation();

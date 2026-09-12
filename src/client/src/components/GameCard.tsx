@@ -156,7 +156,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
             }}
             title={isPricingError 
               ? "⚡ Potential Pricing Error — Immediate purchase recommended before store correction!"
-              : `Deal Score: ${dealScore}/100 • ${dealTier}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
+              : `Deal Score: ${dealScore}/100 • ${dealTier}${game.bestVerdict ? ` • ${game.bestVerdict}` : ''}${game.bestMerchantName ? ` (${game.bestMerchantName})` : ''}`}
             onClick={(e) => {
               if (onExplain) {
                 e.stopPropagation();

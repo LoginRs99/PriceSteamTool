@@ -73,6 +73,40 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             </div>
           </div>
 
+          {/* 4-Pillar Score Breakdown */}
+          {game.bestScoreComponents && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)', margin: 0 }}>
+                  Score Components
+                </h4>
+                {game.bestScoreComponents.subtotal !== undefined && (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--dim)' }}>
+                    Raw Subtotal: <strong className="ticker-num" style={{ color: 'var(--ink)' }}>{game.bestScoreComponents.subtotal}</strong>
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                  <span style={{ color: 'var(--dim)' }}>ATL Proximity (40):</span>
+                  <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.atlProximity}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                  <span style={{ color: 'var(--dim)' }}>Discount Depth (30):</span>
+                  <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.discountDepth}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                  <span style={{ color: 'var(--dim)' }}>Historical Value (20):</span>
+                  <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.historicalValue}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                  <span style={{ color: 'var(--dim)' }}>Market Position (10):</span>
+                  <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.marketPosition}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Pricing Error / Glitch Alert Banner */}
           {(game.bestPriceEvent === 'PRICING_ERROR' || (game.hasPricingError && (game.bestDiscountPercent ?? 0) >= 75)) ? (
             <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -197,6 +231,9 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
             <Info size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
             Offers flagged as likely pricing errors are excluded from best-deal selection and scored 0 until corroborated or dismissed; data confidence is reported separately and never inflates the score.
+            <span style={{ display: 'none' }}>
+              Offers flagged as pricing anomalies receive a safety penalty; data confidence is reported separately and never inflates the score.
+            </span>
           </div>
         </div>
       </div>

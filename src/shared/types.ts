@@ -138,6 +138,7 @@ export interface Game {
   bestDealScore?: number;
   bestDealTier?: DealScoreTier;
   bestVerdict?: DealVerdict;
+  bestScoreComponents?: DealScoreResult['components'];
   bestConfidenceScore?: number;
   bestConfidenceTier?: ConfidenceTier;
   bestIsProvisional?: boolean;
