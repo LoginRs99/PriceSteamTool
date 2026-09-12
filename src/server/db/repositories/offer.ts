@@ -106,6 +106,7 @@ export const offerRepo = {
     isValid?: boolean;
     sourceCode?: SourceCode;
     rawObservationJson?: string;
+    editionName?: string;
   }): Offer {
     const db = getDb();
     const now = new Date().toISOString();
@@ -167,7 +168,8 @@ export const offerRepo = {
         rawCurrency: data.rawCurrency || 'EUR',
         rawOriginalPrice: data.rawOriginalPrice !== undefined ? data.rawOriginalPrice : null,
         discountPercent: discount,
-        isValid: data.isValid !== false
+        isValid: data.isValid !== false,
+        editionName: data.editionName || null
       };
 
       const obsId = randomUUID();
@@ -208,6 +210,7 @@ export const offerRepo = {
         dealUrl: string;
         isValid: boolean;
         observedAt: string;
+        editionName?: string;
       }
 
       const candidates: CandidateObs[] = allObservations.map(obs => {
@@ -224,7 +227,8 @@ export const offerRepo = {
           voucherCode: meta.voucherCode || undefined,
           dealUrl: ensureAbsoluteUrl(meta.dealUrl || dealUrl),
           isValid: meta.isValid !== false && !isNaN(Number(obs.observed_price_eur)) && Number(obs.observed_price_eur) >= 0,
-          observedAt: obs.observed_at
+          observedAt: obs.observed_at,
+          editionName: meta.editionName || undefined
         };
       }).filter(c => c.isValid);
 
@@ -266,7 +270,8 @@ export const offerRepo = {
         voucherCode: data.voucherCode,
         dealUrl: dealUrl,
         isValid: data.isValid !== false,
-        observedAt: now
+        observedAt: now,
+        editionName: data.editionName
       };
 
       // 3. Gather context for pricing evaluation using winning active offer values
@@ -323,6 +328,17 @@ export const offerRepo = {
         ORDER BY recorded_at DESC LIMIT 1
       `).get(data.gameId, data.merchantId, active.sourceCode) as any;
 
+      const PREMIUM_EDITION_RE = /(deluxe|ultimate|gold|premium|collector|goty|complete)/i;
+      let suspectedEditionInversion = false;
+      if (active.editionName && PREMIUM_EDITION_RE.test(active.editionName)) {
+        const peerPrices = otherOffersRows
+          .filter(p => Boolean(p.is_valid) && !p.is_likely_pricing_error)
+          .map(p => Number(p.price_eur)).filter(p => p > 0);
+        if (peerPrices.length > 0 && active.priceEur < Math.min(...peerPrices) * 0.90) {
+          suspectedEditionInversion = true;
+        }
+      }
+
       const evalInput: PriceEvaluationInput = {
         currentPriceEur: active.priceEur,
         originalPriceEur: active.originalPriceEur,
@@ -337,7 +353,8 @@ export const offerRepo = {
         gameReleaseDate: gameInfo?.release_date || undefined,
         productType: data.productType,
         regionConfidence: data.regionConfidence,
-        isStaleObservation
+        isStaleObservation,
+        suspectedEditionInversion
       };
 
       const pricingEval = evaluatePriceMovement(evalInput);

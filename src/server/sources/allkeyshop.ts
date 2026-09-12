@@ -741,7 +741,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
                 priceEur,
                 originalPriceEur: entry.original_price ? Number(entry.original_price) : undefined,
                 voucherCode,
-                dealUrl: entry.url || defaultDealUrl
+                dealUrl: entry.url || defaultDealUrl,
+                editionName: editionName || undefined
               });
             }
           }

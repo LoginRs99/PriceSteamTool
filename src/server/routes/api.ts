@@ -643,7 +643,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
             voucherCode: rawOffer.voucherCode,
             dealUrl: rawOffer.dealUrl,
             isValid: true,
-            sourceCode: 'allkeyshop'
+            sourceCode: 'allkeyshop',
+            editionName: rawOffer.editionName
           });
           freshOfferIds.push(savedOffer.id);
           offersCount++;

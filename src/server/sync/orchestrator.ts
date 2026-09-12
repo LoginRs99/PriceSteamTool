@@ -850,7 +850,8 @@ export class SyncOrchestrator {
       dealUrl: rawOffer.dealUrl,
       isValid: true,
       sourceCode,
-      rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined
+      rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined,
+      editionName: rawOffer.editionName
     });
   }
 

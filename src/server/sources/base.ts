@@ -16,6 +16,7 @@ export interface NormalizedSourceOffer {
   historicalLowEur?: number;
   historicalLowDate?: string;
   rawPayload?: any;
+  editionName?: string;
 }
 
 export interface PriceSourceAdapter {
