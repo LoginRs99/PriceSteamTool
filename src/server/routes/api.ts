@@ -422,12 +422,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.post('/api/pricing-errors/:id/dismiss', async (request) => {
     const { id } = request.params as { id: string };
-    pricingErrorRepo.dismiss(id);
+    const gameId = pricingErrorRepo.dismiss(id);
+    if (gameId) {
+      offerRepo.recomputeBestDealForGame(gameId);
+    }
     return { success: true };
   });
 
   fastify.post('/api/pricing-errors/dismiss-all', async () => {
     pricingErrorRepo.dismissAll();
+    offerRepo.recomputeAllBestDeals();
     return { success: true };
   });
 
@@ -437,12 +441,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.post('/api/anomalies/:id/dismiss', async (request) => {
     const { id } = request.params as { id: string };
-    pricingErrorRepo.dismiss(id);
+    const gameId = pricingErrorRepo.dismiss(id);
+    if (gameId) {
+      offerRepo.recomputeBestDealForGame(gameId);
+    }
     return { success: true };
   });
 
   fastify.post('/api/anomalies/dismiss-all', async () => {
     pricingErrorRepo.dismissAll();
+    offerRepo.recomputeAllBestDeals();
     return { success: true };
   });
 

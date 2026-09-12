@@ -17,11 +17,16 @@ describe('Audit 8-Fix Verification & Regression Suite', () => {
   beforeEach(() => {
     circuitBreakers.resetAll();
     config.delays.steam = 0;
+    steamAdapter.pageDelayFloorMs = 0;
+    (steamAdapter as any).queue.reset();
     (steamAdapter as any).queue.minIntervalMs = 0;
     (steamAdapter as any).queue.jitterMs = 0;
   });
 
   afterEach(() => {
+    circuitBreakers.resetAll();
+    (steamAdapter as any).queue.reset();
+    steamAdapter.pageDelayFloorMs = 1500;
     config.delays.steam = origSteamDelay;
     (steamAdapter as any).queue.minIntervalMs = origInterval;
     (steamAdapter as any).queue.jitterMs = origJitter;

@@ -132,8 +132,15 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     anomalyRepo.dismiss(activeList[0].id);
     expect(anomalyRepo.list(true).length).toBe(0);
 
+    // Immediately after dismissal, the offer row must not be flagged and game pricingErrorCount must be 0
+    const offerRowAfterDismiss = offerRepo.getById(activeList[0].offerId);
+    expect(offerRowAfterDismiss?.isLikelyPricingError).toBe(false);
+    const gameAfterDismiss = gameRepo.getById(game.id);
+    expect(gameAfterDismiss?.pricingErrorCount).toBe(0);
+    expect(gameAfterDismiss?.hasPricingError).toBe(false);
+
     // Sync 2: Price remains €0.49 -> respects dismissal, does NOT recreate active anomaly
-    offerRepo.upsertOffer({
+    const offerSync2 = offerRepo.upsertOffer({
       gameId: game.id,
       merchantId: merchant.id,
       productType: 'STEAM_KEY',
@@ -144,6 +151,10 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     });
 
     expect(anomalyRepo.list(true).length).toBe(0);
+    expect(offerSync2.isLikelyPricingError).toBe(false);
+    const gameAfterSync2 = gameRepo.getById(game.id);
+    expect(gameAfterSync2?.pricingErrorCount).toBe(0);
+    expect(gameAfterSync2?.hasPricingError).toBe(false);
   });
 
   it('5. after resolution, the same anomaly condition appearing again creates a new active anomaly event', () => {

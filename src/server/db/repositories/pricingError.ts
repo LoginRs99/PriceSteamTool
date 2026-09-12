@@ -14,7 +14,7 @@ export const pricingErrorRepo = {
     reason: string, 
     currentPriceEur?: number,
     previousPriceEur?: number
-  ): void {
+  ): boolean {
     const now = new Date().toISOString();
     
     // 1. Check if an active (non-dismissed) pricing error record exists for this game
@@ -38,7 +38,8 @@ export const pricingErrorRepo = {
           SET confidence = ?, reason = ?, error_type = ?, detected_at = ?
           WHERE id = ?
         `).run(confidence, reason, type, now, activeGameError.id);
-        return;
+        prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(offerId);
+        return true;
       } else if (newPrice < activePrice - 0.005) {
         // New offer is a cheaper / primary deal pricing error -> replace the existing active game pricing error
         prepareStmt(`
@@ -46,10 +47,12 @@ export const pricingErrorRepo = {
           SET offer_id = ?, confidence = ?, reason = ?, error_type = ?, detected_at = ?
           WHERE id = ?
         `).run(offerId, confidence, reason, type, now, activeGameError.id);
-        return;
+        prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(offerId);
+        return true;
       } else {
         // Existing active pricing error is cheaper -> do not create duplicate secondary pricing error row
-        return;
+        prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(offerId);
+        return true;
       }
     }
 
@@ -80,7 +83,8 @@ export const pricingErrorRepo = {
 
       if (isSameType && !isPriceDrop && !isExpiredDismissal) {
         // Materially unchanged event within 30 days -> respect dismissal and do NOT create new active row
-        return;
+        prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(offerId);
+        return false;
       }
     }
 
@@ -90,6 +94,7 @@ export const pricingErrorRepo = {
       INSERT INTO pricing_errors (id, game_id, offer_id, error_type, confidence, reason, detected_at, is_dismissed)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `).run(id, gameId, offerId, type, confidence, reason, now);
+    prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(offerId);
 
     if (confidence >= 0.60) {
       try {
@@ -105,6 +110,7 @@ export const pricingErrorRepo = {
         // Suppress logging error
       }
     }
+    return true;
   },
 
   resolveForOffer(offerId: string): void {
@@ -114,6 +120,7 @@ export const pricingErrorRepo = {
       SET is_dismissed = 1 
       WHERE offer_id = ? AND is_dismissed = 0
     `).run(offerId);
+    prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(offerId);
   },
 
   list(onlyActive: boolean = true): PricingError[] {
@@ -167,12 +174,18 @@ export const pricingErrorRepo = {
     });
   },
 
-  dismiss(id: string): void {
+  dismiss(id: string): string | undefined {
+    const errorRow = prepareStmt(`SELECT offer_id, game_id FROM pricing_errors WHERE id = ?`).get(id) as any;
     prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE id = ?`).run(id);
+    if (errorRow?.offer_id) {
+      prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(errorRow.offer_id);
+    }
+    return errorRow?.game_id;
   },
 
   dismissAll(): void {
     prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE is_dismissed = 0`).run();
+    prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE is_likely_pricing_error = 1`).run();
   }
 };
 

@@ -12,6 +12,7 @@ describe('Steam Wishlist Metacritic Data Flow', () => {
   beforeEach(() => {
     circuitBreakers.resetAll();
     config.delays.steam = 0;
+    steamAdapter.pageDelayFloorMs = 0;
     (steamAdapter as any).queue.reset();
     (steamAdapter as any).queue.minIntervalMs = 0;
     (steamAdapter as any).queue.jitterMs = 0;
@@ -21,6 +22,7 @@ describe('Steam Wishlist Metacritic Data Flow', () => {
   afterEach(() => {
     circuitBreakers.resetAll();
     (steamAdapter as any).queue.reset();
+    steamAdapter.pageDelayFloorMs = 1500;
     global.fetch = origFetch;
     config.delays.steam = origSteamDelay;
     (steamAdapter as any).queue.minIntervalMs = origInterval;

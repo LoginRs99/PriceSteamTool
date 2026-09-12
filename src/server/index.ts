@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { config } from './config/index.js';
 import { apiRoutes } from './routes/api.js';
@@ -51,7 +52,11 @@ export async function createApp(): Promise<FastifyInstance> {
       }
 
       const clientToken = request.headers['x-api-token'];
-      if (!clientToken || clientToken !== config.apiToken) {
+      const rawToken = typeof clientToken === 'string' ? clientToken : '';
+      const clientBuf = Buffer.from(rawToken);
+      const expectedBuf = Buffer.from(config.apiToken);
+      const isMatch = clientBuf.length === expectedBuf.length && crypto.timingSafeEqual(clientBuf, expectedBuf);
+      if (!isMatch) {
         return reply.status(401).send({ error: 'Unauthorized: Invalid or missing X-API-Token' });
       }
     });

@@ -379,6 +379,29 @@ export const offerRepo = {
 
       const pricingEval = evaluatePriceMovement(evalInput);
 
+      // Manage genuine pricing errors in the pricing_errors table (Data Safety audit trail)
+      let isLikelyPricingError = false;
+      if (pricingEval.isAnomaly) {
+        const errorType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
+          ? pricingEval.riskFlags[0]
+          : 'PRICE_GLITCH';
+        const previousPriceEur = existing?.price_eur !== null && existing?.price_eur !== undefined 
+          ? Number(existing.price_eur) 
+          : undefined;
+        isLikelyPricingError = pricingErrorRepo.record(
+          data.gameId, 
+          offerId, 
+          pricingEval.pricingErrorType || errorType, 
+          pricingEval.riskScore, 
+          pricingEval.summary, 
+          data.priceEur, 
+          previousPriceEur
+        );
+      } else {
+        pricingErrorRepo.resolveForOffer(offerId);
+        isLikelyPricingError = false;
+      }
+
       // 4. Update the canonical offers table with winning active observation
       prepareStmt(`
         UPDATE offers
@@ -412,10 +435,10 @@ export const offerRepo = {
         active.dealUrl,
         active.isValid ? 1 : 0,
         pricingEval.event,
-        pricingEval.isAnomaly ? 1 : 0,
-        pricingEval.riskScore,
-        (pricingEval.pricingErrorType || pricingEval.riskFlags?.[0]) || null,
-        pricingEval.summary || null,
+        isLikelyPricingError ? 1 : 0,
+        isLikelyPricingError ? pricingEval.riskScore : 0,
+        isLikelyPricingError ? ((pricingEval.pricingErrorType || pricingEval.riskFlags?.[0]) || null) : null,
+        isLikelyPricingError ? (pricingEval.summary || null) : null,
         data.regionConfidence !== undefined ? data.regionConfidence : 1.0,
         active.observedAt,
         now,
@@ -639,26 +662,13 @@ export const offerRepo = {
           active.discountPercent, 
           pricingEval.event, 
           dealCalc.score, 
-          pricingEval.isAnomaly ? 1 : 0, 
+          isLikelyPricingError ? 1 : 0, 
           now
         );
       }
 
       // Recalculate best deal for this game
       offerRepo.recomputeBestDealForGame(data.gameId);
-
-      // Manage genuine pricing errors in the pricing_errors table (Data Safety audit trail)
-      if (pricingEval.isAnomaly) {
-        const errorType = (pricingEval.riskFlags && pricingEval.riskFlags[0])
-          ? pricingEval.riskFlags[0]
-          : 'PRICE_GLITCH';
-        const previousPriceEur = existing?.price_eur !== null && existing?.price_eur !== undefined 
-          ? Number(existing.price_eur) 
-          : undefined;
-        pricingErrorRepo.record(data.gameId, offerId, pricingEval.pricingErrorType || errorType, pricingEval.riskScore, pricingEval.summary, data.priceEur, previousPriceEur);
-      } else {
-        pricingErrorRepo.resolveForOffer(offerId);
-      }
 
       return offerId;
     });

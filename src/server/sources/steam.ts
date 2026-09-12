@@ -60,6 +60,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'steam' as const;
   public readonly name = 'Steam Storefront';
   public readonly supportsBatch = false;
+  public pageDelayFloorMs: number = 1500;
   private queue = new PacedSourceQueue('steam', config.delays.steam, 100);
 
   public isEnabled(): boolean {
@@ -144,10 +145,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       try {
         while (page < maxPages) {
           if (page > 0) {
-            // Polite pacing between Steam Storefront wishlist pages (1.5s in production, 0 in test if configured)
-            const delayMs = (process.env.NODE_ENV === 'test' || config.delays.steam === 0)
-              ? config.delays.steam
-              : Math.max(1500, config.delays.steam);
+            // Polite pacing between Steam Storefront wishlist pages (1.5s anti-ban floor by default)
+            const delayMs = Math.max(this.pageDelayFloorMs, config.delays.steam);
             if (delayMs > 0) {
               await new Promise(r => setTimeout(r, delayMs));
             }

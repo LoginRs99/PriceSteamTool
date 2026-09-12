@@ -73,9 +73,9 @@ export class PacedSourceQueue {
 
       const now = Date.now();
       const jitter = calculateExponentialJitter(this.jitterMs);
-      const elapsed = (this.lastExecutionTime > 0 && now >= this.lastExecutionTime)
-        ? (now - this.lastExecutionTime)
-        : Infinity;
+      const elapsed = this.lastExecutionTime === 0
+        ? Infinity
+        : (now >= this.lastExecutionTime ? now - this.lastExecutionTime : 0);
       const waitTime = Math.max(0, (this.minIntervalMs + jitter) - elapsed);
 
       if (waitTime > 0) {
