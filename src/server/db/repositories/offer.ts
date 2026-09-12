@@ -1001,7 +1001,9 @@ export const offerRepo = {
           if (typeof pt.priceEur !== 'number' || isNaN(pt.priceEur) || pt.priceEur <= 0) continue;
           const shopName = pt.shopName || 'Store';
           const shopCode = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'store';
-          const merchant = merchantRepo.getOrCreate(shopCode, shopName, true);
+          const sLower = shopName.toLowerCase();
+          const isOfficialShop = !isKeyshopSourceStr(shopName) && !/gog|epic|origin|uplay|ubisoft|battle.net|blizzard|microsoft|xbox|playstation|nintendo/i.test(sLower);
+          const merchant = merchantRepo.getOrCreate(shopCode, shopName, isOfficialShop);
 
           const existing = checkHistStmt.get(gameId, merchant.id, pt.timestamp);
           if (existing) continue;
