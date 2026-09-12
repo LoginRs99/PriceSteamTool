@@ -31,6 +31,8 @@ It solves the challenge of monitoring large wishlists (2000+ games) with a **res
 ### 2. 2D Pricing Engine & Anomaly Detection
 * **Decoupled Magnitude & Risk**: Separates price drop significance (`PriceEventType`) from data risk (`PriceRiskLevel`).
 * **Multi-Signal Corroboration**: Dampens false alarms when multiple independent sources agree, while isolating unverified sub-euro anomalies (e.g. 0.49 € on a 60 € game) with a strict Deal Score hard-cap (max 35).
+* **Corroboration Tradeoff**: Two merchants mirroring the same glitched feed can corroborate each other in `detectPricingError` (a deliberate false-negative tradeoff to avoid false positive alarms on genuine sales).
+* **Market Floor Visibility**: `isCompatiblePeerOffer` intentionally allows cheaper error-flagged peers into `marketPrices` so the pricing error detector can evaluate against the true market floor.
 
 ### 3. Computed Deal Score (0–100) & Deal Discovery
 * **4-Pillar Transparent Scoring**:

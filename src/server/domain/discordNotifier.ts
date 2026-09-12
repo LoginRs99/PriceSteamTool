@@ -1,4 +1,4 @@
-import { settingsRepo, notificationsRepo, offerRepo } from '../db/index.js';
+import { settingsRepo, notificationsRepo, offerRepo, prepareStmt } from '../db/index.js';
 import { logInfo, logWarn, logError } from '../utils/logger.js';
 import type { Game } from '../../shared/types.js';
 
@@ -233,6 +233,22 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     const offers = offerRepo.getOffersForGame(game.id);
     let flaggedOffer = offers.find(o => o.isLikelyPricingError && o.isValid !== false);
     if (!flaggedOffer && offers.length === 0 && game.hasPricingError && game.bestPriceEvent === 'PRICING_ERROR') {
+      let realConfidence = 0.9;
+      let realReason = 'Suspected Pricing Error';
+      try {
+        const errorRow = prepareStmt(`
+          SELECT confidence, reason FROM pricing_errors 
+          WHERE game_id = ? AND is_dismissed = 0 
+          ORDER BY confidence DESC LIMIT 1
+        `).get(game.id) as any;
+        if (errorRow?.confidence !== undefined && errorRow.confidence !== null) {
+          realConfidence = Number(errorRow.confidence);
+        }
+        if (errorRow?.reason) {
+          realReason = errorRow.reason;
+        }
+      } catch {}
+
       flaggedOffer = {
         priceEur: bestPrice,
         dealUrl: game.bestDealUrl || `https://store.steampowered.com/app/${game.steamAppId}`,
@@ -241,8 +257,8 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
         discountPercent: game.bestDiscountPercent ?? 0,
         originalPriceEur: game.basePriceEur,
         isLikelyPricingError: true,
-        pricingErrorConfidence: 0.9,
-        pricingErrorReason: 'Suspected Pricing Error'
+        pricingErrorConfidence: realConfidence,
+        pricingErrorReason: realReason
       } as any;
     }
 
