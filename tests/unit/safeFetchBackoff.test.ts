@@ -1,5 +1,34 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { safeFetchJson } from '../../src/server/sources/base.js';
+import { safeFetchJson, parseRetryAfterHeader } from '../../src/server/sources/base.js';
+
+describe('parseRetryAfterHeader parsing & rate limit normalization', () => {
+  it('parses standard integer seconds', () => {
+    expect(parseRetryAfterHeader('30')).toBe(30);
+    expect(parseRetryAfterHeader('120')).toBe(120);
+    expect(parseRetryAfterHeader('0')).toBe(0);
+  });
+
+  it('parses Unix epoch timestamp (e.g. from X-RateLimit-Reset) into remaining seconds', () => {
+    const futureEpochSec = Math.floor(Date.now() / 1000) + 42;
+    const result = parseRetryAfterHeader(String(futureEpochSec));
+    expect(result).toBeGreaterThanOrEqual(41);
+    expect(result).toBeLessThanOrEqual(43);
+  });
+
+  it('parses HTTP date string into remaining seconds', () => {
+    const futureDate = new Date(Date.now() + 25000).toUTCString();
+    const result = parseRetryAfterHeader(futureDate);
+    expect(result).toBeGreaterThanOrEqual(24);
+    expect(result).toBeLessThanOrEqual(26);
+  });
+
+  it('returns undefined for null, empty or invalid strings', () => {
+    expect(parseRetryAfterHeader(null)).toBeUndefined();
+    expect(parseRetryAfterHeader(undefined)).toBeUndefined();
+    expect(parseRetryAfterHeader('')).toBeUndefined();
+    expect(parseRetryAfterHeader('not-a-number')).toBeUndefined();
+  });
+});
 
 describe('Task 21: safeFetchJson backoff & sleep hygiene', () => {
   const origFetch = global.fetch;

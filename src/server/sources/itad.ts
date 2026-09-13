@@ -62,7 +62,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'itad' as const;
   public readonly name = 'IsThereAnyDeal';
   public readonly supportsBatch = true;
-  private queue = new PacedSourceQueue('itad', config.delays.itad, 150);
+  private queue = new PacedSourceQueue('itad', config.delays.itad, 200);
 
   public isEnabled(): boolean {
     // Enabled by default; if API key is present, it uses official API, otherwise falls back gracefully

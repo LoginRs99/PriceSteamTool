@@ -71,7 +71,7 @@ GGDEALS_API_KEY=                   # Optional: Free key from https://gg.deals/ap
 # Pacing & Safety Overrides (Milliseconds)
 ITAD_DELAY_MS=1000
 GGDEALS_DELAY_MS=1500
-CHEAPSHARK_DELAY_MS=1000
+CHEAPSHARK_DELAY_MS=1500
 ALLKEYSHOP_DELAY_MS=4000
 ```
 

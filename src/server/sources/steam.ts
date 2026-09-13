@@ -60,8 +60,8 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'steam' as const;
   public readonly name = 'Steam Storefront';
   public readonly supportsBatch = false;
-  public pageDelayFloorMs: number = 1500;
-  private queue = new PacedSourceQueue('steam', config.delays.steam, 100);
+  public pageDelayFloorMs: number = 2000;
+  private queue = new PacedSourceQueue('steam', config.delays.steam, 250);
 
   public isEnabled(): boolean {
     return true;

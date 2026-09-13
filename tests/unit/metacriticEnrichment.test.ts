@@ -115,19 +115,18 @@ describe('Metacritic Score & URL Enrichment from CheapShark', () => {
           { storeID: '1', storeName: 'Steam', isActive: 1 }
         ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      const match = urlStr.match(/steamAppID=(\d+)/);
-      const appId = match ? match[1] : '100';
-      return new Response(JSON.stringify([
-        {
-          steamAppID: appId,
-          storeID: '1',
-          dealID: `deal_${appId}`,
-          salePrice: '14.99',
-          normalPrice: '29.99',
-          metacriticScore: appId === '331600' ? '62' : '88',
-          metacriticLink: appId === '331600' ? '/game/one-piece-pirate-warriors-3/' : 'https://www.metacritic.com/game/hit-game/'
-        }
-      ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const match = urlStr.match(/steamAppID=([0-9,]+)/);
+      const appIds = match ? match[1].split(',') : ['100'];
+      const deals = appIds.map(appId => ({
+        steamAppID: appId,
+        storeID: '1',
+        dealID: `deal_${appId}`,
+        salePrice: '14.99',
+        normalPrice: '29.99',
+        metacriticScore: appId === '331600' ? '62' : '88',
+        metacriticLink: appId === '331600' ? '/game/one-piece-pirate-warriors-3/' : 'https://www.metacritic.com/game/hit-game/'
+      }));
+      return new Response(JSON.stringify(deals), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
 
     const games = [

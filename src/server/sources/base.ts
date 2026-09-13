@@ -49,8 +49,14 @@ export function parseRetryAfterHeader(headerValue?: string | null): number | und
   if (!headerValue || typeof headerValue !== 'string') return undefined;
   const trimmed = headerValue.trim();
   if (/^\d+$/.test(trimmed)) {
-    const secs = parseInt(trimmed, 10);
-    return isNaN(secs) || secs < 0 ? undefined : secs;
+    const val = parseInt(trimmed, 10);
+    if (isNaN(val) || val < 0) return undefined;
+    // If val is a Unix epoch timestamp in seconds (e.g. > 1e9), calculate remaining seconds
+    if (val > 1_000_000_000) {
+      const diffSecs = Math.ceil(val - (Date.now() / 1000));
+      return Math.max(0, diffSecs);
+    }
+    return val;
   }
   const dateMs = Date.parse(trimmed);
   if (!isNaN(dateMs)) {
@@ -102,7 +108,12 @@ export async function safeFetchJson<T>(
         const headersDict = Object.fromEntries(response.headers.entries());
         error.headers = headersDict;
 
-        const retryAfterRaw = response.headers.get('retry-after') || headersDict['retry-after'];
+        const retryAfterRaw = response.headers.get('retry-after') 
+          || headersDict['retry-after']
+          || response.headers.get('x-ratelimit-reset')
+          || headersDict['x-ratelimit-reset']
+          || response.headers.get('ratelimit-reset')
+          || headersDict['ratelimit-reset'];
         const retryAfterSec = parseRetryAfterHeader(retryAfterRaw);
         if (retryAfterSec !== undefined) {
           error.retryAfterSec = retryAfterSec;

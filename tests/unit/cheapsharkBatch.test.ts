@@ -34,18 +34,17 @@ describe('CheapShark Batch Source Adapter', () => {
           { storeID: '15', storeName: 'Fanatical', isActive: 1 }
         ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      const match = urlStr.match(/steamAppID=(\d+)/);
-      const appId = match ? match[1] : '1091500';
-      return new Response(JSON.stringify([
-        {
-          steamAppID: appId,
-          storeID: '1',
-          dealID: `mockDeal_${appId}`,
-          salePrice: '29.99',
-          normalPrice: '59.99',
-          isOnSale: '1'
-        }
-      ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const match = urlStr.match(/steamAppID=([0-9,]+)/);
+      const appIds = match ? match[1].split(',') : ['1091500'];
+      const deals = appIds.map(appId => ({
+        steamAppID: appId,
+        storeID: '1',
+        dealID: `mockDeal_${appId}`,
+        salePrice: '29.99',
+        normalPrice: '59.99',
+        isOnSale: '1'
+      }));
+      return new Response(JSON.stringify(deals), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
   });
 
@@ -150,5 +149,77 @@ describe('CheapShark Batch Source Adapter', () => {
 
     await cheapsharkAdapter.fetchPricesForGame(1091500, 'Cyberpunk 2077');
     expect(updateAtlSpy).toHaveBeenCalledWith(game.id, expect.any(Number), expect.any(String), 'CheapShark');
+  });
+
+  it('batches up to 25 steamAppIDs into a single comma-separated HTTP request instead of individual requests', async () => {
+    const requestedUrls: string[] = [];
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/stores')) {
+        return new Response(JSON.stringify([{ storeID: '1', storeName: 'Steam', isActive: 1 }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      requestedUrls.push(urlStr);
+      const match = urlStr.match(/steamAppID=([0-9,]+)/);
+      const appIds = match ? match[1].split(',') : [];
+      return new Response(JSON.stringify(appIds.map(id => ({
+        steamAppID: id,
+        storeID: '1',
+        dealID: `deal_${id}`,
+        salePrice: '10.00',
+        normalPrice: '20.00'
+      }))), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    // 20 games should all fit in 1 single batch request (batchSize = 25)
+    const games = Array.from({ length: 20 }, (_, i) => ({
+      steamAppId: 1000 + i,
+      title: `Game ${i}`
+    }));
+
+    const results = await cheapsharkAdapter.fetchBatchPrices(games);
+    expect(results.size).toBe(20);
+    // Only 1 deals HTTP call made instead of 20!
+    const dealsCalls = requestedUrls.filter(u => u.includes('/deals'));
+    expect(dealsCalls.length).toBe(1);
+    expect(dealsCalls[0]).toContain('steamAppID=1000,1001,1002');
+  });
+
+  it('paginates when batch returns 60 deals', async () => {
+    let page0Called = false;
+    let page1Called = false;
+
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/stores')) {
+        return new Response(JSON.stringify([{ storeID: '1', storeName: 'Steam', isActive: 1 }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('pageNumber=0')) {
+        page0Called = true;
+        // Return 60 deals to trigger next page check
+        return new Response(JSON.stringify(Array.from({ length: 60 }, (_, i) => ({
+          steamAppID: '10',
+          storeID: '1',
+          dealID: `deal_p0_${i}`,
+          salePrice: '5.00',
+          normalPrice: '10.00'
+        }))), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('pageNumber=1')) {
+        page1Called = true;
+        return new Response(JSON.stringify([{
+          steamAppID: '10',
+          storeID: '1',
+          dealID: 'deal_p1_0',
+          salePrice: '5.00',
+          normalPrice: '10.00'
+        }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('[]');
+    };
+
+    const results = await cheapsharkAdapter.fetchBatchPrices([{ steamAppId: 10, title: 'Counter-Strike' }]);
+    expect(page0Called).toBe(true);
+    expect(page1Called).toBe(true);
+    expect(results.get(10)?.length).toBe(61);
   });
 });

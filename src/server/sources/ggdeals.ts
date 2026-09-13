@@ -20,7 +20,7 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'ggdeals' as const;
   public readonly name = 'GG.deals';
   public readonly supportsBatch = true;
-  private queue = new PacedSourceQueue('ggdeals', config.delays.ggdeals, 250);
+  private queue = new PacedSourceQueue('ggdeals', config.delays.ggdeals, 300);
 
   public isEnabled(): boolean {
     return Boolean(config.ggdealsApiKey);
