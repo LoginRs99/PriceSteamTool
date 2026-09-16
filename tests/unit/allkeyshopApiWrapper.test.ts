@@ -3,7 +3,9 @@ import {
   fetchWithAllkeyshopSolver, 
   AllKeyShopUnavailableError,
   validateAllKeyShopPriceResponse,
-  validateAllKeyShopCatalog
+  validateAllKeyShopCatalog,
+  parseAllKeyShopGamePage,
+  parseAllKeyShopPriceHistory
 } from '../../src/server/sources/allkeyshop.js';
 import { config } from '../../src/server/config/index.js';
 
@@ -168,6 +170,140 @@ describe('AllKeyShop API Wrapper & Solver Resilience Suite', () => {
     it('rejects catalog when status is not success', () => {
       expect(validateAllKeyShopCatalog({ status: 'error', games: [] })).toBeNull();
       expect(validateAllKeyShopCatalog(null)).toBeNull();
+    });
+  });
+
+  describe('parseAllKeyShopGamePage (Live Comparison Table & Fees)', () => {
+    it('parses live gamePageTrans including credit card fees and discounts, filtering out accounts and out-of-stock items', () => {
+      const mockHtml = `
+        <!doctype html>
+        <html>
+        <head><title>Test Game</title></head>
+        <body>
+        <script>
+        var gamePageTrans = {
+          "merchants": {
+            "100": { "name": "K4G", "official": false },
+            "101": { "name": "Wyrel", "official": false },
+            "102": { "name": "SketchyAccountShop", "official": false }
+          },
+          "editions": { "1": { "name": "Standard" } },
+          "regions": { "2": { "name": "Global" } },
+          "prices": [
+            {
+              "id": 1,
+              "merchant": 100,
+              "originalPrice": 0.25,
+              "price": 0.21,
+              "priceCard": 0.63,
+              "feesCard": 0.42,
+              "voucher_code": "AKS14DEAL",
+              "account": false,
+              "dispo": 1,
+              "activationPlatform": "steam",
+              "edition": "1",
+              "region": "2"
+            },
+            {
+              "id": 2,
+              "merchant": 101,
+              "originalPrice": 1.24,
+              "price": 1.05,
+              "priceCard": 1.09,
+              "feesCard": 0.04,
+              "voucher_code": "allkeyshop",
+              "account": false,
+              "dispo": 1,
+              "activationPlatform": "steam",
+              "edition": "1",
+              "region": "2"
+            },
+            {
+              "id": 3,
+              "merchant": 102,
+              "price": 0.10,
+              "account": true,
+              "dispo": 1,
+              "activationPlatform": "steam"
+            },
+            {
+              "id": 4,
+              "merchant": 100,
+              "price": 0.15,
+              "account": false,
+              "dispo": 0,
+              "activationPlatform": "steam"
+            },
+            {
+              "id": 5,
+              "merchant": 100,
+              "price": 0.19,
+              "account": false,
+              "dispo": 1,
+              "activationPlatform": "xbox"
+            }
+          ]
+        };
+        </script>
+        </body>
+        </html>
+      `;
+
+      const offers = parseAllKeyShopGamePage(mockHtml, 'https://example.com/deal');
+      expect(offers.length).toBe(2);
+
+      const k4g = offers.find(o => o.merchantCode === 'k4g');
+      expect(k4g).toBeDefined();
+      expect(k4g?.priceEur).toBe(0.63); // uses priceCard (with credit card fees!)
+      expect(k4g?.rawPrice).toBe(0.21); // bare key price
+      expect(k4g?.originalPriceEur).toBe(0.25);
+      expect(k4g?.voucherCode).toBe('AKS14DEAL');
+
+      const wyrel = offers.find(o => o.merchantCode === 'wyrel');
+      expect(wyrel).toBeDefined();
+      expect(wyrel?.priceEur).toBe(1.09); // uses priceCard (€1.05 + €0.04 card fee)
+      expect(wyrel?.rawPrice).toBe(1.05);
+      expect(wyrel?.originalPriceEur).toBe(1.24);
+      expect(wyrel?.voucherCode).toBe('allkeyshop');
+    });
+  });
+
+  describe('parseAllKeyShopPriceHistory Recency Snapshot Sorting', () => {
+    it('selects the most recent price snapshot per merchant instead of an expired cheaper historical entry', () => {
+      const payload: any = {
+        history: [
+          {
+            merchant_id: 1001,
+            edition: 1,
+            region: 2,
+            min_discount_price: 0.45,
+            last_price: 0.53,
+            best_discount_code: 'allkeyshop',
+            start: '2026-09-15 00:26:30',
+            end: '2026-09-15 10:34:30' // Expired yesterday
+          },
+          {
+            merchant_id: 1001,
+            edition: 1,
+            region: 2,
+            min_discount_price: 1.05,
+            last_price: 1.24,
+            best_discount_code: 'allkeyshop',
+            start: '2026-09-16 15:04:05',
+            end: '2026-09-16 15:04:05' // Active today
+          }
+        ],
+        merchants: { '1001': { name: 'Wyrel' } },
+        editions: { '1': { name: 'Standard' } },
+        regions: { '2': { name: 'Global' } },
+        officialMerchants: []
+      };
+
+      const offers = parseAllKeyShopPriceHistory(payload, 'https://example.com/wyrel');
+      expect(offers.length).toBe(1);
+      // MUST be today's active price (€1.05), NOT yesterday's expired €0.45!
+      expect(offers[0].priceEur).toBe(1.05);
+      expect(offers[0].originalPriceEur).toBe(1.24);
     });
   });
 });

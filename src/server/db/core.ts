@@ -301,6 +301,10 @@ export function closeDb(): void {
   stmtCache.clear();
   if (dbInstance && dbInstance.open) {
     try {
+      dbInstance.pragma('wal_checkpoint(PASSIVE)');
+      dbInstance.pragma('optimize');
+    } catch {}
+    try {
       dbInstance.close();
     } catch {}
     dbInstance = null;

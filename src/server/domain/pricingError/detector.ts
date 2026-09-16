@@ -1,9 +1,64 @@
-import type { PricingErrorInput, PricingErrorEvaluation, PricingErrorType } from './types.js';
+import type { PricingErrorInput, PricingErrorEvaluation, PricingErrorType, SourceFamilyConflict } from './types.js';
 
 export interface TriggeredSignal {
   type: PricingErrorType;
   weight: number;
   reason: string;
+}
+
+/**
+ * v2.4.0 (ADR-1): detects when the SAME source reports two internally
+ * inconsistent sub-category prices for the same game (e.g. GG.deals
+ * "Official" vs "Keyshops"). This is a narrower, more reliable signal than
+ * any market-wide comparison: it needs no MSRP and no peer corroboration,
+ * because a source disagreeing with itself is inherently suspicious
+ * regardless of what the rest of the market looks like.
+ *
+ * Threshold validated empirically against 15 real games spanning
+ * Indie/AA/AAA and 15-80EUR MSRP (2026-09-14 export): the normal
+ * official-vs-keyshop gap sits in a 1.08x-1.90x band; genuine conflicts
+ * observed at 2.01x-17.41x. 2.0x cleanly separates the two.
+ *
+ * Do NOT lower this threshold without re-validating against real data —
+ * a naive mirror of the cheap-glitch thresholds against the market
+ * minimum was tried and rejected (50-70% false-positive rate).
+ */
+export const SOURCE_FAMILY_CONFLICT_RATIO = 2.0;
+
+export function detectSourceFamilyConflict(
+  sameSourceOffers: { subCategory: string; priceEur: number }[]
+): SourceFamilyConflict | null {
+  if (sameSourceOffers.length < 2) return null;
+  const prices = sameSourceOffers
+    .map(o => o.priceEur)
+    .filter(p => p !== undefined && p !== null && p > 0 && !isNaN(p));
+  if (prices.length < 2) return null;
+
+  const ratio = Math.max(...prices) / Math.min(...prices);
+  if (ratio >= SOURCE_FAMILY_CONFLICT_RATIO) {
+    return {
+      ratio,
+      details: `Same source reports conflicting prices: ${sameSourceOffers
+        .map(o => `${o.subCategory}=€${o.priceEur.toFixed(2)}`)
+        .join(' vs ')} (${ratio.toFixed(2)}x)`
+    };
+  }
+  return null;
+}
+
+/**
+ * v2.4.0 (ADR-2): informational-only check — is this price above the
+ * official MSRP? Deliberately NOT a pricing-error signal (see
+ * PricingErrorEvaluation.isOverMsrp doc comment) — validated on 15 real
+ * games: ~7.3% of offers (36/495) sit above MSRP, a small, plausible
+ * minority consistent with launch-window/scarcity premiums, not a flood
+ * that would suggest this is normal noise.
+ */
+export const OVER_MSRP_TOLERANCE = 1.05; // 5% tolerance for FX/rounding drift
+
+export function checkOverMsrp(priceEur: number, msrpEur: number | undefined): boolean {
+  if (!msrpEur || msrpEur <= 0 || !priceEur || priceEur <= 0) return false;
+  return priceEur > msrpEur * OVER_MSRP_TOLERANCE;
 }
 
 export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[] {
@@ -166,7 +221,7 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
     }
   }
 
-  // Signal 7: FAKE_BASELINE (0.15)
+  // Signal 7: FAKE_BASELINE (0.35)
   // claimedOriginalPriceEur > 1.5 * steamBasePriceEur (exempt for delisted/unreleased scarcity)
   if (
     !input.isDelisted &&
@@ -178,7 +233,7 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   ) {
     triggered.push({
       type: 'FAKE_BASELINE',
-      weight: 0.15,
+      weight: 0.35,
       reason: `Claimed original price (€${input.claimedOriginalPriceEur.toFixed(2)}) is inflated >1.5x over Steam base price (€${input.steamBasePriceEur.toFixed(2)})`
     });
   }
@@ -198,6 +253,26 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
     return { isLikelyPricingError: false, confidence: 0, type: null, reason: null };
   }
 
+  // v2.4.0 (ADR-2): computed once, threaded through every return path below.
+  // Independent of isLikelyPricingError — see PricingErrorEvaluation.isOverMsrp.
+  const msrpForOverCheck = input.steamBasePriceEur ?? input.claimedOriginalPriceEur;
+  const isOverMsrp = checkOverMsrp(price, msrpForOverCheck);
+
+  // v2.4.0 (ADR-1): a same-source internal conflict is checked FIRST, before
+  // corroboration — deliberately bypasses the corroboration override below,
+  // because this signal is precisely about whether one of the "corroborating"
+  // prices can be trusted at all.
+  if (input.sourceFamilyConflict) {
+    const confidence = Math.min(1.0, Math.round(input.sourceFamilyConflict.ratio * 10) / 100 + 0.30);
+    return {
+      isLikelyPricingError: true,
+      confidence,
+      type: 'SOURCE_FAMILY_CONFLICT',
+      reason: input.sourceFamilyConflict.details,
+      isOverMsrp
+    };
+  }
+
   // 2. Corroboration override:
   // Tightened to +/- 15% (or <= 0.02 EUR for FX rounding; for sub-euro prices, +/- 30% or <= 0.02 EUR)
   const freshPeers = (input.otherFreshPricesEur ?? []).filter(
@@ -215,11 +290,17 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
     matchingPeers.length >= 2 ||
     (matchingPeers.length >= 1 && price <= 1.005);
 
-  if (isCorroborated) {
-    return { isLikelyPricingError: false, confidence: 0, type: null, reason: null };
-  }
+  let triggered = getTriggeredSignals(input);
 
-  const triggered = getTriggeredSignals(input);
+  // Selling-price peer corroboration proves that the current transaction price is authentic.
+  // It overrides selling-price anomalies (DECIMAL_SHIFT, MARKET_OUTLIER, BELOW_ATL_IMPLAUSIBLE,
+  // OWN_HISTORY_BREAK, FRESH_RELEASE_DROP).
+  // However, corroboration of the selling price does NOT validate an inflated claimed baseline
+  // (FAKE_BASELINE) or an inverted edition tier (EDITION_INVERSION) — these pertain to metadata
+  // and edition hierarchy, which peers selling at the same price cannot authenticate.
+  if (isCorroborated) {
+    triggered = triggered.filter(s => s.type === 'FAKE_BASELINE' || s.type === 'EDITION_INVERSION');
+  }
 
   // Calculate composite confidence and evaluation
   const totalWeight = triggered.reduce((sum, s) => sum + s.weight, 0);
@@ -231,7 +312,8 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
       isLikelyPricingError: false,
       confidence,
       type: null,
-      reason: null
+      reason: null,
+      isOverMsrp
     };
   }
 
@@ -243,6 +325,7 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
     isLikelyPricingError: true,
     confidence,
     type: primarySignal.type,
-    reason: primarySignal.reason
+    reason: primarySignal.reason,
+    isOverMsrp
   };
 }

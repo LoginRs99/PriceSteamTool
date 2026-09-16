@@ -83,6 +83,39 @@ export const api = {
     await apiFetch<void>(`${API_BASE}/profiles/${id}`, { method: 'DELETE' });
   },
 
+  // Family Sharing Exclusions
+  async getFamilyExclusions(): Promise<Array<{ steamAppId: number; reason?: string; createdAt: string }>> {
+    return apiFetch<Array<{ steamAppId: number; reason?: string; createdAt: string }>>(`${API_BASE}/family-sharing/exclusions`);
+  },
+
+  async excludeFamilyGame(steamAppId: number, reason?: string): Promise<{ success: boolean; steamAppId: number; reason?: string }> {
+    return apiFetch<{ success: boolean; steamAppId: number; reason?: string }>(`${API_BASE}/family-sharing/exclude`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steamAppId, reason })
+    });
+  },
+
+  async includeFamilyGame(steamAppId: number): Promise<{ success: boolean; steamAppId: number }> {
+    return apiFetch<{ success: boolean; steamAppId: number }>(`${API_BASE}/family-sharing/include`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steamAppId })
+    });
+  },
+
+  async autoDetectFamilyExclusions(steamAppIds?: number[]): Promise<{
+    scannedCount: number;
+    excludedCount: number;
+    newlyExcluded: Array<{ steamAppId: number; title?: string; reason: string }>;
+  }> {
+    return apiFetch(`${API_BASE}/family-sharing/auto-detect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steamAppIds })
+    });
+  },
+
   // Games & Wishlist
   async getWishlistGames(options: WishlistFilterOptions = {}): Promise<{
     games: Game[];

@@ -125,12 +125,13 @@ export function buildWishlistFilterClause(
     whereClauses.push(`(g.is_dlc = 0 OR g.is_dlc IS NULL)`);
   }
 
-  // Family Shared filtering
+  // Family Shared filtering (respects exclusions)
   if (options.hideFamilyShared) {
     whereClauses.push(`NOT EXISTS (
       SELECT 1 FROM family_owned_apps fo
       JOIN profiles fp ON fo.profile_id = fp.id
       WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id
+        AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id)
     )`);
   }
 
@@ -334,7 +335,8 @@ export const gameRepo = {
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
-        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared,
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded,
         (SELECT sa.asset_url FROM steam_assets sa WHERE sa.steam_app_id = g.steam_app_id AND sa.asset_type = 'icon') as icon_url
       FROM games g
       LEFT JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
@@ -547,7 +549,8 @@ export const gameRepo = {
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
-        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
+        (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
       JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
@@ -599,7 +602,8 @@ export const gameRepo = {
       (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
       (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
       (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
-      (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id)) as is_family_shared
+      (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
+      (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
     `;
 
     // Always fetch candidates and apply computed filters & sorting in memory for high precision
@@ -1137,6 +1141,7 @@ function mapGameRow(r: any): Game {
     isDlc: Boolean(r.is_dlc),
     isFree: Boolean(r.is_free),
     isFamilyShared: Boolean(r.is_family_shared),
+    isFamilyExcluded: Boolean(r.is_family_excluded),
     basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
     historicalLowEur: effectiveHistLow,
     historicalLowDate: r.historical_low_date || undefined,

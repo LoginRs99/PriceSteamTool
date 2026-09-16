@@ -1,6 +1,6 @@
 # Development & Deployment Guide
 
-This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.3.0).
+This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.4.0).
 
 ---
 
@@ -12,10 +12,10 @@ Pricetool/
 │   └── workflows/
 │       └── docker-publish.yml     # GitHub Actions CI/CD to GHCR (multi-arch build)
 ├── docs/                          # Architectural & user documentation
-│   ├── user-guide.md              # User guide: Deal Score v2.3, Pricing Error Engine, Advisor
+│   ├── user-guide.md              # User guide: Deal Score v2.4, Pricing Error Engine, Advisor
 │   ├── architecture.md            # System architecture, security, and components
 │   ├── sources.md                 # Source comparison, batching, and rate limiting
-│   ├── data-model.md              # SQLite schema, migrations 001-026, and ER diagrams
+│   ├── data-model.md              # SQLite schema, migrations 001-027, and ER diagrams
 │   ├── sync.md                    # Queue orchestration, circuit breakers, and pricing errors
 │   ├── audit.md                   # Audit verification and validation reports
 │   └── development.md             # This file
@@ -23,11 +23,11 @@ Pricetool/
 │   ├── server/                    # Fastify backend & sync engine
 │   │   ├── config/                # Environment variables, constants, and delay defaults
 │   │   ├── db/                    # SQLite database & migrations (better-sqlite3)
-│   │   │   ├── migrations.ts      # Migrations 001–026
+│   │   │   ├── migrations.ts      # Migrations 001–027
 │   │   │   ├── schema.ts          # Core SQLite schema
 │   │   │   ├── core.ts            # getDb(), stmtCache, BEST_DEAL_RECOMPUTE_ALL_SQL
 │   │   │   └── repositories/      # game, offer, merchant, profile, pricingError, source
-│   │   ├── domain/                # Pricing Engine, Deal Score v2.3, Price Intelligence, Normalizer
+│   │   ├── domain/                # Pricing Engine, Deal Score v2.4, Price Intelligence, Normalizer
 │   │   │   ├── dealScore/         # 4-Pillar calculator, confidence, tiers
 │   │   │   ├── pricingError/      # Pricing error detector, price events, self-healing
 │   │   │   └── priceIntelligence/ # Purchase advice, IQR typical sale, period lows, volatility
@@ -37,7 +37,7 @@ Pricetool/
 │   │   └── index.ts               # Server entry point & graceful shutdown
 │   ├── client/                    # Modern React 19 SPA (Vite)
 │   │   ├── src/
-│   │   │   ├── components/        # DealsDashboard, FilterBar, GameCard, GameDetailModal, PriceChart
+│   │   │   ├── components/        # DealsDashboard, FilterBar, GameCard, CompactListView, GameDetailModal
 │   │   │   ├── hooks/             # Custom hooks (useWishlist, useSyncProgress, useFilters)
 │   │   │   ├── types/             # Frontend shared domain types
 │   │   │   ├── App.tsx            # Main application
@@ -45,9 +45,10 @@ Pricetool/
 │   │   ├── index.html
 │   │   └── vite.config.ts
 │   └── shared/                    # Canonical domain types (src/shared/types.ts)
-├── tests/                         # Automated unit & integration tests (68 files, 624 tests)
+├── tests/                         # Automated unit & integration tests (72 suites, 674 tests)
 │   ├── unit/                      # Domain logic, Deal Score, Pricing Errors, Normalizers, Adapters
-│   └── integration/               # Real-world 2000-game validation & production readiness tests
+│   ├── integration/               # Real-world validation, Family Sharing exclusions, and API tests
+│   └── client/                    # React UI component and hook tests
 ├── Dockerfile                     # Multi-stage production container
 ├── docker-compose.yml             # Local production compose
 ├── CHANGELOG.md                   # Release history

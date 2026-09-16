@@ -5,7 +5,40 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-09-17
+
+### Added
+* **Steam Family Sharing Exclusions & Auto-Detection**:
+  * Added database migration `027_add_family_sharing_exclusions` and repository methods (`excludeFamilySharingApp`, `includeFamilySharingApp`, `getFamilySharingExclusions`).
+  * Wishlist listing, filtering (`hideFamilyShared`), and best deal queries automatically respect exclusions, ensuring games that Steam prohibits from family sharing (e.g. EA Play, Ubisoft Connect, Rockstar Launcher) remain visible and trackable.
+  * Added `checkFamilySharingSupport` to `SteamSourceAdapter` leveraging official Steam Storefront Category 62 ("Family Sharing") and third-party DRM/account notices.
+  * Added REST endpoints: `GET /api/family-sharing/exclusions`, `POST /api/family-sharing/exclude`, `POST /api/family-sharing/include`, `POST /api/family-sharing/auto-detect`.
+  * Game Detail Modal displays real-time Family status banner with 1-click "Check Steam Support", "Demark (Not Shareable)", and "Restore" actions.
+  * Profile Management Modal includes a dedicated Family Sharing Restrictions section with 1-click batch auto-detection.
+* **Pricing Intelligence Modernization (ADR-1 through ADR-4)**:
+  * **ADR-1 (SOURCE_FAMILY_CONFLICT)**: Detects severe intra-family price splits ($\ge 2.0\times$) between official and keyshop tiers under the same source aggregator.
+  * **ADR-2 (OVER_MSRP)**: Informational signal alerting users when an offer exceeds the game's official baseline MSRP without penalizing the deal score.
+  * **ADR-3 (Own-Type Median Discount Calibration)**: $S_{\text{disc}}$ discount depth scoring is calibrated against the game's own historical sale median rather than raw MSRP, preventing standard repeating discounts from over-scoring.
+  * **ADR-4 (Market Liquidity / Depth Warning)**: Purchase advice warns when liquidity is shallow ($\le 9$ merchants) and current best price exceeds the historical sale median.
+* **API Reliability & Resilience Hardening**:
+  * CheapShark rate-limit resilience: strict single-request concurrency with exponential backoff on 429 and network failures.
+  * ITAD batch error isolation: failing 150-item chunks no longer abort successfully fetched chunks; sync outcome accurately tracks partial vs full success.
+  * AllKeyShop solver error propagation: HTTP 500/502/408/Cloudflare challenge errors propagate cleanly without silent fallback to direct IP scraping.
+
+### Changed
+* **Modernized UI Ergonomics & Consolidated Views**:
+  * Consolidated wishlist view modes into 2 unified high-productivity layouts: **Compact List View** (streamlined single-line rows with full data fidelity) and **Grid View** (visual cards).
+  * Removed legacy dense table in favor of the ergonomic compact view to streamline codebase maintenance.
+  * Improved keyboard accessibility (`Tab`, `Enter`, `Escape`), focus outlines, and high-contrast deal badges.
+* **Docker & CI/CD Security Hardening**:
+  * Added standard OCI metadata labels (`org.opencontainers.image.*`) to `Dockerfile`.
+  * Enforced explicit least-privilege permissions (`contents: read`) across all GitHub Actions workflow jobs.
+  * Extended `.dockerignore` to keep build context clean and minimal.
+
+---
+
 ## [2.3.0] - 2026-09-13
+
 
 ### Added
 * **CheapShark True Multi-AppID Comma-Separated Batching**:

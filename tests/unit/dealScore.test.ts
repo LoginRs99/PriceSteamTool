@@ -138,7 +138,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 3 // N = 3
       });
 
-      expect(res.score).toBeGreaterThanOrEqual(79);
+      expect(res.score).toBeGreaterThanOrEqual(70); // v2.4.0 ADR-3: S_disc now scored vs typical_sale_median (30€), not raw MSRP — was >=79
       expect(['Great', 'Exceptional']).toContain(res.tier);
       expect(res.isProvisional).toBe(false);
     });
@@ -317,8 +317,12 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 11.99,
         sampleCount: 30
       });
-      expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(80);
+      // v2.4.0 ADR-3: price is ~AT this game's own typical sale price (€12.00) —
+      // "frequent" in the scenario name means this isn't a special moment to
+      // buy, it's the routine price. S_atl/S_hist still credit matching the
+      // floor, but S_disc correctly drops to near-zero instead of the old
+      expect(['Fair', 'Good', 'Great']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(55);
     });
 
     it('Case 3: Full retail price (No discount)', () => {
@@ -341,8 +345,13 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 10.00,
         sampleCount: 12
       });
-      expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(79);
+      // v2.4.0 ADR-3: price == this game's own typical median == its ATL —
+      // a permanently re-priced game where €10 IS the new normal price, not
+      // an active opportunity. S_disc is intentionally damped here (0.35x)
+      // instead of rewarding the stale 50%-off-raw-MSRP framing.
+      // Was ['Great','Exceptional'] / >=79.
+      expect(['Good', 'Great']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(60);
     });
 
     it('Case 5: Progressively declining price', () => {
@@ -354,7 +363,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 15
       });
       expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(75);
+      expect(res.score).toBeGreaterThanOrEqual(70); // v2.4.0 ADR-3: was >=75, S_disc vs own median (15€) instead of raw MSRP
     });
 
     it('Case 6: Historical price glitch / single outlier', () => {
@@ -368,8 +377,12 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 1.99,
         sampleCount: 20
       });
-      expect(['Good', 'Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(65);
+      // v2.4.0 ADR-3: S_disc now measured against the €20 own-median rather
+      // than raw MSRP — a meaningful but not extreme ~40% gap, appropriately
+      // conservative given the scenario is explicitly a low-confidence/
+      // outlier ATL (€1.99). Was ['Good','Great','Exceptional'] / >=65.
+      expect(['Fair', 'Good', 'Great']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(50);
     });
 
     it('Case 7: 0-IQR Indie discount (Always 4.99€, now 4.49€)', () => {
@@ -380,8 +393,12 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 4.49,
         sampleCount: 15
       });
-      expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(80);
+      // v2.4.0 ADR-3: the scenario name says it all — "Always 4.99€" means
+      // €4.99 IS this game's routine sale price. Landing €0.50 under that
+      // (at its ATL) is a genuine but modest edge, not a rare event worth
+      // an "Exceptional" label. Was ['Great','Exceptional'] / >=80.
+      expect(['Good', 'Great']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(60);
     });
 
     it('Case 8: Low sample count with deep discount (Provisional Guard Active)', () => {
@@ -418,8 +435,15 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 4.99,
         sampleCount: 80
       });
-      expect(['Good', 'Great']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(65);
+      // v2.4.0 ADR-3: this is the exact distortion the rework targeted. The
+      // scenario name says "routine" — €5.99 is Witcher 3's everyday sale
+      // price, not a special moment. The old formula rewarded this as
+      // 'Good'/'Great' purely from the raw ~80%-off-MSRP framing; scored
+      // against its own median (price == median exactly), it's honestly a
+      // 'Fair' deal — you can get this price on practically any given week.
+      // Was ['Good','Great'] / >=65.
+      expect(['Fair', 'Good']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(40);
     });
 
     it('Case 11: Frequent -80% sale at exact median', () => {
@@ -430,8 +454,12 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         allTimeLowEur: 8.99,
         sampleCount: 40
       });
-      expect(['Good', 'Great']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(65);
+      // v2.4.0 ADR-3: name says "Frequent" — price sits exactly at this
+      // game's own median, i.e. its ordinary sale price. The old "-80% off
+      // MSRP" framing made this look like a rare event; correctly scored
+      // against its own history, it's a 'Fair' deal. Was ['Good','Great'] / >=65.
+      expect(['Fair', 'Good']).toContain(res.tier);
+      expect(res.score).toBeGreaterThanOrEqual(40);
     });
 
     it('Case 12: Rare -50% sale on game that is almost never discounted', () => {
@@ -445,7 +473,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 12
       });
       expect(['Great', 'Exceptional']).toContain(res.tier);
-      expect(res.score).toBeGreaterThanOrEqual(79);
+      expect(res.score).toBeGreaterThanOrEqual(70); // v2.4.0 ADR-3: was >=79 — still strong: 44% below its OWN (rarely-discounted, 90%-of-MSRP) median
     });
 
     it('Case 13: Current price matches median exactly', () => {
@@ -484,7 +512,7 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         sampleCount: 30
       });
       expect(res.tier).toBe('Exceptional');
-      expect(res.score).toBeGreaterThanOrEqual(90);
+      expect(res.score).toBeGreaterThanOrEqual(80); // v2.4.0 ADR-3: was >=90 — still Exceptional/INSTANT_BUY, S_disc vs own median (30€) instead of raw MSRP
     });
 
     it('Case 16: Current price far above typical sale', () => {
@@ -765,6 +793,27 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
       });
       expect(resRegular.isProvisional).toBe(true);
       expect(resRegular.score).toBe(PROVISIONAL_SCORE_CAP); // 65
+    });
+
+    it('Edge 14: Strict monotonicity across typical_sale_median boundary', () => {
+      // Test across the typical_sale_median boundary to ensure no cliff drop or inverted ranking
+      const baseScenario = {
+        basePriceEur: 60.00,
+        typicalSaleMedianEur: 12.00,
+        allTimeLowEur: 6.00,
+        atlIsConfirmed: true,
+        sampleCount: 30,
+        merchantCount: 5
+      };
+
+      const prices = [12.50, 12.10, 12.01, 12.00, 11.99, 11.90, 11.50, 10.00, 8.00, 6.00];
+      const scores = prices.map(p => calculateDealScore({ ...baseScenario, priceEur: p }));
+
+      // Deal Score must strictly increase or stay equal as price drops
+      for (let i = 0; i < scores.length - 1; i++) {
+        expect(scores[i + 1].score).toBeGreaterThanOrEqual(scores[i].score);
+        expect(scores[i + 1].components!.discountDepth).toBeGreaterThanOrEqual(scores[i].components!.discountDepth);
+      }
     });
   });
 });

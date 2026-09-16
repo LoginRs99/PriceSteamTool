@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Game, WishlistStatistics } from '../types.js';
+import type { Game, WishlistStatistics, WishlistFilterOptions } from '../types.js';
 import { GameImage } from './GameImage.js';
 import { Flame, TrendingDown, ShieldCheck, Tag, Sparkles, Trophy } from 'lucide-react';
 
@@ -10,6 +10,7 @@ interface DealsDashboardProps {
   onFilterATL: () => void;
   onFilterMajor: () => void;
   onFilterSale: () => void;
+  filters?: WishlistFilterOptions;
 }
 
 export const DealsDashboard: React.FC<DealsDashboardProps> = ({
@@ -18,16 +19,35 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
   onSelectGame,
   onFilterATL,
   onFilterMajor,
-  onFilterSale
+  onFilterSale,
+  filters
 }) => {
   if (!stats && topDeals.length === 0) return null;
+
+  const isSaleActive = Boolean(filters?.saleOnly && !filters?.allTimeLowOnly && !filters?.majorDealsOnly);
+  const isAtlActive = Boolean(filters?.allTimeLowOnly);
+  const isMajorActive = Boolean(filters?.majorDealsOnly);
 
   return (
     <div className="deals-dashboard">
       {/* 1. Objective Wishlist Statistics Bar */}
       {stats && (
         <div className="stats-bar-grid">
-          <div className="stat-card" onClick={onFilterSale} style={{ cursor: 'pointer' }}>
+          <div 
+            className={`stat-card ${isSaleActive ? 'active-sale' : ''}`} 
+            onClick={onFilterSale} 
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onFilterSale();
+              }
+            }}
+            aria-pressed={isSaleActive}
+            title={isSaleActive ? 'Filter active: showing games on sale (click to toggle off)' : 'Click to filter games on sale'}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="stat-card-header">
               <span className="stat-label">On Sale</span>
               <Tag size={16} color="#10b981" />
@@ -43,7 +63,21 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             </div>
           </div>
 
-          <div className="stat-card" onClick={onFilterATL} style={{ cursor: 'pointer' }}>
+          <div 
+            className={`stat-card ${isAtlActive ? 'active-atl' : ''}`} 
+            onClick={onFilterATL} 
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onFilterATL();
+              }
+            }}
+            aria-pressed={isAtlActive}
+            title={isAtlActive ? 'Filter active: showing All-Time Lows (click to toggle off)' : 'Click to filter confirmed All-Time Lows'}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="stat-card-header">
               <span className="stat-label">All-Time Lows</span>
               <Flame size={16} color="#f59e0b" />
@@ -56,7 +90,21 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             </div>
           </div>
 
-          <div className="stat-card" onClick={onFilterMajor} style={{ cursor: 'pointer' }}>
+          <div 
+            className={`stat-card ${isMajorActive ? 'active-major' : ''}`} 
+            onClick={onFilterMajor} 
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onFilterMajor();
+              }
+            }}
+            aria-pressed={isMajorActive}
+            title={isMajorActive ? 'Filter active: showing Mega & Major Drops (click to toggle off)' : 'Click to filter 50%+ drops and Mega Deals'}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="stat-card-header">
               <span className="stat-label">Mega & Major Deals</span>
               <TrendingDown size={16} color="#8b5cf6" />

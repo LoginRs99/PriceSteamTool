@@ -2,8 +2,9 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { DenseTableView } from '../../src/client/src/components/DenseTableView.js';
+import { CompactListView } from '../../src/client/src/components/CompactListView.js';
 import { FreeGamesView } from '../../src/client/src/components/FreeGamesView.js';
 import type { Game } from '../../src/client/src/types.js';
 
@@ -73,6 +74,56 @@ describe('Catalog Views: DenseTableView and FreeGamesView', () => {
       // Change sort by clicking Deal Score column header
       fireEvent.click(screen.getByText('Deal Score'));
       expect(sortMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('CompactListView', () => {
+    it('renders compact rows with badges, scores, prices and handles game click and refresh', async () => {
+      const clickMock = vi.fn();
+      const explainMock = vi.fn();
+      const refreshMock = vi.fn();
+
+      render(
+        <CompactListView
+          games={[mockPaidGame]}
+          onGameClick={clickMock}
+          onExplain={explainMock}
+          onRefreshGame={refreshMock}
+        />
+      );
+
+      expect(screen.getByText('Terraria')).toBeInTheDocument();
+      expect(screen.getByText('€4.99')).toBeInTheDocument();
+      expect(screen.getAllByText('-50%').length).toBeGreaterThan(0);
+      expect(screen.getByText('€9.99')).toBeInTheDocument();
+      expect(screen.getByText(/85/)).toBeInTheDocument(); // Deal score badge
+      expect(screen.getByText('Steam Store')).toBeInTheDocument();
+
+      // Click row
+      fireEvent.click(screen.getByText('Terraria'));
+      expect(clickMock).toHaveBeenCalledWith(mockPaidGame);
+
+      // Click score badge to explain
+      fireEvent.click(screen.getByText(/85/));
+      expect(explainMock).toHaveBeenCalledWith(mockPaidGame);
+
+      // Click refresh button
+      const refreshBtn = screen.getByTitle('Refresh price from all sources');
+      await act(async () => {
+        fireEvent.click(refreshBtn);
+      });
+      expect(refreshMock).toHaveBeenCalledWith('game-1');
+    });
+
+    it('renders empty message when no games provided', () => {
+      render(
+        <CompactListView
+          games={[]}
+          onGameClick={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('No games to display in compact view.')).toBeInTheDocument();
     });
   });
 

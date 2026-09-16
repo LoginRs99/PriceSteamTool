@@ -1,6 +1,6 @@
 # System Architecture
 
-This document describes the design, component interactions, security posture, and technical choices for **Pricetool** (v2.3.0).
+This document describes the design, component interactions, security posture, and technical choices for **Pricetool** (v2.4.0).
 
 ---
 
@@ -11,10 +11,11 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                                   Frontend (React 19 SPA)                              │
-│  - Modern gamer UI (Virtual scroll, instant search, multi-view: Grid, List, Table)     │
-│  - Real-time Sync Progress Monitor (Server-Sent Events: /api/sync/progress)            │
+│  - Modern gamer UI (Instant search, multi-view: Compact List, Grid)                     │
+│  - Real-time Sync Progress Monitor (Server-Sent Events: /api/sync/events)               │
 │  - Game Detail View (All Offers, Price History, Interactive SVG Chart, Review Badges)  │
-│  - Grouped Data Safety Review View (/api/anomalies) & CSV Export (/api/export/offers)   │
+│  - Steam Family Sharing Exclusions & 1-Click Storefront Category 62 Validation         │
+│  - Grouped Data Safety Review View (/api/pricing-errors) & CSV Export (/api/export)    │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │ HTTP REST, ETag 304, & SSE
 ┌───────────────────────────────────────────▼────────────────────────────────────────────┐

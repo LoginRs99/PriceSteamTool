@@ -242,7 +242,7 @@ Key composite and filtered indexes designed for 2,000+ item catalog queries:
 
 ---
 
-## 4. Migration History (001–026)
+## 4. Migration History (001–027)
 
 Managed via `src/server/db/migrations.ts`:
 - **001–007**: Initial schema setup (risk levels, anomaly flags, statistical deal score columns, allkeyshop pacing, target prices).
@@ -254,3 +254,4 @@ Managed via `src/server/db/migrations.ts`:
 - **024**: Created composite indexes (`idx_offers_pricing_error`, `idx_price_history_reliable`) and backward-compatible `anomalies` view with `INSTEAD OF` triggers.
 - **025**: Added `is_delisted` column to `games`.
 - **026**: Dismissed false sub-euro glitches on offers $\ge 1.005\text{ €}$, unflagged offers, and recomputed best deals.
+- **027**: Created `family_sharing_exclusions` table and `idx_family_sharing_exclusions_app_id` index to track Steam-restricted unshareable titles.

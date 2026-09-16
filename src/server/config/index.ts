@@ -53,7 +53,10 @@ export const config = {
 
   // Security & Access Control
   trustedOrigins: process.env.TRUSTED_ORIGINS 
-    ? process.env.TRUSTED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean) 
+    ? process.env.TRUSTED_ORIGINS
+        .split(',')
+        .map(o => o.trim().replace(/\/+$/, ''))
+        .filter(Boolean) 
     : null,
   apiToken: process.env.API_TOKEN?.trim() || '',
   trustProxy: process.env.TRUST_PROXY === 'true',

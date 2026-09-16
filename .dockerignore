@@ -20,4 +20,6 @@ docs
 *.db-wal
 *.db-shm
 repomix*.txt
+screenshots
+aas-stack.json
 !src/client/index.html

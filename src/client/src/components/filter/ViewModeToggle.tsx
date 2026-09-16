@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ViewMode } from '../../types.js';
-import { LayoutGrid, Table as TableIcon } from 'lucide-react';
+import { List, LayoutGrid } from 'lucide-react';
 
 interface ViewModeToggleProps {
   viewMode: ViewMode;
@@ -14,20 +14,20 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
   return (
     <div className="view-mode-group" role="group" aria-label="View Mode">
       <button
-        className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
-        onClick={() => onViewModeChange('grid')}
-        title="Grid View (Cards)"
-        aria-label="Grid View (Cards)"
+        className={`view-mode-btn ${viewMode === 'compact' ? 'active' : ''}`}
+        onClick={() => onViewModeChange('compact')}
+        title="Compact Ticker List (Dense Rows)"
+        aria-label="Compact Ticker List (Dense Rows)"
       >
-        <LayoutGrid size={16} />
+        <List size={16} />
       </button>
       <button
-        className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
-        onClick={() => onViewModeChange('table')}
-        title="Dense Table View (Data Table)"
-        aria-label="Dense Table View (Data Table)"
+        className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+        onClick={() => onViewModeChange('grid')}
+        title="Visual Grid (Poster Cards)"
+        aria-label="Visual Grid (Poster Cards)"
       >
-        <TableIcon size={16} />
+        <LayoutGrid size={16} />
       </button>
     </div>
   );

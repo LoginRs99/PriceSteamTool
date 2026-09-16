@@ -9,6 +9,7 @@ interface NavbarProps {
   onOpenSources: () => void;
   onOpenDiscord: () => void;
   onTriggerSync: () => void;
+  onLogoClick?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,16 +19,29 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSources,
   onOpenDiscord,
   onTriggerSync,
+  onLogoClick,
 }) => {
   const isSyncing = syncProgress?.status === 'RUNNING';
 
   return (
     <header className="navbar">
-      <div className="brand">
+      <div 
+        className="brand"
+        onClick={onLogoClick}
+        role={onLogoClick ? "button" : undefined}
+        tabIndex={onLogoClick ? 0 : undefined}
+        onKeyDown={onLogoClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onLogoClick(); } } : undefined}
+        style={{ cursor: onLogoClick ? 'pointer' : 'default', userSelect: 'none' }}
+        title={onLogoClick ? "Return to Wishlist Deals" : undefined}
+      >
         <div className="brand-icon">⚡</div>
         <div className="brand-name">
           PRICETOOL
           <span className="brand-badge">Self-Hosted</span>
+          <span className={`telemetry-badge ${isSyncing ? 'pulse-syncing' : activeProfile ? 'pulse-live' : 'pulse-idle'}`}>
+            <span className="telemetry-dot" />
+            {isSyncing ? 'SYNC ACTIVE' : activeProfile ? 'ENGINE LIVE' : 'STANDBY'}
+          </span>
         </div>
       </div>
 

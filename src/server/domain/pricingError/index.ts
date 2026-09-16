@@ -49,11 +49,12 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
     gameReleaseDate: input.gameReleaseDate,
     suspectedEditionInversion: input.suspectedEditionInversion,
     isDelisted: input.isDelisted,
-    isUnreleased: input.isUnreleased
+    isUnreleased: input.isUnreleased,
+    sourceFamilyConflict: input.sourceFamilyConflict
   };
 
   const errorEval = detectPricingError(errorInput);
-  const rawSignals = getTriggeredSignals(errorInput);
+  const rawSignals = errorInput.sourceFamilyConflict ? [] : getTriggeredSignals(errorInput);
   const event = detectPriceEvent(input, errorEval.isLikelyPricingError);
 
   const riskFlags: string[] = [];
@@ -84,6 +85,17 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
     } else if (s.type === 'FAKE_BASELINE') {
       riskFlags.push('FAKE_BASELINE');
     }
+  }
+
+  // v2.4.0 (ADR-1): source-family conflict bypasses the loop above (rawSignals
+  // is empty in this case) — add its flag explicitly.
+  if (errorEval.type === 'SOURCE_FAMILY_CONFLICT') {
+    riskFlags.push('SOURCE_FAMILY_CONFLICT');
+  }
+
+  // v2.4.0 (ADR-2): informational only — never affects riskLevel/riskScore/confidence.
+  if (errorEval.isOverMsrp) {
+    riskFlags.push('OVER_MSRP');
   }
 
   // Check for corroborated signals
@@ -134,7 +146,9 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
 
   let summary = EVENT_SUMMARIES[event] || 'Standard Pricing';
   if (errorEval.isLikelyPricingError && event === 'PRICING_ERROR') {
-    if (price <= 1.005 && riskFlags.includes('SUB_EURO_PREMIUM_GLITCH')) {
+    if (riskFlags.includes('SOURCE_FAMILY_CONFLICT')) {
+      summary = '⚠️ Source Reports Conflicting Prices — Verify Manually';
+    } else if (price <= 1.005 && riskFlags.includes('SUB_EURO_PREMIUM_GLITCH')) {
       summary = '⚡ Sub-Euro Price Glitch (<€1.00)';
     } else if (riskFlags.includes('SOURCE_OWN_HISTORY_BREAK')) {
       summary = '⚠️ Merchant Own History Sudden Collapse';
@@ -158,7 +172,9 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
     isLikelyPricingError: errorEval.isLikelyPricingError,
     pricingErrorConfidence: errorEval.confidence,
     pricingErrorType: errorEval.type,
-    pricingErrorReason: errorEval.reason
+    pricingErrorReason: errorEval.reason,
+    /** v2.4.0 ADR-2 — informational only, see PricingErrorEvaluation.isOverMsrp */
+    isOverMsrp: Boolean(errorEval.isOverMsrp)
   };
 }
 

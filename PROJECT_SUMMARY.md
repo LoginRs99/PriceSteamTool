@@ -5,22 +5,22 @@
 
 ---
 
-## 📌 TL;DR Overview (v2.3.0)
+## 📌 TL;DR Overview (v2.4.0)
 
 PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Price Aggregator and Deal Intelligence platform designed to monitor 2,000+ games reliably without aggressive scraping or IP bans:
 
 - **Backend Runtime:** Node.js 22+ LTS, Fastify 5, TypeScript 5+, Better-SQLite3 (WAL journal mode, prepared statement caching, composite indexing, foreign key constraints).
-- **Frontend SPA:** React 19, TypeScript, Vite, Vanilla CSS design system (Tailwind-free custom tokens) with 3 view modes (Grid, Compact List, Dense Table), Data Safety error review, and 14-column CSV export.
+- **Frontend SPA:** React 19, TypeScript, Vite, Vanilla CSS design system (Tailwind-free custom tokens) with 2 unified view modes (Compact List and Grid View), Steam Family Sharing Exclusions with 1-click Storefront Category 62 checking, Data Safety error review, and 14-column CSV export.
 - **REST & Real-Time APIs:**
-  - Standard SPA routes: `/api/profiles`, `/api/games`, `/api/sources`, `/api/sync`, `/api/anomalies`, `/api/export/offers.csv`.
-  - Server-Sent Events (SSE): `/api/sync/progress` for live per-game synchronization telemetry.
+  - Standard SPA routes: `/api/profiles`, `/api/games`, `/api/sources`, `/api/sync`, `/api/pricing-errors`, `/api/family-sharing/exclusions`, `/api/family-sharing/auto-detect`, `/api/export/offers.csv`.
+  - Server-Sent Events (SSE): `/api/sync/events` for live per-game synchronization telemetry.
   - Anti-Rate-Limit v1 API: `/api/v1/offers/batch` (bulk pricing up to 250 games), `/api/v1/games/resolve` (bulk AppID/title match), `GET /api/v1/games` with ETag `304 Not Modified` caching and standard IETF rate-limit headers.
 - **Data Sources & Paced Adapters:**
-  - **Steam Storefront:** Canonical wishlist ingestion + base price/review baseline (Pacing: 2000ms, jitter 250ms).
-  - **IsThereAnyDeal (ITAD v2/v3):** High-batch official store aggregator for 40+ stores (Pacing: 1000ms, jitter 200ms, batches up to 200 games).
+  - **Steam Storefront:** Canonical wishlist ingestion + base price/review baseline + official Category 62 Family Sharing validation (Pacing: 2000ms, jitter 250ms).
+  - **IsThereAnyDeal (ITAD v2/v3):** High-batch official store aggregator for 40+ stores with chunk-isolated failure resilience (Pacing: 1000ms, jitter 200ms).
   - **CheapShark:** True multi-AppID comma-separated batching (25 App IDs per request, `pageSize=60`, up to 3 pages pagination, Metacritic review/score enrichment, 429 single re-enqueue backoff, Pacing: 1500ms, jitter 250ms).
-  - **GG.deals:** Hybrid official + marketplace deal aggregator (Pacing: 1500ms, jitter 300ms).
-  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, and exponential jitter (Pacing: 2500ms, jitter 500ms).
+  - **GG.deals:** Hybrid official + marketplace deal aggregator with `SOURCE_FAMILY_CONFLICT` detection ($\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms, jitter 300ms).
+  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, and solver error propagation (Pacing: 2500ms, jitter 500ms).
 - **Canonical Type System:** Single Source of Truth in [`src/shared/types.ts`](file:///D:/github/Pricetool/src/shared/types.ts), defining unified models (`Game`, `Offer`, `PricingErrorEvaluation`, `PricingErrorType`, `PriceEventType`, `DealScoreBreakdown`, `DealVerdict`, `WishlistEntry`).
 
 ---

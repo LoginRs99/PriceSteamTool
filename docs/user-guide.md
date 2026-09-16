@@ -1,6 +1,6 @@
 # Pricetool User & Intelligence Guide
 
-This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, and generates actionable purchase advice (v2.3.0).
+This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, and generates actionable purchase advice (v2.4.0).
 
 ---
 
@@ -23,6 +23,8 @@ Identifies the market significance of a price change relative to Steam MSRP and 
 ### 1.2 Pricing Error Engine & Data Safety
 Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts` and isolated into `pricing_errors`:
 * **`DECIMAL_SHIFT`**: Sub-euro glitches ($\le 1.005\text{ €}$) on titles with MSRP $\ge 10\text{ €}$, missing digit shifts ($\sim 1/10$ or $\sim 1/100$ of MSRP on MSRP $\ge 30\text{ €}$), or extreme drops ($\le 3\%$ on MSRP $\ge 15\text{ €}$).
+* **`SOURCE_FAMILY_CONFLICT`**: Severe intra-family price split ($\ge 2.0\times$) between official stores and marketplace keyshops under the same aggregator source.
+* **`OVER_MSRP`**: Informational indicator signaling when an offer exceeds official Steam baseline MSRP.
 * **`MARKET_OUTLIER`**: Lone store $> 50\%$ below single peer or $> 75\%$ below multi-peer median (unless at or above confirmed ATL).
 * **`BELOW_ATL_IMPLAUSIBLE`**: Price $> 50\%$ below established confirmed ATL.
 * **`OWN_HISTORY_BREAK`**: Sudden price collapse vs merchant's own historical median ($z > 2.5$).
@@ -34,7 +36,7 @@ Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts`
 
 ---
 
-## 2. Computed Deal Score v2.3 (0 – 100)
+## 2. Computed Deal Score v2.4 (0 – 100)
 
 The **Deal Score v2.3** provides an objective, monotonic mathematical evaluation of deal attractiveness across 4 pillars:
 

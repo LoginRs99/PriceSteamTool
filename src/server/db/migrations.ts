@@ -667,6 +667,23 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 026] recompute best deals notice:', err?.message);
       }
     }
+  },
+  {
+    name: '027_add_family_sharing_exclusions',
+    up: (db) => {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS family_sharing_exclusions (
+            steam_app_id INTEGER PRIMARY KEY,
+            reason TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+          CREATE INDEX IF NOT EXISTS idx_family_sharing_exclusions_app_id ON family_sharing_exclusions(steam_app_id);
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 027] Notice:', err?.message);
+      }
+    }
   }
 ];
 

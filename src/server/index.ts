@@ -27,12 +27,14 @@ export async function createApp(): Promise<FastifyInstance> {
   if (config.trustedOrigins && config.trustedOrigins.length > 0) {
     await fastify.register(cors, {
       origin: config.trustedOrigins,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Token', 'Accept']
     });
   } else {
     await fastify.register(cors, {
       origin: '*',
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Token', 'Accept']
     });
     if (process.env.NODE_ENV !== 'test') {
       const authState = config.apiToken ? 'protected by API_TOKEN' : 'unauthenticated';
@@ -43,7 +45,7 @@ export async function createApp(): Promise<FastifyInstance> {
     }
   }
 
-  // Opt-in Shared-Secret Guard (X-API-Token)
+  // Opt-in Shared-Secret Guard (X-API-Token / Authorization: Bearer <token>)
   if (config.apiToken) {
     fastify.addHook('onRequest', async (request, reply) => {
       // Allow preflight OPTIONS
@@ -55,13 +57,22 @@ export async function createApp(): Promise<FastifyInstance> {
         return;
       }
 
-      const clientToken = request.headers['x-api-token'];
-      const rawToken = typeof clientToken === 'string' ? clientToken : '';
+      let rawToken = typeof request.headers['x-api-token'] === 'string'
+        ? (request.headers['x-api-token'] as string).trim()
+        : '';
+
+      if (!rawToken && typeof request.headers['authorization'] === 'string') {
+        const authHeader = (request.headers['authorization'] as string).trim();
+        if (authHeader.startsWith('Bearer ')) {
+          rawToken = authHeader.slice(7).trim();
+        }
+      }
+
       const clientBuf = Buffer.from(rawToken);
       const expectedBuf = Buffer.from(config.apiToken);
       const isMatch = clientBuf.length === expectedBuf.length && crypto.timingSafeEqual(clientBuf, expectedBuf);
       if (!isMatch) {
-        return reply.status(401).send({ error: 'Unauthorized: Invalid or missing X-API-Token' });
+        return reply.status(401).send({ error: 'Unauthorized: Invalid or missing API token (use X-API-Token or Authorization: Bearer)' });
       }
     });
   }

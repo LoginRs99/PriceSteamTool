@@ -124,6 +124,8 @@ export const offerRepo = {
     sourceCode?: SourceCode;
     rawObservationJson?: string;
     editionName?: string;
+    /** v2.4.0 ADR-1 — pre-computed by the source adapter, see base.ts */
+    sourceFamilyConflict?: { ratio: number; details: string };
   }): Offer {
     const db = getDb();
     const now = new Date().toISOString();
@@ -382,7 +384,8 @@ export const offerRepo = {
         isDelisted,
         isUnreleased,
         atlIsConfirmed: gameInfo?.atl_is_confirmed !== null && gameInfo?.atl_is_confirmed !== undefined ? Boolean(gameInfo.atl_is_confirmed) : undefined,
-        typicalSaleMedianEur: gameInfo?.typical_sale_median_eur ? Number(gameInfo.typical_sale_median_eur) : undefined
+        typicalSaleMedianEur: gameInfo?.typical_sale_median_eur ? Number(gameInfo.typical_sale_median_eur) : undefined,
+        sourceFamilyConflict: data.sourceFamilyConflict
       };
 
       const pricingEval = evaluatePriceMovement(evalInput);

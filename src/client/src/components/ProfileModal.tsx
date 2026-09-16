@@ -25,6 +25,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [steamId, setSteamId] = useState('');
   const [isFamilyNew, setIsFamilyNew] = useState(false);
   const [syncingProfileId, setSyncingProfileId] = useState<string | null>(null);
+  const [scanningExclusions, setScanningExclusions] = useState(false);
+  const [exclusions, setExclusions] = useState<Array<{ steamAppId: number; reason?: string; createdAt: string }>>([]);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +38,51 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const loadExclusions = async () => {
+    try {
+      const data = await api.getFamilyExclusions();
+      setExclusions(data);
+    } catch {
+      // Ignore initial exclusion load failures
+    }
+  };
+
+  useEffect(() => {
+    loadExclusions();
+  }, []);
+
+  const handleAutoDetectExclusions = async () => {
+    setScanningExclusions(true);
+    setError(null);
+    setStatusMsg(null);
+    try {
+      const res = await api.autoDetectFamilyExclusions();
+      if (res.excludedCount > 0) {
+        setStatusMsg(`Scan complete: ${res.excludedCount} game(s) excluded from Family Sharing (lacking Steam Category 62 or 3rd-party DRM).`);
+      } else {
+        setStatusMsg(`Scan complete: all ${res.scannedCount} family-owned games support Steam Family Sharing.`);
+      }
+      await loadExclusions();
+      onRefresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to auto-detect unshareable games');
+    } finally {
+      setScanningExclusions(false);
+    }
+  };
+
+  const handleRestoreExclusion = async (steamAppId: number) => {
+    setError(null);
+    try {
+      await api.includeFamilyGame(steamAppId);
+      setStatusMsg(`Restored Steam AppID ${steamAppId} to Family Sharing.`);
+      await loadExclusions();
+      onRefresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to restore game to family sharing');
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,6 +280,54 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               );
             })}
           </div>
+
+          {/* Family Sharing Compatibility & Exclusions */}
+          {profiles.some(p => p.isFamily) && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Users size={15} color="#60a5fa" /> Family Sharing Restrictions ({exclusions.length} excluded)
+                  </h4>
+                  <div style={{ fontSize: 12, color: 'var(--dim)', marginTop: 2 }}>
+                    Some publisher games (EA, Ubisoft, Rockstar) are excluded by Steam from Family Sharing.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  onClick={handleAutoDetectExclusions}
+                  disabled={scanningExclusions}
+                  title="Check Steam storefront for games lacking Family Sharing Category 62"
+                >
+                  <RefreshCw size={12} className={scanningExclusions ? 'animate-spin' : ''} />
+                  <span>{scanningExclusions ? 'Scanning...' : 'Auto-Detect Unshareable Games'}</span>
+                </button>
+              </div>
+
+              {exclusions.length > 0 && (
+                <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, padding: 8, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)' }}>
+                  {exclusions.map(ex => (
+                    <div key={ex.steamAppId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        <strong>AppID {ex.steamAppId}</strong> {ex.reason ? `· ${ex.reason}` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        style={{ fontSize: 11, padding: '2px 8px', height: 'auto' }}
+                        onClick={() => handleRestoreExclusion(ex.steamAppId)}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Add Profile Form */}
           <form onSubmit={handleCreate} style={{ marginTop: 14, paddingTop: 16, borderTop: '1px solid var(--line)' }}>

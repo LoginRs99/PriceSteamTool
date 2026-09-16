@@ -493,6 +493,43 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       rawPayload: details
     }];
   }
+
+  /**
+   * Checks whether a Steam game supports Family Sharing via official Steam Storefront metadata.
+   * Games that support Family Sharing have Category 62 ("Family Sharing").
+   * Games that require third-party clients (EA, Ubisoft, Rockstar, etc.) or are opted-out lack Category 62.
+   */
+  public async checkFamilySharingSupport(steamAppId: number): Promise<{ isShareable: boolean; reason?: string; title?: string }> {
+    return this.queue.enqueue(async () => {
+      const url = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&cc=us&filters=categories,basic`;
+      const data: any = await safeFetchJson(url, { headers: STEAM_STORE_HEADERS });
+
+      const entry = data?.[String(steamAppId)];
+      if (!entry?.success || !entry?.data) {
+        return { isShareable: false, reason: 'Game details not found on Steam' };
+      }
+
+      const g = entry.data;
+      const title = g.name;
+      const categories: Array<{ id: number; description: string }> = g.categories || [];
+      const hasFamilySharing = categories.some(
+        c => c.id === 62 || String(c.description || '').toLowerCase().includes('family sharing')
+      );
+
+      if (hasFamilySharing) {
+        return { isShareable: true, title };
+      }
+
+      let reason = 'Excluded from Family Sharing by Steam / publisher (no Family Sharing category)';
+      if (g.ext_user_account_notice) {
+        reason = `Requires 3rd-party account (${g.ext_user_account_notice.trim()}) - Excluded from Family Sharing`;
+      } else if (g.drm_notice) {
+        reason = `Requires 3rd-party DRM (${g.drm_notice.trim()}) - Excluded from Family Sharing`;
+      }
+
+      return { isShareable: false, reason, title };
+    });
+  }
 }
 
 export const steamAdapter = new SteamSourceAdapter();

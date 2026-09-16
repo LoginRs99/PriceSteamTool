@@ -46,13 +46,10 @@ export class PacedSourceQueue {
       const task = this.queue.shift();
       task?.reject(new Error(`Queue for ${this.sourceCode} was cleared/cancelled`));
     }
-    this.isProcessing = false;
-    this.lastExecutionTime = 0;
   }
 
   public reset(): void {
     this.clear();
-    this.isProcessing = false;
     this.lastExecutionTime = 0;
   }
 
@@ -60,49 +57,51 @@ export class PacedSourceQueue {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
-    while (this.queue.length > 0) {
-      const check = circuitBreakers.canExecute(this.sourceCode);
-      if (!check.allowed) {
-        // If paused or in backoff, calculate remaining cooldown sleep up to 2s slices
-        const cooldownUntil = circuitBreakers.getCooldownUntil(this.sourceCode);
-        const remainingMs = cooldownUntil ? Math.max(100, cooldownUntil - Date.now()) : 2000;
-        await new Promise(r => setTimeout(r, Math.min(remainingMs, 2000)));
-        if (this.queue.length === 0) break;
-        continue;
-      }
-
-      const now = Date.now();
-      const jitter = calculateExponentialJitter(this.jitterMs);
-      const elapsed = this.lastExecutionTime === 0
-        ? Infinity
-        : (now >= this.lastExecutionTime ? now - this.lastExecutionTime : 0);
-      const waitTime = Math.max(0, (this.minIntervalMs + jitter) - elapsed);
-
-      if (waitTime > 0) {
-        await new Promise(r => setTimeout(r, waitTime));
-      }
-
-      const task = this.queue.shift();
-      if (!task) break;
-
-      this.lastExecutionTime = Date.now();
-      try {
-        const result = await task.fn();
-        const requestCount = Math.max(1, Number((result as any)?.requestCount ?? (result as any)?.pageCount ?? 1));
-        circuitBreakers.recordSuccess(this.sourceCode, requestCount);
-        task.resolve(result);
-      } catch (err: any) {
-        const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
-        if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
-          const retryAfter = err?.retryAfterSec ?? 30;
-          circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
-        } else {
-          circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);
+    try {
+      while (this.queue.length > 0) {
+        const check = circuitBreakers.canExecute(this.sourceCode);
+        if (!check.allowed) {
+          // If paused or in backoff, calculate remaining cooldown sleep up to 2s slices
+          const cooldownUntil = circuitBreakers.getCooldownUntil(this.sourceCode);
+          const remainingMs = cooldownUntil ? Math.max(100, cooldownUntil - Date.now()) : 2000;
+          await new Promise(r => setTimeout(r, Math.min(remainingMs, 2000)));
+          if (this.queue.length === 0) break;
+          continue;
         }
-        task.reject(err);
-      }
-    }
 
-    this.isProcessing = false;
+        const now = Date.now();
+        const jitter = calculateExponentialJitter(this.jitterMs);
+        const elapsed = this.lastExecutionTime === 0
+          ? Infinity
+          : (now >= this.lastExecutionTime ? now - this.lastExecutionTime : 0);
+        const waitTime = Math.max(0, (this.minIntervalMs + jitter) - elapsed);
+
+        if (waitTime > 0) {
+          await new Promise(r => setTimeout(r, waitTime));
+        }
+
+        const task = this.queue.shift();
+        if (!task) break;
+
+        this.lastExecutionTime = Date.now();
+        try {
+          const result = await task.fn();
+          const requestCount = Math.max(1, Number((result as any)?.requestCount ?? (result as any)?.pageCount ?? 1));
+          circuitBreakers.recordSuccess(this.sourceCode, requestCount);
+          task.resolve(result);
+        } catch (err: any) {
+          const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
+          if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
+            const retryAfter = err?.retryAfterSec ?? 30;
+            circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
+          } else {
+            circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);
+          }
+          task.reject(err);
+        }
+      }
+    } finally {
+      this.isProcessing = false;
+    }
   }
 }

@@ -315,4 +315,30 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
 
     expect(handleFilterChange).toHaveBeenCalledWith({ search: '', page: 1 });
   });
+
+  it('renders ViewModeToggle with 2 modes (compact and grid) and triggers mode changes', () => {
+    const handleViewModeChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={defaultFilters}
+        totalGames={100}
+        onFilterChange={vi.fn()}
+        viewMode="compact"
+        onViewModeChange={handleViewModeChange}
+      />
+    );
+
+    const compactBtn = screen.getByRole('button', { name: /Compact Ticker List/i });
+    const gridBtn = screen.getByRole('button', { name: /Visual Grid/i });
+
+    expect(compactBtn).toBeInTheDocument();
+    expect(gridBtn).toBeInTheDocument();
+    expect(compactBtn).toHaveClass('active');
+
+    fireEvent.click(gridBtn);
+    expect(handleViewModeChange).toHaveBeenCalledWith('grid');
+
+    fireEvent.click(compactBtn);
+    expect(handleViewModeChange).toHaveBeenCalledWith('compact');
+  });
 });

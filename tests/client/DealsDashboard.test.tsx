@@ -107,4 +107,32 @@ describe('DealsDashboard Component', () => {
     fireEvent.click(screen.getByText('Terraria').closest('.spotlight-card')!);
     expect(selectGameMock).toHaveBeenCalledWith('deal-1');
   });
+
+  it('indicates active filter and supports keyboard activation (Enter / Space)', () => {
+    const filterAtlMock = vi.fn();
+
+    render(
+      <DealsDashboard
+        stats={mockStats}
+        topDeals={[]}
+        onSelectGame={() => {}}
+        onFilterATL={filterAtlMock}
+        onFilterMajor={() => {}}
+        onFilterSale={() => {}}
+        filters={{ allTimeLowOnly: true, sort: 'near_atl' }}
+      />
+    );
+
+    const atlCard = screen.getByText('All-Time Lows').closest('.stat-card')!;
+    expect(atlCard).toHaveClass('active-atl');
+    expect(atlCard).toHaveAttribute('aria-pressed', 'true');
+
+    // Test Enter key press
+    fireEvent.keyDown(atlCard, { key: 'Enter' });
+    expect(filterAtlMock).toHaveBeenCalledTimes(1);
+
+    // Test Space key press
+    fireEvent.keyDown(atlCard, { key: ' ' });
+    expect(filterAtlMock).toHaveBeenCalledTimes(2);
+  });
 });

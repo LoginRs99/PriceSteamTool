@@ -1,5 +1,17 @@
 import type { PriceEventType, PricingErrorType, PricingErrorEvaluation } from '../../../shared/types.js';
 
+/**
+ * v2.4.0 (ADR-1): pre-computed result of a same-source-family internal
+ * consistency check (e.g. GG.deals "Official" vs "Keyshops" sub-categories
+ * disagreeing wildly). Computed once at ingestion time by the source
+ * adapter itself (it has both sibling prices in scope); the detector just
+ * consumes the verdict. See detectSourceFamilyConflict() in detector.ts.
+ */
+export interface SourceFamilyConflict {
+  ratio: number;
+  details: string;
+}
+
 export interface PricingErrorInput {
   priceEur: number;
   steamBasePriceEur?: number;
@@ -14,6 +26,8 @@ export interface PricingErrorInput {
   suspectedEditionInversion?: boolean;
   isDelisted?: boolean;
   isUnreleased?: boolean;
+  /** v2.4.0 ADR-1 */
+  sourceFamilyConflict?: SourceFamilyConflict;
 }
 
 export interface PriceEventInput {
@@ -52,6 +66,8 @@ export interface PriceEvaluationInput {
   isUnreleased?: boolean;
   atlIsConfirmed?: boolean;
   typicalSaleMedianEur?: number;
+  /** v2.4.0 ADR-1 */
+  sourceFamilyConflict?: SourceFamilyConflict;
 }
 
 export interface PriceMovementInput {
@@ -80,6 +96,8 @@ export interface PriceMovementInput {
   isStaleObservation?: boolean;
   productType?: string;
   regionConfidence?: number;
+  /** v2.4.0 ADR-1 */
+  sourceFamilyConflict?: SourceFamilyConflict;
 }
 
 export interface OfferAnomalyInput {

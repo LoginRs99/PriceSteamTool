@@ -262,6 +262,15 @@ CREATE TABLE IF NOT EXISTS steam_assets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_steam_assets_app ON steam_assets(steam_app_id);
+
+-- 15. Family Sharing Exclusions (Games excluded from Steam Family Sharing)
+CREATE TABLE IF NOT EXISTS family_sharing_exclusions (
+  steam_app_id INTEGER PRIMARY KEY,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_sharing_exclusions_app_id ON family_sharing_exclusions(steam_app_id);
 `;
 
 export const SEED_SOURCES_SQL = `

@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { gameRepo } from '../db/index.js';
 import { convertToEur } from '../domain/normalizer.js';
+import { detectSourceFamilyConflict } from '../domain/pricingError/detector.js';
 
 export interface GGDealsPriceData {
   title: string;
@@ -136,6 +137,22 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 historicalLowEur: histKeyshopEur,
                 rawPayload: data
               });
+            }
+          }
+
+          // v2.4.0 (ADR-1): check internal consistency between GG.deals' own
+          // Official/Keyshops sub-categories — both prices are in scope right
+          // here, which is the only place this comparison can be made cheaply.
+          const retailOffer = offers.find(o => o.merchantCode === 'ggdeals_retail');
+          const keyshopsOffer = offers.find(o => o.merchantCode === 'ggdeals_keyshops');
+          if (retailOffer && keyshopsOffer) {
+            const conflict = detectSourceFamilyConflict([
+              { subCategory: 'official', priceEur: retailOffer.priceEur },
+              { subCategory: 'keyshops', priceEur: keyshopsOffer.priceEur }
+            ]);
+            if (conflict) {
+              retailOffer.sourceFamilyConflict = conflict;
+              keyshopsOffer.sourceFamilyConflict = conflict;
             }
           }
 

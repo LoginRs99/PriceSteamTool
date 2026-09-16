@@ -218,16 +218,26 @@ describe('App Root Component (Monolith & Decomposed Regression Tests)', () => {
     });
   });
 
-  it('renders the unified dense table view with headers and game details', async () => {
+  it('renders the compact ticker list view and supports switching to grid view', async () => {
     render(<App />);
 
     await waitFor(() => {
       expect(screen.getAllByText('Terraria')[0]).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Deal Score')).toBeInTheDocument();
-    expect(screen.getByText('Best Store')).toBeInTheDocument();
-    expect(screen.getByText('MSRP')).toBeInTheDocument();
+    // Verify compact view contents
+    expect(screen.getAllByText('Steam Store').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('€4.99').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('€9.99').length).toBeGreaterThan(0);
+
+    // Switch to Grid View
+    const gridBtn = screen.getByRole('button', { name: /Visual Grid/i });
+    await act(async () => {
+      fireEvent.click(gridBtn);
+    });
+
+    expect(gridBtn).toHaveClass('active');
+    expect(screen.getAllByText('Terraria')[0]).toBeInTheDocument();
   });
 
   it('opens GameDetailModal when a game is clicked and closes on close button', async () => {

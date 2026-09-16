@@ -19,6 +19,13 @@ export interface NormalizedSourceOffer {
   editionName?: string;
   metacriticScore?: number;
   metacriticUrl?: string;
+  /**
+   * v2.4.0 (ADR-1): set by a source adapter when it has multiple internal
+   * sub-categories for the same game (e.g. GG.deals "Official" vs
+   * "Keyshops") and they disagree beyond SOURCE_FAMILY_CONFLICT_RATIO.
+   * See detectSourceFamilyConflict() in domain/pricingError/detector.ts.
+   */
+  sourceFamilyConflict?: { ratio: number; details: string };
 }
 
 export interface PriceSourceAdapter {
@@ -103,8 +110,28 @@ export async function safeFetchJson<T>(
       });
 
       if (!response.ok) {
-        const error: any = new Error(`HTTP ${response.status} ${response.statusText} for ${url}`);
+        let responseBodyText = '';
+        try {
+          if (typeof response.text === 'function') {
+            responseBodyText = await response.text();
+          }
+        } catch {}
+
+        let detailMsg = '';
+        if (responseBodyText) {
+          try {
+            const parsed = JSON.parse(responseBodyText);
+            const detail = parsed?.reason_phrase || parsed?.error || parsed?.message || parsed?.detail;
+            if (detail) detailMsg = ` - ${detail}`;
+          } catch {
+            const snippet = responseBodyText.slice(0, 160).replace(/\s+/g, ' ').trim();
+            if (snippet) detailMsg = ` - ${snippet}`;
+          }
+        }
+
+        const error: any = new Error(`HTTP ${response.status} ${response.statusText} for ${url}${detailMsg}`);
         error.status = response.status;
+        error.body = responseBodyText;
         const headersDict = Object.fromEntries(response.headers.entries());
         error.headers = headersDict;
 

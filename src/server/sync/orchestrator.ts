@@ -15,7 +15,7 @@ import {
   type WishlistSyncGame 
 } from '../db/index.js';
 import { circuitBreakers } from './circuitBreaker.js';
-import { calculateCoreSyncStatus } from './syncOutcome.js';
+import { calculateCoreSyncStatus, type SourceOutcome } from './syncOutcome.js';
 import { normalizeProductType, normalizeRegion } from '../domain/normalizer.js';
 import { sendDealNotifications } from '../domain/discordNotifier.js';
 import { resolveAndCacheSteamAssets } from '../domain/steamAssets.js';
@@ -328,7 +328,7 @@ export class SyncOrchestrator {
         return;
       }
 
-      const sourceOutcomes = new Map<SourceCode, 'SUCCESS' | 'FAILED'>();
+      const sourceOutcomes = new Map<SourceCode, SourceOutcome>();
 
       // Step 4: Fetch Detailed Steam Storefront Prices & Historical Lows
       if (shouldRunSource('steam') && gamesToRefresh.length > 0 && !this.isCancelled) {
@@ -394,7 +394,13 @@ export class SyncOrchestrator {
         }
 
         if (gamesToRefresh.length > 0) {
-          sourceOutcomes.set('steam', steamSuccesses > 0 || steamFailures === 0 ? 'SUCCESS' : 'FAILED');
+          if (steamFailures > 0 && steamSuccesses > 0) {
+            sourceOutcomes.set('steam', 'PARTIAL');
+          } else if (steamFailures > 0 && steamSuccesses === 0) {
+            sourceOutcomes.set('steam', 'FAILED');
+          } else {
+            sourceOutcomes.set('steam', 'SUCCESS');
+          }
         }
       }
 
@@ -423,7 +429,8 @@ export class SyncOrchestrator {
                 this.progress.sourceProgress.itad.processed++;
               }
               this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
-              sourceOutcomes.set('itad', 'SUCCESS');
+              const itadFailedChunks = (itadBatchResults as any)?.failedChunks ?? 0;
+              sourceOutcomes.set('itad', itadFailedChunks > 0 ? 'PARTIAL' : 'SUCCESS');
               this.broadcast();
             } catch (e: any) {
               sourceOutcomes.set('itad', 'FAILED');
@@ -466,7 +473,8 @@ export class SyncOrchestrator {
                 this.progress.sourceProgress.cheapshark.processed++;
               }
               this.progress.sourceProgress.cheapshark.processed = gamesToRefresh.length;
-              sourceOutcomes.set('cheapshark', 'SUCCESS');
+              const csFailedChunks = (csBatchResults as any)?.failedChunks ?? 0;
+              sourceOutcomes.set('cheapshark', csFailedChunks > 0 ? 'PARTIAL' : 'SUCCESS');
               this.broadcast();
             } catch (e: any) {
               sourceOutcomes.set('cheapshark', 'FAILED');
@@ -873,7 +881,8 @@ export class SyncOrchestrator {
       isValid: true,
       sourceCode,
       rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined,
-      editionName: rawOffer.editionName
+      editionName: rawOffer.editionName,
+      sourceFamilyConflict: rawOffer.sourceFamilyConflict
     });
   }
 

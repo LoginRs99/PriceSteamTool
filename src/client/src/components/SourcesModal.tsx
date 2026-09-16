@@ -17,27 +17,35 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchSources = async () => {
+  const fetchSources = async (isMounted = true) => {
     if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const list = await api.getSources();
-      setSources(list);
-      setLoading(false);
+      if (isMounted) {
+        setSources(list);
+        setLoading(false);
+      }
     } catch (e) {
-      console.error('Failed to fetch sources:', e);
-      setLoading(false);
+      if (isMounted) {
+        console.error('Failed to fetch sources:', e);
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    let isMounted = true;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
 
-    fetchSources();
-    const interval = setInterval(fetchSources, 5000);
+    fetchSources(true);
+    const interval = setInterval(() => {
+      if (isMounted) fetchSources(isMounted);
+    }, 5000);
     return () => {
+      isMounted = false;
       clearInterval(interval);
       window.removeEventListener('keydown', handleKeyDown);
     };

@@ -9,6 +9,7 @@ import {
   W_MARKET,
   MAX_REALISTIC_DISCOUNT_PCT,
   FAKE_BASELINE_RATIO,
+  OWN_MEDIAN_DAMPING_FACTOR,
   SINGLE_OFFER_MARKET_SCORE,
   NO_HISTORY_CAP,
   PROVISIONAL_CAP,
@@ -101,10 +102,11 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   }
 
   // Pillar 2: S_disc (Discount Depth: 0 - 30)
-  // Diminishing-returns curve on discount fraction:
-  // S_disc = 30 * ((anchor - price) / anchor)^0.65
-  // Never prematurely saturates at 75%, differentiating €1 vs €8 while preserving
-  // healthy scores for standard 50%-80% sales, with safe division-by-zero guards.
+  // v2.4.0 (ADR-3): scored relative to the game's OWN typical_sale_median
+  // when available, not a one-size-fits-all curve over raw MSRP — see
+  // OWN_MEDIAN_DAMPING_FACTOR doc comment in types.ts for the empirical
+  // rationale (validated on 15 real games, negative correlation between
+  // median/MSRP ratio and how over-rewarded the old formula was).
   let discountPct = 0;
   let S_disc = 0;
   if (!input.isDelisted && !input.isUnreleased && anchor !== undefined && anchor !== null && anchor > 0 && price >= 0) {
@@ -115,9 +117,31 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     } else {
       const discountFrac = clamp((anchor - price) / anchor, 0, 1);
       discountPct = discountFrac * 100;
-      // Only award discount depth points for meaningful discounts (>= 10%)
-      const effectiveDiscount = discountFrac >= 0.10 ? discountFrac : discountFrac * 0.5;
-      S_disc = W_DISCOUNT * Math.pow(effectiveDiscount, 0.75);
+
+      if (med !== undefined && med !== null && med > 0) {
+        const discountAtMed = clamp((anchor - med) / anchor, 0, 1);
+        const effectiveDiscountAtMed = discountAtMed >= 0.10 ? discountAtMed : discountAtMed * 0.5;
+        const baseScoreAtMed = W_DISCOUNT * OWN_MEDIAN_DAMPING_FACTOR * Math.pow(effectiveDiscountAtMed, 0.75);
+
+        if (price >= med) {
+          // At/above this game's own normal sale price -> heavily dampened;
+          // reaching an "ordinary" price for THIS title isn't a notable event,
+          // even if it looks like a deep cut against raw MSRP.
+          const effectiveDiscount = discountFrac >= 0.10 ? discountFrac : discountFrac * 0.5;
+          S_disc = W_DISCOUNT * OWN_MEDIAN_DAMPING_FACTOR * Math.pow(effectiveDiscount, 0.75);
+        } else {
+          // Genuinely below this game's own normal sale price -> full weight.
+          // Continuous monotonic transition: starts from baseScoreAtMed at price == med
+          // and smoothly climbs to W_DISCOUNT (30) as price approaches zero.
+          const fracBelowOwnMedian = clamp((med - price) / med, 0, 1);
+          S_disc = baseScoreAtMed + (W_DISCOUNT - baseScoreAtMed) * Math.pow(fracBelowOwnMedian, 0.75);
+        }
+      } else {
+        // No historical median yet (new/rarely-tracked game) -> fall back to
+        // the original MSRP-only formula unchanged.
+        const effectiveDiscount = discountFrac >= 0.10 ? discountFrac : discountFrac * 0.5;
+        S_disc = W_DISCOUNT * Math.pow(effectiveDiscount, 0.75);
+      }
     }
   }
 

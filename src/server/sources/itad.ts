@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { gameRepo } from '../db/index.js';
 import { convertToEur } from '../domain/normalizer.js';
+import { logWarn } from '../utils/logger.js';
 
 export const KNOWN_STEAM_KEY_SHOPS = [
   'humble', 'fanatical', 'green man gaming', 'greenmangaming', 'gamebillet',
@@ -48,6 +49,43 @@ export function parseItadProductAndOfficial(shopName: string = '', drms: string[
   return { productTypeRaw: 'Unknown/Non-Steam', isOfficial: false };
 }
 
+export const ITAD_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidItadUuid(id?: string | null): boolean {
+  if (!id || typeof id !== 'string') return false;
+  return ITAD_UUID_REGEX.test(id.trim());
+}
+
+export function normalizeItadCountry(country?: string | null, fallback?: string): string {
+  const defaultFallback = (fallback && fallback.length === 2 && fallback.toUpperCase() !== 'EU')
+    ? fallback.toUpperCase()
+    : (config.preferredCountry && config.preferredCountry.length === 2 && config.preferredCountry.toUpperCase() !== 'EU'
+        ? config.preferredCountry.toUpperCase()
+        : 'US');
+
+  if (!country || typeof country !== 'string') return defaultFallback;
+  const upper = country.trim().toUpperCase();
+  // UK is common vernacular for United Kingdom, but ISO 3166-1 alpha-2 is GB
+  if (upper === 'UK') return 'GB';
+  // ITAD strictly requires an ISO 3166-1 alpha-2 country code. 'EU' is rejected with HTTP 400.
+  if (upper === 'EU' || !/^[A-Z]{2}$/.test(upper)) {
+    return defaultFallback;
+  }
+  return upper;
+}
+
+export function formatItadSinceTimestamp(sinceIso?: string): string {
+  let d: Date;
+  if (sinceIso) {
+    d = new Date(sinceIso);
+  } else {
+    d = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000 * 2);
+  }
+  const validDate = isNaN(d.getTime()) ? new Date(Date.now() - 365 * 24 * 60 * 60 * 1000 * 2) : d;
+  // ITAD v2 strictly forbids fractional seconds (.sssZ) in ISO timestamps
+  return validDate.toISOString().replace(/\.\d+Z$/, 'Z');
+}
+
 export interface ItadHistoricalPoint {
   shopName: string;
   priceEur: number;
@@ -73,13 +111,13 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
    * Looks up ITAD UUID for a Steam AppID
    */
   public async lookupItadId(steamAppId: number): Promise<string | null> {
-    if (!config.itadApiKey) return null;
+    if (!config.itadApiKey || !steamAppId || isNaN(steamAppId) || steamAppId <= 0) return null;
 
     return this.queue.enqueue(async () => {
       try {
         const url = `https://api.isthereanydeal.com/games/lookup/v1?key=${config.itadApiKey}&appid=${steamAppId}`;
         const data: any = await safeFetchJson(url);
-        if (data?.game?.id) {
+        if (data?.game?.id && isValidItadUuid(data.game.id)) {
           gameRepo.updateItadId(steamAppId, data.game.id);
           return data.game.id;
         }
@@ -127,14 +165,11 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
       resolvedItadId = (await this.lookupItadId(steamAppId)) || undefined;
     }
 
-    if (!resolvedItadId) return [];
+    if (!resolvedItadId || typeof resolvedItadId !== 'string' || !resolvedItadId.trim()) return [];
 
     return this.queue.enqueue(async () => {
-      const country = config.preferredCountry || 'US';
-      // Default to 2 years back for rich historical depth
-      // ITAD v2 strictly rejects fractional seconds (.sssZ) in ISO timestamps (HTTP 400: "Invalid 'since' format")
-      const rawSince = sinceIso || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000 * 2).toISOString();
-      const since = rawSince.replace(/\.\d+Z$/, 'Z');
+      const country = normalizeItadCountry(config.preferredCountry);
+      const since = formatItadSinceTimestamp(sinceIso);
       const url = `https://api.isthereanydeal.com/games/history/v2?key=${config.itadApiKey}&id=${resolvedItadId}&country=${country}&since=${encodeURIComponent(since)}`;
 
       try {
@@ -244,14 +279,34 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
 
     // 3. Chunk in batches of 150 items for games/overview/v2
     const chunkSize = 150;
+    let failedChunks = 0;
+    let totalChunks = 0;
     for (let i = 0; i < itadIdsToFetch.length; i += chunkSize) {
+      totalChunks++;
       const chunk = itadIdsToFetch.slice(i, i + chunkSize);
-      const chunkResults = await this.fetchBatchOverview(chunk, itadIdToAppId);
-      
-      for (const [appId, offers] of chunkResults.entries()) {
-        resultMap.set(appId, offers);
+      try {
+        const chunkResults = await this.fetchBatchOverview(chunk, itadIdToAppId);
+        for (const [appId, offers] of chunkResults.entries()) {
+          resultMap.set(appId, offers);
+        }
+      } catch (err: any) {
+        failedChunks++;
+        logWarn(`ITAD batch chunk [${i}-${i + chunk.length}] failed: ${err?.message || 'Unknown error'}`, {
+          chunkIndex: Math.floor(i / chunkSize),
+          chunkSize: chunk.length,
+          error: err?.message,
+          status: err?.status
+        });
       }
     }
+
+    if (totalChunks > 0 && failedChunks === totalChunks) {
+      const aggError: any = new Error(`All ${totalChunks} ITAD chunks failed during batch fetch.`);
+      throw aggError;
+    }
+
+    (resultMap as any).failedChunks = failedChunks;
+    (resultMap as any).totalChunks = totalChunks;
 
     return resultMap;
   }
@@ -262,16 +317,18 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
   ): Promise<Map<number, NormalizedSourceOffer[]>> {
     return this.queue.enqueue(async () => {
       const resultMap = new Map<number, NormalizedSourceOffer[]>();
-      if (itadIds.length === 0) return resultMap;
+      const validIds = itadIds.filter(id => id && typeof id === 'string' && id.trim().length > 0);
+      if (validIds.length === 0) return resultMap;
 
-      const url = `https://api.isthereanydeal.com/games/overview/v2?key=${config.itadApiKey}&country=${config.preferredCountry}`;
+      const country = normalizeItadCountry(config.preferredCountry);
+      const url = `https://api.isthereanydeal.com/games/overview/v2?key=${config.itadApiKey}&country=${country}`;
       
       const response: any = await safeFetchJson(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(itadIds)
+        body: JSON.stringify(validIds)
       });
 
       if (!response?.prices || !Array.isArray(response.prices)) {

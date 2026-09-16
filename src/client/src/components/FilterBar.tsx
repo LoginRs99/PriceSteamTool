@@ -24,7 +24,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
   totalGames,
   onFilterChange,
-  viewMode = 'table',
+  viewMode = 'compact',
   onViewModeChange
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);

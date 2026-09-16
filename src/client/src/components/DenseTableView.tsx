@@ -47,53 +47,59 @@ export const DenseTableView: React.FC<DenseTableViewProps> = ({
         <thead>
           <tr>
             <th 
-              className="th-priority"
+              className={`th-priority ${currentSort === 'priority' ? 'sorted' : ''}`}
               style={{ width: 45, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('priority')}
               title="Sort by Steam Wishlist Priority"
+              aria-sort={currentSort === 'priority' ? 'ascending' : 'none'}
             >
               # {renderSortIndicator('priority')}
             </th>
             <th 
-              className="th-title"
+              className={`th-title ${currentSort === 'title_asc' ? 'sorted' : ''}`}
               style={{ cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('title_asc')}
               title="Sort by Title Alphabetically"
+              aria-sort={currentSort === 'title_asc' ? 'ascending' : 'none'}
             >
               Title {renderSortIndicator('title_asc')}
             </th>
             <th className="th-sparkline" style={{ width: 120 }}>Trend</th>
             <th className="th-msrp" style={{ width: 85 }}>MSRP</th>
             <th 
-              className="th-price"
+              className={`th-price ${currentSort === 'price_asc' || currentSort === 'price_desc' ? 'sorted' : ''}`}
               style={{ width: 105, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('price_asc', 'price_desc')}
               title="Sort by Best Deal Price"
+              aria-sort={currentSort === 'price_asc' ? 'ascending' : currentSort === 'price_desc' ? 'descending' : 'none'}
             >
               Best Deal {renderSortIndicator('price_asc', 'price_desc')}
             </th>
             <th 
-              className="th-discount"
+              className={`th-discount ${currentSort === 'price_drops' || currentSort === 'discount_desc' ? 'sorted' : ''}`}
               style={{ width: 90, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('price_drops', 'discount_desc')}
               title="Sort by Highest Discount %"
+              aria-sort={currentSort === 'price_drops' || currentSort === 'discount_desc' ? 'descending' : 'none'}
             >
               Discount {renderSortIndicator('price_drops', 'discount_desc')}
             </th>
             <th 
-              className="th-score"
+              className={`th-score ${currentSort === 'best_value' || currentSort === 'deal_score_desc' ? 'sorted' : ''}`}
               style={{ width: 130, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('best_value', 'deal_score_desc')}
               title="Sort by Deal Score (Best Value)"
+              aria-sort={currentSort === 'best_value' || currentSort === 'deal_score_desc' ? 'descending' : 'none'}
             >
               Deal Score {renderSortIndicator('best_value', 'deal_score_desc')}
             </th>
             <th className="th-store" style={{ width: 145 }}>Best Store</th>
             <th 
-              className="th-atl"
+              className={`th-atl ${currentSort === 'near_atl' ? 'sorted' : ''}`}
               style={{ width: 95, cursor: onSortChange ? 'pointer' : 'default', userSelect: 'none' }}
               onClick={() => handleHeaderClick('near_atl')}
               title="Sort by All-Time Low Status"
+              aria-sort={currentSort === 'near_atl' ? 'descending' : 'none'}
             >
               ATL {renderSortIndicator('near_atl')}
             </th>

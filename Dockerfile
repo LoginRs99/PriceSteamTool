@@ -36,6 +36,10 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     DATA_DIR=/data
 
+LABEL org.opencontainers.image.title="PriceSteamTool" \
+      org.opencontainers.image.description="Multi-source Steam Wishlist & Deals Intelligence Engine" \
+      org.opencontainers.image.source="https://github.com/LoginRs99/PriceSteamTool"
+
 # Install tini as init system (PID 1) for signal forwarding & zombie reaping
 RUN apk add --no-cache tini
 

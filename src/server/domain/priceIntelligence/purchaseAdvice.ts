@@ -9,19 +9,40 @@ import type {
 
 /**
  * Buy / Fair / Wait Decision Engine with Precedence & Safety Guard
+ *
+ * v2.4.0 (ADR-4): "best available" is not the same question as "good time to
+ * buy" when the market is thin. Validated on the full live DB: 64.7% of
+ * 1-3 offer games have their best deal priced above the game's own typical
+ * median (vs only 6.9% for 10+ offer games) — do NOT lower the 9-offer
+ * cutoff without re-checking that distribution.
  */
+const MARKET_DEPTH_CAVEAT_MAX_OFFERS = 9;
+
+function computeMarketDepthCaveat(
+  offersCount: number | undefined,
+  currentPrice: number,
+  typicalMedianEur: number | null
+): string | undefined {
+  if (offersCount === undefined || offersCount > MARKET_DEPTH_CAVEAT_MAX_OFFERS) return undefined;
+  if (typicalMedianEur === null || typicalMedianEur <= 0) return undefined;
+  if (currentPrice <= typicalMedianEur) return undefined;
+  return `This is the cheapest price currently tracked, but only ${offersCount} store${offersCount === 1 ? '' : 's'} ${offersCount === 1 ? 'is' : 'are'} being watched — it may not reflect a genuinely good time to buy compared to this game's usual sale price (€${typicalMedianEur.toFixed(2)}).`;
+}
+
 export function evaluatePurchaseAdvice(
   game: Game,
   currentBestOffer: Offer | undefined,
   periodLows: PriceIntelligenceResponse['periodLows'],
   typicalSale: TypicalSalePrice,
-  actionSignal?: ActionSignal
+  actionSignal?: ActionSignal,
+  offersCount?: number
 ): PurchaseAdvice {
   const currentPrice = currentBestOffer?.priceEur ?? game.bestPriceEur ?? 0;
   const basePrice = game.basePriceEur ?? currentBestOffer?.originalPriceEur ?? 0;
   const discount = currentBestOffer?.discountPercent ?? game.bestDiscountPercent ?? 0;
   const dealScore = currentBestOffer?.dealScore ?? game.bestDealScore ?? 0;
   const atl = periodLows.allTimeLow.priceEur;
+  const marketDepthCaveat = computeMarketDepthCaveat(offersCount, currentPrice, typicalSale.medianPriceEur);
 
   // 1. Minimum Data Insufficiency Gate
   const hasNoSaleHistory = typicalSale.medianPriceEur === null;
@@ -125,7 +146,8 @@ export function evaluatePurchaseAdvice(
       decision: 'BUY',
       confidence,
       headline: 'Exceptional Buying Opportunity',
-      reasoning: reasons.length > 0 ? reasons : ['Outstanding price relative to historical anchors.']
+      reasoning: reasons.length > 0 ? reasons : ['Outstanding price relative to historical anchors.'],
+      marketDepthCaveat
     };
   }
 
@@ -145,7 +167,8 @@ export function evaluatePurchaseAdvice(
       decision: 'FAIR',
       confidence,
       headline: 'Fair Sale Price',
-      reasoning: reasons.length > 0 ? reasons : ['Fair market price for this title.']
+      reasoning: reasons.length > 0 ? reasons : ['Fair market price for this title.'],
+      marketDepthCaveat
     };
   }
 
@@ -165,6 +188,7 @@ export function evaluatePurchaseAdvice(
     decision: 'WAIT',
     confidence,
     headline: 'Wait for Better Discount',
-    reasoning: waitReasons.length > 0 ? waitReasons : ['Wait for deeper seasonal discount.']
+    reasoning: waitReasons.length > 0 ? waitReasons : ['Wait for deeper seasonal discount.'],
+    marketDepthCaveat
   };
 }

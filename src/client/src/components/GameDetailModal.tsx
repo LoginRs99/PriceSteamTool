@@ -58,7 +58,12 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
     handleSaveTargetPrice,
     handleClearTargetPrice,
     refreshingGame,
-    handleRefreshGame
+    handleRefreshGame,
+    togglingFamily,
+    familyMessage,
+    handleExcludeFamilySharing,
+    handleIncludeFamilySharing,
+    handleAutoCheckFamilySharing
   } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated, onGameUpdated);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'offers' | 'history'>('overview');
@@ -192,6 +197,76 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Family Sharing Exclusion Banner / Controls */}
+        {(game.isFamilyShared || game.isFamilyExcluded) && (
+          <div 
+            style={{
+              margin: '12px 20px 0 20px',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: game.isFamilyShared ? 'rgba(59, 130, 246, 0.08)' : 'rgba(234, 179, 8, 0.1)',
+              border: `1px solid ${game.isFamilyShared ? 'rgba(59, 130, 246, 0.25)' : 'rgba(234, 179, 8, 0.3)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>{game.isFamilyShared ? '👨‍👩‍👧' : '⚠️'}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: game.isFamilyShared ? '#60a5fa' : '#facc15' }}>
+                  {game.isFamilyShared ? 'Family Sharing Active' : 'Excluded from Family Sharing'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {familyMessage ? familyMessage : game.isFamilyShared 
+                    ? 'A family member owns this game. If Steam excludes it from sharing (e.g. EA/Ubisoft DRM), you can demark it.'
+                    : 'This game is excluded from family sharing and will appear normally in your wishlist.'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {game.isFamilyShared ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => handleAutoCheckFamilySharing()}
+                    disabled={togglingFamily}
+                    style={{ fontSize: 12, padding: '4px 10px' }}
+                    title="Check official Steam store metadata for Category 62 (Family Sharing)"
+                  >
+                    {togglingFamily ? 'Checking...' : 'Check Steam Support'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => handleExcludeFamilySharing('Excluded: not shared by Steam')}
+                    disabled={togglingFamily}
+                    style={{ fontSize: 12, padding: '4px 10px', background: 'rgba(234, 179, 8, 0.2)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.4)' }}
+                    title="Demark this game so it is not treated as family-shared"
+                  >
+                    {togglingFamily ? 'Updating...' : 'Demark (Not Shareable)'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => handleIncludeFamilySharing()}
+                  disabled={togglingFamily}
+                  style={{ fontSize: 12, padding: '4px 10px' }}
+                  title="Restore family shared status"
+                >
+                  {togglingFamily ? 'Updating...' : 'Restore Family Status'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Modal Navigation Tabs */}
         <div 

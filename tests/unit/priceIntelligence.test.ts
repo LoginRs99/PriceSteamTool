@@ -303,6 +303,57 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
       expect(advice.decision).toBe('BUY');
       expect(advice.confidence).toBe('HIGH');
     });
+
+    describe('v2.4.0 ADR-4: market depth caveat', () => {
+      it('shows the caveat when best price is above own median AND offer count <= 9', () => {
+        const offer: Offer = { ...sampleOffer, priceEur: 25.00, discountPercent: 17, dealScore: 45 };
+        const periodLows = calculatePeriodLows(baseGame, [], offer);
+        const typical = { medianPriceEur: 19.99, sampleCount: 5, isLowConfidence: false };
+
+        const advice = evaluatePurchaseAdvice(baseGame, offer, periodLows, typical, undefined, 3);
+        expect(advice.marketDepthCaveat).toBeDefined();
+        expect(advice.marketDepthCaveat).toContain('3 stores');
+        expect(advice.marketDepthCaveat).toContain('€19.99');
+        // Deliberately must NOT change the underlying decision/confidence:
+        expect(['BUY', 'FAIR', 'WAIT']).toContain(advice.decision);
+      });
+
+      it('does NOT show the caveat once the market has 10+ tracked offers (validated: drops to 6.9%)', () => {
+        const offer: Offer = { ...sampleOffer, priceEur: 25.00, discountPercent: 17, dealScore: 45 };
+        const periodLows = calculatePeriodLows(baseGame, [], offer);
+        const typical = { medianPriceEur: 19.99, sampleCount: 5, isLowConfidence: false };
+
+        const advice = evaluatePurchaseAdvice(baseGame, offer, periodLows, typical, undefined, 10);
+        expect(advice.marketDepthCaveat).toBeUndefined();
+      });
+
+      it('does NOT show the caveat when the price is already at/below the typical median', () => {
+        const periodLows = calculatePeriodLows(baseGame, [], sampleOffer); // priceEur=29.99
+        const typical = { medianPriceEur: 34.99, sampleCount: 5, isLowConfidence: false };
+
+        const advice = evaluatePurchaseAdvice(baseGame, sampleOffer, periodLows, typical, undefined, 2);
+        expect(advice.marketDepthCaveat).toBeUndefined();
+      });
+
+      it('does NOT show the caveat when offersCount is not provided (backward compatible)', () => {
+        const offer: Offer = { ...sampleOffer, priceEur: 25.00 };
+        const periodLows = calculatePeriodLows(baseGame, [], offer);
+        const typical = { medianPriceEur: 19.99, sampleCount: 5, isLowConfidence: false };
+
+        const advice = evaluatePurchaseAdvice(baseGame, offer, periodLows, typical);
+        expect(advice.marketDepthCaveat).toBeUndefined();
+      });
+
+      it('singular phrasing for exactly 1 offer', () => {
+        const offer: Offer = { ...sampleOffer, priceEur: 25.00 };
+        const periodLows = calculatePeriodLows(baseGame, [], offer);
+        const typical = { medianPriceEur: 19.99, sampleCount: 5, isLowConfidence: false };
+
+        const advice = evaluatePurchaseAdvice(baseGame, offer, periodLows, typical, undefined, 1);
+        expect(advice.marketDepthCaveat).toContain('1 store is');
+        expect(advice.marketDepthCaveat).not.toContain('1 stores');
+      });
+    });
   });
 
   describe('7. Consolidated Price Intelligence Generator', () => {

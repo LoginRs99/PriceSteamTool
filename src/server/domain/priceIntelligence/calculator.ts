@@ -78,7 +78,7 @@ export function generatePriceIntelligence(input: PriceIntelligenceInput): PriceI
     currentDate: now
   });
 
-  const advice = evaluatePurchaseAdvice(game, bestOffer, periodLows, typicalSale, actionSignal);
+  const advice = evaluatePurchaseAdvice(game, bestOffer, periodLows, typicalSale, actionSignal, marketComparison.totalCompatibleOffers || offers.length);
   const chartData = buildPriceChartData(game, history, bestOffer, typicalSale.medianPriceEur);
 
   // Generate factual historical summary

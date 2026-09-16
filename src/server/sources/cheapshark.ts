@@ -132,6 +132,10 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
             const maxPages = 3; // Safety cap to avoid infinite pagination loops
 
             while (hasMorePages && pageNumber < maxPages) {
+              if (pageNumber > 0) {
+                // Respectful inter-page delay to prevent burst 429s
+                await new Promise(r => setTimeout(r, Math.max(600, Math.floor(config.delays.cheapshark / 2))));
+              }
               totalRequestsMade++;
               const url = `https://www.cheapshark.com/api/1.0/deals?steamAppID=${appIds.join(',')}&pageSize=60&pageNumber=${pageNumber}`;
               const deals: any = await safeFetchJson(url);
@@ -161,7 +165,12 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
         } catch (err: any) {
           const isRateLimit = err?.status === 429 || err?.message?.includes('429');
           if (attempt === 0 && isRateLimit) {
-            // Queue has entered BACKOFF cooldown. Re-enqueuing will pause until cooldown clears.
+            const waitSec = Math.max(err?.retryAfterSec ?? 10, 5);
+            logWarn(`[CheapShark] Rate limit (429) encountered. Backing off for ${waitSec}s before retrying chunk...`, {
+              chunkIndex,
+              retryAfterSec: waitSec
+            });
+            await new Promise(r => setTimeout(r, waitSec * 1000));
             continue;
           }
           failedChunks++;
@@ -186,6 +195,9 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       aggError.requestCount = totalRequestsMade;
       throw aggError;
     }
+
+    (resultMap as any).failedChunks = failedChunks;
+    (resultMap as any).totalChunks = totalChunks;
 
     return resultMap;
   }

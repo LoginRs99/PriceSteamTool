@@ -137,6 +137,76 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   // ----------------------------------------------------
+  // Family Sharing Exclusions API
+  // ----------------------------------------------------
+  fastify.get('/api/family-sharing/exclusions', async () => {
+    return profileRepo.getFamilySharingExclusions();
+  });
+
+  fastify.post('/api/family-sharing/exclude', async (request, reply) => {
+    const schema = z.object({
+      steamAppId: z.number().int().positive(),
+      reason: z.string().max(500).optional()
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid steamAppId', details: parsed.error.issues });
+    }
+    profileRepo.excludeFamilySharingApp(parsed.data.steamAppId, parsed.data.reason);
+    return { success: true, steamAppId: parsed.data.steamAppId, reason: parsed.data.reason };
+  });
+
+  fastify.post('/api/family-sharing/include', async (request, reply) => {
+    const schema = z.object({
+      steamAppId: z.number().int().positive()
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid steamAppId', details: parsed.error.issues });
+    }
+    profileRepo.includeFamilySharingApp(parsed.data.steamAppId);
+    return { success: true, steamAppId: parsed.data.steamAppId };
+  });
+
+  fastify.post('/api/family-sharing/auto-detect', async (request, reply) => {
+    const schema = z.object({
+      steamAppIds: z.array(z.number().int().positive()).optional()
+    }).optional();
+    const parsed = schema?.safeParse(request.body || {});
+    let targetAppIds: number[] = [];
+
+    if (parsed && parsed.success && parsed.data?.steamAppIds && parsed.data.steamAppIds.length > 0) {
+      targetAppIds = parsed.data.steamAppIds;
+    } else {
+      // Find all games owned by family members that are not yet excluded
+      const familyOwnedAppIds = profileRepo.getFamilyOwnedAppIds();
+      const excludedAppIds = profileRepo.getFamilySharingExcludedAppIds();
+      targetAppIds = Array.from(familyOwnedAppIds).filter(appId => !excludedAppIds.has(appId));
+    }
+
+    const newlyExcluded: Array<{ steamAppId: number; title?: string; reason: string }> = [];
+
+    for (const appId of targetAppIds) {
+      try {
+        const check = await steamAdapter.checkFamilySharingSupport(appId);
+        if (!check.isShareable) {
+          const reason = check.reason || 'Not supported by Family Sharing';
+          profileRepo.excludeFamilySharingApp(appId, reason);
+          newlyExcluded.push({ steamAppId: appId, title: check.title, reason });
+        }
+      } catch (err: any) {
+        logWarn('Failed to check family sharing support for game', { appId, error: err.message });
+      }
+    }
+
+    return {
+      scannedCount: targetAppIds.length,
+      excludedCount: newlyExcluded.length,
+      newlyExcluded
+    };
+  });
+
+  // ----------------------------------------------------
   // Games & Wishlist API
   // ----------------------------------------------------
   fastify.get('/api/games', async (request, reply) => {

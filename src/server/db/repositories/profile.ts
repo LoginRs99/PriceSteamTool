@@ -166,5 +166,35 @@ export const profileRepo = {
 
   delete(id: string): void {
     prepareStmt(`DELETE FROM profiles WHERE id = ?`).run(id);
+  },
+
+  excludeFamilySharingApp(steamAppId: number, reason?: string): void {
+    prepareStmt(`
+      INSERT OR REPLACE INTO family_sharing_exclusions (steam_app_id, reason, created_at)
+      VALUES (?, ?, datetime('now'))
+    `).run(steamAppId, reason || null);
+  },
+
+  includeFamilySharingApp(steamAppId: number): void {
+    prepareStmt(`DELETE FROM family_sharing_exclusions WHERE steam_app_id = ?`).run(steamAppId);
+  },
+
+  getFamilySharingExclusions(): Array<{ steamAppId: number; reason?: string; createdAt: string }> {
+    const rows = prepareStmt(`
+      SELECT steam_app_id, reason, created_at
+      FROM family_sharing_exclusions
+      ORDER BY created_at DESC
+    `).all() as any[];
+
+    return rows.map(r => ({
+      steamAppId: Number(r.steam_app_id),
+      reason: r.reason || undefined,
+      createdAt: r.created_at
+    }));
+  },
+
+  getFamilySharingExcludedAppIds(): Set<number> {
+    const rows = prepareStmt(`SELECT steam_app_id FROM family_sharing_exclusions`).all() as any[];
+    return new Set(rows.map(r => Number(r.steam_app_id)));
   }
 };

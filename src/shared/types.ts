@@ -29,7 +29,8 @@ export type PricingErrorType =
   | 'EDITION_INVERSION' 
   | 'OWN_HISTORY_BREAK' 
   | 'FRESH_RELEASE_DROP' 
-  | 'FAKE_BASELINE';
+  | 'FAKE_BASELINE'
+  | 'SOURCE_FAMILY_CONFLICT';
 
 export type DealVerdict = 'INSTANT_BUY' | 'GREAT_DEAL' | 'FAIR_DEAL' | 'WAIT' | 'OVERPRICED';
 
@@ -38,6 +39,14 @@ export interface PricingErrorEvaluation {
   confidence: number;
   type: PricingErrorType | null;
   reason: string | null;
+  /**
+   * v2.4.0 (ADR-2): informational-only flag — price exceeds the official MSRP.
+   * Deliberately NEVER contributes to `confidence` or `isLikelyPricingError`:
+   * an over-MSRP price can be a legitimate scarcity/demand premium (delisted
+   * game, fresh AAA release) rather than a data error. Consumers should show
+   * a neutral "verify before buying" cue, not treat it as a pricing error.
+   */
+  isOverMsrp?: boolean;
 }
 
 export interface Profile {
@@ -99,6 +108,7 @@ export interface Game {
   isDlc: boolean;
   isFree: boolean;
   isFamilyShared?: boolean;
+  isFamilyExcluded?: boolean;
   basePriceEur?: number;
   historicalLowEur?: number;
   historicalLowDate?: string;
@@ -324,7 +334,7 @@ export interface SyncStatusResponse {
   };
 }
 
-export type ViewMode = 'grid' | 'table';
+export type ViewMode = 'compact' | 'grid';
 export type MainTab = 'wishlist' | 'free' | 'deals' | 'safety';
 
 export interface WishlistFilterOptions {
@@ -428,6 +438,15 @@ export interface PurchaseAdvice {
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   headline: string;
   reasoning: string[];
+  /**
+   * v2.4.0 (ADR-4): set when the current best price is above the game's own
+   * typical sale median AND the market has 9 or fewer tracked offers.
+   * Validated on the full live DB: the "best deal is worse than usual"
+   * pattern occurs in 64.7% of 1-3 offer games, 36.3% of 4-9 offer games,
+   * but only 6.9% of 10+ offer games. Deliberately does NOT change
+   * `decision`/`confidence`/DealScore — a UI-only caveat about data sparsity.
+   */
+  marketDepthCaveat?: string;
 }
 
 export interface PriceChartPoint {

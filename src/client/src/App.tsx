@@ -9,7 +9,7 @@ import { api } from './api.js';
 import { SyncBanner } from './components/SyncBanner.js';
 import { DealsDashboard } from './components/DealsDashboard.js';
 import { FilterBar } from './components/FilterBar.js';
-import { DenseTableView } from './components/DenseTableView.js';
+import { CompactListView } from './components/CompactListView.js';
 import { GameCard } from './components/GameCard.js';
 import { ViewModeToggle } from './components/filter/ViewModeToggle.js';
 import { FreeGamesView } from './components/FreeGamesView.js';
@@ -20,7 +20,7 @@ import { AnomaliesView } from './components/AnomaliesView.js';
 import { SyncModal } from './components/SyncModal.js';
 import { DiscordModal } from './components/DiscordModal.js';
 import { ScoreExplainModal } from './components/ScoreExplainModal.js';
-import { DenseTableSkeleton, GameCardSkeleton } from './components/skeletons/index.js';
+import { GameCardSkeleton, CompactListSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -32,7 +32,8 @@ import {
   Sparkles, 
   Flame, 
   Gift, 
-  AlertTriangle 
+  AlertTriangle,
+  RefreshCw 
 } from 'lucide-react';
 
 import { useProfiles } from './hooks/useProfiles.js';
@@ -48,12 +49,14 @@ export const App: React.FC = () => {
   // Navigation Tabs
   const [mainTab, setMainTab] = useState<MainTab>('wishlist');
 
-  // View Mode: grid (cards), list (compact), or table (dense)
+  // View Mode: compact (ticker rows) or grid (poster cards)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
-      return (localStorage.getItem('pricetool_view_mode') as ViewMode) || 'table';
+      const saved = localStorage.getItem('pricetool_view_mode');
+      if (saved === 'grid' || saved === 'compact') return saved;
+      return 'compact';
     } catch {
-      return 'table';
+      return 'compact';
     }
   });
 
@@ -160,6 +163,39 @@ export const App: React.FC = () => {
   const totalPages = Math.ceil(totalGames / (filters.limit || 50)) || 1;
   const currentPage = filters.page || 1;
 
+  const hasActiveFilters = Boolean(
+    filters.search ||
+    filters.saleOnly ||
+    filters.majorDealsOnly ||
+    filters.allTimeLowOnly ||
+    filters.buyOnly ||
+    filters.targetReachedOnly ||
+    filters.minPrice !== undefined ||
+    filters.maxPrice !== undefined ||
+    filters.minDiscount !== undefined ||
+    filters.minDealScore !== undefined ||
+    (filters.merchantType && filters.merchantType !== 'all')
+  );
+
+  const handleResetFilters = useCallback(() => {
+    updateFilters({
+      search: '',
+      saleOnly: false,
+      majorDealsOnly: false,
+      allTimeLowOnly: false,
+      buyOnly: false,
+      targetReachedOnly: false,
+      underPrice: undefined,
+      minPrice: undefined,
+      maxPrice: undefined,
+      minDiscount: undefined,
+      minDealScore: undefined,
+      merchantType: 'all',
+      sort: 'priority',
+      page: 1,
+    });
+  }, [updateFilters]);
+
   return (
     <div className="app-container">
       {/* Top Navigation */}
@@ -170,6 +206,7 @@ export const App: React.FC = () => {
         onOpenSources={() => setShowSourcesModal(true)}
         onOpenDiscord={() => setShowDiscordModal(true)}
         onTriggerSync={() => setShowSyncModal(true)}
+        onLogoClick={() => setMainTab('wishlist')}
       />
 
       {/* Sync Progress Banner */}
@@ -246,52 +283,62 @@ export const App: React.FC = () => {
               <DealsDashboard
                 stats={stats}
                 topDeals={topDeals}
+                filters={filters}
                 onSelectGame={(id) => setSelectedGameId(id)}
-                onFilterATL={() => updateFilters({
-                  buyOnly: false,
-                  targetReachedOnly: false,
-                  saleOnly: false,
-                  majorDealsOnly: false,
-                  allTimeLowOnly: true,
-                  underPrice: undefined,
-                  maxPrice: undefined,
-                  minPrice: undefined,
-                  minDiscount: undefined,
-                  minDealScore: undefined,
-                  merchantType: 'all',
-                  sort: 'near_atl',
-                  page: 1
-                })}
-                onFilterMajor={() => updateFilters({
-                  buyOnly: false,
-                  targetReachedOnly: false,
-                  saleOnly: false,
-                  majorDealsOnly: true,
-                  allTimeLowOnly: false,
-                  underPrice: undefined,
-                  maxPrice: undefined,
-                  minPrice: undefined,
-                  minDiscount: undefined,
-                  minDealScore: undefined,
-                  merchantType: 'all',
-                  sort: 'best_value',
-                  page: 1
-                })}
-                onFilterSale={() => updateFilters({
-                  buyOnly: false,
-                  targetReachedOnly: false,
-                  saleOnly: true,
-                  majorDealsOnly: false,
-                  allTimeLowOnly: false,
-                  underPrice: undefined,
-                  maxPrice: undefined,
-                  minPrice: undefined,
-                  minDiscount: undefined,
-                  minDealScore: undefined,
-                  merchantType: 'all',
-                  sort: 'price_drops',
-                  page: 1
-                })}
+                onFilterATL={() => {
+                  const isCurrentlyActive = Boolean(filters.allTimeLowOnly);
+                  updateFilters({
+                    buyOnly: false,
+                    targetReachedOnly: false,
+                    saleOnly: false,
+                    majorDealsOnly: false,
+                    allTimeLowOnly: !isCurrentlyActive,
+                    underPrice: undefined,
+                    maxPrice: undefined,
+                    minPrice: undefined,
+                    minDiscount: undefined,
+                    minDealScore: undefined,
+                    merchantType: 'all',
+                    sort: isCurrentlyActive ? 'priority' : 'near_atl',
+                    page: 1
+                  });
+                }}
+                onFilterMajor={() => {
+                  const isCurrentlyActive = Boolean(filters.majorDealsOnly);
+                  updateFilters({
+                    buyOnly: false,
+                    targetReachedOnly: false,
+                    saleOnly: false,
+                    majorDealsOnly: !isCurrentlyActive,
+                    allTimeLowOnly: false,
+                    underPrice: undefined,
+                    maxPrice: undefined,
+                    minPrice: undefined,
+                    minDiscount: undefined,
+                    minDealScore: undefined,
+                    merchantType: 'all',
+                    sort: isCurrentlyActive ? 'priority' : 'best_value',
+                    page: 1
+                  });
+                }}
+                onFilterSale={() => {
+                  const isCurrentlyActive = Boolean(filters.saleOnly);
+                  updateFilters({
+                    buyOnly: false,
+                    targetReachedOnly: false,
+                    saleOnly: !isCurrentlyActive,
+                    majorDealsOnly: false,
+                    allTimeLowOnly: false,
+                    underPrice: undefined,
+                    maxPrice: undefined,
+                    minPrice: undefined,
+                    minDiscount: undefined,
+                    minDealScore: undefined,
+                    merchantType: 'all',
+                    sort: isCurrentlyActive ? 'priority' : 'price_drops',
+                    page: 1
+                  });
+                }}
               />
 
               <FilterBar
@@ -337,22 +384,45 @@ export const App: React.FC = () => {
                     <GameCardSkeleton count={filters.limit || 24} />
                   </div>
                 ) : (
-                  <DenseTableSkeleton rows={10} />
+                  <CompactListSkeleton rows={12} />
                 )
               ) : !loading && games.length === 0 ? (
-                <div className="empty-state">
-                  <Gamepad2 size={40} color="var(--text-muted)" />
-                  <h3 className="empty-title">No games found</h3>
-                  <p className="empty-desc">
-                    {totalGames === 0 
-                      ? 'Your wishlist is currently empty. Click "Sync Wishlist" to fetch your Steam wishlist.'
-                      : 'No games match your current search and filter settings.'}
+                <div className="empty-state" style={{ padding: '60px 20px' }}>
+                  <Gamepad2 size={44} color="var(--text-muted)" style={{ opacity: 0.6 }} />
+                  <h3 className="empty-title">
+                    {hasActiveFilters ? 'No games match your filters' : 'No games found'}
+                  </h3>
+                  <p className="empty-desc" style={{ maxWidth: 440 }}>
+                    {totalGames === 0 && !hasActiveFilters
+                      ? 'Your wishlist is currently empty. Click "Sync Wishlist" to fetch your Steam wishlist and track discounts.'
+                      : filters.search
+                      ? `No wishlist games match "${filters.search}". Try adjusting your query or resetting filters.`
+                      : 'No games match the active filter criteria. Try resetting your filters to see your full wishlist.'}
                   </p>
-                  {totalGames === 0 && (
-                    <button className="btn btn-primary" onClick={() => setShowSyncModal(true)}>
-                      <span>Sync Wishlist Now</span>
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
+                    {hasActiveFilters && filters.search && (
+                      <button 
+                        className="btn btn-secondary" 
+                        onClick={() => updateFilters({ search: '', page: 1 })}
+                      >
+                        <span>Clear Search</span>
+                      </button>
+                    )}
+                    {hasActiveFilters && (
+                      <button 
+                        className="btn btn-outline" 
+                        onClick={handleResetFilters}
+                      >
+                        <span>Reset All Filters</span>
+                      </button>
+                    )}
+                    {totalGames === 0 && !hasActiveFilters && (
+                      <button className="btn btn-primary" onClick={() => setShowSyncModal(true)}>
+                        <RefreshCw size={16} />
+                        <span>Sync Wishlist Now</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s ease' }}>
@@ -368,12 +438,10 @@ export const App: React.FC = () => {
                       ))}
                     </div>
                   ) : (
-                    <DenseTableView
+                    <CompactListView
                       games={games}
                       onGameClick={(game) => setSelectedGameId(game.id)}
                       onExplain={(g) => setExplainGame(g)}
-                      currentSort={filters.sort}
-                      onSortChange={(sort) => updateFilters({ sort, page: 1 })}
                       onRefreshGame={handleRefreshSingleGame}
                     />
                   )}
@@ -480,7 +548,7 @@ export const App: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <DenseTableView
+                <CompactListView
                   games={topDeals}
                   onGameClick={(game) => setSelectedGameId(game.id)}
                   onExplain={(g) => setExplainGame(g)}

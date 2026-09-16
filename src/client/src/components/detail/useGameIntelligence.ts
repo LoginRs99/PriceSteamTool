@@ -288,6 +288,80 @@ export function useGameIntelligence(
     };
   }, [gameId]);
 
+  const [togglingFamily, setTogglingFamily] = useState(false);
+  const [familyMessage, setFamilyMessage] = useState<string | null>(null);
+
+  const handleExcludeFamilySharing = async (reason?: string) => {
+    if (!data?.game || togglingFamily) return;
+    setTogglingFamily(true);
+    setFamilyMessage(null);
+    try {
+      await api.excludeFamilyGame(data.game.steamAppId, reason || 'Manually marked as excluded from Steam Family Sharing');
+      if (mountedRef.current) {
+        setData(prev => prev ? {
+          ...prev,
+          game: { ...prev.game, isFamilyShared: false, isFamilyExcluded: true }
+        } : null);
+        setFamilyMessage('Game excluded from Family Sharing.');
+        onGameUpdated?.(data.game.id);
+      }
+    } catch (err: any) {
+      console.error('Failed to exclude family game:', err);
+      setFamilyMessage(err.message || 'Failed to exclude game');
+    } finally {
+      if (mountedRef.current) setTogglingFamily(false);
+    }
+  };
+
+  const handleIncludeFamilySharing = async () => {
+    if (!data?.game || togglingFamily) return;
+    setTogglingFamily(true);
+    setFamilyMessage(null);
+    try {
+      await api.includeFamilyGame(data.game.steamAppId);
+      if (mountedRef.current) {
+        setData(prev => prev ? {
+          ...prev,
+          game: { ...prev.game, isFamilyShared: true, isFamilyExcluded: false }
+        } : null);
+        setFamilyMessage('Family Sharing status restored.');
+        onGameUpdated?.(data.game.id);
+      }
+    } catch (err: any) {
+      console.error('Failed to restore family game:', err);
+      setFamilyMessage(err.message || 'Failed to restore game');
+    } finally {
+      if (mountedRef.current) setTogglingFamily(false);
+    }
+  };
+
+  const handleAutoCheckFamilySharing = async () => {
+    if (!data?.game || togglingFamily) return;
+    setTogglingFamily(true);
+    setFamilyMessage(null);
+    try {
+      const res = await api.autoDetectFamilyExclusions([data.game.steamAppId]);
+      if (mountedRef.current) {
+        if (res.excludedCount > 0) {
+          const item = res.newlyExcluded[0];
+          setData(prev => prev ? {
+            ...prev,
+            game: { ...prev.game, isFamilyShared: false, isFamilyExcluded: true }
+          } : null);
+          setFamilyMessage(item?.reason || 'Verified: Excluded from Family Sharing by Steam.');
+        } else {
+          setFamilyMessage('Verified: Game supports Steam Family Sharing!');
+        }
+        onGameUpdated?.(data.game.id);
+      }
+    } catch (err: any) {
+      console.error('Failed to auto-check family sharing:', err);
+      setFamilyMessage(err.message || 'Failed to check Steam store status');
+    } finally {
+      if (mountedRef.current) setTogglingFamily(false);
+    }
+  };
+
   return {
     data,
     loading,
@@ -312,6 +386,11 @@ export function useGameIntelligence(
     handleSaveTargetPrice,
     handleClearTargetPrice,
     refreshingGame,
-    handleRefreshGame
+    handleRefreshGame,
+    togglingFamily,
+    familyMessage,
+    handleExcludeFamilySharing,
+    handleIncludeFamilySharing,
+    handleAutoCheckFamilySharing
   };
 }
