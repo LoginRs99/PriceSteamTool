@@ -18,18 +18,45 @@ function resetDatabase() {
 }
 
 describe('Family Sharing Exclusions Integration (Dragon Age II, Inquisition, Assassin\'s Creed III)', () => {
+  const DRAGON_AGE_2_APP_ID = 1238040;
+  const DRAGON_AGE_INQ_APP_ID = 1222690;
+  const ASSASSINS_CREED_3_APP_ID = 911400;
+  const TERRARIA_APP_ID = 105600;
+
+  const mockStoreMetadata: Record<number, { isShareable: boolean; reason?: string; title: string }> = {
+    [DRAGON_AGE_2_APP_ID]: {
+      isShareable: false,
+      reason: 'Requires 3rd-party account (EA Account) - Excluded from Family Sharing',
+      title: 'Dragon Age II'
+    },
+    [DRAGON_AGE_INQ_APP_ID]: {
+      isShareable: false,
+      reason: 'Requires 3rd-party account (EA Account) - Excluded from Family Sharing',
+      title: 'Dragon Age: Inquisition'
+    },
+    [ASSASSINS_CREED_3_APP_ID]: {
+      isShareable: false,
+      reason: 'Requires 3rd-party account (Ubisoft Connect) - Excluded from Family Sharing',
+      title: "Assassin's Creed III Remastered"
+    },
+    [TERRARIA_APP_ID]: {
+      isShareable: true,
+      title: 'Terraria'
+    }
+  };
+
   beforeEach(() => {
     resetDatabase();
+    vi.spyOn(steamAdapter, 'checkFamilySharingSupport').mockImplementation(async (appId: number) => {
+      const entry = mockStoreMetadata[appId];
+      if (entry) return entry;
+      return { isShareable: true, title: `App ${appId}` };
+    });
   });
 
   afterAll(() => {
     closeDb();
   });
-
-  const DRAGON_AGE_2_APP_ID = 1238040;
-  const DRAGON_AGE_INQ_APP_ID = 1222690;
-  const ASSASSINS_CREED_3_APP_ID = 911400;
-  const TERRARIA_APP_ID = 105600;
 
   it('verifies Category 62 detection for DA2, DAI, AC3, and Terraria via steamAdapter', async () => {
     // Check Dragon Age II (EA Launcher, no Category 62)

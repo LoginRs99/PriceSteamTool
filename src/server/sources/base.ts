@@ -109,6 +109,10 @@ export async function safeFetchJson<T>(
         signal: controller.signal,
       });
 
+      if (!response) {
+        throw new Error(`No response received for ${url}`);
+      }
+
       if (!response.ok) {
         let responseBodyText = '';
         try {

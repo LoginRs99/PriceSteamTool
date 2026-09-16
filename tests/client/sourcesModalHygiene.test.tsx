@@ -54,7 +54,9 @@ describe('Task 21: SourcesModal polling hygiene & loading state', () => {
     const setIntervalSpy = vi.spyOn(global, 'setInterval');
     vi.spyOn(api, 'getSources').mockResolvedValue(mockSources);
 
-    render(<SourcesModal onClose={() => {}} />);
+    await act(async () => {
+      render(<SourcesModal onClose={() => {}} />);
+    });
 
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
   });
@@ -64,7 +66,9 @@ describe('Task 21: SourcesModal polling hygiene & loading state', () => {
     const getSourcesSpy = vi.spyOn(api, 'getSources').mockResolvedValue(mockSources);
 
     // Initial render with document visible
-    render(<SourcesModal onClose={() => {}} />);
+    await act(async () => {
+      render(<SourcesModal onClose={() => {}} />);
+    });
 
     // Initial fetch was called once
     expect(getSourcesSpy).toHaveBeenCalledTimes(1);

@@ -38,12 +38,15 @@ describe('useWishlistGames URL Synchronization and State Management', () => {
     expect(hookResult.current.filters.merchantType).toBe('official');
   });
 
-  it('syncs filter updates to browser URL query parameters', () => {
+  it('syncs filter updates to browser URL query parameters', async () => {
     const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
-    const { result } = renderHook(() => useWishlistGames('profile-1'));
+    let hookResult: any;
+    await act(async () => {
+      hookResult = renderHook(() => useWishlistGames('profile-1')).result;
+    });
 
-    act(() => {
-      result.current.updateFilters({
+    await act(async () => {
+      hookResult.current.updateFilters({
         search: 'witcher',
         sort: 'biggest_savings',
         majorDealsOnly: true,
@@ -51,9 +54,9 @@ describe('useWishlistGames URL Synchronization and State Management', () => {
       });
     });
 
-    expect(result.current.filters.search).toBe('witcher');
-    expect(result.current.filters.sort).toBe('biggest_savings');
-    expect(result.current.filters.majorDealsOnly).toBe(true);
+    expect(hookResult.current.filters.search).toBe('witcher');
+    expect(hookResult.current.filters.sort).toBe('biggest_savings');
+    expect(hookResult.current.filters.majorDealsOnly).toBe(true);
 
     expect(replaceStateSpy).toHaveBeenCalled();
     const lastCallArg = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1][2] as string;
@@ -62,14 +65,17 @@ describe('useWishlistGames URL Synchronization and State Management', () => {
     expect(lastCallArg).toContain('major=1');
   });
 
-  it('cleans up default URL query parameters when filters are reset', () => {
+  it('cleans up default URL query parameters when filters are reset', async () => {
     window.history.replaceState({}, '', '/?q=witcher&sort=biggest_savings&major=1');
     const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
 
-    const { result } = renderHook(() => useWishlistGames('profile-1'));
+    let hookResult: any;
+    await act(async () => {
+      hookResult = renderHook(() => useWishlistGames('profile-1')).result;
+    });
 
-    act(() => {
-      result.current.updateFilters({
+    await act(async () => {
+      hookResult.current.updateFilters({
         search: '',
         sort: 'priority',
         majorDealsOnly: false,
