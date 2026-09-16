@@ -144,6 +144,18 @@ export const profileRepo = {
     return new Set(rows.map(r => Number(r.steam_app_id)));
   },
 
+  getFamilyOwnedWishlistAppIds(profileId: string): Set<number> {
+    const rows = prepareStmt(`
+      SELECT DISTINCT fo.steam_app_id
+      FROM wishlist_entries we
+      JOIN games g ON we.game_id = g.id
+      JOIN family_owned_apps fo ON fo.steam_app_id = g.steam_app_id
+      JOIN profiles p ON fo.profile_id = p.id
+      WHERE we.profile_id = ? AND we.is_active = 1 AND p.is_family = 1
+    `).all(profileId) as { steam_app_id: number }[];
+    return new Set(rows.map(r => Number(r.steam_app_id)));
+  },
+
   update(id: string, name: string, steamId: string, customUrl?: string, avatarUrl?: string, isFamily?: boolean): void {
     const now = new Date().toISOString();
     prepareStmt(`
@@ -179,18 +191,33 @@ export const profileRepo = {
     prepareStmt(`DELETE FROM family_sharing_exclusions WHERE steam_app_id = ?`).run(steamAppId);
   },
 
-  getFamilySharingExclusions(): Array<{ steamAppId: number; reason?: string; createdAt: string }> {
+  getFamilySharingExclusions(): Array<{ steamAppId: number; title?: string; reason?: string; createdAt: string }> {
     const rows = prepareStmt(`
-      SELECT steam_app_id, reason, created_at
-      FROM family_sharing_exclusions
-      ORDER BY created_at DESC
+      SELECT fse.steam_app_id, g.title, fse.reason, fse.created_at
+      FROM family_sharing_exclusions fse
+      LEFT JOIN games g ON g.steam_app_id = fse.steam_app_id
+      ORDER BY fse.created_at DESC
     `).all() as any[];
 
     return rows.map(r => ({
       steamAppId: Number(r.steam_app_id),
+      title: r.title || undefined,
       reason: r.reason || undefined,
       createdAt: r.created_at
     }));
+  },
+
+  pruneExclusionsNotInWishlist(profileId: string): number {
+    const res = prepareStmt(`
+      DELETE FROM family_sharing_exclusions
+      WHERE steam_app_id NOT IN (
+        SELECT g.steam_app_id
+        FROM wishlist_entries we
+        JOIN games g ON we.game_id = g.id
+        WHERE we.profile_id = ? AND we.is_active = 1
+      )
+    `).run(profileId);
+    return res.changes;
   },
 
   getFamilySharingExcludedAppIds(): Set<number> {

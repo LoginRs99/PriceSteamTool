@@ -140,6 +140,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // Family Sharing Exclusions API
   // ----------------------------------------------------
   fastify.get('/api/family-sharing/exclusions', async () => {
+    const activeProfile = profileRepo.getActive();
+    if (activeProfile) {
+      profileRepo.pruneExclusionsNotInWishlist(activeProfile.id);
+    }
     return profileRepo.getFamilySharingExclusions();
   });
 
@@ -175,13 +179,20 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const parsed = schema?.safeParse(request.body || {});
     let targetAppIds: number[] = [];
 
+    const activeProfile = profileRepo.getActive();
+    if (activeProfile) {
+      profileRepo.pruneExclusionsNotInWishlist(activeProfile.id);
+    }
+
     if (parsed && parsed.success && parsed.data?.steamAppIds && parsed.data.steamAppIds.length > 0) {
       targetAppIds = parsed.data.steamAppIds;
-    } else {
-      // Find all games owned by family members that are not yet excluded
-      const familyOwnedAppIds = profileRepo.getFamilyOwnedAppIds();
+    } else if (activeProfile) {
+      // Find games on the active user's wishlist that family members own and are not yet excluded
+      const familyWishlistAppIds = profileRepo.getFamilyOwnedWishlistAppIds(activeProfile.id);
       const excludedAppIds = profileRepo.getFamilySharingExcludedAppIds();
-      targetAppIds = Array.from(familyOwnedAppIds).filter(appId => !excludedAppIds.has(appId));
+      targetAppIds = Array.from(familyWishlistAppIds).filter(appId => !excludedAppIds.has(appId));
+    } else {
+      targetAppIds = [];
     }
 
     const newlyExcluded: Array<{ steamAppId: number; title?: string; reason: string }> = [];

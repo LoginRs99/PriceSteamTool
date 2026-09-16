@@ -84,8 +84,8 @@ export const api = {
   },
 
   // Family Sharing Exclusions
-  async getFamilyExclusions(): Promise<Array<{ steamAppId: number; reason?: string; createdAt: string }>> {
-    return apiFetch<Array<{ steamAppId: number; reason?: string; createdAt: string }>>(`${API_BASE}/family-sharing/exclusions`);
+  async getFamilyExclusions(): Promise<Array<{ steamAppId: number; title?: string; reason?: string; createdAt: string }>> {
+    return apiFetch<Array<{ steamAppId: number; title?: string; reason?: string; createdAt: string }>>(`${API_BASE}/family-sharing/exclusions`);
   },
 
   async excludeFamilyGame(steamAppId: number, reason?: string): Promise<{ success: boolean; steamAppId: number; reason?: string }> {

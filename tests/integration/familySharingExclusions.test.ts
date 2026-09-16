@@ -242,5 +242,73 @@ describe('Family Sharing Exclusions Integration (Dragon Age II, Inquisition, Ass
       await app.close();
     }
   });
+
+  it('verifies auto-detect only scans wishlist games owned by family and prunes non-wishlist games like CS2 (AppID 730)', async () => {
+    const Fastify = (await import('fastify')).default;
+    const { apiRoutes } = await import('../../src/server/routes/api.js');
+    const app = Fastify();
+    await app.register(apiRoutes);
+    await app.ready();
+
+    try {
+      const CS2_APP_ID = 730;
+
+      // 1. Setup Active Profile with only Dragon Age II and Terraria in wishlist
+      const mainUser = profileRepo.create('Main Player', '76561198000000001');
+      profileRepo.setActive(mainUser.id);
+
+      gameRepo.upsert({ steamAppId: DRAGON_AGE_2_APP_ID, title: 'Dragon Age II' });
+      gameRepo.upsert({ steamAppId: TERRARIA_APP_ID, title: 'Terraria' });
+      // Insert CS2 into games table, but DO NOT put it on Main Player's wishlist
+      gameRepo.upsert({ steamAppId: CS2_APP_ID, title: 'Counter-Strike 2' });
+
+      gameRepo.syncWishlistEntries(mainUser.id, [
+        { steamAppId: DRAGON_AGE_2_APP_ID, title: 'Dragon Age II', priority: 1 },
+        { steamAppId: TERRARIA_APP_ID, title: 'Terraria', priority: 2 }
+      ]);
+
+      // 2. Setup Family Member who owns Dragon Age II, Terraria, AND CS2 (AppID 730)
+      const familyUser = profileRepo.create('Brother', '76561198000000002', undefined, undefined, true);
+      profileRepo.saveFamilyOwnedApps(familyUser.id, [DRAGON_AGE_2_APP_ID, TERRARIA_APP_ID, CS2_APP_ID]);
+
+      // 3. Manually insert CS2 into family_sharing_exclusions to simulate previous un-scoped exclusion
+      profileRepo.excludeFamilySharingApp(CS2_APP_ID, 'Free-to-play');
+      expect(profileRepo.getFamilySharingExcludedAppIds().has(CS2_APP_ID)).toBe(true);
+
+      // 4. Calling auto-detect without params should:
+      // - Prune non-wishlist exclusions (CS2 removed!)
+      // - Only scan family games on active wishlist (DA2 and Terraria; DA2 is unshareable -> excluded)
+      // - NOT scan CS2
+      const autoRes = await app.inject({
+        method: 'POST',
+        url: '/api/family-sharing/auto-detect',
+        payload: {}
+      });
+      expect(autoRes.statusCode).toBe(200);
+      const autoJson = JSON.parse(autoRes.body);
+
+      // Should only scan DA2 and Terraria (2 items)
+      expect(autoJson.scannedCount).toBe(2);
+      expect(autoJson.excludedCount).toBe(1);
+      expect(autoJson.newlyExcluded[0].steamAppId).toBe(DRAGON_AGE_2_APP_ID);
+      expect(autoJson.newlyExcluded[0].title).toBe('Dragon Age II');
+
+      // 5. Query exclusions via GET /api/family-sharing/exclusions
+      const getRes = await app.inject({
+        method: 'GET',
+        url: '/api/family-sharing/exclusions'
+      });
+      expect(getRes.statusCode).toBe(200);
+      const exclusions = JSON.parse(getRes.body);
+
+      // Exclusions must only contain DA2 with its game title, CS2 must be gone!
+      expect(exclusions.length).toBe(1);
+      expect(exclusions[0].steamAppId).toBe(DRAGON_AGE_2_APP_ID);
+      expect(exclusions[0].title).toBe('Dragon Age II');
+      expect(exclusions.some((e: any) => e.steamAppId === CS2_APP_ID)).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
 });
 

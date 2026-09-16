@@ -26,7 +26,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isFamilyNew, setIsFamilyNew] = useState(false);
   const [syncingProfileId, setSyncingProfileId] = useState<string | null>(null);
   const [scanningExclusions, setScanningExclusions] = useState(false);
-  const [exclusions, setExclusions] = useState<Array<{ steamAppId: number; reason?: string; createdAt: string }>>([]);
+  const [exclusions, setExclusions] = useState<Array<{ steamAppId: number; title?: string; reason?: string; createdAt: string }>>([]);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -290,7 +290,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <Users size={15} color="#60a5fa" /> Family Sharing Restrictions ({exclusions.length} excluded)
                   </h4>
                   <div style={{ fontSize: 12, color: 'var(--dim)', marginTop: 2 }}>
-                    Some publisher games (EA, Ubisoft, Rockstar) are excluded by Steam from Family Sharing.
+                    Scans games on your active wishlist that family members own. Games with 3rd-party DRM (EA, Ubisoft) are excluded from family sharing.
                   </div>
                 </div>
 
@@ -300,7 +300,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   style={{ fontSize: 12, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                   onClick={handleAutoDetectExclusions}
                   disabled={scanningExclusions}
-                  title="Check Steam storefront for games lacking Family Sharing Category 62"
+                  title="Check wishlist games owned by family for Family Sharing compatibility"
                 >
                   <RefreshCw size={12} className={scanningExclusions ? 'animate-spin' : ''} />
                   <span>{scanningExclusions ? 'Scanning...' : 'Auto-Detect Unshareable Games'}</span>
@@ -312,7 +312,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {exclusions.map(ex => (
                     <div key={ex.steamAppId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>
-                        <strong>AppID {ex.steamAppId}</strong> {ex.reason ? `· ${ex.reason}` : ''}
+                        <strong>{ex.title ? `${ex.title} (${ex.steamAppId})` : `AppID ${ex.steamAppId}`}</strong> {ex.reason ? `· ${ex.reason}` : ''}
                       </span>
                       <button
                         type="button"
