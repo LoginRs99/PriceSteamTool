@@ -5,6 +5,57 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-09-13
+
+### Added
+* **CheapShark True Multi-AppID Comma-Separated Batching**:
+  * Bundles 25 Steam App IDs per comma-separated request (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`), reducing HTTP request volume by >90%.
+  * Added pagination support (`pageSize=60`, up to 3 pages) when 60 deals are returned.
+  * Added single-retry re-enqueue on 429 rate limit to leverage circuit breaker cooldown.
+  * Extracted reusable `parseOfferFromDeal` helper and wrapped historical low lookup in isolated error boundary.
+* **Epoch-Aware Rate Limit Header Parsing**:
+  * Enhanced `parseRetryAfterHeader` in `base.ts` to parse Unix epoch timestamps (> 1,000,000,000) from Cloudflare `X-RateLimit-Reset` and `ratelimit-reset` headers alongside integer seconds and HTTP-dates.
+* **Best Deal Freshness Hierarchy & Instant ATL Auto-Reconciliation**:
+  * Implemented strict ranking hierarchy in `recomputeBestDealForGame` and `BEST_DEAL_RECOMPUTE_ALL_SQL`: Fresh safe offers ($\le 72\text{h}$) > Stale safe offers > Pricing errors excluded.
+  * Instant automatic reconciliation of `historical_low_eur`, `historical_low_date`, and `historical_low_source` when a safe valid deal beats recorded ATL.
+  * Startup database sweep auto-reconciling any catalog-wide historical low discrepancies.
+* **Pricing Error Self-Healing & Dismissal**:
+  * Added startup and post-sync sweeps to automatically dismiss historical pricing errors that are price increases, unflagged offers, or where a cheaper valid offer exists.
+  * Added migration `026_cleanup_false_sub_euro_glitches` dismissing false sub-euro glitches on offers $\ge 1.005\text{ €}$ and recomputing best deals.
+
+### Changed
+* **Pacing & Queue Delay Defaults**:
+  * Updated safe defaults across all adapters: Steam Store `1500ms → 2000ms`, ITAD `500ms → 1000ms`, CheapShark `500ms → 1500ms`, GG.deals `1000ms → 1500ms`.
+  * Synchronized defaults across `config/index.ts`, `docker-compose.yml`, and documentation.
+  * Increased queue jitter to safe margins (Steam: 250ms, ITAD: 200ms, CheapShark: 250ms, GG.deals: 300ms, AllKeyShop: 500ms).
+
+---
+
+## [2.2.0] - 2026-09-12
+
+### Added
+* **Deal Score v2.3 Mathematical Formula**:
+  * Replaced linear discount scoring with a concave diminishing-returns curve: $30 \times ((\text{anchor} - \text{price})/\text{anchor})^{0.75}$, preventing premature saturation at 75% while rewarding 50%–80% sales.
+  * Reserved Deal Score 100 exclusively for deals beating confirmed ATL by $\ge 5\%$.
+  * Added provisional data sufficiency caps (40/65/80/85) for titles with sparse sample history (< 5 samples).
+  * Added stale history cap (60) for observations older than 90 days.
+* **Metacritic Critic Review Enrichment**:
+  * Enriched `games.metacritic_score` and `games.metacritic_url` from CheapShark deal payloads.
+* **Delisted Games Support**:
+  * Added migration `025_add_games_is_delisted` to track removed titles.
+
+---
+
+## [2.1.0] - 2026-09-12
+
+### Added
+* **Source Adapter Diagnostics & Pacing Hardening**:
+  * Added `scripts/test-sources.ts` live connectivity and parsing diagnostic suite (`npm run test:sources`).
+  * Hardened auth token constant-time comparison in `src/server/routes/api.ts`.
+  * Added detailed URL and preview snippet diagnostics to `safeFetchJson` on unexpected HTML/error responses.
+
+---
+
 ## [2.0.0] - 2026-09-12
 
 ### Added

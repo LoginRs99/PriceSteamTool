@@ -1,93 +1,101 @@
 # Source Comparison & Integration Analysis
 
-This document provides a thorough analysis of each game price source, detailing its API capabilities, authentication, rate limits, batching mechanisms, regional support, historical low tracking, and integration strategy.
+This document provides a thorough technical analysis of each game price source, detailing its API capabilities, authentication, rate limits, batching mechanisms, regional support, historical low tracking, and integration strategy for **Pricetool** (v2.3.0).
 
 ---
 
 ## 1. Source Comparison Matrix
 
-| Source | Official API | Auth Required | Batch Support | Rate Limit / Pacing | Region Support | Historical Low | Browser Required | Role |
+| Source | Official API | Auth Required | Batch Support | Pacing & Jitter | Region Support | Historical Low | Browser Required | Role |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Steam (Input & Store)** | Undocumented / Web API | None for public wishlists | **Yes (up to 200 items)** | 1500ms delay | EU / Global / HU | No (Store current only) | No | **Canonical Input & Baseline** |
-| **IsThereAnyDeal (ITAD)** | **Yes (REST v2 / v3)** | Free API Key | **Yes (up to 200 IDs)** | 500ms delay | EU / Global / Multi-country | **Yes** (Built-in `historyLow`) | No | **Primary Source (Official Stores)** |
-| **GG.deals** | **Yes (Developer API / Endpoints)** | Optional / Free Key | **Yes (Batch & per-game)** | 1000ms delay | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Primary / Secondary (Official + Keyshops)** |
-| **CheapShark** | **Yes (Public REST API)** | None (`User-Agent` req.) | **Yes (up to 60 IDs/call)** | 500ms delay | US / EU / Global | **Yes** (`cheapestPriceEver`) | No | **Primary / Secondary (Official Stores)** |
-| **AllKeyShop** | **No (Unofficial internal API)** | None (Solver req.) | Per-title search | 2000ms delay | EU / Global / Key types | **Yes** (Lowest keyshop/official) | Solver Required | **Keyshop Coverage (Eneba, Kinguin, etc.)** |
-| **GoCDKeys** | No (Unofficial JSON / Web) | None | No (Per-title search) | 4000ms delay | EU / Global | No | Fallback only if blocked | **Fallback (Disabled by Default)** |
+| **Steam Storefront** | Undocumented Web API | None for public wishlists | **Yes (up to 200 items)** | 2000ms (250ms jitter) | EU / Global / HU | No (Current store price) | No | **Canonical Input & MSRP Anchor** |
+| **IsThereAnyDeal (ITAD)** | **Yes (REST v2 / v3)** | Free API Key | **Yes (up to 200 IDs)** | 1000ms (200ms jitter) | EU / Global / Multi-country | **Yes** (Built-in `historyLow`) | No | **Primary Source (Official Stores)** |
+| **CheapShark** | **Yes (Public REST API)** | None (`User-Agent` req.) | **Yes (25 IDs/req batch)** | 1500ms (250ms jitter) | US / EU / Global | **Yes** (`cheapestPriceEver`) | No | **Official Stores + Metacritic** |
+| **GG.deals** | **Yes (Developer API / JSON)**| Optional / Free Key | **Yes (Batch & per-game)** | 1500ms (300ms jitter) | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Official + Marketplace Keyshops** |
+| **AllKeyShop** | **No (Internal JSON API)** | None (Anti-bot solver) | Per-title queue | 2500ms (500ms jitter) | EU / Global / Key types | **Yes** (Lowest keyshop/official) | Solver Required | **Comprehensive Keyshop Coverage** |
 
 ---
 
 ## 2. Detailed Source Profiles
 
 ### 2.1 Steam Wishlist & Storefront API
-* **Canonical Role**: Source of truth for user wishlist entries (games, priorities, dates added, canonical `steam_app_id`, titles, header images).
+* **Canonical Role**: Source of truth for user wishlist entries (games, priorities, dates added, canonical `steam_app_id`, titles, capsule artwork, and review scores).
 * **Endpoints**:
   * Wishlist fetch: `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid={steamId64}`
-  * Store details fallback: `https://store.steampowered.com/api/appdetails?appids={appId}&cc=hu&filters=basic,price_overview`
+  * Wishlist page fallback: `https://store.steampowered.com/wishlist/profiles/{steamId64}/wishlistdata/?p={page}`
+  * App details: `https://store.steampowered.com/api/appdetails?appids={appId}&cc=hu&filters=basic,price_overview`
 * **Handling Strategy**:
-  1. Fetches raw wishlist array in single or chunked calls.
-  2. Resolves game details and caches them permanently with periodic metadata refreshes.
-  3. Uses Steam Store current price as baseline merchant offer (`Steam Store`).
+  1. Ingests raw wishlist games in paginated chunks.
+  2. Resolves base MSRP, discount percent, release date, and review summaries.
+  3. Caches game records permanently with periodic metadata refreshes.
+* **Pacing & Queue**: `STEAM_DELAY_MS=2000` (jitter: 250ms). Page delay floor enforced at 2000ms.
 
 ### 2.2 IsThereAnyDeal (ITAD)
 * **Canonical Role**: Primary aggregator for 40+ verified official stores (Steam, Humble Store, Fanatical, GOG, Green Man Gaming, Gamesplanet, WinGameStore, GameBillet, etc.).
 * **API Endpoints**:
   * Game ID Lookup: `GET https://api.isthereanydeal.com/games/lookup/v1?key={API_KEY}&appid={steamAppId}`
   * Price Batch: `POST https://api.isthereanydeal.com/games/prices/v3?key={API_KEY}&country=HU` (Payload: array of ITAD game UUIDs, max 200 items per request).
-  * Overview Batch: `POST https://api.isthereanydeal.com/games/overview/v2?key={API_KEY}&country=HU` (Returns current best price + historical low across all shops in single request).
-* **Batch Efficiency**: 2,570 games require only **~17 HTTP POST requests** to refresh all prices and historical lows.
-* **Rate Limit Policy**: Paced at 500ms delay with token-bucket limiter; safe for multi-thousand catalog syncs without risking 429 errors.
-* **Circuit Breaker**: If 429 or 403 occurs, backoff for 30s; trip circuit breaker after 3 consecutive failures.
+  * Overview Batch: `POST https://api.isthereanydeal.com/games/overview/v2?key={API_KEY}&country=HU` (Current best price + historical low across all shops in a single request).
+  * History Lookup: `GET https://api.isthereanydeal.com/games/history/v2?key={API_KEY}&id={itadId}&country=HU&since={ISO8601}`
+* **Batch Efficiency**: 2,000+ games require only **~10–14 HTTP POST requests** to refresh all prices and historical lows.
+* **Pacing & Circuit Breaker**: `ITAD_DELAY_MS=1000` (jitter: 200ms). On 429 or 403, transitions to `BACKOFF` for 30s; trips to `PAUSED` after 3 consecutive failures.
 
-### 2.3 GG.deals
+### 2.3 CheapShark
+* **Canonical Role**: High-speed official batch verification across 25+ digital storefronts with **zero API key requirement** and Metacritic score enrichment.
+* **API Endpoints & Architecture**:
+  * Store List: `GET https://www.cheapshark.com/api/1.0/stores` (cached in-memory for 24 hours).
+  * Batch Deals Lookup: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID={id1,id2,...,id25}&pageSize=60&pageNumber={page}`
+  * Single Game Deals: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID={appId}`
+  * Historical Low: `GET https://www.cheapshark.com/api/1.0/games?id={gameId}`
+* **True Multi-AppID Batching**:
+  * Instead of firing sequential per-game requests, `fetchBatchPrices` bundles **25 Steam App IDs per comma-separated request**.
+  * Implements **pagination support** (`pageSize=60`, up to 3 pages) when a batch returns 60 deals.
+  * Enriches `games.metacritic_score` and `games.metacritic_url` directly from deal payloads.
+  * Separate `try/catch` on historical low lookups ensures that a missing game ID does not discard already-fetched current deals.
+  * Implements **single-retry on 429**: Re-enqueues into the queue (which is in `BACKOFF` state) rather than discarding the batch.
+* **Pacing & Queue**: `CHEAPSHARK_DELAY_MS=1500` (jitter: 250ms).
+
+### 2.4 GG.deals
 * **Canonical Role**: Primary source for hybrid coverage (both verified official retail stores and curated marketplace keyshops like K4G, Kinguin, CDKeys, Eneba, Gamivo).
 * **API Endpoints**:
-  * Price Lookup by Steam AppID: `GET https://gg.deals/api/prices/?steam_app_id={appId}` or structured deal search endpoint.
+  * Price Lookup by Steam AppID: `GET https://gg.deals/api/prices/?steam_app_id={appId}` or structured deal search.
   * Direct game details: Parses structured metadata, current lowest official deal, current lowest keyshop deal, merchant name, activation type, and historical low.
-* **Rate Limit Policy**: Paced at 1 request every 1000ms.
-* **Circuit Breaker**: Trips on repeated rate-limits (HTTP 429) or Cloudflare verification challenges, entering `PAUSED` state for 30 minutes to prevent IP blocks.
-
-### 2.4 CheapShark
-* **Canonical Role**: High-speed, key-less official batch verification across 25+ digital storefronts.
-* **API Endpoints**:
-  * Store List: `GET https://www.cheapshark.com/api/1.0/stores` (cached in-memory for 24 hours).
-  * Batch Deals Lookup: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID=id1,id2,id3...&pageSize=60` (up to 50–60 Steam AppIDs in a single HTTP request).
-  * Single Game Deals: `GET https://www.cheapshark.com/api/1.0/deals?steamAppID={appId}`
-* **Rate Limit Policy**: Respects `Retry-After` header. Default batch delay: 500ms between batch requests (~50 requests total for 2,570 games).
-* **Circuit Breaker**: If 429 received, waits according to `Retry-After` header + 500ms safety buffer.
+* **Pacing & Queue**: `GGDEALS_DELAY_MS=1500` (jitter: 300ms). Trips to `PAUSED` on repeated 429s or Cloudflare verification challenges.
 
 ### 2.5 AllKeyShop
 * **Canonical Role**: Comprehensive grey-market keyshop coverage (Eneba, Kinguin, G2A, CDKeys, Instant Gaming, Gamivo, etc.).
 * **API Endpoints & Architecture**:
-  * Queries AllKeyShop's **unofficial internal endpoints** (`vaks.php` and `price_history_api.php`) to fetch product listings, merchant offers, voucher discounts, and historical pricing.
-  * **Solver Requirement**: Strictly requires an external anti-bot solver (Byparr or FlareSolverr via `ALLKEYSHOP_SOLVER_URL`). To protect user IP addresses from Cloudflare rate-limits and bans, all direct-scraping fallbacks have been eliminated.
-  * **Adaptive Scheduling & Pacing**: Implements adaptive exponential backoff per title (24h to 168h intervals based on price stability streak), with 2000ms base pacing, long-tailed jitter, and chunked batching.
-  * **Circuit Breaker & Failure Cooldown**: If the solver challenge fails (or returns 403/429/502), the adapter activates a cooldown and gracefully skips enrichment without interrupting or delaying the primary sync pipeline.
-
-### 2.6 GoCDKeys
-* **Canonical Role**: Secondary keyshop comparison fallback (Disabled by default).
-* **Integration Reality**:
-  * No public API; strictly monitored web endpoints. 100% of its merchant coverage is already provided by AllKeyShop and GG.deals.
-* **Strategy**:
-  * Low priority fallback queue.
-  * Throttled to 1 request every 4000ms.
-  * Circuit breaker trips on single 403/429 response.
+  * Queries AllKeyShop's unofficial internal JSON endpoints (`vaks.php` and `price_history_api.php`) for product listings, merchant offers, voucher discounts, and historical pricing.
+  * **Solver Requirement**: Strictly requires an external anti-bot solver (Byparr or FlareSolverr via `ALLKEYSHOP_SOLVER_URL` / `BYPARR_URL`). Zero direct scraping fallbacks exist to protect the user's IP address.
+  * **Fair Round-Robin Scheduling**: Due games are sorted by `allkeyshop_last_checked_at ASC` to prevent catalog starvation.
+  * **Adaptive Intervals**: Implements exponential backoff per title (24h to 168h ceiling) based on price stability streak (`allkeyshop_unchanged_streak`). Active target price overrides fast-track check intervals.
+  * **Pacing & Jitter**: `ALLKEYSHOP_DELAY_MS=2500` (jitter: 500ms) with exponential-tailed jitter and occasional hesitation breaks.
+  * **Circuit Breaker**: If the solver challenge fails or returns 403/429/502, activates cooldown and skips enrichment gracefully without delaying the primary sync pipeline.
 
 ---
 
-## 3. Pacing & Concurrency Architecture
+## 3. Rate Limit & Pacing Engine (`src/server/sources/base.ts`)
+
+### 3.1 Epoch-Aware Header Parsing
+The rate limiter supports standard IETF headers and Cloudflare extensions via `parseRetryAfterHeader`:
+```typescript
+export function parseRetryAfterHeader(headerValue?: string | null): number | undefined
+```
+- **Integer Seconds:** `Retry-After: 30` $\rightarrow$ 30 seconds cooldown.
+- **HTTP Date:** `Retry-After: Wed, 16 Sep 2026 14:30:00 GMT` $\rightarrow$ parsed against current time.
+- **Unix Epoch Timestamps:** Cloudflare `X-RateLimit-Reset` or `ratelimit-reset` timestamps ($> 1,000,000,000$) are automatically detected and converted into delta cooldown seconds:
+  $$\Delta t = \text{epochTimestamp} - \left\lfloor\frac{\text{now}}{1000}\right\rfloor$$
+
+### 3.2 Pacing Architecture Summary
 
 ```text
 Sync Orchestrator (Parallel Multi-Source Execution)
-  ├── Concurrent Batch Pool (~25s total for 2,570 games):
-  │     ├── Steam Storefront (Batch: 200 items/req, Delay: 1000ms)
-  │     ├── ITAD Batch       (Batch: 150 items/req, Delay: 500ms)
-  │     ├── CheapShark Batch (Batch: 50-60 items/req, Delay: 500ms)
-  │     └── GG.deals Batch   (Batch: 50 items/req, Delay: 1000ms)
+  ├── Fast Batch Pool (Total ~25–40s for 2,000+ games):
+  │     ├── Steam Storefront (Batch: 200 items/req, Delay: 2000ms, Jitter: 250ms)
+  │     ├── ITAD Batch       (Batch: 150-200 items/req, Delay: 1000ms, Jitter: 200ms)
+  │     └── CheapShark Batch (Batch: 25 AppIDs comma-separated, Delay: 1500ms, Jitter: 250ms)
   │
-  └── Smart Priority Secondary Pool:
-        ├── AllKeyShop Queue (Solver required, Delay: 2000ms, Adaptive intervals)
-        └── GoCDKeys Queue   (Disabled by default)
+  └── Selective Secondary Pool:
+        ├── GG.deals Worker  (Batch/Per-game, Delay: 1500ms, Jitter: 300ms)
+        └── AllKeyShop Queue (Solver required, Delay: 2500ms, Jitter: 500ms, Adaptive 24h-168h)
 ```
-
-By decoupling source queues and running batch sources in parallel, a delay or circuit trip in AllKeyShop has zero impact on ITAD or CheapShark throughput. Total wishlist synchronization runs in **under 10 minutes** across all active sources.
