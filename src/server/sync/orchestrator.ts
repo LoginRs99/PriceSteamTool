@@ -701,11 +701,11 @@ export class SyncOrchestrator {
             const saved = this.ingestOffer(g.id, 'allkeyshop', offer);
             if (saved?.id) {
               freshAksOfferIds.push(saved.id);
-            }
-            this.enrichmentStatus.offersFound++;
-            newOffersCount++;
-            if (offer.priceEur > 0 && (lowestPriceEur === null || offer.priceEur < lowestPriceEur)) {
-              lowestPriceEur = offer.priceEur;
+              this.enrichmentStatus.offersFound++;
+              newOffersCount++;
+              if (offer.priceEur > 0.05 && (lowestPriceEur === null || offer.priceEur < lowestPriceEur)) {
+                lowestPriceEur = offer.priceEur;
+              }
             }
           }
           if (offers.length > 0) {
@@ -847,7 +847,7 @@ export class SyncOrchestrator {
     const regionNorm = normalizeRegion(rawOffer.regionRaw);
     if (!regionNorm.isValid) return;
 
-    if (!(rawOffer.priceEur > 0) || isNaN(rawOffer.priceEur)) {
+    if (isNaN(rawOffer.priceEur) || (rawOffer.priceEur > 0 && rawOffer.priceEur <= 0.05)) {
       logWarn('Rejected offer with invalid EUR price', {
         gameId,
         sourceCode,
@@ -1026,7 +1026,7 @@ export class SyncOrchestrator {
               if (saved?.id) {
                 freshAksOfferIds.push(saved.id);
               }
-              if (offer.priceEur > 0 && (lowestAksPrice === null || offer.priceEur < lowestAksPrice)) {
+              if (offer.priceEur > 0.05 && (lowestAksPrice === null || offer.priceEur < lowestAksPrice)) {
                 lowestAksPrice = offer.priceEur;
               }
             }

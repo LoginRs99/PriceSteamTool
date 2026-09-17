@@ -19,8 +19,8 @@ PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Pric
   - **Steam Storefront:** Canonical wishlist ingestion + base price/review baseline + official Category 62 Family Sharing validation (Pacing: 2000ms, jitter 250ms).
   - **IsThereAnyDeal (ITAD v2/v3):** High-batch official store aggregator for 40+ stores with chunk-isolated failure resilience (Pacing: 1000ms, jitter 200ms).
   - **CheapShark:** True multi-AppID comma-separated batching (25 App IDs per request, `pageSize=60`, up to 3 pages pagination, Metacritic review/score enrichment, 429 single re-enqueue backoff, Pacing: 1500ms, jitter 250ms).
-  - **GG.deals:** Hybrid official + marketplace deal aggregator with `SOURCE_FAMILY_CONFLICT` detection ($\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms, jitter 300ms).
-  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, and solver error propagation (Pacing: 2500ms, jitter 500ms).
+  - **GG.deals:** Hybrid official + marketplace deal aggregator with `SOURCE_FAMILY_CONFLICT` detection ($\ge 5.0\times$ extreme conflict) and `OVER_MSRP` detection (Pacing: 1500ms, jitter 300ms).
+  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, phantom 0.02 EUR guardrails, and solver error propagation (Pacing: 2500ms, jitter 500ms).
 - **Canonical Type System:** Single Source of Truth in [`src/shared/types.ts`](file:///D:/github/Pricetool/src/shared/types.ts), defining unified models (`Game`, `Offer`, `PricingErrorEvaluation`, `PricingErrorType`, `PriceEventType`, `DealScoreBreakdown`, `DealVerdict`, `WishlistEntry`).
 
 ---
@@ -50,18 +50,20 @@ $$\text{RawScore} = S_{\text{atl}} (0\text{--}40) + S_{\text{disc}} (0\text{--}3
   - Flagged pricing error $\rightarrow$ Score `0`, Tier `Weak`, Verdict `WAIT`.
 
 ### 2. Pricing Error Engine & Self-Healing (`src/server/domain/pricingError/`)
-Replaces legacy anomaly heuristics with a multi-signal risk evaluator:
-- **Error Types:**
-  - `DECIMAL_SHIFT`: Sub-euro glitches ($\le 1.005\text{ €}$) on titles with MSRP $\ge 10\text{ €}$, missing digit shifts ($\sim 1/10$ or $\sim 1/100$ of MSRP on MSRP $\ge 30\text{ €}$), or extreme drops ($\le 3\%$ of MSRP on MSRP $\ge 15\text{ €}$).
-  - `MARKET_OUTLIER`: Lone store $>50\%$ below single peer or $>75\%$ below multi-peer median (bypassed if price matches confirmed ATL).
+Precision pricing-error detector focused on high-confidence glitches and extreme outliers:
+- **Error Types & Calibration:**
+  - `MARKET_OUTLIER`: Enforces the approved 0.55 threshold (`currentPrice < secondCheapest * 0.55`) on the cheapest comparable offer with a meaningful gap ($\ge 2.00\text{ €}$). Clustered market sales (e.g. *Terminator Resistance*) produce zero false positives.
+  - `SOURCE_FAMILY_CONFLICT`: Strictly assigned to Keyshop tiers (never official retail offers). Flags extreme price conflicts ($\ge 5.0\times$ or sub-euro $\ge 3.0\times$) between keyshop and official listings from the same source, while standard 2.0x–4.9x sales are recognized as legitimate. Bypassed when peer corroboration exists.
+  - `DECIMAL_SHIFT`: Distinguishes authorized official publisher sales on budget titles (e.g. €0.89 on €8.99 MSRP) from genuine sub-euro pricing glitches on premium titles (€0.59 on €19.99 MSRP), missing digit shifts ($\sim 1/10$ or $\sim 1/100$ on MSRP $\ge 30\text{ €}$), or extreme drops ($\le 3\%$ on MSRP $\ge 15\text{ €}$).
+  - `FAKE_BASELINE`: Restricted to offers claiming discounts below Steam base price (`price < steamBasePriceEur && claimedOriginalPriceEur > 1.5 * steamBasePriceEur`), eliminating false positives on deluxe editions priced above base MSRP.
   - `BELOW_ATL_IMPLAUSIBLE`: Price $>50\%$ below established confirmed ATL.
-  - `OWN_HISTORY_BREAK`: Sudden price collapse vs merchant's own historical median ($z > 2.5$).
+  - `OWN_HISTORY_BREAK`: Sudden price collapse vs merchant's own historical median ($z > 2.5$). Not sufficient by itself to create a HIGH anomaly when live market peers corroborate the price.
   - `FRESH_RELEASE_DROP`: $>40\%$ drop on games released $<30$ days ago without publisher confirmation.
   - `EDITION_INVERSION`: Deluxe/Gold edition priced $>30\%$ below the base game.
-  - `FAKE_DISCOUNT`: Claimed original price $>1.5\times$ base price.
 - **Independent Peer Corroboration:** $\ge 2$ independent fresh peer prices within $\pm 40\%$ override pricing errors (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`), preventing false alarms on authentic coordinated sales.
 - **Self-Healing & Auto-Dismissal:**
   - Startup checks and post-sync sweeps automatically dismiss pricing errors when the price has increased, when the offer was unflagged, or when another valid offer is cheaper.
+  - `purgeCorruptedPricingErrors()` in `cleanData.ts` automatically dismisses legacy false-positive records and unflags offers, restoring them to Best Deals.
   - Glitched offers have `is_likely_pricing_error = 1`, excluding them from best deal selection.
 
 ### 3. Best Deal Selection & ATL Auto-Reconciliation
@@ -110,7 +112,7 @@ Replaces legacy anomaly heuristics with a multi-signal risk evaluator:
 npm run typecheck      # tsc --noEmit
 
 # 2. Automated Test Suite
-npm test               # vitest run --fileParallelism=false (68 test files, 624 tests)
+npm test               # vitest run --fileParallelism=false (73 test files, 712 tests)
 npm run test:server    # vitest run --project server
 npm run test:client    # vitest run --project client
 npm run test:sources   # Live network adapter diagnostic test

@@ -305,5 +305,56 @@ describe('AllKeyShop API Wrapper & Solver Resilience Suite', () => {
       expect(offers[0].priceEur).toBe(1.05);
       expect(offers[0].originalPriceEur).toBe(1.24);
     });
+
+    it('discards <= 0.05 EUR phantom prices/coupon artifacts in parseAllKeyShopGamePage', () => {
+      const mockHtml = `
+        <html><body><script>
+        var gamePageTrans = {
+          "merchants": { "100": { "name": "Kinguin" } },
+          "editions": { "1": { "name": "Standard" } },
+          "regions": { "2": { "name": "Global" } },
+          "prices": [
+            {
+              "id": 1,
+              "merchant": 100,
+              "price": 0.02,
+              "priceCard": 0.02,
+              "voucher_code": "AKSPREORDER",
+              "account": false,
+              "dispo": 1,
+              "activationPlatform": "steam"
+            }
+          ]
+        };
+        </script></body></html>
+      `;
+
+      const offers = parseAllKeyShopGamePage(mockHtml, 'https://example.com/deal');
+      expect(offers.length).toBe(0);
+    });
+
+    it('discards <= 0.05 EUR phantom prices/coupon artifacts in parseAllKeyShopPriceHistory', () => {
+      const payload: any = {
+        history: [
+          {
+            merchant_id: 1001,
+            edition: 1,
+            region: 2,
+            min_discount_price: 0.02,
+            last_price: 0.02,
+            best_discount_code: 'AKSPREORDER',
+            start: '2026-09-17 00:00:00',
+            end: '2026-09-17 10:00:00'
+          }
+        ],
+        merchants: { '1001': { name: 'Kinguin' } },
+        editions: { '1': { name: 'Standard' } },
+        regions: { '2': { name: 'Global' } },
+        officialMerchants: []
+      };
+
+      const offers = parseAllKeyShopPriceHistory(payload, 'https://example.com/kinguin');
+      expect(offers.length).toBe(0);
+    });
   });
 });

@@ -3,6 +3,7 @@ import { config } from '../config/index.js';
 import { SCHEMA_SQL, SEED_SOURCES_SQL } from './schema.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../domain/priceIntelligence.js';
 import { runMigrations } from './migrations.js';
+import { purgeCorruptedPrices } from './cleanData.js';
 import type { 
   Game, 
   Offer, 
@@ -49,6 +50,13 @@ export function getDb(): Database.Database {
 
     // Run versioned schema migrations
     runMigrations(dbInstance);
+
+    // Purge corrupted <= 0.05 EUR price artifacts
+    try {
+      purgeCorruptedPrices();
+    } catch (cleanErr: any) {
+      logInfo(`[Data Cleanup] Error purging corrupted prices: ${cleanErr.message}`);
+    }
 
     // Auto-resolve historical pricing errors that are price increases or no longer bottom outliers
     try {

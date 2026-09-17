@@ -226,7 +226,7 @@ describe('Task 26: Full Stack Verification (Smoke & Acceptance)', () => {
         merchantId: shadyMerchant.id,
         productType: 'STEAM_KEY',
         regionType: 'GLOBAL',
-        priceEur: 0.01,
+        priceEur: 0.49,
         originalPriceEur: 60.00,
         dealUrl: 'https://shady.example/deal',
         sourceCode: 'cheapshark'
@@ -252,7 +252,7 @@ describe('Task 26: Full Stack Verification (Smoke & Acceptance)', () => {
         const lines = csvText.split('\r\n').filter(l => l.includes('Glitch Containment Game'));
         expect(lines.length).toBe(2);
 
-        const anomalyLine = lines.find(l => l.includes('0.01'));
+        const anomalyLine = lines.find(l => l.includes('0.49'));
         expect(anomalyLine).toBeDefined();
         expect(anomalyLine).toContain(',HIGH,'); // risk_level HIGH
         expect(anomalyLine).toContain(',true,'); // is_anomaly true

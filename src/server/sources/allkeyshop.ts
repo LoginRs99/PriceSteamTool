@@ -113,7 +113,7 @@ export function parseAllKeyShopGamePage(html: string, defaultDealUrl: string): N
 
       // Prefer priceCard (price incl. credit card fees) as the real user-facing price
       const priceEur = Number(p.priceCard || p.price || p.originalPrice);
-      if (isNaN(priceEur) || priceEur <= 0) continue;
+      if (isNaN(priceEur) || priceEur <= 0 || (priceEur > 0 && priceEur <= 0.05)) continue;
 
       const rawBarePrice = p.price !== undefined ? Number(p.price) : undefined;
       const rawOriginalPrice = p.originalPrice !== undefined ? Number(p.originalPrice) : undefined;
@@ -227,7 +227,7 @@ export function parseAllKeyShopPriceHistory(
     if (isNonSteam) continue;
 
     const priceEur = Number(entry.min_discount_price || entry.last_price);
-    if (isNaN(priceEur) || priceEur <= 0) continue;
+    if (isNaN(priceEur) || priceEur <= 0 || (priceEur > 0 && priceEur <= 0.05)) continue;
 
     const merchantCode = merchantName.toLowerCase().replace(/[^a-z0-9]+/g, '');
     const isOfficial = officialMerchantIds.includes(Number(entry.merchant_id));
@@ -637,6 +637,7 @@ export function findCandidateGamesInCatalog(
   const seenIds = new Set<number>();
   const results: CatalogGame[] = [];
   for (const c of candidates) {
+    if (c.score < 75) continue;
     if (!seenIds.has(c.game.id)) {
       seenIds.add(c.game.id);
       results.push({ ...c.game, _matchScore: c.score });
@@ -896,6 +897,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
               }
             }
           }
+
+          offers = offers.filter(o => !isNaN(o.priceEur) && o.priceEur > 0.05);
 
           if (offers.length > 0) {
             const matchScore = matched._matchScore;

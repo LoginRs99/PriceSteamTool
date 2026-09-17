@@ -15,11 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Added REST endpoints: `GET /api/family-sharing/exclusions`, `POST /api/family-sharing/exclude`, `POST /api/family-sharing/include`, `POST /api/family-sharing/auto-detect`.
   * Game Detail Modal displays real-time Family status banner with 1-click "Check Steam Support", "Demark (Not Shareable)", and "Restore" actions.
   * Profile Management Modal includes a dedicated Family Sharing Restrictions section with 1-click batch auto-detection.
-* **Pricing Intelligence Modernization (ADR-1 through ADR-4)**:
-  * **ADR-1 (SOURCE_FAMILY_CONFLICT)**: Detects severe intra-family price splits ($\ge 2.0\times$) between official and keyshop tiers under the same source aggregator.
+* **Pricing Intelligence Modernization (ADR-1 through ADR-4) & Anomaly Refinement**:
+  * **ADR-1 (SOURCE_FAMILY_CONFLICT Refinement)**: Confined internal conflict flags strictly to Keyshop tiers (official store offers are never marked as glitches). Refined threshold to require extreme intra-family price splits ($\ge 5.0\times$ or sub-euro $\ge 3.0\times$), while normal 2.0x–4.9x keyshop-to-official retail price spreads are treated as standard sales. Bypassed whenever other market peers corroborate the price.
+  * **Approved 0.55 Lone Bottom Outlier Threshold (MARKET_OUTLIER)**: Strictly enforces `currentPrice < secondCheapest * 0.55` on the cheapest comparable offer with a meaningful price gap ($\ge 2.00\text{ €}$). Clustered normal sales (e.g. *Terminator Resistance* at €7.35–€8.85) produce zero false anomalies.
+  * **Restricted FAKE_BASELINE Detection**: Restricted to offers claiming a discount below the game's official base MSRP (`price < steamBasePriceEur && claimedOriginalPriceEur > 1.5 * steamBasePriceEur`), preventing higher-tier deluxe editions or complete bundles from being falsely flagged.
+  * **Calibrated DECIMAL_SHIFT & Sub-Euro Glitch Detection**: Distinguishes authorized official publisher sales on budget titles (e.g. *Hitman Contracts* at €0.89 on €8.99 MSRP) from genuine sub-euro pricing glitches on premium titles (€0.59 on €19.99 MSRP).
+  * **Database Safety & Pricing Error Cleanup**: Added `purgeCorruptedPricingErrors()` to `src/server/db/cleanData.ts`, automatically dismissing 208 false positives and restoring 708 legitimate offers to Best Deals at startup.
   * **ADR-2 (OVER_MSRP)**: Informational signal alerting users when an offer exceeds the game's official baseline MSRP without penalizing the deal score.
   * **ADR-3 (Own-Type Median Discount Calibration)**: $S_{\text{disc}}$ discount depth scoring is calibrated against the game's own historical sale median rather than raw MSRP, preventing standard repeating discounts from over-scoring.
   * **ADR-4 (Market Liquidity / Depth Warning)**: Purchase advice warns when liquidity is shallow ($\le 9$ merchants) and current best price exceeds the historical sale median.
+* **Scraper Guardrails & Phantom Price Elimination**:
+  * Added validation in AllKeyShop (AKS) parser/scraper ensuring unreleased, unlisted, or missing games resolve to `null`, completely eliminating phantom `0.02 EUR` pricing. Discards prices $\le 0.05\text{ EUR}$ across all sources unless explicitly verified.
 * **API Reliability & Resilience Hardening**:
   * CheapShark rate-limit resilience: strict single-request concurrency with exponential backoff on 429 and network failures.
   * ITAD batch error isolation: failing 150-item chunks no longer abort successfully fetched chunks; sync outcome accurately tracks partial vs full success.

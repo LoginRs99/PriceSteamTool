@@ -127,6 +127,10 @@ export const offerRepo = {
     /** v2.4.0 ADR-1 — pre-computed by the source adapter, see base.ts */
     sourceFamilyConflict?: { ratio: number; details: string };
   }): Offer {
+    if (isNaN(data.priceEur) || (data.priceEur > 0 && data.priceEur <= 0.05)) {
+      return null as any;
+    }
+
     const db = getDb();
     const now = new Date().toISOString();
     const dealUrl = ensureAbsoluteUrl(data.dealUrl);

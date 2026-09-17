@@ -50,6 +50,7 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
     suspectedEditionInversion: input.suspectedEditionInversion,
     isDelisted: input.isDelisted,
     isUnreleased: input.isUnreleased,
+    isOfficialMerchant: input.isOfficialMerchant,
     sourceFamilyConflict: input.sourceFamilyConflict
   };
 
@@ -191,7 +192,8 @@ export function evaluateOfferAnomaly(input: OfferAnomalyInput) {
     independentMerchantCount: input.independentMerchantCount,
     gameReleaseDate: input.gameReleaseDate,
     isDelisted: input.isDelisted,
-    isUnreleased: input.isUnreleased
+    isUnreleased: input.isUnreleased,
+    isOfficialMerchant: input.isOfficialMerchant
   };
 
   const errorEval = detectPricingError(errorInput);
@@ -231,7 +233,8 @@ export function calculatePriceRisk(input: PriceRiskInput, flags?: Set<any>) {
     gameReleaseDate: input.gameReleaseDate,
     suspectedEditionInversion: input.suspectedEditionInversion,
     isDelisted: input.isDelisted,
-    isUnreleased: input.isUnreleased
+    isUnreleased: input.isUnreleased,
+    isOfficialMerchant: input.isOfficialMerchant
   };
 
   const prevPrice = input.previousPriceEur;

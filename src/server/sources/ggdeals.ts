@@ -151,7 +151,7 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
               { subCategory: 'keyshops', priceEur: keyshopsOffer.priceEur }
             ]);
             if (conflict) {
-              retailOffer.sourceFamilyConflict = conflict;
+              // Only flag the cheaper keyshop offer as having a potential conflict, never the official retail offer
               keyshopsOffer.sourceFamilyConflict = conflict;
             }
           }

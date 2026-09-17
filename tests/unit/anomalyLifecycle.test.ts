@@ -203,7 +203,7 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     expect(newActiveList[0].priceEur).toBe(0.49);
   });
 
-  it('6. price drop from €0.49 to €0.05 while dismissed creates a new active anomaly event', () => {
+  it('6. price drop from €0.49 to €0.15 while dismissed creates a new active anomaly event', () => {
     const game = gameRepo.upsert({ steamAppId: 105, title: 'Game 5', basePriceEur: 50 });
     const merchant = merchantRepo.getOrCreate('keyshop_5', 'Keyshop 5', false);
 
@@ -221,20 +221,20 @@ describe('Anomaly Persistence Lifecycle & Production Logging Suite', () => {
     const activeList = anomalyRepo.list(true);
     anomalyRepo.dismiss(activeList[0].id);
 
-    // Sync 2: Price drops to €0.05
+    // Sync 2: Price drops to €0.15
     offerRepo.upsertOffer({
       gameId: game.id,
       merchantId: merchant.id,
       productType: 'STEAM_KEY',
       regionType: 'GLOBAL',
-      priceEur: 0.05,
+      priceEur: 0.15,
       sourceCode: 'ggdeals',
       dealUrl: 'https://example.com/deal'
     });
 
     const newActiveList = anomalyRepo.list(true);
     expect(newActiveList.length).toBe(1);
-    expect(newActiveList[0].priceEur).toBe(0.05);
+    expect(newActiveList[0].priceEur).toBe(0.15);
   });
 
   it('7. resolved/dismissed anomalies do not appear in list(true) but remain available in list(false)', () => {

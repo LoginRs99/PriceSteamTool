@@ -26,6 +26,7 @@ export interface PricingErrorInput {
   suspectedEditionInversion?: boolean;
   isDelisted?: boolean;
   isUnreleased?: boolean;
+  isOfficialMerchant?: boolean;
   /** v2.4.0 ADR-1 */
   sourceFamilyConflict?: SourceFamilyConflict;
 }

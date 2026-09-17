@@ -99,8 +99,8 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   const ratio = (msrp && msrp > 0) ? price / msrp : undefined;
 
   const isSubEuroGlitch = price <= 1.005 && msrp !== undefined && (
-    (msrp >= 10 && (minPeer === undefined || minPeer >= 1.0)) ||
-    (msrp >= 5 && price < msrp * 0.05)
+    (input.isOfficialMerchant ? msrp >= 20.0 : msrp >= 9.0) ||
+    (msrp >= 15 && price < msrp * 0.05)
   );
 
   const hasDeepDiscountHistory = (atlEff !== undefined && atlEff <= (msrp ?? 0) * 0.25) ||
@@ -111,7 +111,7 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
     !hasDeepDiscountHistory &&
     (minPeer === undefined || minPeer >= msrp * 0.60);
 
-  const isExtremeDrop = ratio !== undefined && msrp !== undefined && msrp >= 15 && ratio <= 0.03;
+  const isExtremeDrop = ratio !== undefined && msrp !== undefined && msrp >= 15 && ratio <= 0.03 && (minPeer === undefined || minPeer >= 2.0);
 
   const isDecimalShift = isCheapestInMarket && !isKnownAtl && (
     isSubEuroGlitch || isMissingDigitShift || isExtremeDrop
@@ -129,18 +129,18 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
     });
   }
 
-  // Signal 2: MARKET_OUTLIER (0.40 multi-peer / 0.25 single-peer)
-  // Exclude if price is at/above a known confirmed ATL
-  if (!isKnownAtl) {
+  // Signal 2: MARKET_OUTLIER (0.40 multi-peer / 0.30 single-peer)
+  // Exclude if price is at/above a known confirmed ATL or if not the cheapest in market
+  if (!isKnownAtl && isCheapestInMarket) {
     if (freshPeers.length === 1) {
       const peer = freshPeers[0];
-      if (peer >= 5 && price < peer * 0.25) {
+      if (peer >= 5 && price < peer * 0.25 && (peer - price >= 2.00)) {
         triggered.push({
           type: 'MARKET_OUTLIER',
           weight: 0.30,
           reason: `Lone market outlier (€${price.toFixed(2)} vs single peer €${peer.toFixed(2)})`
         });
-      } else if (price < peer * 0.50) {
+      } else if (peer >= 10 && price < peer * 0.50 && (peer - price >= 4.00)) {
         triggered.push({
           type: 'MARKET_OUTLIER',
           weight: 0.25,
@@ -151,7 +151,10 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
       const sorted = [...freshPeers].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
       const minP = sorted[0];
-      if ((median >= 2.0 && price < median * 0.25) || (price < minP * 0.50)) {
+      const hasBigGap = (minP - price >= 2.00) || (price <= 1.005 && minP >= 2.00);
+
+      // Approved Lone Bottom Outlier rule: currentPrice < secondCheapest * 0.55 with substantial gap
+      if ((price < minP * 0.55 && hasBigGap) || (median >= 5.0 && price < median * 0.20 && hasBigGap)) {
         triggered.push({
           type: 'MARKET_OUTLIER',
           weight: 0.40,
@@ -223,12 +226,14 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
 
   // Signal 7: FAKE_BASELINE (0.35)
   // claimedOriginalPriceEur > 1.5 * steamBasePriceEur (exempt for delisted/unreleased scarcity)
+  // Only applies when the store is claiming an exaggerated discount below base price
   if (
     !input.isDelisted &&
     !input.isUnreleased &&
     input.claimedOriginalPriceEur !== undefined &&
     input.steamBasePriceEur !== undefined &&
     input.steamBasePriceEur > 0 &&
+    price < input.steamBasePriceEur &&
     input.claimedOriginalPriceEur > 1.5 * input.steamBasePriceEur
   ) {
     triggered.push({
@@ -258,19 +263,24 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
   const msrpForOverCheck = input.steamBasePriceEur ?? input.claimedOriginalPriceEur;
   const isOverMsrp = checkOverMsrp(price, msrpForOverCheck);
 
-  // v2.4.0 (ADR-1): a same-source internal conflict is checked FIRST, before
-  // corroboration — deliberately bypasses the corroboration override below,
-  // because this signal is precisely about whether one of the "corroborating"
-  // prices can be trusted at all.
+  // v2.4.0 (ADR-1): a same-source internal conflict is checked FIRST.
+  // Extreme discrepancies (e.g. >= 5.0x, or sub-euro glitch with ratio >= 3.0x like Gatekeeper)
+  // represent critical internal source breakage that bypasses peer corroboration.
+  // Moderate differences (2.0x - 4.9x) between official and keyshop represent normal market sale spreads.
   if (input.sourceFamilyConflict) {
-    const confidence = Math.min(1.0, Math.round(input.sourceFamilyConflict.ratio * 10) / 100 + 0.30);
-    return {
-      isLikelyPricingError: true,
-      confidence,
-      type: 'SOURCE_FAMILY_CONFLICT',
-      reason: input.sourceFamilyConflict.details,
-      isOverMsrp
-    };
+    const isExtremeConflict = input.sourceFamilyConflict.ratio >= 5.0 ||
+      (price <= 1.005 && input.sourceFamilyConflict.ratio >= 3.0);
+
+    if (isExtremeConflict) {
+      const confidence = Math.min(1.0, Math.round(input.sourceFamilyConflict.ratio * 10) / 100 + 0.30);
+      return {
+        isLikelyPricingError: true,
+        confidence,
+        type: 'SOURCE_FAMILY_CONFLICT',
+        reason: input.sourceFamilyConflict.details,
+        isOverMsrp
+      };
+    }
   }
 
   // 2. Corroboration override:
