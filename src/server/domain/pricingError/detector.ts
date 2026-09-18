@@ -286,14 +286,29 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
     isMultiStoreCorroborated ||
     (matchingPeers.length >= 1 && price <= 1.005);
 
+  // Effective historical low check: if price is at or above a known confirmed low, it's not a glitch
+  const atlRaw = input.confirmedAtlEur;
+  const med = input.typicalSaleMedianEur;
+  let atlEff: number | undefined;
+  if (atlRaw !== undefined && med !== undefined) {
+    atlEff = Math.min(atlRaw, med);
+    if (atlEff < med * 0.15 && input.atlIsConfirmed === false) {
+      atlEff = Math.max(atlEff, med * 0.20);
+    }
+  } else {
+    atlEff = atlRaw;
+  }
+  const isKnownAtl = atlEff !== undefined && atlEff > 0 && price >= (atlEff - 0.05);
+
   // 2. Source-Family Conflict check:
-  // When an offer is corroborated by multiple independent peers, it proves the price represents
-  // an authentic market spread (e.g. bundled keyshop pricing) rather than an isolated glitch.
-  // Uncorroborated extreme discrepancies (ratio >= 5.0x, or sub-euro with ratio >= 3.0x) represent
-  // critical internal source breakage that surfaces as SOURCE_FAMILY_CONFLICT.
-  if (input.sourceFamilyConflict && !isMultiStoreCorroborated) {
-    const isExtremeConflict = input.sourceFamilyConflict.ratio >= 5.0 ||
-      (price <= 1.005 && input.sourceFamilyConflict.ratio >= 3.0);
+  // When an offer is corroborated by multiple independent peers, or is at/above a known historical low (ATL),
+  // it proves the price represents an authentic market offer rather than an isolated glitch.
+  // Genuine glitches: sub-euro with ratio >= 3.0x, or extreme uncorroborated ratio >= 12.0x for price > 1.005
+  // when not backed by known ATL.
+  if (input.sourceFamilyConflict && !isMultiStoreCorroborated && !isKnownAtl) {
+    const isExtremeConflict =
+      (price <= 1.005 && input.sourceFamilyConflict.ratio >= 3.0) ||
+      (price > 1.005 && input.sourceFamilyConflict.ratio >= 12.0);
 
     if (isExtremeConflict) {
       const confidence = Math.min(1.0, Math.round(input.sourceFamilyConflict.ratio * 10) / 100 + 0.30);

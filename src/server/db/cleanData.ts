@@ -17,11 +17,12 @@ export function purgeCorruptedPricingErrors(): { resolvedPricingErrors: number; 
     // 1. Resolve SOURCE_FAMILY_CONFLICT false positives:
     // a) Official store offers (official stores are authorized publisher retailers, never glitches from keyshop spreads)
     // b) Offers corroborated by other active valid offers (within 25% or €1.50)
-    // c) Offers where price > 1.005 and the offer is not a bottom outlier (< 0.55 of min peer price)
+    // c) Offers where price > 1.005 and either at/above known ATL or official peer ratio is < 12.0x
     const sfcToResolve = prepareStmt(`
       SELECT pe.id, pe.offer_id
       FROM pricing_errors pe
       JOIN offers o ON pe.offer_id = o.id
+      JOIN games g ON pe.game_id = g.id
       JOIN merchants m ON o.merchant_id = m.id
       WHERE pe.is_dismissed = 0
         AND pe.error_type = 'SOURCE_FAMILY_CONFLICT'
@@ -35,16 +36,13 @@ export function purgeCorruptedPricingErrors(): { resolvedPricingErrors: number; 
           OR (
             o.price_eur > 1.005 
             AND (
-              o.price_eur >= 0.55 * COALESCE((
-                SELECT MIN(p.price_eur) FROM offers p
-                WHERE p.game_id = o.game_id AND p.id != o.id AND p.is_valid = 1 AND p.price_eur > 0
-              ), o.price_eur)
+              (g.historical_low_eur IS NOT NULL AND g.historical_low_eur > 0 AND o.price_eur >= g.historical_low_eur - 0.05)
               OR (
                 SELECT COALESCE(MIN(p.price_eur), 999999)
                 FROM offers p
                 JOIN merchants m2 ON p.merchant_id = m2.id
                 WHERE p.game_id = o.game_id AND m2.is_official = 1 AND p.is_valid = 1
-              ) < 5.0 * o.price_eur
+              ) < 12.0 * o.price_eur
             )
           )
         )

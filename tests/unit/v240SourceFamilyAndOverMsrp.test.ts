@@ -214,3 +214,63 @@ describe('Metadata Anomalies under Corroboration (FAKE_BASELINE & EDITION_INVERS
   });
 });
 
+describe('SOURCE_FAMILY_CONFLICT Calibration & Known ATL Resilience', () => {
+  it('does NOT flag legitimate keyshop prices at or above historical low (Divinity II: 3.18 vs 19.99)', () => {
+    const result = detectPricingError({
+      priceEur: 3.18,
+      steamBasePriceEur: 19.99,
+      confirmedAtlEur: 1.99,
+      otherFreshPricesEur: [19.99],
+      sourceFamilyConflict: { ratio: 6.286, details: 'keyshops=€3.18 vs official=€19.99 (6.29x)' }
+    });
+    expect(result.isLikelyPricingError).toBe(false);
+    expect(result.type).toBeNull();
+  });
+
+  it('does NOT flag legitimate keyshop prices at or above historical low (Witchblood: 1.55 vs 9.99)', () => {
+    const result = detectPricingError({
+      priceEur: 1.55,
+      steamBasePriceEur: 9.99,
+      confirmedAtlEur: 1.55,
+      otherFreshPricesEur: [9.99],
+      sourceFamilyConflict: { ratio: 6.445, details: 'keyshops=€1.55 vs official=€9.99 (6.45x)' }
+    });
+    expect(result.isLikelyPricingError).toBe(false);
+    expect(result.type).toBeNull();
+  });
+
+  it('does NOT flag legitimate deep keyshop discounts when ratio < 12.0x with confirmed ATL', () => {
+    const result = detectPricingError({
+      priceEur: 3.50,
+      steamBasePriceEur: 19.99,
+      confirmedAtlEur: 3.50,
+      otherFreshPricesEur: [19.99],
+      sourceFamilyConflict: { ratio: 5.71, details: 'keyshops=€3.50 vs official=€19.99 (5.71x)' }
+    });
+    expect(result.isLikelyPricingError).toBe(false);
+    expect(result.type).toBeNull();
+  });
+
+  it('flags uncorroborated extreme ratio >= 12.0x when price is below known ATL or without ATL', () => {
+    const result = detectPricingError({
+      priceEur: 1.86,
+      steamBasePriceEur: 29.99,
+      otherFreshPricesEur: [25.99],
+      sourceFamilyConflict: { ratio: 13.97, details: 'keyshops=€1.86 vs official=€25.99 (13.97x)' }
+    });
+    expect(result.isLikelyPricingError).toBe(true);
+    expect(result.type).toBe('SOURCE_FAMILY_CONFLICT');
+  });
+
+  it('flags uncorroborated sub-euro glitch with ratio >= 3.0x (Minecraft Legends: 0.74 vs 18.90)', () => {
+    const result = detectPricingError({
+      priceEur: 0.74,
+      steamBasePriceEur: 39.99,
+      otherFreshPricesEur: [18.90],
+      sourceFamilyConflict: { ratio: 25.54, details: 'keyshops=€0.74 vs official=€18.90 (25.54x)' }
+    });
+    expect(result.isLikelyPricingError).toBe(true);
+    expect(result.type).toBe('SOURCE_FAMILY_CONFLICT');
+  });
+});
+
