@@ -133,24 +133,52 @@ export function useGameIntelligence(
       await api.setAllkeyshopOverride(data.game.id, overrideValue);
       setCurrentAksOverride(overrideValue);
       setAksOverrideSuccess(true);
-      setTimeout(() => setAksOverrideSuccess(false), 2500);
+      setTimeout(() => {
+        if (mountedRef.current) setAksOverrideSuccess(false);
+      }, 2500);
 
-      // Refresh details in real-time
+      // Refresh details immediately so override state is reflected
       const [updatedDetails, updatedIntel] = await Promise.all([
         api.getGameDetails(gameId),
         api.getPriceIntelligence(gameId).catch(() => null)
       ]);
-      setData({
-        ...updatedDetails,
-        intelligence: updatedIntel || undefined
-      });
-      if (onGameUpdated) {
-        onGameUpdated(gameId);
+      if (mountedRef.current) {
+        setData({
+          ...updatedDetails,
+          intelligence: updatedIntel || undefined
+        });
+        if (onGameUpdated) {
+          onGameUpdated(gameId);
+        }
+      }
+
+      // Schedule follow-up refresh to pick up freshly scraped prices from background task
+      if (overrideValue !== null) {
+        setTimeout(async () => {
+          if (!mountedRef.current) return;
+          try {
+            const [bgDetails, bgIntel] = await Promise.all([
+              api.getGameDetails(gameId),
+              api.getPriceIntelligence(gameId).catch(() => null)
+            ]);
+            if (mountedRef.current) {
+              setData({
+                ...bgDetails,
+                intelligence: bgIntel || undefined
+              });
+              if (onGameUpdated) {
+                onGameUpdated(gameId);
+              }
+            }
+          } catch {}
+        }, 5000);
       }
     } catch (err) {
       console.error('Failed to apply AllKeyShop override', err);
     } finally {
-      setSavingAksOverride(false);
+      if (mountedRef.current) {
+        setSavingAksOverride(false);
+      }
     }
   };
 

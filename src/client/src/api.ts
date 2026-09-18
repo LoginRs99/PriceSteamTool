@@ -203,13 +203,17 @@ export const api = {
     success: boolean;
     gameId: string;
     override: string | number | null;
-    offersUpdated: number;
+    offersUpdated?: number;
+    queued?: boolean;
+    staleOffersRemoved?: number;
   }> {
     return apiFetch<{
       success: boolean;
       gameId: string;
       override: string | number | null;
-      offersUpdated: number;
+      offersUpdated?: number;
+      queued?: boolean;
+      staleOffersRemoved?: number;
     }>(`${API_BASE}/games/${id}/allkeyshop-override`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

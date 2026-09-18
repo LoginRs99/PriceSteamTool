@@ -263,11 +263,35 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
   const msrpForOverCheck = input.steamBasePriceEur ?? input.claimedOriginalPriceEur;
   const isOverMsrp = checkOverMsrp(price, msrpForOverCheck);
 
-  // v2.4.0 (ADR-1): a same-source internal conflict is checked FIRST.
-  // Extreme discrepancies (e.g. >= 5.0x, or sub-euro glitch with ratio >= 3.0x like Gatekeeper)
-  // represent critical internal source breakage that bypasses peer corroboration.
-  // Moderate differences (2.0x - 4.9x) between official and keyshop represent normal market sale spreads.
-  if (input.sourceFamilyConflict) {
+  // 1. Peer matching & multi-store corroboration calculation:
+  // Tolerance: within +/- 1.50 EUR, or relative difference <= 20% (or FX tolerance <= 0.02 EUR, or sub-euro <= 30%)
+  const freshPeers = (input.otherFreshPricesEur ?? []).filter(
+    p => p !== undefined && p !== null && p > 0 && !isNaN(p)
+  );
+  const matchingPeers = freshPeers.filter(p => {
+    const diff = Math.abs(p - price);
+    if (diff <= 0.02) return true;
+    if (diff <= 1.50) return true;
+    if (price <= 1.005) return diff / price <= 0.3001;
+    return (diff / Math.min(p, price) <= 0.20) || (diff / Math.max(p, price) <= 0.20);
+  });
+
+  // Multi-store corroboration: >= 2 independent stores within 15-20% or +/- 1.50 EUR
+  // When an offer is corroborated by multiple peers, it suppresses both SOURCE_FAMILY_CONFLICT and MARKET_OUTLIER.
+  const isMultiStoreCorroborated =
+    (input.independentMerchantCount !== undefined && input.independentMerchantCount >= 2) ||
+    matchingPeers.length >= 2;
+
+  const isCorroborated =
+    isMultiStoreCorroborated ||
+    (matchingPeers.length >= 1 && price <= 1.005);
+
+  // 2. Source-Family Conflict check:
+  // When an offer is corroborated by multiple independent peers, it proves the price represents
+  // an authentic market spread (e.g. bundled keyshop pricing) rather than an isolated glitch.
+  // Uncorroborated extreme discrepancies (ratio >= 5.0x, or sub-euro with ratio >= 3.0x) represent
+  // critical internal source breakage that surfaces as SOURCE_FAMILY_CONFLICT.
+  if (input.sourceFamilyConflict && !isMultiStoreCorroborated) {
     const isExtremeConflict = input.sourceFamilyConflict.ratio >= 5.0 ||
       (price <= 1.005 && input.sourceFamilyConflict.ratio >= 3.0);
 
@@ -282,23 +306,6 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
       };
     }
   }
-
-  // 2. Corroboration override:
-  // Tightened to +/- 15% (or <= 0.02 EUR for FX rounding; for sub-euro prices, +/- 30% or <= 0.02 EUR)
-  const freshPeers = (input.otherFreshPricesEur ?? []).filter(
-    p => p !== undefined && p !== null && p > 0 && !isNaN(p)
-  );
-  const matchingPeers = freshPeers.filter(p => {
-    const diff = Math.abs(p - price);
-    if (diff <= 0.02) return true;
-    if (price <= 1.005) return diff / price <= 0.3001;
-    return diff / Math.max(p, price) <= 0.15;
-  });
-
-  const isCorroborated =
-    (input.independentMerchantCount !== undefined && input.independentMerchantCount >= 2) ||
-    matchingPeers.length >= 2 ||
-    (matchingPeers.length >= 1 && price <= 1.005);
 
   let triggered = getTriggeredSignals(input);
 

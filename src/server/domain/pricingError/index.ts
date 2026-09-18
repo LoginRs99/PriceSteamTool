@@ -55,7 +55,7 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
   };
 
   const errorEval = detectPricingError(errorInput);
-  const rawSignals = errorInput.sourceFamilyConflict ? [] : getTriggeredSignals(errorInput);
+  const rawSignals = (errorEval.type === 'SOURCE_FAMILY_CONFLICT') ? [] : getTriggeredSignals(errorInput);
   const event = detectPriceEvent(input, errorEval.isLikelyPricingError);
 
   const riskFlags: string[] = [];
@@ -74,7 +74,9 @@ export function evaluatePriceMovement(input: PriceMovementInput) {
         }
       }
     } else if (s.type === 'MARKET_OUTLIER') {
-      riskFlags.push('MARKET_OUTLIER', 'LONE_BOTTOM_OUTLIER', 'EXTREME_MEDIAN_OUTLIER');
+      if (errorEval.isLikelyPricingError) {
+        riskFlags.push('MARKET_OUTLIER', 'LONE_BOTTOM_OUTLIER', 'EXTREME_MEDIAN_OUTLIER');
+      }
     } else if (s.type === 'BELOW_ATL_IMPLAUSIBLE') {
       riskFlags.push('BELOW_ATL_IMPLAUSIBLE', 'HISTORICAL_LOW_DISCREPANCY');
     } else if (s.type === 'OWN_HISTORY_BREAK') {

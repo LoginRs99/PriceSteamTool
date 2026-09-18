@@ -549,5 +549,22 @@ describe('Part 2: Anomaly & Pricing Error Detection Suite', () => {
       // 5.00 is corroborated by 5.20 (gap is only 0.20 EUR, not lone outlier)
       expect(evalResult.isLikelyPricingError).toBe(false);
     });
+
+    it('Legitimate 11: DARQ: Complete Edition — Corroborated deep keyshop discount (€1.30 vs €16.76 official with K4G €1.68, Instant Gaming €2.09, Driffle €2.67)', () => {
+      // DARQ keyshop price €1.30 vs official €16.76 produces a 12.89x sourceFamilyConflict on GG.deals,
+      // but K4G (€1.68), Instant Gaming (€2.09), and Driffle (€2.67) corroborate the low price within ±€1.50.
+      const evalResult = detectPricingError({
+        priceEur: 1.30,
+        steamBasePriceEur: 19.99,
+        otherFreshPricesEur: [1.68, 2.09, 2.67, 16.76],
+        sourceFamilyConflict: {
+          ratio: 12.89,
+          details: 'Keyshop €1.30 vs Official €16.76'
+        }
+      });
+
+      expect(evalResult.isLikelyPricingError).toBe(false);
+      expect(evalResult.type).toBeNull();
+    });
   });
 });

@@ -69,8 +69,12 @@ export function useWishlistGames(activeProfileId?: string, initialFilters?: Wish
   });
 
   const requestCounter = useRef(0);
+  const gamesRef = useRef<Game[]>([]);
+  useEffect(() => {
+    gamesRef.current = games;
+  }, [games]);
 
-  const loadGames = useCallback(async (opts: WishlistFilterOptions = filters) => {
+  const loadGames = useCallback(async (opts: WishlistFilterOptions = filters, isSilent = false) => {
     if (!activeProfileId) {
       setGames([]);
       setTotalGames(0);
@@ -80,13 +84,47 @@ export function useWishlistGames(activeProfileId?: string, initialFilters?: Wish
     }
 
     const requestId = ++requestCounter.current;
-    setLoading(true);
+    // Only show full loading state if we have no existing games and this isn't a silent background refresh
+    if (!isSilent && gamesRef.current.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const res = await api.getWishlistGames({ ...opts, isFreeOnly: false });
       if (requestId === requestCounter.current) {
-        setGames(res.games || []);
         setTotalGames(res.total || 0);
+        // Stable non-destructive state merging: preserve existing game object references
+        // to prevent unnecessary React card re-renders and eliminate layout flicker
+        setGames(prevGames => {
+          const newGames = res.games || [];
+          if (prevGames.length === 0) return newGames;
+          const prevMap = new Map(prevGames.map(g => [g.id, g]));
+          let hasAnyDifference = prevGames.length !== newGames.length;
+          const merged = newGames.map(nextGame => {
+            const prev = prevMap.get(nextGame.id);
+            if (!prev) {
+              hasAnyDifference = true;
+              return nextGame;
+            }
+            const isUnchanged =
+              prev.bestPriceEur === nextGame.bestPriceEur &&
+              prev.bestDiscountPercent === nextGame.bestDiscountPercent &&
+              prev.bestDealScore === nextGame.bestDealScore &&
+              prev.bestDealTier === nextGame.bestDealTier &&
+              prev.hasPricingError === nextGame.hasPricingError &&
+              prev.targetPriceEur === nextGame.targetPriceEur &&
+              prev.isFamilyShared === nextGame.isFamilyShared &&
+              prev.bestPriceEvent === nextGame.bestPriceEvent &&
+              prev.bestIsFresh === nextGame.bestIsFresh &&
+              prev.priority === nextGame.priority;
+            if (isUnchanged) {
+              return prev;
+            }
+            hasAnyDifference = true;
+            return { ...prev, ...nextGame };
+          });
+          return hasAnyDifference ? merged : prevGames;
+        });
       }
     } catch (e: any) {
       if (requestId === requestCounter.current) {

@@ -96,15 +96,26 @@ describe('ADR-1: detectSourceFamilyConflict (same-source internal consistency)',
     ])).toBeNull();
   });
 
-  it('bypasses corroboration in detectPricingError — the whole point of ADR-1', () => {
-    // Even with 3 "corroborating" peers, a same-source internal conflict must still surface.
+  it('flags uncorroborated extreme conflict in detectPricingError', () => {
+    // Uncorroborated extreme conflict surfaces as SOURCE_FAMILY_CONFLICT
     const result = detectPricingError({
       priceEur: 0.46,
-      otherFreshPricesEur: [0.45, 0.47, 0.46], // would normally corroborate and clear everything
+      otherFreshPricesEur: [8.01, 8.50, 9.00], // non-matching peers
       sourceFamilyConflict: { ratio: 17.41, details: 'keyshops=€0.46 vs official=€8.01 (17.41x)' }
     });
     expect(result.isLikelyPricingError).toBe(true);
     expect(result.type).toBe('SOURCE_FAMILY_CONFLICT');
+  });
+
+  it('multi-store corroboration override suppresses SOURCE_FAMILY_CONFLICT and MARKET_OUTLIER', () => {
+    // When 2+ independent stores offer close prices (+/- 1.50 EUR or 15-20%), the deal is authenticated
+    const result = detectPricingError({
+      priceEur: 0.46,
+      otherFreshPricesEur: [0.45, 0.47, 0.46], // multi-store corroboration
+      sourceFamilyConflict: { ratio: 17.41, details: 'keyshops=€0.46 vs official=€8.01 (17.41x)' }
+    });
+    expect(result.isLikelyPricingError).toBe(false);
+    expect(result.type).toBeNull();
   });
 });
 

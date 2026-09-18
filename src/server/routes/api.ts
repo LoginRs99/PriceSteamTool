@@ -693,64 +693,73 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     saveCustomMapping(game.steamAppId, parsed.data.override ?? null);
 
-    let offersCount = 0;
     let staleOffersRemoved = 0;
     if (parsed.data.override !== null && allkeyshopAdapter.isEnabled()) {
-      try {
-        const freshOffers = await allkeyshopAdapter.fetchPricesForGame(
-          game.steamAppId, 
-          game.title, 
-          game.itadId, 
-          game.releaseDate
-        );
-        const freshOfferIds: string[] = [];
-        for (const rawOffer of freshOffers) {
-          const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
-          if (!productNorm.isValid) continue;
-          const regionNorm = normalizeRegion(rawOffer.regionRaw);
-          if (!regionNorm.isValid) continue;
+      // Background async dispatch: refresh prices without blocking the HTTP response
+      setImmediate(async () => {
+        try {
+          const freshOffers = await allkeyshopAdapter.fetchPricesForGame(
+            game.steamAppId, 
+            game.title, 
+            game.itadId, 
+            game.releaseDate
+          );
+          const freshOfferIds: string[] = [];
+          for (const rawOffer of freshOffers) {
+            const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
+            if (!productNorm.isValid) continue;
+            const regionNorm = normalizeRegion(rawOffer.regionRaw);
+            if (!regionNorm.isValid) continue;
 
-          if (!(rawOffer.priceEur > 0) || isNaN(rawOffer.priceEur)) {
-            logWarn('Rejected offer with invalid EUR price', {
+            if (!(rawOffer.priceEur > 0) || isNaN(rawOffer.priceEur)) {
+              logWarn('Rejected offer with invalid EUR price', {
+                gameId: game.id,
+                sourceCode: 'allkeyshop',
+                rawPrice: rawOffer.rawPrice,
+                currency: rawOffer.rawCurrency
+              });
+              continue;
+            }
+            const merchant = merchantRepo.getOrCreate(rawOffer.merchantCode, rawOffer.merchantName, rawOffer.isOfficial, rawOffer.dealUrl);
+            const savedOffer = offerRepo.upsertOffer({
               gameId: game.id,
-              sourceCode: 'allkeyshop',
+              merchantId: merchant.id,
+              productType: productNorm.productType,
+              regionType: regionNorm.regionType,
+              regionCode: regionNorm.regionCode,
+              regionConfidence: regionNorm.regionConfidence,
+              priceEur: rawOffer.priceEur,
+              originalPriceEur: rawOffer.originalPriceEur,
               rawPrice: rawOffer.rawPrice,
-              currency: rawOffer.rawCurrency
+              rawCurrency: rawOffer.rawCurrency,
+              rawOriginalPrice: rawOffer.rawOriginalPrice,
+              voucherCode: rawOffer.voucherCode,
+              dealUrl: rawOffer.dealUrl,
+              isValid: true,
+              sourceCode: 'allkeyshop',
+              editionName: rawOffer.editionName
             });
-            continue;
+            freshOfferIds.push(savedOffer.id);
           }
-          const merchant = merchantRepo.getOrCreate(rawOffer.merchantCode, rawOffer.merchantName, rawOffer.isOfficial, rawOffer.dealUrl);
-          const savedOffer = offerRepo.upsertOffer({
-            gameId: game.id,
-            merchantId: merchant.id,
-            productType: productNorm.productType,
-            regionType: regionNorm.regionType,
-            regionCode: regionNorm.regionCode,
-            regionConfidence: regionNorm.regionConfidence,
-            priceEur: rawOffer.priceEur,
-            originalPriceEur: rawOffer.originalPriceEur,
-            rawPrice: rawOffer.rawPrice,
-            rawCurrency: rawOffer.rawCurrency,
-            rawOriginalPrice: rawOffer.rawOriginalPrice,
-            voucherCode: rawOffer.voucherCode,
-            dealUrl: rawOffer.dealUrl,
-            isValid: true,
-            sourceCode: 'allkeyshop',
-            editionName: rawOffer.editionName
-          });
-          freshOfferIds.push(savedOffer.id);
-          offersCount++;
-        }
 
-        // Drop orphaned AllKeyShop offers from previous (incorrect) match
-        const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', freshOfferIds);
-        staleOffersRemoved = staleRes.invalidatedCount;
-        if (staleOffersRemoved > 0) {
-          offerRepo.recomputeBestDealForGame(game.id);
+          // Drop orphaned AllKeyShop offers from previous (incorrect) match
+          const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', freshOfferIds);
+          if (staleRes.invalidatedCount > 0 || freshOfferIds.length > 0) {
+            offerRepo.recomputeBestDealForGame(game.id);
+          }
+        } catch (err: any) {
+          console.warn('Failed to refresh AllKeyShop prices in background after override:', err.message);
         }
-      } catch (err: any) {
-        console.warn('Failed to refresh AllKeyShop prices after override:', err.message);
-      }
+      });
+
+      return reply.status(200).send({
+        success: true,
+        gameId: game.id,
+        override: parsed.data.override,
+        queued: true,
+        offersUpdated: 0,
+        staleOffersRemoved: 0
+      });
     } else if (parsed.data.override === null) {
       // If override was cleared, invalidate prior AllKeyShop offers for this game
       const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', []);
@@ -758,14 +767,21 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       if (staleOffersRemoved > 0) {
         offerRepo.recomputeBestDealForGame(game.id);
       }
+      return reply.status(200).send({
+        success: true,
+        gameId: game.id,
+        override: null,
+        offersUpdated: 0,
+        staleOffersRemoved
+      });
     }
 
-    return {
+    return reply.status(200).send({
       success: true,
       gameId: game.id,
       override: parsed.data.override ?? null,
-      offersUpdated: offersCount,
-      staleOffersRemoved
-    };
+      offersUpdated: 0,
+      staleOffersRemoved: 0
+    });
   });
 };

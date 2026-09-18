@@ -96,7 +96,7 @@ export const App: React.FC = () => {
 
   // Sync state & SSE Stream
   const handleSyncCompleted = useCallback(() => {
-    loadGames();
+    loadGames(undefined, true);
     loadStatsAndDeals();
     loadFreeGames();
     loadAnomalies();
@@ -125,7 +125,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleGameUpdated = useCallback(() => {
-    loadGames();
+    loadGames(undefined, true);
     loadStatsAndDeals();
   }, [loadGames, loadStatsAndDeals]);
 
@@ -153,7 +153,7 @@ export const App: React.FC = () => {
   const handleRefreshSingleGame = useCallback(async (gameId: string) => {
     try {
       await api.refreshGame(gameId);
-      loadGames();
+      loadGames(undefined, true);
       loadStatsAndDeals();
     } catch (err) {
       console.error('Failed to refresh game:', err);
