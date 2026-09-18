@@ -1,6 +1,6 @@
 # Pricetool User & Intelligence Guide
 
-This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, and generates actionable purchase advice (v2.4.0).
+This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, and generates actionable purchase advice (v2.5.0).
 
 ---
 
@@ -148,7 +148,7 @@ The recommendation card provides factual guidance based on strict deterministic 
 
 ---
 
-## 6. Navigation Tabs & High-Capacity View Modes
+## 6. Navigation, Split-View Panel & View Modes
 
 For wishlists with 2,500+ items, Pricetool provides dedicated navigation and layout modes:
 
@@ -158,10 +158,16 @@ For wishlists with 2,500+ items, Pricetool provides dedicated navigation and lay
 * **Top Best Deals**: Highlights the highest Deal Score opportunities across the entire catalog.
 * **Data Safety**: Dedicated review interface for active pricing errors with 1-click dismissal and 14-column CSV export.
 
-### 6.2 3 Ergonomic View Modes
-* 🔲 **Grid View**: Visual cover artwork with Deal Score badges, price tags, and quick price event flags.
-* 📄 **Compact List View**: Single-line dense horizontal cards showing Priority, Title, Steam MSRP, Best Deal, Discount %, Store badge, and deal links.
-* 📊 **Dense Table View**: Data-dense tabular layout with sortable headers, compact indicators, and quick action buttons.
+### 6.2 Hybrid Split-View / Slide-in Details Panel
+Clicking any game row opens a slide-in intelligence panel from the right while keeping the main wishlist visible and keyboard-interactive:
+* **Keyboard Navigation**: Press `j` / `↓` for next game, `k` / `↑` for previous game, `Enter` to open/jump, and `Escape` to close the panel.
+* **Mobile-Responsive**: Automatically transforms into a swipeable bottom sheet on mobile screens (<768px).
+* **Target Price Alerts**: Set personal threshold alerts directly inside the game panel with real-time target status indicators.
+* **Candidate Match Selector**: Fast AllKeyShop match verification with instant non-blocking save and asynchronous background scraping.
 
-### 6.3 Page Size Flexibility
+### 6.3 Ergonomic View Modes
+* 📄 **Compact List View**: Single-line dense horizontal cards showing Priority, Title, Steam MSRP, Best Deal, Discount %, Store badge, and deal links.
+* 🔲 **Grid View**: Visual cover artwork with Deal Score badges, price tags, and quick price event flags.
+
+### 6.4 Page Size Flexibility
 Choose between **24**, **50**, **100**, or **200 items per page**. View mode preferences are automatically remembered via `localStorage`.

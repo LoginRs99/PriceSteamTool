@@ -259,6 +259,12 @@ export const api = {
     });
   },
 
+  async resetSource(code: SourceCode): Promise<void> {
+    await apiFetch<void>(`${API_BASE}/sources/${code}/reset`, {
+      method: 'POST'
+    });
+  },
+
   // Anomalies
   async getAnomalies(): Promise<Anomaly[]> {
     try {

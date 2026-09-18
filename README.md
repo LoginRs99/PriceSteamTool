@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.4.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-674%2F674%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-2.5.0-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-716%2F716%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -13,7 +13,7 @@
 
 Pricetool is a high-performance, single-container self-hosted web application that monitors game deals across multiple official digital storefronts and marketplace keyshops using your **Steam Wishlist** as its primary input.
 
-It solves the challenge of monitoring large wishlists (2,000+ games) with a **respectfully paced multi-source adapter architecture**, automatic canonical offer deduplication, historical low auto-reconciliation, an advanced **Pricing Error Engine with Self-Healing**, an explainable mathematical **Deal Score v2.4 (0–100)**, and a **Price Intelligence Advisor (BUY / FAIR / WAIT)** with interactive SVG timeline charts.
+It solves the challenge of monitoring large wishlists (2,000+ games) with a **respectfully paced multi-source adapter architecture**, automatic canonical offer deduplication, historical low auto-reconciliation, an advanced **Pricing Error Engine with Self-Healing**, an explainable mathematical **Deal Score v2.4 (0–100)**, an interactive **Hybrid Split-View / Slide-in Details Panel** built with a **Linear/Raycast dark design system**, and a **Price Intelligence Advisor (BUY / FAIR / WAIT)** with interactive SVG timeline charts.
 
 ---
 
@@ -64,11 +64,18 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **Sale Drop Frequency**: Evaluates annual discount rhythm (`Frequent`, `Regular`, `Rare`).
 * **Interactive SVG Price Chart**: Stepped price movement timeline with Steam MSRP baseline, ATL dashed line, Typical Sale band, and hover tooltips.
 
-### 6. Modernized UI & Family Sharing Restrictions
+### 6. Linear / Raycast Dark UI & Hybrid Split-View Panel
+* **Linear / Raycast Dark Aesthetic**: Clean developer-grade dark visual language with JetBrains Mono typography for pricing, discounts, and DealScores, crisp 1px borders, subtle glass/blur surfaces, and high-contrast semantic badges.
+* **Hybrid Split-View / Slide-in Flyout Panel**: Clicking any game row slides out an ergonomic detailed intelligence panel from the right while keeping the main wishlist visible and keyboard-navigable (`j`/`k`/`↑`/`↓`/`Enter`/`Esc`). Falls back to a touch-optimized bottom sheet on mobile screens (<768px).
+* **Inline Target Price Alerting**: Configure personal target price alerts directly inside the game slide-in panel with automatic trigger evaluation and visual indicators.
+* **Source Adapters Diagnostics & Self-Healing**:
+  * Real-time monitoring of all source queues, token-buckets, and circuit breakers.
+  * **Automatic Note Dismissal**: Error notes disappear automatically once the next request succeeds or the circuit returns to `NORMAL`.
+  * **Interactive Reset / Unpause**: 1-click button to reset degraded or paused circuit breakers and re-enable sources immediately.
 * **Dedicated Free-to-Play Section**: Free games (`is_free = 1`) are separated into their own navigation tab with direct Steam launcher (`steam://run/<id>`) and store links, keeping the paid deal catalog clean.
 * **Steam Family Sharing Exclusions & Auto-Detection**:
   * Automatically detects games owned by family accounts that are excluded by Steam from Family Sharing (e.g. EA App, Ubisoft Connect, Rockstar Games Launcher, lack of Storefront Category 62).
-  * 1-click demark and restore in Game Details modal; 1-click batch auto-detection in Profiles modal.
+  * 1-click demark and restore in Game Details panel; 1-click batch auto-detection in Profiles modal.
   * Demarked titles are safely excluded from `hideFamilyShared` filtering and highlighted cleanly.
 * **2 Ergonomic, High-Productivity View Modes**:
   * 📄 **Compact List View**: Streamlined horizontal row layout with cover thumbnail, full title, prices, store badge, deal score, and family status. Perfect for high-density scanning of 2,000+ games.
@@ -80,6 +87,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **`POST /api/v1/offers/batch`**: Bulk query resolving best prices, Deal Scores, and stores for up to 250 Steam games in a single request.
 * **`POST /api/v1/games/resolve`**: Bulk Steam AppID and title matching against SQLite database.
 * **`GET /api/family-sharing/exclusions` & `POST /api/family-sharing/auto-detect`**: Programmatic family sharing restriction management.
+* **`POST /api/sources/:code/reset`**: Programmatic reset of source adapter circuit breakers and consecutive failure counters.
 * **ETag & IETF Rate Limit Headers**: RFC-compliant caching (`304 Not Modified`) and standard `X-RateLimit-*` headers.
 * **CSV Export (`GET /api/export/offers.csv`)**: 14-column spreadsheet export of all active offers and error evaluations.
 

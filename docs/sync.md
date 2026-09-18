@@ -1,6 +1,6 @@
 # Synchronization & Rate Limiting Engine
 
-This document details the synchronization workflow, queue orchestrator, circuit breaker state machine, data normalization pipeline, and pricing error detection engine for **Pricetool** (v2.3.0).
+This document details the synchronization workflow, queue orchestrator, circuit breaker state machine, data normalization pipeline, and pricing error detection engine for **Pricetool** (v2.5.0).
 
 ---
 
@@ -135,10 +135,15 @@ Every adapter executes inside an isolated `PacedSourceQueue` with token-bucket i
 ```
 
 ### Circuit Breaker States:
-* **NORMAL**: Full operation, requests dispatched at configured interval + jitter.
+* **NORMAL**: Full operation, requests dispatched at configured interval + jitter. Successful requests automatically clear `last_error` to `NULL` in the database, ensuring resolved notes disappear from the UI immediately.
 * **BACKOFF**: Source encountered transient error (e.g. 429 or timeout); paused for 30 seconds before retrying job.
-* **PAUSED**: Repeated failures exceeded threshold. Source queue paused for 15–30 minutes. Other source queues continue unimpeded.
+* **PAUSED**: Repeated failures exceeded threshold. Source queue paused. Other source queues continue unimpeded.
 * **COOLDOWN**: Source cooldown timer expired; dispatches a single test probe. If successful, state resets to `NORMAL`.
+
+### Circuit Breaker Self-Healing & Manual Controls:
+* **Automatic Note Dismissal**: In both SQLite and in-memory registry, `last_error` is automatically set to `NULL` upon the very next successful request. When an adapter returns to `NORMAL` status, past error notes disappear immediately without lingering.
+* **Interactive Reset & Unpause**: Users can unpause any degraded or paused source with 1 click via the "Reset / Unpause" button in `SourcesModal` or via `POST /api/sources/:code/reset`. This resets consecutive failure counters, clears cooldowns, and wakes up pending queues.
+* **Toggle Auto-Reset**: Re-enabling a disabled adapter automatically triggers a circuit reset, allowing immediate retry.
 
 ---
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CircuitBreakerRegistry } from '../../src/server/sync/circuitBreaker.js';
 import { getDb } from '../../src/server/db/core.js';
+import { sourceRepo } from '../../src/server/db/repositories/source.js';
 
 describe('Circuit Breaker State Machine — State Transitions', () => {
   beforeEach(() => {
@@ -77,5 +78,43 @@ describe('Circuit Breaker State Machine — State Transitions', () => {
     const check = cb.canExecute('steam');
     expect(check.allowed).toBe(true);
     expect(cb.getState('steam')).toBe('COOLDOWN');
+  });
+
+  it('clears last_error in database and resets consecutive failures when next request succeeds', () => {
+    const cb = new CircuitBreakerRegistry();
+    
+    // Simulate failure
+    cb.recordFailure('cheapshark', 'HTTP 429 Too Many Requests');
+    let src = sourceRepo.getByCode('cheapshark');
+    expect(src?.lastError).toContain('HTTP 429');
+
+    // Simulate next request succeeding
+    cb.recordSuccess('cheapshark');
+    src = sourceRepo.getByCode('cheapshark');
+    expect(src?.lastError).toBeUndefined();
+    expect(src?.state).toBe('NORMAL');
+    expect(src?.consecutiveFailures).toBe(0);
+  });
+
+  it('resets a PAUSED source and clears its cooldown and error via reset()', () => {
+    const cb = new CircuitBreakerRegistry();
+
+    // Force to PAUSED
+    cb.recordFailure('allkeyshop', 'Fatal network 1');
+    cb.recordFailure('allkeyshop', 'Fatal network 2');
+    cb.recordFailure('allkeyshop', 'Fatal network 3');
+    cb.recordFailure('allkeyshop', 'Fatal network 4');
+    expect(cb.getState('allkeyshop')).toBe('PAUSED');
+
+    // Call reset
+    cb.reset('allkeyshop');
+    expect(cb.getState('allkeyshop')).toBe('NORMAL');
+    expect(cb.canExecute('allkeyshop').allowed).toBe(true);
+
+    const src = sourceRepo.getByCode('allkeyshop');
+    expect(src?.state).toBe('NORMAL');
+    expect(src?.cooldownUntil).toBeUndefined();
+    expect(src?.consecutiveFailures).toBe(0);
+    expect(src?.lastError).toBeUndefined();
   });
 });

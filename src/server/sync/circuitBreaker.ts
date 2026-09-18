@@ -176,7 +176,14 @@ export class CircuitBreakerRegistry {
   }
 
   public reset(source: SourceCode): void {
-    this.recordSuccess(source);
+    const info = this.getOrCreate(source);
+    info.state = 'NORMAL';
+    info.consecutiveFailures = 0;
+    info.consecutiveRateLimits = 0;
+    info.cooldownUntil = null;
+    info.lastFailureTime = null;
+    info.lastSuccessTime = Date.now();
+    sourceRepo.resetCircuit(source);
   }
 
   public resetAll(): void {

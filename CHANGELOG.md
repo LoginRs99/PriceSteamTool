@@ -5,6 +5,27 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-09-18
+
+### Added
+* **Linear / Raycast Dark Aesthetic UI Redesign**:
+  * Modern developer-centric dark design system with crisp 1px borders, subtle glass/translucent surface blur, and high-contrast semantic indicators.
+  * JetBrains Mono typography for all numerical values (prices, percentage discounts, DealScore tickers, and currency values).
+  * Ergonomic high-density compact rows and modern visual grid cards.
+* **Hybrid Split-View / Slide-in Details Panel**:
+  * Implemented an ergonomic slide-in right flyout details panel that displays comprehensive game intelligence while keeping the primary wishlist visible and fully keyboard-navigable (`j`/`k`/`↑`/`↓`/`Enter`/`Esc`).
+  * Mobile-first responsive touch layout (<768px) gracefully adapting the flyout into a bottom sheet overlay.
+* **Source Adapter Diagnostics & Self-Healing (Circuit Breakers)**:
+  * **Automatic Note Dismissal**: Resolved the lingering "Last note" issue: `last_error` in SQLite and UI automatically clears to `NULL` as soon as subsequent requests succeed or the circuit breaker returns to `NORMAL`.
+  * **Interactive Reset / Unpause**: Added `POST /api/sources/:code/reset` and an interactive "Reset / Unpause" action button in `SourcesModal`, allowing immediate unpausing of stalled adapters and resetting consecutive failure counters without waiting for multi-hour backoff.
+  * **Toggle Auto-Reset**: Re-enabling any disabled source adapter automatically resets its circuit breaker state, consecutive failure counters, and backoff cooldowns.
+* **AllKeyShop Scraper Resilience & Multi-Stage Fallback**:
+  * When FlareSolverr / Byparr encounters timeouts or HTTP 500 errors on heavy live comparison pages, the adapter gracefully falls back to the lightweight JSON endpoint (`price_history_api.php`) instead of immediately aborting and incrementing source-wide consecutive failure penalties.
+* **Non-Blocking AllKeyShop Override & Candidate Matching**:
+  * `POST /api/games/:id/allkeyshop-override` immediately saves the chosen AllKeyShop slug/ID to the database and returns `200 OK`, dispatching the price refresh asynchronously in the background.
+* **Inline Target Price Alert Card**:
+  * Dedicated Target Price Alert card integrated directly into the game detail slide-in panel with 1-click modal configuration and immediate status badges.
+
 ## [2.4.0] - 2026-09-17
 
 ### Added

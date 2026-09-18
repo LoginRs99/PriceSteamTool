@@ -878,9 +878,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
               offers = parseAllKeyShopGamePage(pageResponse, defaultDealUrl);
             }
           } catch (pageErr: any) {
-            if (pageErr?.status === 403 || pageErr?.status === 429 || pageErr instanceof AllKeyShopUnavailableError) {
+            if (pageErr?.status === 403 || pageErr?.status === 429) {
               throw pageErr;
             }
+            console.warn(`[AllKeyShop] HTML page lookup failed for "${gameTitle}" (${pageErr?.message || pageErr}), falling back to API`);
           }
 
           // 2. Secondary fallback: price_history_api.php with recency snapshot sorting
@@ -889,12 +890,19 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
               ? `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${matched.id}&currency=EUR&database=allkeyshop.com&v2=1`
               : `https://www.allkeyshop.com/api/price_history_api.php?normalised_name=${encodeURIComponent(matched.slug || '')}&currency=EUR&database=allkeyshop.com&v2=1`;
 
-            const raw = await fetchWithAllkeyshopSolver<unknown>(priceApiUrl, 35000);
-            if (raw) {
-              const validated = validateAllKeyShopPriceResponse(raw);
-              if (validated) {
-                offers = parseAllKeyShopPriceHistory(validated, defaultDealUrl);
+            try {
+              const raw = await fetchWithAllkeyshopSolver<unknown>(priceApiUrl, 35000);
+              if (raw) {
+                const validated = validateAllKeyShopPriceResponse(raw);
+                if (validated) {
+                  offers = parseAllKeyShopPriceHistory(validated, defaultDealUrl);
+                }
               }
+            } catch (apiErr: any) {
+              if (apiErr?.status === 403 || apiErr?.status === 429) {
+                throw apiErr;
+              }
+              console.warn(`[AllKeyShop] Fallback API lookup failed for "${gameTitle}" (${apiErr?.message || apiErr})`);
             }
           }
 

@@ -1,6 +1,6 @@
 # Source Comparison & Integration Analysis
 
-This document provides a thorough technical analysis of each game price source, detailing its API capabilities, authentication, rate limits, batching mechanisms, regional support, historical low tracking, and integration strategy for **Pricetool** (v2.3.0).
+This document provides a thorough technical analysis of each game price source, detailing its API capabilities, authentication, rate limits, batching mechanisms, regional support, historical low tracking, and integration strategy for **Pricetool** (v2.5.0).
 
 ---
 
@@ -67,10 +67,11 @@ This document provides a thorough technical analysis of each game price source, 
 * **API Endpoints & Architecture**:
   * Queries AllKeyShop's unofficial internal JSON endpoints (`vaks.php` and `price_history_api.php`) for product listings, merchant offers, voucher discounts, and historical pricing.
   * **Solver Requirement**: Strictly requires an external anti-bot solver (Byparr or FlareSolverr via `ALLKEYSHOP_SOLVER_URL` / `BYPARR_URL`). Zero direct scraping fallbacks exist to protect the user's IP address.
+  * **Dual-Stage Page & API Fallback**: When FlareSolverr experiences browser timeouts or HTTP 500 errors on heavy live comparison HTML pages, the adapter gracefully falls back to the lightweight JSON endpoint (`price_history_api.php`) rather than tripping source-wide failures.
   * **Fair Round-Robin Scheduling**: Due games are sorted by `allkeyshop_last_checked_at ASC` to prevent catalog starvation.
   * **Adaptive Intervals**: Implements exponential backoff per title (24h to 168h ceiling) based on price stability streak (`allkeyshop_unchanged_streak`). Active target price overrides fast-track check intervals.
   * **Pacing & Jitter**: `ALLKEYSHOP_DELAY_MS=2500` (jitter: 500ms) with exponential-tailed jitter and occasional hesitation breaks.
-  * **Circuit Breaker**: If the solver challenge fails or returns 403/429/502, activates cooldown and skips enrichment gracefully without delaying the primary sync pipeline.
+  * **Circuit Breaker**: If the solver challenge fails or returns 403/429/502, activates backoff/pause. Can be immediately unpaused via the UI or `POST /api/sources/allkeyshop/reset`.
 
 ---
 

@@ -471,7 +471,28 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     sourceRepo.toggle(code, parsed.data.isEnabled);
+    if (parsed.data.isEnabled) {
+      const { circuitBreakers } = await import('../sync/circuitBreaker.js');
+      circuitBreakers.reset(code);
+      sourceRepo.resetCircuit(code);
+      if (code === 'allkeyshop') {
+        const { allkeyshopQueue } = await import('../sync/allkeyshop/index.js');
+        allkeyshopQueue.reset();
+      }
+    }
     return { success: true, code, isEnabled: parsed.data.isEnabled };
+  });
+
+  fastify.post('/api/sources/:code/reset', async (request, reply) => {
+    const { code } = request.params as { code: SourceCode };
+    const { circuitBreakers } = await import('../sync/circuitBreaker.js');
+    circuitBreakers.reset(code);
+    sourceRepo.resetCircuit(code);
+    if (code === 'allkeyshop') {
+      const { allkeyshopQueue } = await import('../sync/allkeyshop/index.js');
+      allkeyshopQueue.reset();
+    }
+    return { success: true, code, state: 'NORMAL' };
   });
 
   // Diagnostics & Debug Logs Export

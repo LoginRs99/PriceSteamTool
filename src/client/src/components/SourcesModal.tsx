@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import type { SourceStatus, SourceCode } from '../types.js';
 import { api } from '../api.js';
-import { X, Activity, AlertTriangle, RefreshCw } from 'lucide-react';
+import { X, Activity, AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react';
 
 interface SourcesModalProps {
   onClose: () => void;
@@ -16,6 +16,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resettingCode, setResettingCode] = useState<SourceCode | null>(null);
 
   const fetchSources = async (isMounted = true) => {
     if (typeof document !== 'undefined' && document.hidden) return;
@@ -59,6 +60,20 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
       console.error('Failed to toggle source:', err);
       setError(err.message || 'Failed to toggle source');
     } finally {
+      fetchSources();
+    }
+  };
+
+  const handleReset = async (code: SourceCode) => {
+    try {
+      setResettingCode(code);
+      setError(null);
+      await api.resetSource(code);
+    } catch (err: any) {
+      console.error('Failed to reset source:', err);
+      setError(err.message || 'Failed to reset source');
+    } finally {
+      setResettingCode(null);
       fetchSources();
     }
   };
@@ -144,14 +159,40 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                         </span>
                       </div>
 
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-                        <span style={{ color: 'var(--dim)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
-                        <input
-                          type="checkbox"
-                          checked={s.isEnabled}
-                          onChange={e => handleToggle(s.code, e.target.checked)}
-                        />
-                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {s.state !== 'NORMAL' && (
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => handleReset(s.code)}
+                            disabled={resettingCode === s.code}
+                            style={{
+                              fontSize: 11,
+                              padding: '3px 8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              borderColor: 'var(--signal)',
+                              color: 'var(--signal)',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer'
+                            }}
+                            title="Reset circuit breaker and unpause source immediately"
+                          >
+                            <RotateCcw size={12} className={resettingCode === s.code ? 'spin' : ''} />
+                            <span>Reset / Unpause</span>
+                          </button>
+                        )}
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                          <span style={{ color: 'var(--dim)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
+                          <input
+                            type="checkbox"
+                            checked={s.isEnabled}
+                            onChange={e => handleToggle(s.code, e.target.checked)}
+                          />
+                        </label>
+                      </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12, color: 'var(--dim)', paddingTop: 6, borderTop: '1px solid var(--line)' }}>
@@ -173,7 +214,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                       </div>
                     </div>
 
-                    {s.lastError && (
+                    {s.lastError && (s.state !== 'NORMAL' || (s.consecutiveFailures || 0) > 0 || (s.consecutiveRateLimits || 0) > 0) && (
                       <div style={{ fontSize: 11, color: 'var(--up)', marginTop: 4, wordBreak: 'break-all' }}>
                         Last note: {s.lastError}
                       </div>

@@ -50,15 +50,41 @@ export const sourceRepo = {
     consecutiveFailures: number = 0,
     consecutiveRateLimits: number = 0
   ): void {
+    if (state === 'NORMAL') {
+      prepareStmt(`
+        UPDATE sources
+        SET state = ?,
+            cooldown_until = ?,
+            consecutive_failures = ?,
+            consecutive_rate_limits = ?,
+            last_error = NULL,
+            updated_at = datetime('now')
+        WHERE code = ?
+      `).run(state, cooldownUntil || null, consecutiveFailures, consecutiveRateLimits, code);
+    } else {
+      prepareStmt(`
+        UPDATE sources
+        SET state = ?,
+            cooldown_until = ?,
+            consecutive_failures = ?,
+            consecutive_rate_limits = ?,
+            updated_at = datetime('now')
+        WHERE code = ?
+      `).run(state, cooldownUntil || null, consecutiveFailures, consecutiveRateLimits, code);
+    }
+  },
+
+  resetCircuit(code: SourceCode): void {
     prepareStmt(`
       UPDATE sources
-      SET state = ?,
-          cooldown_until = ?,
-          consecutive_failures = ?,
-          consecutive_rate_limits = ?,
+      SET state = 'NORMAL',
+          cooldown_until = NULL,
+          consecutive_failures = 0,
+          consecutive_rate_limits = 0,
+          last_error = NULL,
           updated_at = datetime('now')
       WHERE code = ?
-    `).run(state, cooldownUntil || null, consecutiveFailures, consecutiveRateLimits, code);
+    `).run(code);
   },
 
   incrementCounters(code: SourceCode, status: 'success' | 'failure' | 'ratelimit', errorMessage?: string, count: number = 1): void {
@@ -70,6 +96,7 @@ export const sourceRepo = {
         SET request_count = request_count + ?,
             success_count = success_count + ?,
             last_success_at = ?,
+            last_error = NULL,
             updated_at = ?
         WHERE code = ?
       `).run(inc, inc, now, now, code);
