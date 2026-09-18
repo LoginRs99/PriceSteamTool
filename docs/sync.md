@@ -178,28 +178,36 @@ Pricing error evaluation is managed by `src/server/domain/pricingError/detector.
    * Sub-euro glitch: Price $\le 1.005\text{ €}$ on games with MSRP $\ge 10\text{ €}$ (or MSRP $\ge 5\text{ €}$ with price $< 0.05 \times \text{MSRP}$).
    * Missing digit shift: Price is $\sim 1/10$ ($0.08\text{--}0.12$) or $\sim 1/100$ ($0.008\text{--}0.012$) of MSRP on titles with MSRP $\ge 30\text{ €}$ when all peers are near full price ($\ge 0.60 \times \text{MSRP}$).
    * Extreme drop: Price ratio $\le 0.03$ on titles with MSRP $\ge 15\text{ €}$.
-2. **`MARKET_OUTLIER` (Weight: 0.25–0.40):**
+2. **`SOURCE_FAMILY_CONFLICT` (Direct Anomaly):**
+   * Evaluates intra-family price splits between official stores and marketplace keyshops reported under the same source aggregator (e.g. GG.deals).
+   * **Known ATL Exemption**: Offers at or above a known confirmed low (`price >= ATL - 0.05`) are immune.
+   * **Standard Sales Band**: For `price > 1.005 €`, requires an extreme uncorroborated ratio $\ge 12.0\times$ (allowing normal 80%–85% keyshop discount depths on catalog games). Sub-euro glitches ($\le 1.005\text{ €}$) require a $\ge 3.0\times$ ratio.
+3. **`MARKET_OUTLIER` (Weight: 0.25–0.40):**
    * Lone outlier $> 50\%$ below a single peer, or $> 75\%$ below multi-peer median (unless price matches or beats confirmed ATL).
-3. **`BELOW_ATL_IMPLAUSIBLE` (Weight: 0.35):**
+4. **`BELOW_ATL_IMPLAUSIBLE` (Weight: 0.35):**
    * Price is $> 50\%$ below confirmed All-Time Low on established games.
-4. **`OWN_HISTORY_BREAK` (Weight: 0.30):**
+5. **`OWN_HISTORY_BREAK` (Weight: 0.30):**
    * Merchant's own price history shows a sudden collapse ($z > 2.5$) vs historical median.
-5. **`FRESH_RELEASE_DROP` (Weight: 0.35):**
+6. **`FRESH_RELEASE_DROP` (Weight: 0.35):**
    * Discount $> 40\%$ on games released $< 30$ days ago without official publisher confirmation.
-6. **`EDITION_INVERSION` (Weight: 0.30):**
+7. **`EDITION_INVERSION` (Weight: 0.30):**
    * Deluxe/Gold/Complete edition priced $> 30\%$ below base game.
-7. **`FAKE_DISCOUNT` (Weight: 0.20):**
+8. **`FAKE_DISCOUNT` (Weight: 0.20):**
    * Claimed original price $> 1.5\times$ base Steam MSRP.
 
 ### 5.2 Independent Peer Corroboration Override
-If an offer triggers `DECIMAL_SHIFT` or other outlier signals, but $\ge 2$ independent fresh peer prices match within $\pm 40\%$, the error flag is overridden:
+If an offer triggers selling-price signals (`DECIMAL_SHIFT`, `MARKET_OUTLIER`, `SOURCE_FAMILY_CONFLICT`), but $\ge 2$ independent fresh peer prices match within $\pm 20\%$ or $\pm 1.50\text{ €}$, the selling price is authenticated:
 * `errorEval.isLikelyPricingError` is set to `false`.
-* The flag is recorded as `SUB_EURO_PREMIUM_GLITCH_CORROBORATED`.
-* The offer remains active as a legitimate flash promotion.
+* Selling price anomaly flags are suppressed, while metadata anomalies (`FAKE_BASELINE`, `EDITION_INVERSION`) remain independently evaluated.
+* The offer remains active as a legitimate market promotion.
 
 ### 5.3 Automated Self-Healing & Dismissal
-* **On Server Startup:** Queries `pricing_errors` and auto-dismisses errors where the offer is now a `PRICE_INCREASE`, where `is_likely_pricing_error = 0`, where `is_valid = 0`, or where a peer offer has a cheaper valid price.
-* **Post-Sync Sweeps:** Unflagged offers have `is_likely_pricing_error = 0` and are restored to best deal consideration.
+* **On Server Startup & Post-Sync Sweeps:** `purgeCorruptedPricingErrors()` in `src/server/db/cleanData.ts` automatically dismisses active false positives:
+  1. `SOURCE_FAMILY_CONFLICT` on official retailers, corroborated offers, prices $\ge \text{ATL} - 0.05$, or catalog keyshop prices $> 1.005\text{ €}$ with official peer ratio $< 12.0\times$.
+  2. `FAKE_BASELINE` where selling price is at or above Steam base MSRP or on official stores.
+  3. `MARKET_OUTLIER` where price is within 0.55 of min peer or gap $< 2.00\text{ €}$.
+  4. `DECIMAL_SHIFT` on official store sales ($\ge 0.70\text{ €}$) or peer-corroborated sub-euro deals.
+* **Best Deal Recomputation:** Whenever false positives are dismissed, `BEST_DEAL_RECOMPUTE_ALL_SQL` is executed to re-elect active offers as the best deal.
 
 ---
 

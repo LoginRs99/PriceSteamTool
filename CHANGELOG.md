@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * `POST /api/games/:id/allkeyshop-override` immediately saves the chosen AllKeyShop slug/ID to the database and returns `200 OK`, dispatching the price refresh asynchronously in the background.
 * **Inline Target Price Alert Card**:
   * Dedicated Target Price Alert card integrated directly into the game detail slide-in panel with 1-click modal configuration and immediate status badges.
+* **Pricing Error Engine Calibration (`SOURCE_FAMILY_CONFLICT` & Known ATL Resilience)**:
+  * Protected legitimate keyshop deals by verifying historical precedent: offers at or above a known confirmed low (`price >= atlEff - 0.05`) are immune from `SOURCE_FAMILY_CONFLICT` and `MARKET_OUTLIER` false alarms (e.g. *Divinity II: Developer's Cut* at 3.18 € vs 19.99 € MSRP, *Witchblood* at 1.55 € vs 9.99 € MSRP).
+  - Raised intra-source conflict ratio threshold for `price > 1.005 €` from $5.0\times$ to $12.0\times$, accommodating authentic 80%–85% keyshop discount depths on older catalog games when official stores sit at full MSRP.
+  * Preserved strict isolation for genuine sub-euro anomalies (`price <= 1.005 €` with ratio $\ge 3.0\times$, e.g. *Minecraft Legends* at 0.74 € vs 39.99 €).
+  * Enhanced startup and post-sync `purgeCorruptedPricingErrors()` self-healing sweeps to auto-resolve false-positive source conflicts on valid deals and trigger `BEST_DEAL_RECOMPUTE_ALL_SQL` so unflagged offers immediately surface on the main overview.
 
 ## [2.4.0] - 2026-09-17
 

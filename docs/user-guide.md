@@ -23,7 +23,7 @@ Identifies the market significance of a price change relative to Steam MSRP and 
 ### 1.2 Pricing Error Engine & Data Safety
 Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts` and isolated into `pricing_errors`:
 * **`DECIMAL_SHIFT`**: Sub-euro glitches ($\le 1.005\text{ €}$) on titles with MSRP $\ge 10\text{ €}$, missing digit shifts ($\sim 1/10$ or $\sim 1/100$ of MSRP on MSRP $\ge 30\text{ €}$), or extreme drops ($\le 3\%$ on MSRP $\ge 15\text{ €}$).
-* **`SOURCE_FAMILY_CONFLICT`**: Severe intra-family price split ($\ge 2.0\times$) between official stores and marketplace keyshops under the same aggregator source.
+* **`SOURCE_FAMILY_CONFLICT`**: Severe intra-family price split between official stores and keyshops under the same aggregator (e.g. GG.deals). Offers at or above a known confirmed low (`price >= ATL - 0.05`) are immune. For prices $> 1.005\text{ €}$, only extreme uncorroborated discrepancies ($\ge 12.0\times$) are flagged, while sub-euro glitches ($\le 1.005\text{ €}$) require a $\ge 3.0\times$ split.
 * **`OVER_MSRP`**: Informational indicator signaling when an offer exceeds official Steam baseline MSRP.
 * **`MARKET_OUTLIER`**: Lone store $> 50\%$ below single peer or $> 75\%$ below multi-peer median (unless at or above confirmed ATL).
 * **`BELOW_ATL_IMPLAUSIBLE`**: Price $> 50\%$ below established confirmed ATL.
@@ -31,8 +31,8 @@ Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts`
 * **`FRESH_RELEASE_DROP`**: $> 40\%$ drop on games released $< 30$ days ago without publisher confirmation.
 * **`EDITION_INVERSION`**: Deluxe/Gold edition cheaper than base game by $> 30\%$.
 * **`FAKE_DISCOUNT`**: Claimed original price $> 1.5\times$ base MSRP.
-* **Independent Corroboration**: When $\ge 2$ independent fresh peer prices match within $\pm 40\%$, error flags are overridden (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`).
-* **Automated Self-Healing**: Dismisses errors automatically when prices rise or when cheaper valid deals exist. Flagged offers are excluded from best deal calculations.
+* **Independent Corroboration**: When $\ge 2$ independent fresh peer prices match within $\pm 20\%$ or $\pm 1.50\text{ €}$, selling-price anomaly flags are overridden.
+* **Automated Self-Healing**: Dismisses errors automatically when prices rise, when cheaper valid deals exist, or when offers match known historical lows. Flagged offers are excluded from best deal calculations.
 
 ---
 
