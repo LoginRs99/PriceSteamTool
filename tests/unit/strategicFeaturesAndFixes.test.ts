@@ -72,13 +72,13 @@ describe('Strategic Features & Bugfix Regression Suite', () => {
         { id: '1', title: 'Test Game', bestPriceEur: 59.99, basePriceEur: 59.99, bestDiscountPercent: 0 } as any,
         undefined,
         {
-          low7d: { priceEur: null, isExactPeriodData: false },
-          low30d: { priceEur: null, isExactPeriodData: false },
-          low90d: { priceEur: null, isExactPeriodData: false },
-          low1y: { priceEur: null, isExactPeriodData: false },
+          low7d: { priceEur: null, isExactPeriodData: false, observationCount: 0 },
+          low30d: { priceEur: null, isExactPeriodData: false, observationCount: 0 },
+          low90d: { priceEur: null, isExactPeriodData: false, observationCount: 0 },
+          low1y: { priceEur: null, isExactPeriodData: false, observationCount: 0 },
           allTimeLow: { priceEur: 59.99, isConfirmed: false, source: 'Steam' }
         },
-        { medianPriceEur: null, q1PriceEur: null, q3PriceEur: null, sampleCount: 0, isLowConfidence: true },
+        { medianPriceEur: null, sampleCount: 0, isLowConfidence: true },
         undefined,
         1
       );
