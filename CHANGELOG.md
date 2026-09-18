@@ -5,6 +5,45 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-09-18
+
+### Added
+* **Live Multi-Currency Display (EUR, USD, GBP, CAD, AUD, HUF)**:
+  * Added client `CurrencyContext` with live conversion and localized formatting across all cards, compact rows, dashboards, offers tables, and intelligence flyout panels.
+  * Native Hungarian Forint (`HUF`) support with integer separation and local currency symbol (e.g., `3 990 Ft`) with ~395.0 EUR fallback exchange rate.
+  * Added `GET /api/exchange-rates` route in Fastify server exposing real-time multipliers from EUR.
+  * 100% normalized database integrity: backend SQLite storage remains strictly in EUR; client converts user-entered target prices to EUR before saving.
+* **Smart Target Price Presets**:
+  * Added quick-select target price recommendations in `TargetPriceEditor.tsx`:
+    * 🟢 **Typical**: Sets target to the Tukey IQR typical sale median price.
+    * 🔵 **Great (Q1)**: Sets target to the 25th percentile discount price.
+    * 🟣 **Record Low**: Sets target to the confirmed historical all-time low.
+  * Auto-converts values to the user's active display currency.
+* **Interactive Action-Oriented Discord Integration**:
+  * Enhanced Discord deal alerts with direct actionable URLs: direct purchase link (`[Buy on {Store}]`) and Steam storefront (`[View on Steam Store]`).
+  * Enriched embeds with deal score breakdowns, target price alerts, and new all-time low notifications.
+* **Zero-Latency AllKeyShop Candidate Selector**:
+  * Replaced blocking remote network fetch with memory/disk caching (`loadCatalogFromDiskOrMemory`) and added a 10s `AbortController` timeout, eliminating candidate loading freezes.
+
+### Fixed
+* **Sync Pipeline Deadlock & Cancel Hang**:
+  * Drained all adapter queues (`allkeyshopQueue`, `steamAdapter`, `itadAdapter`, `cheapsharkAdapter`, `ggdealsAdapter`) upon `cancelSync()`, resolving HTTP 409 "Sync already in progress" locks.
+* **Double-Recording Failure Bug**:
+  * Removed redundant `circuitBreakers.recordSuccess` and `recordFailure` calls in `orchestrator.ts:refreshGame()`, preventing single network hiccups from tripping circuit breakers prematurely.
+* **SSE Stream Authentication**:
+  * Allowed `token` and `api_token` query parameters in `index.ts` auth hook, ensuring browser `EventSource` streams connect without HTTP 401 when API tokens are enabled.
+* **Active Profile Bricking**:
+  * Verified profile existence before state updates and made `setActive(id)` atomic using `CASE WHEN id = ? THEN 1 ELSE 0 END`. Returns 404 on invalid IDs.
+* **Mathematical & Scoring Edge Cases**:
+  * Guarded against `NaN` and negative `priceEur` poisoning in DealScore calculator (returns score 0 and `WAIT`).
+  * Removed ATL pre-clamping in `gameRepo.mapGameRow`, unlocking the Beat Bonus (+10 pts) and Score 100 on record drops.
+  * Expanded Tukey IQR fences in `typicalSale.ts` to filter both lower glitches and extreme upper outliers.
+  * Fixed inverted data insufficiency logic in `purchaseAdvice.ts`.
+* **Frontend & Client Stability**:
+  * Guarded against null ATL `.toFixed(2)` in `PeriodLowsBar.tsx` and null `productType` in `OffersTable.tsx`.
+  * Prevented cross-game state bleed by resetting modal intelligence and AllKeyShop candidate states on `gameId` switch.
+  * Fixed JSX literal `"0"` text rendering on 100% off/giveaway deals.
+
 ## [2.5.0] - 2026-09-18
 
 ### Added

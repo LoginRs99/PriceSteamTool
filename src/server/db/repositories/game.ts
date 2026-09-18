@@ -1047,9 +1047,6 @@ function mapGameRow(r: any): Game {
 
   const bestPrice = (r.best_price_eur !== null && r.best_price_eur !== undefined) ? Number(r.best_price_eur) : undefined;
   const rawHistLow = (r.historical_low_eur !== null && r.historical_low_eur !== undefined) ? Number(r.historical_low_eur) : undefined;
-  const effectiveHistLow = (rawHistLow !== undefined && bestPrice !== undefined && bestPrice > 0)
-    ? Math.min(rawHistLow, bestPrice)
-    : rawHistLow;
 
   if (bestPrice !== undefined) {
     const isOfficial = r.best_merchant_is_official !== undefined && r.best_merchant_is_official !== null
@@ -1078,8 +1075,8 @@ function mapGameRow(r: any): Game {
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
-      allTimeLowEur: effectiveHistLow,
-      historicalLowEur: effectiveHistLow,
+      allTimeLowEur: rawHistLow,
+      historicalLowEur: rawHistLow,
       isConfirmedAtl,
       isSingleSourceLow,
       sampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
@@ -1123,7 +1120,7 @@ function mapGameRow(r: any): Game {
       typicalSaleQ1Eur: r.typical_sale_q1_eur !== null && r.typical_sale_q1_eur !== undefined ? Number(r.typical_sale_q1_eur) : undefined,
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
       typicalSaleSampleCount: r.typical_sale_sample_count !== null && r.typical_sale_sample_count !== undefined ? Number(r.typical_sale_sample_count) : undefined,
-      historicalLowEur: effectiveHistLow,
+      historicalLowEur: rawHistLow,
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : undefined
     });
   }
@@ -1143,7 +1140,7 @@ function mapGameRow(r: any): Game {
     isFamilyShared: Boolean(r.is_family_shared),
     isFamilyExcluded: Boolean(r.is_family_excluded),
     basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
-    historicalLowEur: effectiveHistLow,
+    historicalLowEur: rawHistLow,
     historicalLowDate: r.historical_low_date || undefined,
     historicalLowSource: r.historical_low_source || undefined,
     steamReviewDesc: r.steam_review_desc || undefined,

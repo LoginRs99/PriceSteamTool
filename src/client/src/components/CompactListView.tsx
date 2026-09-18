@@ -5,6 +5,7 @@ import { TickerFlag } from './TickerFlag.js';
 import { GameImage } from './GameImage.js';
 import { ShieldCheck, ChevronRight, RefreshCw } from 'lucide-react';
 import { getSteamReviewSentiment } from '../utils/steamMeta.js';
+import { useCurrency } from '../context/CurrencyContext.js';
 
 interface CompactListViewProps {
   games: Game[];
@@ -19,6 +20,7 @@ export const CompactListView: React.FC<CompactListViewProps> = ({
   onExplain,
   onRefreshGame
 }) => {
+  const { formatPrice } = useCurrency();
   const [refreshingIds, setRefreshingIds] = React.useState<Set<string>>(new Set());
 
   const handleRefresh = async (e: React.MouseEvent, gameId: string) => {
@@ -236,13 +238,13 @@ export const CompactListView: React.FC<CompactListViewProps> = ({
                 ) : hasBestDeal ? (
                   <>
                     <div className="compact-price-main">
-                      <span className="compact-price">€{game.bestPriceEur?.toFixed(2)}</span>
+                      <span className="compact-price">{formatPrice(game.bestPriceEur)}</span>
                       {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
                         <span className="compact-discount">-{game.bestDiscountPercent}%</span>
                       )}
                     </div>
-                    {game.basePriceEur && game.basePriceEur > (game.bestPriceEur || 0) && (
-                      <span className="compact-msrp">€{game.basePriceEur.toFixed(2)}</span>
+                    {Boolean(game.basePriceEur && game.basePriceEur > (game.bestPriceEur || 0)) && (
+                      <span className="compact-msrp">{formatPrice(game.basePriceEur)}</span>
                     )}
                   </>
                 ) : (

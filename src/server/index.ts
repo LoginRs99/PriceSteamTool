@@ -68,6 +68,13 @@ export async function createApp(): Promise<FastifyInstance> {
         }
       }
 
+      // Allow token or api_token in query params for browser EventSource SSE streams
+      if (!rawToken && request.query && typeof (request.query as any).token === 'string') {
+        rawToken = ((request.query as any).token as string).trim();
+      } else if (!rawToken && request.query && typeof (request.query as any).api_token === 'string') {
+        rawToken = ((request.query as any).api_token as string).trim();
+      }
+
       const clientBuf = Buffer.from(rawToken);
       const expectedBuf = Buffer.from(config.apiToken);
       const isMatch = clientBuf.length === expectedBuf.length && crypto.timingSafeEqual(clientBuf, expectedBuf);

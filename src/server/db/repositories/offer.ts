@@ -126,7 +126,7 @@ export const offerRepo = {
     editionName?: string;
     /** v2.4.0 ADR-1 — pre-computed by the source adapter, see base.ts */
     sourceFamilyConflict?: { ratio: number; details: string };
-  }): Offer {
+  }, options?: { deferRecompute?: boolean }): Offer {
     if (isNaN(data.priceEur) || (data.priceEur > 0 && data.priceEur <= 0.05)) {
       return null as any;
     }
@@ -696,8 +696,10 @@ export const offerRepo = {
         );
       }
 
-      // Recalculate best deal for this game
-      offerRepo.recomputeBestDealForGame(data.gameId);
+      // Recalculate best deal for this game unless deferred for batch ingestion
+      if (!options?.deferRecompute) {
+        offerRepo.recomputeBestDealForGame(data.gameId);
+      }
 
       return offerId;
     });
@@ -950,8 +952,6 @@ export const offerRepo = {
   },
 
   recomputeBestDealForGame(gameId: string): void {
-    prepareStmt(`UPDATE offers SET is_best_deal = 0 WHERE game_id = ?`).run(gameId);
-
     const best = prepareStmt(`
       SELECT o.id, o.price_eur, o.merchant_id, o.last_observed_at, o.fetched_at,
              m.is_official, m.name as merchant_name
@@ -969,7 +969,12 @@ export const offerRepo = {
     `).get(gameId) as any;
 
     if (best) {
-      prepareStmt(`UPDATE offers SET is_best_deal = 1 WHERE id = ?`).run(best.id);
+      // Atomically set the winning offer to is_best_deal = 1 and all other offers for this game to 0
+      prepareStmt(`
+        UPDATE offers 
+        SET is_best_deal = CASE WHEN id = ? THEN 1 ELSE 0 END 
+        WHERE game_id = ?
+      `).run(best.id, gameId);
 
       const gameRow = prepareStmt(`SELECT historical_low_eur FROM games WHERE id = ?`).get(gameId) as any;
       if (gameRow && gameRow.historical_low_eur !== null && gameRow.historical_low_eur !== undefined && Number(gameRow.historical_low_eur) > 0 && Number(best.price_eur) > 0) {
@@ -978,6 +983,8 @@ export const offerRepo = {
           gameRepo.updateHistoricalLow(gameId, Number(best.price_eur), new Date().toISOString(), source);
         }
       }
+    } else {
+      prepareStmt(`UPDATE offers SET is_best_deal = 0 WHERE game_id = ?`).run(gameId);
     }
   },
 

@@ -10,6 +10,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 interface DecisionHeroProps {
   game: Game;
@@ -26,6 +27,7 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
   copiedVoucherId,
   onCopyVoucher
 }) => {
+  const { formatPrice } = useCurrency();
   const advice = intelligence?.advice || {
     decision: 'FAIR' as const,
     confidence: 'MEDIUM' as const,
@@ -103,7 +105,7 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
         </div>
 
         <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--ink)', margin: '6px 0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <span className="ticker-num">€{bestOffer ? bestOffer.priceEur.toFixed(2) : (game.basePriceEur?.toFixed(2) ?? '—')}</span>
+          <span className="ticker-num">{formatPrice(bestOffer ? bestOffer.priceEur : game.bestPriceEur ?? game.basePriceEur)}</span>
           {(bestOffer?.isFresh === false || (game.bestIsFresh === false && !bestOffer)) && (
             <span 
               className="stale-badge"
@@ -124,7 +126,7 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
           )}
           {bestOffer && (bestOffer.discountPercent || 0) > 0 && (
             <span className="ticker-num" style={{ fontSize: 14, color: 'var(--dim-2)', textDecoration: 'line-through' }}>
-              €{bestOffer.originalPriceEur?.toFixed(2)}
+              {formatPrice(bestOffer.originalPriceEur)}
             </span>
           )}
           {bestOffer?.rawCurrency && bestOffer.rawCurrency !== 'EUR' && bestOffer.rawPrice && (

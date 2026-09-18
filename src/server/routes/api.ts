@@ -12,6 +12,7 @@ import { syncOrchestrator } from '../sync/orchestrator.js';
 import { priceHistoryQueue } from '../sync/historyQueue.js';
 import { steamAdapter } from '../sources/steam.js';
 import { config } from '../config/index.js';
+import { exchangeRateService } from '../domain/exchangeRate.js';
 import type { WishlistFilterOptions, SourceCode } from '../../shared/types.js';
 import { logWarn } from '../utils/logger.js';
 
@@ -96,7 +97,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.put('/api/profiles/:id/active', async (request, reply) => {
     const { id } = request.params as { id: string };
-    profileRepo.setActive(id);
+    const ok = profileRepo.setActive(id);
+    if (!ok) {
+      return reply.status(404).send({ error: `Profile not found with id "${id}"` });
+    }
     return { success: true };
   });
 
@@ -458,6 +462,13 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Sources & Diagnostics API
   // ----------------------------------------------------
+  fastify.get('/api/exchange-rates', async () => {
+    return {
+      base: 'EUR',
+      rates: exchangeRateService.getRatesFromEur()
+    };
+  });
+
   fastify.get('/api/sources', async () => {
     return sourceRepo.list();
   });
@@ -529,9 +540,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   fastify.post('/api/pricing-errors/dismiss-all', async () => {
-    pricingErrorRepo.dismissAll();
-    offerRepo.recomputeAllBestDeals();
-    return { success: true };
+    const affectedGameIds = pricingErrorRepo.dismissAll();
+    for (const gameId of affectedGameIds) {
+      offerRepo.recomputeBestDealForGame(gameId);
+    }
+    return { success: true, count: affectedGameIds.length };
   });
 
   fastify.get('/api/anomalies', async () => {
@@ -548,9 +561,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   fastify.post('/api/anomalies/dismiss-all', async () => {
-    pricingErrorRepo.dismissAll();
-    offerRepo.recomputeAllBestDeals();
-    return { success: true };
+    const affectedGameIds = pricingErrorRepo.dismissAll();
+    for (const gameId of affectedGameIds) {
+      offerRepo.recomputeBestDealForGame(gameId);
+    }
+    return { success: true, count: affectedGameIds.length };
   });
 
   // ----------------------------------------------------
@@ -677,11 +692,18 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     const { allkeyshopAdapter, findCandidateGamesInCatalog, loadCustomMappings } = await import('../sources/allkeyshop.js');
-    const catalog = await allkeyshopAdapter.ensureCatalogQueued();
     const mappings = loadCustomMappings();
     const currentOverride = mappings[String(game.steamAppId)] || mappings[game.title] || null;
 
-    const candidates = findCandidateGamesInCatalog(catalog, game.title, game.steamAppId, game.releaseDate);
+    let candidates: any[] = [];
+    try {
+      const catalog = await allkeyshopAdapter.getCatalogForCandidateSearch();
+      if (catalog && catalog.length > 0) {
+        candidates = findCandidateGamesInCatalog(catalog, game.title, game.steamAppId, game.releaseDate);
+      }
+    } catch (err: any) {
+      logWarn(`[AllKeyShop] Candidate catalog discovery unavailable for "${game.title}": ${err?.message}`);
+    }
 
     return {
       gameId: game.id,

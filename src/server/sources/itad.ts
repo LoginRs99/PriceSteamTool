@@ -107,6 +107,10 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
     return true;
   }
 
+  public clearQueue(): void {
+    this.queue.clear();
+  }
+
   /**
    * Looks up ITAD UUID for a Steam AppID
    */

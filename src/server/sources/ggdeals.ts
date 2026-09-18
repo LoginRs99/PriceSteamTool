@@ -170,6 +170,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
       return resultMap;
     });
   }
+
+  public clearQueue(): void {
+    this.queue.clear();
+  }
 }
 
 export const ggdealsAdapter = new GGDealsSourceAdapter();

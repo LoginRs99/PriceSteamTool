@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Profile, SyncProgressUpdate } from '../types.js';
-import { RefreshCw, User, Activity, Download } from 'lucide-react';
+import { RefreshCw, User, Activity, Download, Globe } from 'lucide-react';
+import { useCurrency, CURRENCY_MAP, type SupportedCurrency } from '../context/CurrencyContext.js';
 
 interface NavbarProps {
   activeProfile: Profile | null;
@@ -21,6 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTriggerSync,
   onLogoClick,
 }) => {
+  const { currency, setCurrency } = useCurrency();
   const isSyncing = syncProgress?.status === 'RUNNING';
   const percent = syncProgress && syncProgress.totalGames > 0 
     ? Math.round((syncProgress.processedGames / syncProgress.totalGames) * 100) 
@@ -62,6 +64,33 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="nav-actions">
+        {/* Currency Switcher */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, position: 'relative' }}>
+          <Globe size={14} style={{ color: 'var(--text-muted)' }} />
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value as SupportedCurrency)}
+            className="btn btn-outline"
+            style={{
+              padding: '5px 8px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: 'var(--bg-surface-elevated)',
+              color: 'var(--text-primary)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border-subtle)'
+            }}
+            title="Switch display currency"
+          >
+            {Object.values(CURRENCY_MAP).map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} ({c.symbol})
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Export All Offers as CSV */}
         <a 
           href="/api/export/offers.csv" 

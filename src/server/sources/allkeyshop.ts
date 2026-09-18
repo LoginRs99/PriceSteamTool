@@ -663,22 +663,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return config.allkeyshopEnabled;
   }
 
-  public async ensureCatalogQueued(): Promise<CatalogGame[]> {
-    const now = Date.now();
-    const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7-day cache TTL
-
-    // If already cached in memory, return immediately without queue overhead
-    if (this.cachedCatalog && (now - this.lastCatalogFetch) < CATALOG_TTL_MS) {
-      if (!this.catalogIndex) {
-        this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
-      }
-      return this.cachedCatalog;
-    }
-
-    return allkeyshopQueue.enqueue('__catalog__', () => this.ensureCatalog(), 'Catalog Sync');
-  }
-
-  public async ensureCatalog(): Promise<CatalogGame[]> {
+  public loadCatalogFromDiskOrMemory(): CatalogGame[] | null {
     const now = Date.now();
     const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7-day cache TTL
 
@@ -690,9 +675,87 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       return this.cachedCatalog;
     }
 
+    // 2. Check local disk cache or seed fallbacks
+    const candidatePaths = [
+      this.catalogPath,
+      path.join(process.cwd(), 'data', 'allkeyshop_catalog.json'),
+      path.resolve(process.cwd(), '..', 'data', 'allkeyshop_catalog.json')
+    ];
+
+    for (const p of candidatePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const stat = fs.statSync(p);
+          const raw = fs.readFileSync(p, 'utf8');
+          const data = JSON.parse(raw);
+          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+            if (p !== this.catalogPath && !fs.existsSync(this.catalogPath)) {
+              try {
+                const dataDir = path.dirname(this.catalogPath);
+                if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+                fs.writeFileSync(this.catalogPath, raw, 'utf8');
+              } catch {}
+            }
+            this.cachedCatalog = data.games;
+            this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
+            this.lastCatalogFetch = stat.mtimeMs || now;
+            return this.cachedCatalog;
+          }
+        }
+      } catch {}
+    }
+
+    return null;
+  }
+
+  public async getCatalogForCandidateSearch(): Promise<CatalogGame[]> {
+    // 1. Fast path: check memory or disk (instant, 0ms latency)
+    const local = this.loadCatalogFromDiskOrMemory();
+    if (local && local.length > 0) {
+      return local;
+    }
+
+    // 2. If solver is not configured, or circuit breaker is not allowed, or queue is cooling down:
+    // return cached/empty immediately to never hang the UI
+    const cbCheck = circuitBreakers.canExecute('allkeyshop');
+    const solverUrl = config.allkeyshopSolverUrl?.trim();
+    if (!cbCheck.allowed || !solverUrl || allkeyshopQueue.isCoolingDown) {
+      return this.cachedCatalog || [];
+    }
+
+    // 3. Remote attempt with strict 6-second timeout
+    try {
+      return await Promise.race([
+        this.ensureCatalogQueued(),
+        new Promise<CatalogGame[]>((_, reject) =>
+          setTimeout(() => reject(new Error('Candidate search catalog timeout')), 6000)
+        )
+      ]);
+    } catch {
+      return this.cachedCatalog || [];
+    }
+  }
+
+  public async ensureCatalogQueued(): Promise<CatalogGame[]> {
+    const local = this.loadCatalogFromDiskOrMemory();
+    if (local && local.length > 0) {
+      return local;
+    }
+
+    return allkeyshopQueue.enqueue('__catalog__', () => this.ensureCatalog(), 'Catalog Sync');
+  }
+
+  public async ensureCatalog(): Promise<CatalogGame[]> {
+    const now = Date.now();
+    const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const local = this.loadCatalogFromDiskOrMemory();
+    if (local && local.length > 0) {
+      return local;
+    }
+
     const cbCheck = circuitBreakers.canExecute('allkeyshop');
     if (!cbCheck.allowed) {
-      // If we already have a cached catalog in memory, continue with it even if circuit breaker is cooling down
       if (this.cachedCatalog) {
         if (!this.catalogIndex) {
           this.catalogIndex = new AllKeyShopCatalogIndex(this.cachedCatalog);
@@ -707,45 +770,6 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     }
 
     this.pendingCatalogLoad = (async (): Promise<CatalogGame[]> => {
-      // 2. Check local disk cache or seed fallbacks
-      const candidatePaths = [
-        this.catalogPath,
-        path.join(process.cwd(), 'data', 'allkeyshop_catalog.json'),
-        path.resolve(process.cwd(), '..', 'data', 'allkeyshop_catalog.json')
-      ];
-
-      for (const p of candidatePaths) {
-        try {
-          if (fs.existsSync(p)) {
-            const stat = fs.statSync(p);
-            // If checking our primary catalogPath and it's fresh (< 7 days)
-            if (p === this.catalogPath && (now - stat.mtimeMs < CATALOG_TTL_MS)) {
-              const raw = fs.readFileSync(p, 'utf8');
-              const data = JSON.parse(raw);
-              if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
-                this.cachedCatalog = data.games;
-                this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
-                this.lastCatalogFetch = stat.mtimeMs;
-                return this.cachedCatalog || [];
-              }
-            } else if (p !== this.catalogPath && !fs.existsSync(this.catalogPath)) {
-              // Auto-seed primary volume from candidate seed file
-              const raw = fs.readFileSync(p, 'utf8');
-              const data = JSON.parse(raw);
-              if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
-                const dataDir = path.dirname(this.catalogPath);
-                if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-                fs.writeFileSync(this.catalogPath, raw, 'utf8');
-                this.cachedCatalog = data.games;
-                this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
-                this.lastCatalogFetch = now;
-                console.log(`[AllKeyShop] Seeded catalog from ${p} (${data.games.length} games).`);
-                return this.cachedCatalog || [];
-              }
-            }
-          }
-        } catch {}
-      }
 
       // 3. Remote download via FlareSolverr/Byparr (Generous 60s timeout for ~11 MB bulk feed)
       const downloadStartTime = Date.now();

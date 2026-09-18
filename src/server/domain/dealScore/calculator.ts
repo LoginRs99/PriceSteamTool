@@ -34,8 +34,8 @@ function clamp(val: number, min: number, max: number): number {
  * 4. S_mkt: Cross-Market Competitiveness (0 - 10)
  */
 export function calculateDealScore(input: DealScoreInput): DealScoreResult {
-  // Defensive: if pricing error, callers skip scoring -> return score 0, verdict 'WAIT'
-  if (input.isPricingError) {
+  // Defensive: if pricing error or invalid priceEur, return score 0, verdict 'WAIT'
+  if (input.isPricingError || typeof input.priceEur !== 'number' || isNaN(input.priceEur) || input.priceEur < 0) {
     return {
       score: 0,
       tier: 'Weak',
@@ -62,7 +62,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     };
   }
 
-  const price = Math.max(0, input.priceEur);
+  const price = input.priceEur;
   const anchor = input.basePriceEur ?? input.originalPriceEur;
   const atlRaw = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
   const med = input.typicalSaleMedianEur;

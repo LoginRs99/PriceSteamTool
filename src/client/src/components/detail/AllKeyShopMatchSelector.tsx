@@ -60,104 +60,108 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
 
       {showAksSelector && (
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-          {loadingAksCandidates ? (
-            <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text-muted)' }}>
-              <RefreshCw size={14} className="spin" style={{ display: 'inline', marginRight: 6 }} />
-              Searching candidates in AllKeyShop catalog...
-            </div>
-          ) : (
-            <div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
-                Found AllKeyShop candidates for this game ({aksCandidates.length}):
-              </span>
-              {aksCandidates.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-                  {aksCandidates.map((cand, idx) => {
-                    const isSelected = currentAksOverride === cand.id || currentAksOverride === cand.slug;
-                    return (
-                      <div 
-                        key={cand.id || idx}
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
-                          padding: '8px 12px', 
-                          background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-surface)', 
-                          border: isSelected ? '1px solid #3b82f6' : '1px solid var(--border-subtle)', 
-                          borderRadius: 6 
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {cand.name}
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            ID: {cand.id} {cand.slug ? `• ${cand.slug}` : ''}
-                          </div>
+          {/* Section A: Automatic Candidates */}
+          <div style={{ marginBottom: 16 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
+              Automatic AllKeyShop Candidates:
+            </span>
+            {loadingAksCandidates ? (
+              <div style={{ textAlign: 'center', padding: '14px 12px', fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-surface)', borderRadius: 6, border: '1px dashed var(--border-subtle)' }}>
+                <RefreshCw size={14} className="spin" style={{ display: 'inline', marginRight: 6 }} />
+                Searching candidates in AllKeyShop catalog...
+              </div>
+            ) : aksCandidates.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {aksCandidates.map((cand, idx) => {
+                  const isSelected = currentAksOverride === cand.id || currentAksOverride === cand.slug;
+                  return (
+                    <div 
+                      key={cand.id || idx}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        padding: '8px 12px', 
+                        background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-surface)', 
+                        border: isSelected ? '1px solid #3b82f6' : '1px solid var(--border-subtle)', 
+                        borderRadius: 6 
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {cand.name}
                         </div>
-                        <button
-                          type="button"
-                          disabled={savingAksOverride}
-                          onClick={() => onApplyOverride(cand.slug || cand.id)}
-                          className={isSelected ? "btn btn-primary" : "btn btn-secondary"}
-                          style={{ fontSize: 11, padding: '4px 10px' }}
-                        >
-                          {isSelected ? '✓ Active' : 'Select'}
-                        </button>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          ID: {cand.id} {cand.slug ? `• ${cand.slug}` : ''}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  No automatic candidates found. You can enter a custom AllKeyShop link or slug below:
-                </div>
-              )}
+                      <button
+                        type="button"
+                        disabled={savingAksOverride}
+                        onClick={() => onApplyOverride(cand.slug || cand.id)}
+                        className={isSelected ? "btn btn-primary" : "btn btn-secondary"}
+                        style={{ fontSize: 11, padding: '4px 10px' }}
+                      >
+                        {isSelected ? '✓ Active' : 'Select'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 12px', background: 'var(--bg-surface)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+                No automatic candidates found in catalog (or catalog is temporarily offline). You can enter a custom AllKeyShop link or slug below.
+              </div>
+            )}
+          </div>
 
-              {/* Custom URL or Slug Input */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  placeholder="E.g. https://www.allkeyshop.com/blog/buy-judas-cd-key-compare-prices-2/ or slug"
-                  value={customAksInput}
-                  onChange={e => onCustomInputChange(e.target.value)}
-                  style={{
-                    flex: 1,
-                    minWidth: 240,
-                    padding: '6px 10px',
-                    fontSize: 12,
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 6,
-                    color: 'var(--text-primary)'
-                  }}
-                />
+          {/* Section B: Custom URL or Slug Input — Always accessible! */}
+          <div style={{ paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
+              Custom AllKeyShop Slug / URL Override:
+            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="E.g. https://www.allkeyshop.com/blog/buy-judas-cd-key-compare-prices-2/ or slug"
+                value={customAksInput}
+                onChange={e => onCustomInputChange(e.target.value)}
+                style={{
+                  flex: 1,
+                  minWidth: 240,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  color: 'var(--text-primary)'
+                }}
+              />
+              <button
+                type="button"
+                disabled={savingAksOverride || !customAksInput.trim()}
+                onClick={() => onApplyOverride(customAksInput.trim())}
+                className="btn btn-primary"
+                style={{ fontSize: 12, padding: '6px 12px' }}
+              >
+                {savingAksOverride ? 'Saving...' : 'Save & Refresh'}
+              </button>
+              {currentAksOverride && (
                 <button
                   type="button"
-                  disabled={savingAksOverride || !customAksInput.trim()}
-                  onClick={() => onApplyOverride(customAksInput.trim())}
-                  className="btn btn-primary"
-                  style={{ fontSize: 12, padding: '6px 12px' }}
+                  disabled={savingAksOverride}
+                  onClick={() => {
+                    onCustomInputChange('');
+                    onApplyOverride(null);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12, padding: '6px 12px', color: '#f87171' }}
                 >
-                  {savingAksOverride ? 'Saving...' : 'Save & Refresh'}
+                  Reset to automatic matching
                 </button>
-                {currentAksOverride && (
-                  <button
-                    type="button"
-                    disabled={savingAksOverride}
-                    onClick={() => {
-                      onCustomInputChange('');
-                      onApplyOverride(null);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ fontSize: 12, padding: '6px 12px', color: '#f87171' }}
-                  >
-                    Reset to automatic matching
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

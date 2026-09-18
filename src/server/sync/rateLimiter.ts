@@ -61,10 +61,9 @@ export class PacedSourceQueue {
       while (this.queue.length > 0) {
         const check = circuitBreakers.canExecute(this.sourceCode);
         if (!check.allowed) {
-          // If paused or in backoff, calculate remaining cooldown sleep up to 2s slices
           const cooldownUntil = circuitBreakers.getCooldownUntil(this.sourceCode);
-          const remainingMs = cooldownUntil ? Math.max(100, cooldownUntil - Date.now()) : 2000;
-          await new Promise(r => setTimeout(r, Math.min(remainingMs, 2000)));
+          const remainingMs = cooldownUntil ? Math.max(50, cooldownUntil - Date.now()) : 1000;
+          await new Promise(r => setTimeout(r, Math.min(remainingMs, 1000)));
           if (this.queue.length === 0) break;
           continue;
         }

@@ -1,12 +1,14 @@
 import React from 'react';
 import type { PriceIntelligenceResponse } from '../../types.js';
 import { TrendingDown, Calendar, Activity, Scale } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 interface IntelMetricsGridProps {
   intelligence?: PriceIntelligenceResponse;
 }
 
 export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence }) => {
+  const { formatPrice } = useCurrency();
   const typicalSale = intelligence?.typicalSale;
   const frequency = intelligence?.frequency;
   const volatility = intelligence?.volatility;
@@ -20,12 +22,12 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
           <TrendingDown size={15} color="var(--accent-blue)" />
         </div>
         <div className="intel-value ticker-num" style={{ color: 'var(--accent-blue)' }}>
-          {typicalSale?.medianPriceEur != null ? `€${typicalSale.medianPriceEur.toFixed(2)}` : '—'}
+          {typicalSale?.medianPriceEur != null ? formatPrice(typicalSale.medianPriceEur) : '—'}
         </div>
         <span className="intel-sub">
           {typicalSale?.medianPriceEur != null
             ? (typicalSale.q1PriceEur != null && typicalSale.q3PriceEur != null && (typicalSale.sampleCount ?? 0) >= 3
-                ? `IQR Range: €${typicalSale.q1PriceEur.toFixed(2)} – €${typicalSale.q3PriceEur.toFixed(2)} (${typicalSale.sampleCount} sales)`
+                ? `IQR Range: ${formatPrice(typicalSale.q1PriceEur)} – ${formatPrice(typicalSale.q3PriceEur)} (${typicalSale.sampleCount} sales)`
                 : `Based on ${typicalSale.sampleCount} recorded sale${typicalSale.sampleCount === 1 ? '' : 's'}`)
             : 'Insufficient historical sales'}
         </span>
@@ -73,7 +75,7 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
         </div>
         <span className="intel-sub">
           {marketComp && marketComp.percentBelowMarketMedian > 0
-            ? `${marketComp.percentBelowMarketMedian}% below market median (€${marketComp.marketMedianEur.toFixed(2)})`
+            ? `${marketComp.percentBelowMarketMedian}% below market median (${formatPrice(marketComp.marketMedianEur)})`
             : 'At current market median'}
         </span>
       </div>

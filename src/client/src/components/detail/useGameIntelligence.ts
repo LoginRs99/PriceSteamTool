@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { Game, Offer, PriceHistoryEntry, PriceIntelligenceResponse } from '../../types.js';
 import { api } from '../../api.js';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 export function useGameIntelligence(
   gameId: string,
@@ -8,6 +9,7 @@ export function useGameIntelligence(
   onTargetPriceUpdated?: (gameId: string, targetPriceEur: number | null) => void,
   onGameUpdated?: (gameId: string) => void
 ) {
+  const { convertEurToLocal, convertLocalToEur, currencyInfo } = useCurrency();
   const [data, setData] = useState<{ 
     game: Game; 
     offers: Offer[]; 
@@ -62,7 +64,8 @@ export function useGameIntelligence(
             intelligence: res.intelligence || undefined
           });
           if (res.game.targetPriceEur !== undefined && res.game.targetPriceEur !== null) {
-            setTargetPriceInput(res.game.targetPriceEur.toFixed(2));
+            const localVal = convertEurToLocal(res.game.targetPriceEur);
+            setTargetPriceInput(localVal !== null ? (currencyInfo.decimalPlaces === 0 ? Math.round(localVal).toString() : localVal.toFixed(currencyInfo.decimalPlaces)) : '');
           } else {
             setTargetPriceInput('');
           }
@@ -201,21 +204,25 @@ export function useGameIntelligence(
 
   const handleSaveTargetPrice = async () => {
     if (!data?.game) return;
-    const parsed = targetPriceInput.trim() === '' ? null : parseFloat(targetPriceInput);
-    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return;
+    const parsedLocal = targetPriceInput.trim() === '' ? null : parseFloat(targetPriceInput);
+    if (parsedLocal !== null && (isNaN(parsedLocal) || parsedLocal < 0)) return;
+
+    // Convert local currency input to normalized EUR for backend storage
+    const parsedEur = parsedLocal !== null ? convertLocalToEur(parsedLocal) : null;
+    const finalEur = parsedEur !== null ? Math.round(parsedEur * 100) / 100 : null;
     
     setSavingTarget(true);
     try {
-      await api.setTargetPrice(data.game.id, parsed);
+      await api.setTargetPrice(data.game.id, finalEur);
       setData(prev => prev ? {
         ...prev,
         game: {
           ...prev.game,
-          targetPriceEur: parsed === null ? undefined : parsed
+          targetPriceEur: finalEur === null ? undefined : finalEur
         }
       } : null);
       if (onTargetPriceUpdated) {
-        onTargetPriceUpdated(data.game.id, parsed);
+        onTargetPriceUpdated(data.game.id, finalEur);
       }
       setTargetSavedSuccess(true);
       setTimeout(() => setTargetSavedSuccess(false), 2000);
@@ -258,6 +265,16 @@ export function useGameIntelligence(
 
   useEffect(() => {
     let isMounted = true;
+    setLoading(true);
+    setData(null);
+    setAksCandidates([]);
+    setCurrentAksOverride(null);
+    setShowAksSelector(false);
+    setCustomAksInput('');
+    setTargetPriceInput('');
+    setTargetSavedSuccess(false);
+    setAksOverrideSuccess(false);
+
     Promise.all([
       api.getGameDetails(gameId),
       api.getPriceIntelligence(gameId).catch(() => null)
@@ -269,7 +286,8 @@ export function useGameIntelligence(
             intelligence: intel || undefined
           });
           if (details.game.targetPriceEur !== undefined && details.game.targetPriceEur !== null) {
-            setTargetPriceInput(details.game.targetPriceEur.toFixed(2));
+            const localVal = convertEurToLocal(details.game.targetPriceEur);
+            setTargetPriceInput(localVal !== null ? (currencyInfo.decimalPlaces === 0 ? Math.round(localVal).toString() : localVal.toFixed(currencyInfo.decimalPlaces)) : '');
           } else {
             setTargetPriceInput('');
           }

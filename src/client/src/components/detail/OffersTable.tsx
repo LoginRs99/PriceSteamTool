@@ -8,6 +8,7 @@ import {
   Check,
   Clock
 } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 interface OffersTableProps {
   offers: Offer[];
@@ -20,6 +21,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
   copiedVoucherId,
   onCopyVoucher
 }) => {
+  const { formatPrice } = useCurrency();
   const [showExpired, setShowExpired] = useState(false);
   const [storeFilter, setStoreFilter] = useState<'ALL' | 'OFFICIAL' | 'KEYSHOP'>('ALL');
 
@@ -158,7 +160,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                     </td>
                     <td>
                       <div style={{ fontSize: 12, color: 'var(--dim)' }}>
-                        {offer.productType.replace('_', ' ')}
+                        {offer.productType?.replace('_', ' ') || 'Game'}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--dim-2)' }}>
                         {offer.regionType}
@@ -166,7 +168,7 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                     </td>
                     <td>
                       <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span className="ticker-num">€{offer.priceEur.toFixed(2)}</span>
+                        <span className="ticker-num">{formatPrice(offer.priceEur)}</span>
                         {offer.isFresh === false && (
                           <span 
                             className="stale-badge"

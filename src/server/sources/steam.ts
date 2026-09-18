@@ -530,6 +530,10 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       return { isShareable: false, reason, title };
     });
   }
+
+  public clearQueue(): void {
+    this.queue.clear();
+  }
 }
 
 export const steamAdapter = new SteamSourceAdapter();

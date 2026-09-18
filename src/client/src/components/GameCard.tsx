@@ -6,6 +6,7 @@ import { GameImage } from './GameImage.js';
 import { AlertTriangle, ShieldCheck, Info, ExternalLink, Copy, Check, XCircle } from 'lucide-react';
 import { getSteamReviewSentiment } from '../utils/steamMeta.js';
 import { isRecordDropEvent } from '../utils/priceEvents.js';
+import { useCurrency } from '../context/CurrencyContext.js';
 
 interface GameCardProps {
   game: Game;
@@ -14,6 +15,7 @@ interface GameCardProps {
 }
 
 const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
+  const { formatPrice } = useCurrency();
   const [copiedSteam, setCopiedSteam] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
@@ -323,7 +325,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
                 ★ Matches All-Time Low
               </span>
             ) : game.historicalLowEur !== undefined ? (
-              <span className="ticker-num">Hist. Low: €{game.historicalLowEur.toFixed(2)}</span>
+              <span className="ticker-num">Hist. Low: {formatPrice(game.historicalLowEur)}</span>
             ) : (
               <span>Standard catalog price</span>
             )}
@@ -333,13 +335,13 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
         {/* Primary Price & Merchant Row */}
         <div className="game-meta-row" style={{ marginTop: 'auto', paddingTop: 8 }}>
           <div className="price-block">
-            {game.basePriceEur && game.bestPriceEur && game.basePriceEur > game.bestPriceEur && (
+            {Boolean(game.basePriceEur && game.bestPriceEur && game.basePriceEur > game.bestPriceEur) && (
               <span className="original-price ticker-num" style={{ color: 'var(--dim-2)' }}>
-                €{game.basePriceEur.toFixed(2)}
+                {formatPrice(game.basePriceEur)}
               </span>
             )}
             <span className={`best-price ticker-num ${(game.bestDiscountPercent || 0) > 0 ? 'on-sale' : ''}`}>
-              {isFree ? 'FREE' : hasBestDeal ? `€${game.bestPriceEur!.toFixed(2)}` : '—'}
+              {isFree ? 'FREE' : hasBestDeal ? formatPrice(game.bestPriceEur) : '—'}
             </span>
             {hasBestDeal && game.bestIsFresh === false && (
               <span 

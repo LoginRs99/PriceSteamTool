@@ -56,9 +56,10 @@ export function calculateTypicalSalePrice(
   const q3 = candidates[q3Index];
   const iqr = q3 - q1;
 
-  // Tukey's fences: filter out extreme lower outliers (e.g. glitches far below IQR)
+  // Tukey's fences: filter out extreme outliers (glitches far below or above IQR)
   const lowerBound = q1 - 1.5 * iqr;
-  const cleanCandidates = candidates.filter(p => p >= lowerBound);
+  const upperBound = q3 + 1.5 * iqr;
+  const cleanCandidates = candidates.filter(p => p >= lowerBound && p <= upperBound);
   const finalPool = cleanCandidates.length > 0 ? cleanCandidates : candidates;
 
   const mid = Math.floor(finalPool.length / 2);

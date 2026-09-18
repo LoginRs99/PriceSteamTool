@@ -265,6 +265,10 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       return offers;
     });
   }
+
+  public clearQueue(): void {
+    this.queue.clear();
+  }
 }
 
 export const cheapsharkAdapter = new CheapSharkSourceAdapter();

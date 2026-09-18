@@ -1,5 +1,6 @@
 import { settingsRepo, notificationsRepo, offerRepo, prepareStmt } from '../db/index.js';
 import { logInfo, logWarn, logError } from '../utils/logger.js';
+import { exchangeRateService } from './exchangeRate.js';
 import type { Game } from '../../shared/types.js';
 
 export interface DiscordSettings {
@@ -434,8 +435,8 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
     }
 
     fields.push({
-      name: '🎮 Store Links',
-      value: `[Buy on ${merchantName}](${dealUrl}) • [Steam Storefront](${steamUrl})`,
+      name: '🔗 Action Links',
+      value: `🛒 **[Buy on ${merchantName}](${dealUrl})**\n🎮 **[View on Steam Store](${steamUrl})**`,
       inline: false
     });
 

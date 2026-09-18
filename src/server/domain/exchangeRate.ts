@@ -171,6 +171,32 @@ export class ExchangeRateService {
   public setRate(currency: string, multiplierToEur: number): void {
     this.ratesToEur.set(this.normalizeCurrencyCode(currency), multiplierToEur);
   }
+
+  /**
+   * Returns current rates: multipliers to convert 1 EUR to target foreign currency (1 EUR = X Foreign)
+   */
+  public getRatesFromEur(): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const [code, rateToEur] of this.ratesToEur.entries()) {
+      if (rateToEur > 0) {
+        result[code] = Math.round((1 / rateToEur) * 10000) / 10000;
+      }
+    }
+    result['EUR'] = 1.0;
+    return result;
+  }
+
+  /**
+   * Converts EUR amount to target currency
+   */
+  public convertFromEur(eurAmount: number, targetCurrency: string): number {
+    if (typeof eurAmount !== 'number' || isNaN(eurAmount) || eurAmount <= 0) return 0;
+    const code = this.normalizeCurrencyCode(targetCurrency);
+    if (code === 'EUR') return eurAmount;
+    const rateToEur = this.getRateToEur(code);
+    if (rateToEur <= 0) return eurAmount;
+    return eurAmount / rateToEur;
+  }
 }
 
 export const exchangeRateService = new ExchangeRateService();

@@ -183,9 +183,13 @@ export const pricingErrorRepo = {
     return errorRow?.game_id;
   },
 
-  dismissAll(): void {
+  dismissAll(): string[] {
+    const affected = prepareStmt(`
+      SELECT DISTINCT game_id FROM pricing_errors WHERE is_dismissed = 0 AND game_id IS NOT NULL
+    `).all() as { game_id: string }[];
     prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE is_dismissed = 0`).run();
     prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE is_likely_pricing_error = 1`).run();
+    return affected.map(a => a.game_id);
   }
 };
 

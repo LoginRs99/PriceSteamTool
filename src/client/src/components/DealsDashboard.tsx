@@ -2,6 +2,7 @@ import React from 'react';
 import type { Game, WishlistStatistics, WishlistFilterOptions } from '../types.js';
 import { GameImage } from './GameImage.js';
 import { Flame, TrendingDown, ShieldCheck, Tag, Sparkles, Trophy } from 'lucide-react';
+import { useCurrency } from '../context/CurrencyContext.js';
 
 interface DealsDashboardProps {
   stats: WishlistStatistics | null;
@@ -22,6 +23,7 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
   onFilterSale,
   filters
 }) => {
+  const { formatPrice } = useCurrency();
   if (!stats && topDeals.length === 0) return null;
 
   const isSaleActive = Boolean(filters?.saleOnly && !filters?.allTimeLowOnly && !filters?.majorDealsOnly);
@@ -205,10 +207,10 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                     <h4 className="spotlight-title" title={game.title}>{game.title}</h4>
                     <div className="spotlight-price-row">
                       <div className="spotlight-prices">
-                        {game.basePriceEur && game.bestPriceEur && game.basePriceEur > game.bestPriceEur && (
-                          <span className="spotlight-orig-price">€{game.basePriceEur.toFixed(2)}</span>
+                        {Boolean(game.basePriceEur && game.bestPriceEur && game.basePriceEur > game.bestPriceEur) && (
+                          <span className="spotlight-orig-price">{formatPrice(game.basePriceEur)}</span>
                         )}
-                        <span className="spotlight-best-price">€{game.bestPriceEur?.toFixed(2)}</span>
+                        <span className="spotlight-best-price">{formatPrice(game.bestPriceEur)}</span>
                       </div>
                       <span className="spotlight-store">{game.bestMerchantName || 'Steam'}</span>
                     </div>

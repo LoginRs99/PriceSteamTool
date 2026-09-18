@@ -190,13 +190,21 @@ export const api = {
     currentOverride: string | number | null;
     candidates: { id: number; name: string; slug?: string }[];
   }> {
-    return apiFetch<{
-      gameId: string;
-      title: string;
-      steamAppId: number;
-      currentOverride: string | number | null;
-      candidates: { id: number; name: string; slug?: string }[];
-    }>(`${API_BASE}/games/${id}/allkeyshop-candidates`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      return await apiFetch<{
+        gameId: string;
+        title: string;
+        steamAppId: number;
+        currentOverride: string | number | null;
+        candidates: { id: number; name: string; slug?: string }[];
+      }>(`${API_BASE}/games/${id}/allkeyshop-candidates`, {
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
   },
 
   async setAllkeyshopOverride(id: string, override: string | number | null): Promise<{
@@ -314,6 +322,10 @@ export const api = {
 
   getOffersExportCsvUrl(): string {
     return `${API_BASE}/export/offers.csv`;
+  },
+
+  async getExchangeRates(): Promise<{ base: string; rates: Record<string, number> }> {
+    return apiFetch<{ base: string; rates: Record<string, number> }>(`${API_BASE}/exchange-rates`);
   }
 };
 

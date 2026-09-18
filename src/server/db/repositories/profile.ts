@@ -102,13 +102,14 @@ export const profileRepo = {
     };
   },
 
-  setActive(id: string): void {
+  setActive(id: string): boolean {
     const db = getDb();
-    const tx = db.transaction(() => {
-      prepareStmt(`UPDATE profiles SET is_active = 0`).run();
-      prepareStmt(`UPDATE profiles SET is_active = 1 WHERE id = ?`).run(id);
-    });
-    tx();
+    const existing = prepareStmt(`SELECT id FROM profiles WHERE id = ?`).get(id);
+    if (!existing) {
+      return false;
+    }
+    prepareStmt(`UPDATE profiles SET is_active = CASE WHEN id = ? THEN 1 ELSE 0 END`).run(id);
+    return true;
   },
 
   setFamily(id: string, isFamily: boolean): void {

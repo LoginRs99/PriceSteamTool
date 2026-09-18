@@ -145,6 +145,11 @@ export class SyncOrchestrator {
 
   public cancelSync(): void {
     priceHistoryQueue.cancel();
+    allkeyshopQueue.clear();
+    steamAdapter.clearQueue();
+    itadAdapter.clearQueue();
+    cheapsharkAdapter.clearQueue();
+    ggdealsAdapter.clearQueue();
     if (this.isRunning) {
       this.isCancelled = true;
       this.progress.status = 'CANCELLED';
@@ -422,10 +427,11 @@ export class SyncOrchestrator {
                 const game = gamesToRefresh.find(w => w.steamAppId === appId);
                 if (!game) continue;
                 for (const offer of offers) {
-                  this.ingestOffer(game.id, 'itad', offer);
+                  this.ingestOffer(game.id, 'itad', offer, undefined, true);
                   this.progress.sourceProgress.itad.offersFound++;
                   totalOffersIngested++;
                 }
+                offerRepo.recomputeBestDealForGame(game.id);
                 this.progress.sourceProgress.itad.processed++;
               }
               this.progress.sourceProgress.itad.processed = gamesToRefresh.length;
@@ -466,10 +472,11 @@ export class SyncOrchestrator {
                   game.metacriticUrl = game.metacriticUrl ?? metaOffer.metacriticUrl;
                 }
                 for (const offer of offers) {
-                  this.ingestOffer(game.id, 'cheapshark', offer);
+                  this.ingestOffer(game.id, 'cheapshark', offer, undefined, true);
                   this.progress.sourceProgress.cheapshark.offersFound++;
                   totalOffersIngested++;
                 }
+                offerRepo.recomputeBestDealForGame(game.id);
                 this.progress.sourceProgress.cheapshark.processed++;
               }
               this.progress.sourceProgress.cheapshark.processed = gamesToRefresh.length;
@@ -495,10 +502,11 @@ export class SyncOrchestrator {
                 const game = gamesToRefresh.find(w => w.steamAppId === appId);
                 if (!game) continue;
                 for (const offer of offers) {
-                  this.ingestOffer(game.id, 'ggdeals', offer);
+                  this.ingestOffer(game.id, 'ggdeals', offer, undefined, true);
                   this.progress.sourceProgress.ggdeals.offersFound++;
                   totalOffersIngested++;
                 }
+                offerRepo.recomputeBestDealForGame(game.id);
                 this.progress.sourceProgress.ggdeals.processed++;
               }
               this.progress.sourceProgress.ggdeals.processed = gamesToRefresh.length;
@@ -698,7 +706,7 @@ export class SyncOrchestrator {
         try {
           const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId, g.releaseDate);
           for (const offer of offers) {
-            const saved = this.ingestOffer(g.id, 'allkeyshop', offer);
+            const saved = this.ingestOffer(g.id, 'allkeyshop', offer, undefined, true);
             if (saved?.id) {
               freshAksOfferIds.push(saved.id);
               this.enrichmentStatus.offersFound++;
@@ -839,7 +847,8 @@ export class SyncOrchestrator {
     gameId: string, 
     sourceCode: SourceCode, 
     rawOffer: NormalizedSourceOffer,
-    knownBasePrice?: number
+    knownBasePrice?: number,
+    deferRecompute?: boolean
   ): Offer | undefined {
     const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
     if (!productNorm.isValid) return;
@@ -883,7 +892,7 @@ export class SyncOrchestrator {
       rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined,
       editionName: rawOffer.editionName,
       sourceFamilyConflict: rawOffer.sourceFamilyConflict
-    });
+    }, { deferRecompute });
   }
 
   /**
@@ -982,14 +991,11 @@ export class SyncOrchestrator {
             offers = await ggdealsAdapter.fetchPricesForGame(game.steamAppId, game.title);
           }
 
-          circuitBreakers.recordSuccess(sourceCode);
-
           for (const offer of offers) {
-            this.ingestOffer(gameId, sourceCode, offer, game.basePriceEur);
+            this.ingestOffer(gameId, sourceCode, offer, game.basePriceEur, true);
           }
         } catch (err: any) {
           logWarn(`[Force Refresh] Source ${sourceCode} failed for game "${game.title}": ${err.message}`);
-          circuitBreakers.recordFailure(sourceCode, err);
           sourcesFailed.push(sourceCode);
         }
       })();
@@ -1022,7 +1028,7 @@ export class SyncOrchestrator {
             let lowestAksPrice: number | null = null;
             const freshAksOfferIds: string[] = [];
             for (const offer of aksOffers) {
-              const saved = this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur);
+              const saved = this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur, true);
               if (saved?.id) {
                 freshAksOfferIds.push(saved.id);
               }
