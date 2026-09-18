@@ -30,7 +30,7 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
 
   return (
     <div className="deals-dashboard">
-      {/* 1. Objective Wishlist Statistics Bar */}
+      {/* 1. Objective Wishlist Statistics Ribbon */}
       {stats && (
         <div className="stats-bar-grid">
           <div 
@@ -46,11 +46,10 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             }}
             aria-pressed={isSaleActive}
             title={isSaleActive ? 'Filter active: showing games on sale (click to toggle off)' : 'Click to filter games on sale'}
-            style={{ cursor: 'pointer' }}
           >
             <div className="stat-card-header">
               <span className="stat-label">On Sale</span>
-              <Tag size={16} color="#10b981" />
+              <Tag size={13} color="#10b981" />
             </div>
             <div className="stat-value" style={{ color: '#10b981' }}>
               {stats.gamesOnSale}
@@ -76,11 +75,10 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             }}
             aria-pressed={isAtlActive}
             title={isAtlActive ? 'Filter active: showing All-Time Lows (click to toggle off)' : 'Click to filter confirmed All-Time Lows'}
-            style={{ cursor: 'pointer' }}
           >
             <div className="stat-card-header">
               <span className="stat-label">All-Time Lows</span>
-              <Flame size={16} color="#f59e0b" />
+              <Flame size={13} color="#f59e0b" />
             </div>
             <div className="stat-value" style={{ color: '#f59e0b' }}>
               {stats.gamesAtHistoricalLow}
@@ -103,11 +101,10 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             }}
             aria-pressed={isMajorActive}
             title={isMajorActive ? 'Filter active: showing Mega & Major Drops (click to toggle off)' : 'Click to filter 50%+ drops and Mega Deals'}
-            style={{ cursor: 'pointer' }}
           >
             <div className="stat-card-header">
               <span className="stat-label">Mega & Major Deals</span>
-              <TrendingDown size={16} color="#8b5cf6" />
+              <TrendingDown size={13} color="#8b5cf6" />
             </div>
             <div className="stat-value" style={{ color: '#a78bfa' }}>
               {stats.majorDropsCount}
@@ -120,7 +117,7 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
           <div className="stat-card">
             <div className="stat-card-header">
               <span className="stat-label">Avg. Discount</span>
-              <Sparkles size={16} color="#38bdf8" />
+              <Sparkles size={13} color="#38bdf8" />
             </div>
             <div className="stat-value" style={{ color: '#38bdf8' }}>
               {stats.averageDiscountPercent > 0 ? `-${stats.averageDiscountPercent}%` : '—'}
@@ -133,9 +130,9 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
           <div className="stat-card">
             <div className="stat-card-header">
               <span className="stat-label">Data Safety</span>
-              <ShieldCheck size={16} color="#10b981" />
+              <ShieldCheck size={13} color="#10b981" />
             </div>
-            <div className="stat-value" style={{ color: '#10b981', fontSize: 20 }}>
+            <div className="stat-value" style={{ color: '#10b981' }}>
               {stats.gamesWithPricingErrors > 0 
                 ? `${stats.gamesWithPricingErrors} Flagged` 
                 : '100% Verified'}
@@ -147,12 +144,12 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
         </div>
       )}
 
-      {/* 2. Best Deals Spotlight (Ordered by Best Value Score) */}
+      {/* 2. Compact Best Deals Spotlight */}
       {topDeals.length > 0 && (
         <div className="best-deals-section">
           <div className="best-deals-header">
             <div className="best-deals-title">
-              <Trophy size={18} color="#f59e0b" />
+              <Trophy size={14} color="#f59e0b" />
               <span>Best Value Deals Right Now</span>
               <span className="deal-score-pill">Ranked by Balanced Deal Score</span>
             </div>
@@ -162,7 +159,6 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
             {topDeals.slice(0, 4).map((game) => {
               const score = game.bestDealScore ?? 0;
               const tier = game.bestDealTier || 'Fair';
-              const isProvisional = Boolean(game.bestIsProvisional);
 
               const tierColor = 
                 tier === 'Exceptional' ? '#8b5cf6' : 
@@ -175,6 +171,14 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
                   key={game.id} 
                   className="spotlight-card" 
                   onClick={() => onSelectGame(game.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectGame(game.id);
+                    }
+                  }}
                 >
                   <div className="spotlight-img-wrap">
                     <GameImage

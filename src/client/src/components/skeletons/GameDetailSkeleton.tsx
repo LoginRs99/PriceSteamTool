@@ -7,8 +7,9 @@ interface GameDetailSkeletonProps {
 
 export const GameDetailSkeleton: React.FC<GameDetailSkeletonProps> = ({ onClose }) => {
   return (
-    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Loading game details">
-      <div className="modal-content modal-intel-content" onClick={e => e.stopPropagation()} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+    <div className="modal-overlay flyout-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Loading game details">
+      <div className="modal-content modal-intel-content flyout-panel" onClick={e => e.stopPropagation()} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <div className="bottom-sheet-drag-handle" aria-hidden="true" />
         {/* Header Skeleton */}
         <div className="modal-header">
           <div>

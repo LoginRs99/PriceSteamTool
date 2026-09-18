@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PriceChart } from './PriceChart.js';
 import { 
   X, 
@@ -8,7 +8,9 @@ import {
   RefreshCw,
   Activity,
   Tag,
-  Clock 
+  Clock,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { useGameIntelligence } from './detail/useGameIntelligence.js';
 import { DecisionHero } from './detail/DecisionHero.js';
@@ -26,13 +28,19 @@ interface GameDetailModalProps {
   onClose: () => void;
   onTargetPriceUpdated?: (gameId: string, targetPriceEur: number | null) => void;
   onGameUpdated?: (gameId: string) => void;
+  onNavigateGame?: (direction: 'prev' | 'next') => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
 export const GameDetailModal: React.FC<GameDetailModalProps> = ({ 
   gameId, 
   onClose, 
   onTargetPriceUpdated,
-  onGameUpdated
+  onGameUpdated,
+  onNavigateGame,
+  hasPrev = false,
+  hasNext = false
 }) => {
   const {
     data,
@@ -68,6 +76,29 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'overview' | 'offers' | 'history'>('overview');
 
+  useEffect(() => {
+    if (!onNavigateGame) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isInput) return;
+
+      if (e.key === 'ArrowDown' || e.key === 'j' || e.key === ']') {
+        if (hasNext) {
+          e.preventDefault();
+          onNavigateGame('next');
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'k' || e.key === '[') {
+        if (hasPrev) {
+          e.preventDefault();
+          onNavigateGame('prev');
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onNavigateGame, hasPrev, hasNext]);
+
   if (loading || !data) {
     return <GameDetailSkeleton onClose={onClose} />;
   }
@@ -76,8 +107,11 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
   const bestOffer = offers.find(o => o.isBestDeal) || offers[0];
 
   return (
-    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="game-detail-title">
-      <div className="modal-content modal-intel-content" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay flyout-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="game-detail-title">
+      <div className="modal-content modal-intel-content flyout-panel" onClick={e => e.stopPropagation()}>
+        {/* Mobile Swipeable Bottom Sheet Handle */}
+        <div className="bottom-sheet-drag-handle" aria-hidden="true" />
+
         {/* Modal Header */}
         <div className="modal-header">
           <div>
@@ -181,6 +215,32 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onNavigateGame && (
+              <div className="flyout-nav-group" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => onNavigateGame('prev')}
+                  disabled={!hasPrev}
+                  style={{ padding: '6px 8px', minWidth: 32, justifyContent: 'center' }}
+                  title="Previous game (Up Arrow / [ / k)"
+                  aria-label="Previous game"
+                >
+                  <ChevronUp size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => onNavigateGame('next')}
+                  disabled={!hasNext}
+                  style={{ padding: '6px 8px', minWidth: 32, justifyContent: 'center' }}
+                  title="Next game (Down Arrow / ] / j)"
+                  aria-label="Next game"
+                >
+                  <ChevronDown size={15} />
+                </button>
+              </div>
+            )}
             <button
               type="button"
               className="btn btn-secondary"

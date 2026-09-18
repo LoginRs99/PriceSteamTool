@@ -271,8 +271,8 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
   const matchingPeers = freshPeers.filter(p => {
     const diff = Math.abs(p - price);
     if (diff <= 0.02) return true;
-    if (diff <= 1.50) return true;
     if (price <= 1.005) return diff / price <= 0.3001;
+    if (diff <= 1.50) return true;
     return (diff / Math.min(p, price) <= 0.20) || (diff / Math.max(p, price) <= 0.20);
   });
 

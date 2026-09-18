@@ -22,9 +22,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogoClick,
 }) => {
   const isSyncing = syncProgress?.status === 'RUNNING';
+  const percent = syncProgress && syncProgress.totalGames > 0 
+    ? Math.round((syncProgress.processedGames / syncProgress.totalGames) * 100) 
+    : 0;
 
   return (
     <header className="navbar">
+      {isSyncing && (
+        <div 
+          className="topline-sync-progress" 
+          role="progressbar" 
+          aria-valuenow={percent} 
+          aria-valuemin={0} 
+          aria-valuemax={100}
+          aria-label="Wishlist synchronization progress"
+        >
+          <div className="topline-sync-bar" style={{ width: `${percent}%` }} />
+        </div>
+      )}
+
       <div 
         className="brand"
         onClick={onLogoClick}
@@ -40,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="brand-badge">Self-Hosted</span>
           <span className={`telemetry-badge ${isSyncing ? 'pulse-syncing' : activeProfile ? 'pulse-live' : 'pulse-idle'}`}>
             <span className="telemetry-dot" />
-            {isSyncing ? 'SYNC ACTIVE' : activeProfile ? 'ENGINE LIVE' : 'STANDBY'}
+            {isSyncing ? `SYNCING ${percent > 0 ? `${percent}%` : 'ACTIVE'}` : activeProfile ? 'ENGINE LIVE' : 'STANDBY'}
           </span>
         </div>
       </div>
@@ -84,7 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           title={!activeProfile ? 'Configure a Steam profile first' : 'Synchronize wishlist and prices'}
         >
           <RefreshCw size={16} className={isSyncing ? 'spin-icon' : ''} />
-          <span>{isSyncing ? 'Syncing...' : 'Sync Wishlist'}</span>
+          <span>{isSyncing ? `Syncing${percent > 0 ? ` (${percent}%)` : '...'}` : 'Sync Wishlist'}</span>
         </button>
       </div>
     </header>

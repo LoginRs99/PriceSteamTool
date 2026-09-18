@@ -200,7 +200,10 @@ export const CompactListView: React.FC<CompactListViewProps> = ({
                 </button>
               )}
 
-              <div className="compact-merchant" title={game.bestMerchantName || 'Steam'}>
+              <div 
+                className={`compact-merchant ${game.bestMerchantIsOfficial ? 'official' : 'keyshop'}`} 
+                title={`${game.bestMerchantIsOfficial ? 'Official Store' : 'Keyshop'}: ${game.bestMerchantName || 'Steam'}`}
+              >
                 {game.bestMerchantIsOfficial && (
                   <ShieldCheck size={12} color="var(--down)" style={{ flexShrink: 0 }} />
                 )}

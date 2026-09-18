@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { 
   Game, 
   MainTab,
@@ -123,6 +123,25 @@ export const App: React.FC = () => {
     setGames(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
     setTopDeals(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
   }, []);
+
+  const currentNavList = useMemo(() => {
+    if (mainTab === 'deals') return topDeals;
+    return games;
+  }, [mainTab, topDeals, games]);
+
+  const currentNavIndex = currentNavList.findIndex(g => g.id === selectedGameId);
+  const hasPrevGame = currentNavIndex > 0;
+  const hasNextGame = currentNavIndex >= 0 && currentNavIndex < currentNavList.length - 1;
+
+  const handleNavigateGame = useCallback((direction: 'prev' | 'next') => {
+    const list = mainTab === 'deals' ? topDeals : games;
+    const idx = list.findIndex(g => g.id === selectedGameId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'next' ? idx + 1 : idx - 1;
+    if (targetIdx >= 0 && targetIdx < list.length) {
+      setSelectedGameId(list[targetIdx].id);
+    }
+  }, [mainTab, topDeals, games, selectedGameId]);
 
   const handleGameUpdated = useCallback(() => {
     loadGames(undefined, true);
@@ -580,6 +599,9 @@ export const App: React.FC = () => {
           onClose={handleCloseDetailModal}
           onTargetPriceUpdated={handleTargetPriceUpdated}
           onGameUpdated={handleGameUpdated}
+          onNavigateGame={handleNavigateGame}
+          hasPrev={hasPrevGame}
+          hasNext={hasNextGame}
         />
       )}
 
