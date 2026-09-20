@@ -178,6 +178,7 @@ Comprehensive architectural and user documentation is maintained in [`docs/`](fi
 * [`docs/architecture.md`](file:///D:/github/Pricetool/docs/architecture.md) — System architecture, security posture, and runtime components.
 * [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (migrations 001–026), entity relations, and index designs.
 * [`docs/sources.md`](file:///D:/github/Pricetool/docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
+* [`docs/api-data-matrix.md`](file:///D:/github/Pricetool/docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
 * [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, and pricing error detection.
 * [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.3 mathematics, purchase advice advisor, and view modes.
 * [`docs/development.md`](file:///D:/github/Pricetool/docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
