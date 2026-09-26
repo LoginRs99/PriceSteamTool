@@ -62,6 +62,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   public readonly supportsBatch = false;
   public pageDelayFloorMs: number = 2000;
   private queue = new PacedSourceQueue('steam', config.delays.steam, 250);
+  private isCancelled = false;
 
   public isEnabled(): boolean {
     return true;
@@ -132,6 +133,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
    */
   public async fetchWishlist(steamId64: string): Promise<SteamWishlistItem[]> {
     return this.queue.enqueue(async () => {
+      this.isCancelled = false;
       const items: SteamWishlistItem[] = [];
       const seenAppIds = new Set<number>();
       let page = 0;
@@ -144,6 +146,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       // 1. Primary Strategy: Paginated wishlistdata (gives full metadata and store prices in batch)
       try {
         while (page < maxPages) {
+          if (this.isCancelled) break;
           if (page > 0) {
             // Polite pacing between Steam Storefront wishlist pages (1.5s anti-ban floor by default)
             const delayMs = Math.max(this.pageDelayFloorMs, config.delays.steam);
@@ -532,6 +535,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
   }
 
   public clearQueue(): void {
+    this.isCancelled = true;
     this.queue.clear();
   }
 }

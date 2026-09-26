@@ -6,7 +6,8 @@ import {
   gameRepo, 
   offerRepo, 
   sourceRepo, 
-  pricingErrorRepo 
+  pricingErrorRepo,
+  purchaseRepo 
 } from '../db/index.js';
 import { syncOrchestrator } from '../sync/orchestrator.js';
 import { priceHistoryQueue } from '../sync/historyQueue.js';
@@ -61,6 +62,30 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.get('/api/health', healthHandler);
   fastify.get('/health', healthHandler);
+
+  // ----------------------------------------------------
+  // Database Backup & Maintenance API
+  // ----------------------------------------------------
+  fastify.post('/api/backup', async (request, reply) => {
+    try {
+      const { createDatabaseBackup } = await import('../db/index.js');
+      const result = await createDatabaseBackup();
+      return { success: true, backup: result };
+    } catch (err: any) {
+      request.log.error(err, '[Backup] Manual backup failed');
+      return reply.status(500).send({ error: `Backup failed: ${err.message}` });
+    }
+  });
+
+  fastify.get('/api/backups', async (request, reply) => {
+    try {
+      const { listBackups } = await import('../db/index.js');
+      const backups = listBackups();
+      return { success: true, backups, count: backups.length };
+    } catch (err: any) {
+      return reply.status(500).send({ error: `Failed to list backups: ${err.message}` });
+    }
+  });
 
   // ----------------------------------------------------
   // Profiles API
@@ -136,6 +161,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.delete('/api/profiles/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = profileRepo.getById(id);
+    if (!existing) {
+      return reply.status(404).send({ error: `Profile not found with id "${id}"` });
+    }
     profileRepo.delete(id);
     return { success: true };
   });
@@ -258,6 +287,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     };
 
     const result = gameRepo.getWishlistGames(activeProfile.id, filterOptions);
+
+    // ETag caching header support: eliminate redundant network transfers when unchanged
+    const latestUpdate = result.games.reduce((latest, g) => (g.updatedAt > latest ? g.updatedAt : latest), '');
+    const etag = `W/"wishlist-${activeProfile.id}-${result.total}-${filterOptions.page}-${filterOptions.limit}-${latestUpdate}"`;
+    reply.header('ETag', etag);
+
+    if (request.headers['if-none-match'] === etag) {
+      return reply.status(304).send();
+    }
+
     return {
       ...result,
       activeProfile,
@@ -290,8 +329,9 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       return { deals: [] };
     }
     const query = request.query as any;
-    const limit = query.limit ? parseInt(query.limit, 10) : 50;
-    const deals = gameRepo.getBestDeals(activeProfile.id, limit);
+    const limit = Math.min(100, Math.max(1, safeInt(query.limit, 50) || 50));
+    const minTier = query.minTier !== undefined ? (query.minTier || undefined) : 'Good';
+    const deals = gameRepo.getBestDeals(activeProfile.id, limit, { minTier, hideFamilyShared: true });
     return { deals };
   };
 
@@ -438,26 +478,83 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   // Server-Sent Events (SSE) for Real-Time Sync Updates
-  fastify.get('/api/sync/events', async (request, reply) => {
+  // Supports both /api/sync/events and /api/sync/stream
+  const syncSseHandler = async (request: FastifyRequest, reply: any) => {
     reply.hijack();
     reply.raw.setHeader('Content-Type', 'text/event-stream');
-    reply.raw.setHeader('Cache-Control', 'no-cache');
+    reply.raw.setHeader('Cache-Control', 'no-cache, no-transform');
     reply.raw.setHeader('Connection', 'keep-alive');
-    reply.raw.setHeader('Access-Control-Allow-Origin', '*');
+    reply.raw.setHeader('X-Accel-Buffering', 'no');
+
+    // Origin reflection for CORS if trustedOrigins specified
+    const origin = (request.headers as any).origin;
+    if (config.trustedOrigins && config.trustedOrigins.length > 0) {
+      if (origin && config.trustedOrigins.includes(origin)) {
+        reply.raw.setHeader('Access-Control-Allow-Origin', origin);
+      }
+    } else {
+      reply.raw.setHeader('Access-Control-Allow-Origin', '*');
+    }
     reply.raw.flushHeaders();
 
+    // Immediately push current sync state so client UI is immediately hydrated
+    try {
+      const currentProgress = syncOrchestrator.getProgress();
+      reply.raw.write(`data: ${JSON.stringify(currentProgress)}\n\n`);
+    } catch {}
+
+    let cleanedUp = false;
+    let heartbeatTimer: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      unsubscribe();
+      try {
+        if (!reply.raw.writableEnded && !reply.raw.destroyed) {
+          reply.raw.end();
+        }
+      } catch {}
+    };
+
+    // Periodic SSE heartbeat ping (every 15 seconds) to prevent proxy & NAT timeouts
+    heartbeatTimer = setInterval(() => {
+      if (!reply.raw.writableEnded && !reply.raw.destroyed && reply.raw.writable) {
+        try {
+          reply.raw.write(': ping\n\n');
+        } catch {
+          cleanup();
+        }
+      } else {
+        cleanup();
+      }
+    }, 15000);
+    heartbeatTimer.unref();
+
     const unsubscribe = syncOrchestrator.subscribe((data) => {
-      if (!reply.raw.writableEnded && !reply.raw.destroyed) {
+      if (!reply.raw.writableEnded && !reply.raw.destroyed && reply.raw.writable) {
         try {
           reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
-        } catch {}
+        } catch {
+          cleanup();
+        }
+      } else {
+        cleanup();
       }
     });
 
-    request.raw.on('close', () => {
-      unsubscribe();
-    });
-  });
+    request.raw.on('close', cleanup);
+    request.raw.on('error', cleanup);
+    reply.raw.on('close', cleanup);
+    reply.raw.on('error', cleanup);
+  };
+
+  fastify.get('/api/sync/events', syncSseHandler);
+  fastify.get('/api/sync/stream', syncSseHandler);
 
   // ----------------------------------------------------
   // Sources & Diagnostics API
@@ -473,8 +570,15 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return sourceRepo.list();
   });
 
+  const SourceCodeSchema = z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop']);
+
   fastify.post('/api/sources/:code/toggle', async (request, reply) => {
     const { code } = request.params as { code: SourceCode };
+    const codeParsed = SourceCodeSchema.safeParse(code);
+    if (!codeParsed.success) {
+      return reply.status(400).send({ error: `Invalid source code "${code}". Must be one of: steam, itad, ggdeals, cheapshark, allkeyshop` });
+    }
+
     const schema = z.object({ isEnabled: z.boolean() });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
@@ -496,6 +600,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   fastify.post('/api/sources/:code/reset', async (request, reply) => {
     const { code } = request.params as { code: SourceCode };
+    const codeParsed = SourceCodeSchema.safeParse(code);
+    if (!codeParsed.success) {
+      return reply.status(400).send({ error: `Invalid source code "${code}". Must be one of: steam, itad, ggdeals, cheapshark, allkeyshop` });
+    }
+
     const { circuitBreakers } = await import('../sync/circuitBreaker.js');
     circuitBreakers.reset(code);
     sourceRepo.resetCircuit(code);
@@ -551,6 +660,32 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return pricingErrorRepo.list();
   });
 
+  fastify.post('/api/anomalies/:id/feedback', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const schema = z.object({
+      feedback: z.enum(['CONFIRMED_ERROR', 'FALSE_POSITIVE', 'DISMISSED'])
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid feedback value', details: parsed.error.issues });
+    }
+
+    const res = pricingErrorRepo.recordFeedback(id, parsed.data.feedback);
+    if (!res) {
+      return reply.status(404).send({ error: 'Anomaly / pricing error not found' });
+    }
+
+    if (res.gameId) {
+      offerRepo.recomputeBestDealForGame(res.gameId);
+    }
+
+    return { success: true, ...res };
+  });
+
+  fastify.get('/api/anomalies/stats', async () => {
+    return pricingErrorRepo.getMerchantStats();
+  });
+
   fastify.post('/api/anomalies/:id/dismiss', async (request) => {
     const { id } = request.params as { id: string };
     const gameId = pricingErrorRepo.dismiss(id);
@@ -569,59 +704,129 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   // ----------------------------------------------------
+  // Purchase Journal & Savings Tracker API
+  // ----------------------------------------------------
+  fastify.get('/api/purchases', async (request, reply) => {
+    try {
+      const { profileId } = request.query as { profileId?: string };
+      return purchaseRepo.list(profileId);
+    } catch (err: any) {
+      request.log.error(err, '[Purchases] Failed to list purchases');
+      return reply.status(500).send({ error: `Failed to list purchases: ${err.message}` });
+    }
+  });
+
+  fastify.post('/api/purchases', async (request, reply) => {
+    const schema = z.object({
+      profileId: z.string().optional(),
+      gameId: z.string().min(1),
+      offerId: z.string().optional(),
+      merchantId: z.string().optional(),
+      priceEur: z.number().nonnegative(),
+      purchasedAt: z.string().optional(),
+      notes: z.string().optional()
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid purchase data', details: parsed.error.issues });
+    }
+
+    let profileId = parsed.data.profileId;
+    if (!profileId) {
+      const active = profileRepo.getActive();
+      profileId = active?.id || 'default';
+    }
+
+    try {
+      const purchase = purchaseRepo.record({
+        ...parsed.data,
+        profileId
+      });
+      return reply.status(201).send(purchase);
+    } catch (err: any) {
+      return reply.status(500).send({ error: `Failed to record purchase: ${err.message}` });
+    }
+  });
+
+  fastify.delete('/api/purchases/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = purchaseRepo.delete(id);
+    if (!ok) {
+      return reply.status(404).send({ error: 'Purchase not found' });
+    }
+    return { success: true };
+  });
+
+  fastify.get('/api/purchases/savings', async (request, reply) => {
+    try {
+      const { profileId } = request.query as { profileId?: string };
+      return purchaseRepo.getSavingsSummary(profileId);
+    } catch (err: any) {
+      request.log.error(err, '[Purchases] Failed to get savings summary');
+      return reply.status(500).send({ error: `Failed to get savings summary: ${err.message}` });
+    }
+  });
+
+  // ----------------------------------------------------
   // CSV Export API (Offline Data Distribution Analysis)
   // ----------------------------------------------------
   fastify.get('/api/export/offers.csv', async (request, reply) => {
-    const activeProfile = profileRepo.getActive();
-    if (!activeProfile) {
+    try {
+      const activeProfile = profileRepo.getActive();
+      if (!activeProfile) {
+        reply.header('Content-Type', 'text/csv; charset=utf-8');
+        reply.header('Content-Disposition', 'attachment; filename="priceSteamTool-offers-export.csv"');
+        return 'game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at\r\n';
+      }
+
+      const rows = offerRepo.getOffersCsvExportData(activeProfile.id);
+
+      const escapeCsvCell = (val: any): string => {
+        if (val === null || val === undefined) return '';
+        const str = String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const formatRiskFlags = (flags: string | null): string => {
+        return flags ? String(flags) : '';
+      };
+
+      const lines: string[] = [
+        'game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at'
+      ];
+
+      for (const r of rows) {
+        const line = [
+          escapeCsvCell(r.game_title),
+          escapeCsvCell(r.merchant_name),
+          escapeCsvCell(Boolean(r.merchant_is_official)),
+          escapeCsvCell(r.price_eur !== null && r.price_eur !== undefined ? Number(r.price_eur).toFixed(2) : ''),
+          escapeCsvCell(r.msrp_eur !== null && r.msrp_eur !== undefined ? Number(r.msrp_eur).toFixed(2) : ''),
+          escapeCsvCell(r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur).toFixed(2) : ''),
+          escapeCsvCell(r.atl_eur !== null && r.atl_eur !== undefined ? Number(r.atl_eur).toFixed(2) : ''),
+          escapeCsvCell(r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined ? Boolean(r.atl_is_confirmed) : ''),
+          escapeCsvCell(r.risk_level || 'SAFE'),
+          escapeCsvCell(r.risk_score !== null && r.risk_score !== undefined ? Number(r.risk_score).toFixed(2) : '0.00'),
+          escapeCsvCell(formatRiskFlags(r.risk_flags)),
+          escapeCsvCell(Boolean(r.is_anomaly)),
+          escapeCsvCell(Boolean(r.is_best_deal)),
+          escapeCsvCell(r.last_observed_at || '')
+        ].join(',');
+        lines.push(line);
+      }
+
+      const csvOutput = lines.join('\r\n') + '\r\n';
       reply.header('Content-Type', 'text/csv; charset=utf-8');
       reply.header('Content-Disposition', 'attachment; filename="priceSteamTool-offers-export.csv"');
-      return 'game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at\r\n';
+      return reply.send(csvOutput);
+    } catch (err: any) {
+      request.log.error(err, '[CSV Export] Failed to export offers CSV');
+      return reply.status(500).send({ error: `Failed to export CSV: ${err.message}` });
     }
-
-    const rows = offerRepo.getOffersCsvExportData(activeProfile.id);
-
-    const escapeCsvCell = (val: any): string => {
-      if (val === null || val === undefined) return '';
-      const str = String(val);
-      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    const formatRiskFlags = (flags: string | null): string => {
-      return flags ? String(flags) : '';
-    };
-
-    const lines: string[] = [
-      'game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at'
-    ];
-
-    for (const r of rows) {
-      const line = [
-        escapeCsvCell(r.game_title),
-        escapeCsvCell(r.merchant_name),
-        escapeCsvCell(Boolean(r.merchant_is_official)),
-        escapeCsvCell(r.price_eur !== null && r.price_eur !== undefined ? Number(r.price_eur).toFixed(2) : ''),
-        escapeCsvCell(r.msrp_eur !== null && r.msrp_eur !== undefined ? Number(r.msrp_eur).toFixed(2) : ''),
-        escapeCsvCell(r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur).toFixed(2) : ''),
-        escapeCsvCell(r.atl_eur !== null && r.atl_eur !== undefined ? Number(r.atl_eur).toFixed(2) : ''),
-        escapeCsvCell(r.atl_is_confirmed !== null && r.atl_is_confirmed !== undefined ? Boolean(r.atl_is_confirmed) : ''),
-        escapeCsvCell(r.risk_level || 'SAFE'),
-        escapeCsvCell(r.risk_score !== null && r.risk_score !== undefined ? Number(r.risk_score).toFixed(2) : '0.00'),
-        escapeCsvCell(formatRiskFlags(r.risk_flags)),
-        escapeCsvCell(Boolean(r.is_anomaly)),
-        escapeCsvCell(Boolean(r.is_best_deal)),
-        escapeCsvCell(r.last_observed_at || '')
-      ].join(',');
-      lines.push(line);
-    }
-
-    const csvOutput = lines.join('\r\n') + '\r\n';
-    reply.header('Content-Type', 'text/csv; charset=utf-8');
-    reply.header('Content-Disposition', 'attachment; filename="priceSteamTool-offers-export.csv"');
-    return reply.send(csvOutput);
   });
 
   // ----------------------------------------------------
@@ -631,11 +836,20 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const { getDiscordSettings } = await import('../domain/discordNotifier.js');
     let isFullAuth = false;
     if (config.apiToken) {
-      const clientToken = request.headers['x-api-token'];
-      const rawToken = typeof clientToken === 'string' ? clientToken : '';
-      const clientBuf = Buffer.from(rawToken);
-      const expectedBuf = Buffer.from(config.apiToken);
-      isFullAuth = clientBuf.length === expectedBuf.length && crypto.timingSafeEqual(clientBuf, expectedBuf);
+      let rawToken = typeof request.headers['x-api-token'] === 'string'
+        ? (request.headers['x-api-token'] as string).trim()
+        : '';
+      if (!rawToken && typeof request.headers['authorization'] === 'string') {
+        const authHeader = (request.headers['authorization'] as string).trim();
+        if (authHeader.startsWith('Bearer ')) {
+          rawToken = authHeader.slice(7).trim();
+        }
+      }
+      if (rawToken) {
+        const clientHash = crypto.createHash('sha256').update(rawToken).digest();
+        const expectedHash = crypto.createHash('sha256').update(config.apiToken).digest();
+        isFullAuth = crypto.timingSafeEqual(clientHash, expectedHash);
+      }
     }
     return getDiscordSettings(!isFullAuth);
   });

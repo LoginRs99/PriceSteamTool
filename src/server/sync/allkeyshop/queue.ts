@@ -197,22 +197,28 @@ export class AllKeyShopPoliteQueue {
           task.resolve(result);
           return result;
         } catch (err: any) {
-          this.lastFailureTimeMs = Date.now();
-          const status = err?.status || err?.response?.status || (err?.message?.includes('429') ? 429 : 502);
-          const retryAfter = err?.retryAfterSec;
+          const isAbort = err?.name === 'AbortError' || 
+            err?.message?.includes('cleared/cancelled') || 
+            err?.message?.includes('aborted');
 
-          // Record in circuit breaker (single authoritative write)
-          if (status === 429) {
-            circuitBreakers.recordRateLimit('allkeyshop', retryAfter || 30);
-          } else {
-            circuitBreakers.recordFailure('allkeyshop', err);
+          if (!isAbort) {
+            this.lastFailureTimeMs = Date.now();
+            const status = err?.status || err?.response?.status || (err?.message?.includes('429') ? 429 : 502);
+            const retryAfter = err?.retryAfterSec;
+
+            // Record in circuit breaker (single authoritative write)
+            if (status === 429) {
+              circuitBreakers.recordRateLimit('allkeyshop', retryAfter || 30);
+            } else {
+              circuitBreakers.recordFailure('allkeyshop', err);
+            }
+
+            const currentFailures = this.consecutiveFailures;
+            const cooldownUntil = circuitBreakers.getCooldownUntil('allkeyshop');
+            const cooldownMs = cooldownUntil ? Math.max(0, cooldownUntil - Date.now()) : 0;
+            const cooldownHours = (cooldownMs / 3600_000).toFixed(1);
+            console.warn(`[AllKeyShop] upstream failure | status=${status} | consecutiveFailures=${currentFailures} | cooldown=${cooldownHours}h`);
           }
-
-          const currentFailures = this.consecutiveFailures;
-          const cooldownUntil = circuitBreakers.getCooldownUntil('allkeyshop');
-          const cooldownMs = cooldownUntil ? Math.max(0, cooldownUntil - Date.now()) : 0;
-          const cooldownHours = (cooldownMs / 3600_000).toFixed(1);
-          console.warn(`[AllKeyShop] upstream failure | status=${status} | consecutiveFailures=${currentFailures} | cooldown=${cooldownHours}h`);
 
           task.reject(err);
           throw err;

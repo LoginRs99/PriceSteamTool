@@ -89,12 +89,18 @@ export class PacedSourceQueue {
           circuitBreakers.recordSuccess(this.sourceCode, requestCount);
           task.resolve(result);
         } catch (err: any) {
-          const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
-          if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
-            const retryAfter = err?.retryAfterSec ?? 30;
-            circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
-          } else {
-            circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);
+          const isAbort = err?.name === 'AbortError' || 
+            err?.message?.includes('cleared/cancelled') || 
+            err?.message?.includes('aborted');
+
+          if (!isAbort) {
+            const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
+            if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
+              const retryAfter = err?.retryAfterSec ?? 30;
+              circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
+            } else {
+              circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);
+            }
           }
           task.reject(err);
         }

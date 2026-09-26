@@ -61,6 +61,18 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
     }
   };
 
+  const handleFeedback = async (id: string, feedback: 'CONFIRMED_ERROR' | 'FALSE_POSITIVE') => {
+    try {
+      await api.sendAnomalyFeedback(id, feedback);
+      await fetchAnomalies();
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (e) {
+      console.error('Failed to submit anomaly feedback:', e);
+    }
+  };
+
   const handleDismissForGame = async (items: Anomaly[]) => {
     try {
       await Promise.all(items.map(item => api.dismissAnomaly(item.id)));
@@ -711,24 +723,59 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                             {a.dealUrl && (
                               <a
                                 href={a.dealUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="btn btn-primary"
-                                style={{ padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                className="btn btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                title="Open offer store page"
                               >
-                                <ExternalLink size={12} />
-                                <span>Buy / View</span>
+                                <ExternalLink size={11} />
+                                <span>Store Link</span>
                               </a>
                             )}
                             <button
                               className="btn btn-secondary"
-                              style={{ padding: '4px 10px', fontSize: 12 }}
+                              style={{ 
+                                padding: '4px 9px', 
+                                fontSize: 11, 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: 4,
+                                color: '#f87171',
+                                borderColor: 'rgba(239, 68, 68, 0.3)'
+                              }}
+                              onClick={() => handleFeedback(a.id, 'CONFIRMED_ERROR')}
+                              title="Megerősítem: ez valóban egy árhiba / glitch (maradjon karanténban)"
+                            >
+                              <AlertTriangle size={11} />
+                              <span>Valódi hiba</span>
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ 
+                                padding: '4px 9px', 
+                                fontSize: 11, 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: 4,
+                                color: '#34d399',
+                                borderColor: 'rgba(16, 185, 129, 0.3)'
+                              }}
+                              onClick={() => handleFeedback(a.id, 'FALSE_POSITIVE')}
+                              title="Téves riasztás: ez egy valódi, érvényes akció (oldja fel a legjobb ajánlatok közé)"
+                            >
+                              <CheckCircle2 size={11} />
+                              <span>Téves riasztás (Valódi ár)</span>
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', fontSize: 11 }}
                               onClick={() => handleDismiss(a.id)}
-                              title="Dismiss this specific anomaly"
+                              title="Dismiss without specific feedback"
                             >
                               Dismiss
                             </button>

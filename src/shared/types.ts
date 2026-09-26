@@ -273,6 +273,8 @@ export interface SourceStatus {
   state: CircuitBreakerState;
 }
 
+export type AnomalyFeedbackType = 'CONFIRMED_ERROR' | 'FALSE_POSITIVE' | 'DISMISSED';
+
 export interface PricingError {
   id: string;
   gameId: string;
@@ -289,6 +291,8 @@ export interface PricingError {
   detectedAt: string;
   isDismissed?: boolean;
   dismissedAt?: string;
+  userFeedback?: AnomalyFeedbackType;
+  feedbackAt?: string;
 }
 
 export interface DiscordSettings {
@@ -335,7 +339,7 @@ export interface SyncStatusResponse {
 }
 
 export type ViewMode = 'compact' | 'grid';
-export type MainTab = 'wishlist' | 'free' | 'deals' | 'safety';
+export type MainTab = 'wishlist' | 'free' | 'deals' | 'safety' | 'savings';
 
 export interface WishlistFilterOptions {
   search?: string;
@@ -374,6 +378,7 @@ export interface WishlistFilterOptions {
   hideDlcs?: boolean;
   includeFreeGames?: boolean;
   hideFamilyShared?: boolean;
+  activePill?: string;
   steamAppId?: number;
   priceEvent?: PriceEventType;
   page?: number;
@@ -543,6 +548,7 @@ export interface DealScoreInput {
   low1yEur?: number | null;
   allTimeLowEur?: number | null;
   historicalLowEur?: number | null;
+  historicalLowDate?: string;
   
   // Confidence Inputs
   sampleCount?: number;
@@ -567,4 +573,43 @@ export interface DealScoreInput {
   isOfficialStore?: boolean;
   isDelisted?: boolean;
   isUnreleased?: boolean;
+}
+
+/** Global price comparison tolerance: 0.005 EUR (half-cent) */
+export const EPSILON_EUR = 0.005;
+
+export interface Purchase {
+  id: string;
+  profileId: string;
+  profileName?: string;
+  gameId: string;
+  gameTitle?: string;
+  steamAppId?: number;
+  offerId?: string;
+  merchantId?: string;
+  merchantName?: string;
+  priceEur: number;
+  msrpEur?: number;
+  typicalMedianEur?: number;
+  savingsVsMsrpEur: number;
+  savingsVsMedianEur: number;
+  purchasedAt: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface MonthlySavings {
+  month: string; // YYYY-MM
+  spentEur: number;
+  savedVsMsrpEur: number;
+  savedVsMedianEur: number;
+  count: number;
+}
+
+export interface SavingsSummary {
+  totalSpentEur: number;
+  totalSavedVsMsrpEur: number;
+  totalSavedVsMedianEur: number;
+  totalPurchases: number;
+  monthly: MonthlySavings[];
 }

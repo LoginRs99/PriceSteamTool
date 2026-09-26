@@ -1,6 +1,7 @@
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
+import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { convertToEur } from '../domain/normalizer.js';
 import { gameRepo } from '../db/index.js';
 import { logWarn } from '../utils/logger.js';
@@ -18,6 +19,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
   private queue = new PacedSourceQueue('cheapshark', config.delays.cheapshark, 250);
   private storesMap = new Map<string, string>();
   private lastStoreFetch = 0;
+  private isCancelled = false;
 
   public isEnabled(): boolean {
     return true;
@@ -104,6 +106,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
     const resultMap = new Map<number, NormalizedSourceOffer[]>();
     if (games.length === 0) return resultMap;
 
+    this.isCancelled = false;
     await this.ensureStores();
 
     const batchSize = 25;
@@ -113,6 +116,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
     let totalRequestsMade = 0;
 
     for (let i = 0; i < games.length; i += batchSize) {
+      if (this.isCancelled) break;
       const chunk = games.slice(i, i + batchSize);
       const appIds = chunk.map(g => g.steamAppId).filter(id => id > 0);
       if (appIds.length === 0) {
@@ -122,6 +126,21 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
 
       const chunkIndex = totalChunks;
       totalChunks++;
+
+      // Check shared cross-chunk cooldown before attempting HTTP calls
+      if (circuitBreakers.isCoolingDown('cheapshark')) {
+        const remainingSec = circuitBreakers.getRemainingCooldownSec('cheapshark');
+        logWarn(`[CheapShark] Skipping chunk ${chunkIndex} due to active source cooldown (${remainingSec}s remaining).`, {
+          chunkIndex,
+          remainingSec
+        });
+        failedChunks++;
+        processed += chunk.length;
+        if (onProgress) {
+          onProgress(Math.min(processed, games.length), games.length, `CheapShark: ${Math.min(processed, games.length)}/${games.length} games (cooldown active)...`);
+        }
+        continue;
+      }
 
       let batchSucceeded = false;
       for (let attempt = 0; attempt < 2 && !batchSucceeded; attempt++) {
@@ -164,14 +183,26 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
           batchSucceeded = true;
         } catch (err: any) {
           const isRateLimit = err?.status === 429 || err?.message?.includes('429');
-          if (attempt === 0 && isRateLimit) {
-            const waitSec = Math.max(err?.retryAfterSec ?? 10, 5);
-            logWarn(`[CheapShark] Rate limit (429) encountered. Backing off for ${waitSec}s before retrying chunk...`, {
+          const retryAfterSec = err?.retryAfterSec ?? 30;
+          if (isRateLimit) {
+            const isLargeRetry = retryAfterSec > 60;
+            if (attempt === 0 && !isLargeRetry) {
+              const waitSec = Math.max(retryAfterSec, 1);
+              logWarn(`[CheapShark] Rate limit (429) encountered. Backing off for ${waitSec}s before retrying chunk...`, {
+                chunkIndex,
+                retryAfterSec: waitSec
+              });
+              await new Promise(r => setTimeout(r, waitSec * 1000));
+              continue;
+            }
+
+            circuitBreakers.recordRateLimit('cheapshark', retryAfterSec);
+            failedChunks++;
+            logWarn(`[CheapShark] Rate limit (429) encountered. Source cooldown set for ${retryAfterSec}s; skipping chunk ${chunkIndex}...`, {
               chunkIndex,
-              retryAfterSec: waitSec
+              retryAfterSec
             });
-            await new Promise(r => setTimeout(r, waitSec * 1000));
-            continue;
+            break;
           }
           failedChunks++;
           logWarn(`CheapShark chunk failure: ${err?.message || 'Unknown error'}`, {
@@ -267,6 +298,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
   }
 
   public clearQueue(): void {
+    this.isCancelled = true;
     this.queue.clear();
   }
 }

@@ -815,5 +815,64 @@ describe('Deal Score v2.2 (Pure Price Engine & Data Sufficiency Guard)', () => {
         expect(scores[i + 1].components!.discountDepth).toBeGreaterThanOrEqual(scores[i].components!.discountDepth);
       }
     });
+
+    it('Edge 15: Never-discounted game where ATL == MSRP (HoneySelect2Libido DX / LET IT DIE pattern) scores < 15, not 41', () => {
+      const res = calculateDealScore({
+        priceEur: 59.99,
+        basePriceEur: 59.99,
+        allTimeLowEur: 59.99,
+        typicalSaleMedianEur: 59.99,
+        sampleCount: 15
+      });
+
+      // S_atl must be 0 because ATL is not discounted below MSRP anchor
+      expect(res.components?.atlProximity).toBe(0);
+      expect(res.components?.discountDepth).toBe(0);
+      // Overall score must be low (< 15), not 41
+      expect(res.score).toBeLessThan(15);
+      expect(res.tier).toBe('Weak');
+      expect(res.verdict).toBe('WAIT');
+    });
+
+    it('Edge 16: Ancient ATL (>2 years old) requires >=25% undercut for score 100', () => {
+      const threeYearsAgo = new Date(Date.now() - 1000 * 24 * 3600 * 1000).toISOString();
+
+      const baseScenario = {
+        basePriceEur: 100.00,
+        typicalSaleMedianEur: 1.00,
+        isConfirmedAtl: true,
+        sampleCount: 30,
+        minOfferEur: 0.01,
+        maxOfferEur: 60.00,
+        offersCount: 5
+      };
+
+      // Scenario A: Recent ATL with 99% undercut -> reaches 100
+      const resRecent = calculateDealScore({
+        ...baseScenario,
+        allTimeLowEur: 1.00,
+        priceEur: 0.01
+      });
+      expect(resRecent.score).toBe(100);
+
+      // Scenario B: Ancient ATL with 20% undercut (less than 25%) -> capped at 99 due to age decay
+      const resAncientCapped = calculateDealScore({
+        ...baseScenario,
+        allTimeLowEur: 1.00,
+        minOfferEur: 0.80,
+        priceEur: 0.80, // beats by 20% (< 25%)
+        historicalLowDate: threeYearsAgo
+      });
+      expect(resAncientCapped.score).toBeLessThanOrEqual(99);
+
+      // Scenario C: Ancient ATL with 99% undercut (>= 25%) -> passes and reaches 100
+      const resAncientPass = calculateDealScore({
+        ...baseScenario,
+        allTimeLowEur: 1.00,
+        priceEur: 0.01, // beats by 99% (>= 25%)
+        historicalLowDate: threeYearsAgo
+      });
+      expect(resAncientPass.score).toBe(100);
+    });
   });
 });

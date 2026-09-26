@@ -1,6 +1,7 @@
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
+import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { gameRepo } from '../db/index.js';
 import { convertToEur } from '../domain/normalizer.js';
 import { detectSourceFamilyConflict } from '../domain/pricingError/detector.js';
@@ -22,6 +23,7 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
   public readonly name = 'GG.deals';
   public readonly supportsBatch = true;
   private queue = new PacedSourceQueue('ggdeals', config.delays.ggdeals, 300);
+  private isCancelled = false;
 
   public isEnabled(): boolean {
     return Boolean(config.ggdealsApiKey);
@@ -45,18 +47,33 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
     const resultMap = new Map<number, NormalizedSourceOffer[]>();
     if (!config.ggdealsApiKey || games.length === 0) return resultMap;
 
+    this.isCancelled = false;
     const chunkSize = 100;
     for (let i = 0; i < games.length; i += chunkSize) {
-      if (i > 0) {
-        // GG.deals allows 100 records per minute; pause 60s between 100-record batch chunks
-        await new Promise(r => setTimeout(r, 60000));
+      if (this.isCancelled) break;
+      if (circuitBreakers.isCoolingDown('ggdeals')) {
+        const remainingMs = Math.max(0, (circuitBreakers.getCooldownUntil('ggdeals') ?? Date.now()) - Date.now());
+        if (remainingMs > 0) {
+          // Check cancellation every 1s slice to avoid blocking on cancel
+          const endAt = Date.now() + remainingMs;
+          while (Date.now() < endAt && !this.isCancelled) {
+            await new Promise(r => setTimeout(r, Math.min(1000, endAt - Date.now())));
+          }
+        }
       }
+      if (this.isCancelled) break;
       const chunk = games.slice(i, i + chunkSize);
       const appIds = chunk.map(g => g.steamAppId);
       
       const chunkResult = await this.queryAppIdsBatch(appIds);
       for (const [appId, offers] of chunkResult.entries()) {
         resultMap.set(appId, offers);
+      }
+
+      // Respect GG.deals API limit (100 records per minute) via shared circuit cooldown
+      if (!this.isCancelled && i + chunkSize < games.length) {
+        const pauseMs = config.ggdealsChunkPauseMs || 60000;
+        circuitBreakers.setCooldown('ggdeals', pauseMs);
       }
     }
 
@@ -172,6 +189,7 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
   }
 
   public clearQueue(): void {
+    this.isCancelled = true;
     this.queue.clear();
   }
 }

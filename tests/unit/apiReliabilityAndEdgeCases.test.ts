@@ -10,6 +10,7 @@ import { CheapSharkSourceAdapter } from '../../src/server/sources/cheapshark.js'
 import { fetchWithAllkeyshopSolver, AllKeyShopUnavailableError } from '../../src/server/sources/allkeyshop.js';
 import { config } from '../../src/server/config/index.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
+import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { getDb, closeDb } from '../../src/server/db/index.js';
 import { createApp } from '../../src/server/index.js';
 import { calculateCoreSyncStatus } from '../../src/server/sync/syncOutcome.js';
@@ -128,6 +129,10 @@ describe('API Reliability & Edge Cases Suite', () => {
   });
 
   describe('CheapShark Adapter Resilience', () => {
+    beforeEach(() => {
+      circuitBreakers.resetAll();
+    });
+
     it('creates an adapter with batch support and correct queue delays', () => {
       const adapter = new CheapSharkSourceAdapter();
       expect(adapter.code).toBe('cheapshark');

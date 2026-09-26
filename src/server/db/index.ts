@@ -9,3 +9,6 @@ export * from './repositories/pricingError.js';
 export * from './repositories/settings.js';
 export * from './repositories/notifications.js';
 export * from './repositories/steamAsset.js';
+export * from './repositories/syncRun.js';
+export * from './repositories/purchase.js';
+export * from './backup.js';

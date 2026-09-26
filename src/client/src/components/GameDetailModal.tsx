@@ -22,6 +22,7 @@ import { AllKeyShopMatchSelector } from './detail/AllKeyShopMatchSelector.js';
 import { PriceHistoryTable } from './detail/PriceHistoryTable.js';
 import { GameDetailSkeleton } from './skeletons/GameDetailSkeleton.js';
 import { getSteamReviewSentiment } from '../utils/steamMeta.js';
+import { api } from '../api.js';
 
 interface GameDetailModalProps {
   gameId: string;
@@ -75,6 +76,22 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
   } = useGameIntelligence(gameId, onClose, onTargetPriceUpdated, onGameUpdated);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'offers' | 'history'>('overview');
+  const [recordedOfferId, setRecordedOfferId] = useState<string | null>(null);
+
+  const handleRecordPurchase = async (offer: any) => {
+    try {
+      await api.recordPurchase({
+        gameId,
+        offerId: offer?.id,
+        merchantId: offer?.merchantId,
+        priceEur: Number(offer?.priceEur || 0)
+      });
+      setRecordedOfferId(offer?.id || 'manual');
+      setTimeout(() => setRecordedOfferId(null), 3000);
+    } catch (err) {
+      console.error('Failed to record purchase:', err);
+    }
+  };
 
   useEffect(() => {
     if (!onNavigateGame) return;
@@ -450,6 +467,8 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
               offers={offers}
               copiedVoucherId={copiedVoucherId}
               onCopyVoucher={handleCopyVoucher}
+              onRecordPurchase={handleRecordPurchase}
+              recordedOfferId={recordedOfferId}
             />
 
             {/* 5.5. AllKeyShop Candidate Discovery & Custom Match Selector */}

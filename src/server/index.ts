@@ -18,9 +18,22 @@ export async function createApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
     // Note: Deployments behind a reverse proxy (e.g. Nginx, Caddy, Cloudflare) must enable Fastify trustProxy (via TRUST_PROXY=true) so request.ip reflects the real client.
     trustProxy: Boolean(config.trustProxy),
+    bodyLimit: 1048576, // 1MB payload limit
+    requestTimeout: 30000, // 30s request execution timeout against slowloris
+    keepAliveTimeout: 10000, // 10s keep-alive timeout
+    connectionTimeout: 30000, // 30s connection timeout
     logger: {
       level: config.isDev ? 'info' : 'warn'
     }
+  });
+
+  // Defensive HTTP Security Headers
+  fastify.addHook('onSend', async (request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('X-XSS-Protection', '0');
+    return payload;
   });
 
   // Enable CORS
@@ -75,9 +88,10 @@ export async function createApp(): Promise<FastifyInstance> {
         rawToken = ((request.query as any).api_token as string).trim();
       }
 
-      const clientBuf = Buffer.from(rawToken);
-      const expectedBuf = Buffer.from(config.apiToken);
-      const isMatch = clientBuf.length === expectedBuf.length && crypto.timingSafeEqual(clientBuf, expectedBuf);
+      // Constant-time SHA-256 hash comparison prevents token-length disclosure side-channel attacks
+      const clientHash = crypto.createHash('sha256').update(rawToken).digest();
+      const expectedHash = crypto.createHash('sha256').update(config.apiToken).digest();
+      const isMatch = crypto.timingSafeEqual(clientHash, expectedHash);
       if (!isMatch) {
         return reply.status(401).send({ error: 'Unauthorized: Invalid or missing API token (use X-API-Token or Authorization: Bearer)' });
       }
@@ -86,7 +100,7 @@ export async function createApp(): Promise<FastifyInstance> {
 
   // Central Error Handler: uniform error responses, never leak internal stack traces in production
   fastify.setErrorHandler((error: any, request, reply) => {
-    const statusCode = error?.statusCode || 500;
+    const statusCode = error?.statusCode || (error?.name === 'ZodError' ? 400 : 500);
     if (statusCode >= 500) {
       request.log.error(error);
       reply.status(statusCode).send({
@@ -96,7 +110,8 @@ export async function createApp(): Promise<FastifyInstance> {
     } else {
       reply.status(statusCode).send({
         error: error?.message || 'Request Error',
-        statusCode
+        statusCode,
+        ...(error?.issues ? { details: error.issues } : {})
       });
     }
   });
@@ -111,25 +126,32 @@ export async function createApp(): Promise<FastifyInstance> {
 
   // Serve compiled SPA in production mode
   const clientDist = path.resolve(__dirname, '../../dist/client');
-  if (fs.existsSync(clientDist)) {
+  const hasClientDist = fs.existsSync(clientDist);
+  if (hasClientDist) {
     await fastify.register(fastifyStatic, {
       root: clientDist,
-      prefix: '/'
-    });
-
-    fastify.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith('/api')) {
-        reply.status(404).send({ error: 'Endpoint not found' });
-      } else {
-        reply.sendFile('index.html');
-      }
+      prefix: '/',
+      dotfiles: 'ignore',
+      etag: true,
+      maxAge: '1d'
     });
   }
+
+  // Consistent 404 handler for API endpoints and SPA fallback
+  fastify.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith('/api')) {
+      reply.status(404).send({ error: 'Endpoint not found' });
+    } else if (hasClientDist) {
+      reply.sendFile('index.html');
+    } else {
+      reply.status(404).send({ error: 'Endpoint not found' });
+    }
+  });
 
   return fastify;
 }
 
-import { initAutoSyncScheduler, stopAutoSyncScheduler, initHistoryPurgeScheduler } from './sync/scheduler.js';
+import { initAutoSyncScheduler, stopAutoSyncScheduler, initHistoryPurgeScheduler, initBackupScheduler } from './sync/scheduler.js';
 
 let isShuttingDown = false;
 let currentApp: FastifyInstance | null = null;
@@ -175,9 +197,10 @@ async function bootstrap() {
   const app = await createApp();
   currentApp = app;
 
-  // Initialize automatic periodic background sync scheduler
+  // Initialize automatic periodic background sync and maintenance schedulers
   initAutoSyncScheduler();
   initHistoryPurgeScheduler();
+  initBackupScheduler();
 
   process.on('SIGINT', () => handleShutdown('SIGINT', app));
   process.on('SIGTERM', () => handleShutdown('SIGTERM', app));

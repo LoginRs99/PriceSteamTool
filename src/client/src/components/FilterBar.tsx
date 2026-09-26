@@ -20,7 +20,7 @@ interface FilterBarProps {
   onViewModeChange?: (mode: ViewMode) => void;
 }
 
-export const FilterBar: React.FC<FilterBarProps> = ({
+const FilterBarComponent: React.FC<FilterBarProps> = ({
   filters,
   totalGames,
   onFilterChange,
@@ -237,3 +237,5 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     </div>
   );
 };
+
+export const FilterBar = React.memo(FilterBarComponent);

@@ -165,6 +165,15 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
           />
           <span>Hide Family Shared Games (👨‍👩‍👧 Family Library)</span>
         </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.hideProvisional)}
+            onChange={(e) => onFilterChange({ hideProvisional: e.target.checked, page: 1 })}
+          />
+          <span>Hide Provisional Deal Scores (&lt;5 price samples)</span>
+        </label>
       </div>
     </div>
   );

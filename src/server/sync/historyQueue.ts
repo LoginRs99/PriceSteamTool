@@ -47,17 +47,20 @@ export class PriceHistoryQueue {
         const fetchPromise = itadAdapter.fetchPriceHistory(game.steamAppId, game.itadId);
 
         let points: any[] = [];
+        let timer: NodeJS.Timeout | undefined;
         try {
           points = await Promise.race([
             fetchPromise,
-            new Promise<any[]>((_, reject) =>
-              setTimeout(() => reject(new Error(`ITAD history fetch timeout after ${timeoutMs}ms`)), timeoutMs)
-            )
+            new Promise<any[]>((_, reject) => {
+              timer = setTimeout(() => reject(new Error(`ITAD history fetch timeout after ${timeoutMs}ms`)), timeoutMs);
+            })
           ]);
         } catch (fetchErr: any) {
           logWarn(`[HistorySeed] Could not fetch ITAD history for "${game.title}" (appId ${game.steamAppId}): ${fetchErr.message}`);
           // Do not permanently mark seeded on network errors/timeouts so it can be retried later
           return false;
+        } finally {
+          if (timer) clearTimeout(timer);
         }
 
         // Write points into price_history and recompute stats

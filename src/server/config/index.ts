@@ -35,6 +35,7 @@ export const config = {
   allkeyshopJitterMs: parseInt(process.env.ALLKEYSHOP_JITTER_MS || '1500', 10),
   allkeyshopChunkSize: parseInt(process.env.ALLKEYSHOP_CHUNK_SIZE || '50', 10),
   allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || '20000', 10),
+  ggdealsChunkPauseMs: parseInt(process.env.GGDEALS_CHUNK_PAUSE_MS || '60000', 10),
 
   // Cache & Periodic Auto-Sync settings
   cacheTtlHours: parseInt(process.env.CACHE_TTL_HOURS || '6', 10),
@@ -46,6 +47,11 @@ export const config = {
   ),
   allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '400', 10), // default cap per enrichment run; 0 = unlimited
   allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '', // Byparr / FlareSolverr anti-bot solver (e.g. http://localhost:8191)
+
+  // Database Backup Settings
+  backupEnabled: process.env.BACKUP_ENABLED !== 'false',
+  backupIntervalHours: parseInt(process.env.BACKUP_INTERVAL_HOURS || '24', 10),
+  backupRetentionDays: parseInt(process.env.BACKUP_RETENTION_DAYS || '7', 10),
 
   // Region preferences (default: Hungary / EU / Global)
   preferredCountry: 'HU',

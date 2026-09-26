@@ -21,7 +21,7 @@ const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000)
 
 export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
   -- Reset and reassign is_best_deal for all games using canonical freshness and priority (fresh safe lowest > stale > pricing error excluded)
-  UPDATE offers SET is_best_deal = 0;
+  UPDATE offers SET is_best_deal = 0 WHERE is_best_deal = 1;
   WITH ranked AS (
     SELECT id, ROW_NUMBER() OVER (
       PARTITION BY game_id
@@ -41,10 +41,15 @@ export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
 
 export function getDb(): Database.Database {
   if (!dbInstance || !dbInstance.open) {
+    stmtCache.clear();
     dbInstance = new Database(config.dbPath);
     dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('synchronous = NORMAL');
     dbInstance.pragma('busy_timeout = 5000');
     dbInstance.pragma('foreign_keys = ON');
+    dbInstance.pragma('cache_size = -64000');
+    dbInstance.pragma('temp_store = MEMORY');
+    dbInstance.pragma('mmap_size = 268435456');
     dbInstance.exec(SCHEMA_SQL);
     dbInstance.exec(SEED_SOURCES_SQL);
 
@@ -96,6 +101,20 @@ export function getDb(): Database.Database {
     }
   }
   return dbInstance;
+}
+
+/**
+ * Optimizes SQLite indexes and refreshes table query planner statistics.
+ * Should be called periodically after large purge or sync operations.
+ */
+export function runAnalyze(): void {
+  try {
+    const db = getDb();
+    db.exec('PRAGMA optimize; ANALYZE;');
+    logInfo('[Database Hygiene] PRAGMA optimize & ANALYZE completed.');
+  } catch (err: any) {
+    logInfo(`[Database Hygiene] ANALYZE notice: ${err.message}`);
+  }
 }
 
 /**

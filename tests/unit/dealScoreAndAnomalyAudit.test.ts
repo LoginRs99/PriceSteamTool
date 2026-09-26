@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { calculateDealScore } from '../../src/server/domain/dealScore/calculator.js';
-import { detectPricingError } from '../../src/server/domain/pricingError/detector.js';
+import { detectPricingError, detectSourceFamilyConflict } from '../../src/server/domain/pricingError/detector.js';
 import { evaluatePriceMovement, evaluateSourceOwnHistoryAnomaly } from '../../src/server/domain/pricingError/index.js';
 import { evaluatePurchaseAdvice } from '../../src/server/domain/priceIntelligence/purchaseAdvice.js';
-import type { Game, Offer, PriceIntelligenceResponse, TypicalSalePrice, ActionSignal } from '../../src/shared/types.js';
+import { calculateTypicalSalePrice } from '../../src/server/domain/priceIntelligence/typicalSale.js';
+import { buildPriceChartData } from '../../src/server/domain/priceIntelligence/chartData.js';
+import { calculatePeriodLows } from '../../src/server/domain/priceIntelligence/periodLows.js';
+import { isTrustedHistoryEntry } from '../../src/server/domain/priceIntelligence/types.js';
+import { exchangeRateService } from '../../src/server/domain/exchangeRate.js';
+import type { Game, Offer, PriceIntelligenceResponse, TypicalSalePrice, ActionSignal, PriceHistoryEntry } from '../../src/shared/types.js';
 
 describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () => {
   describe('Issue A — ATL > typical_sale_median Reconciliation', () => {
@@ -602,6 +607,123 @@ describe('Critical Audit & Edge Cases: DealScore v2.3 & Anomaly Detection', () =
       // Guardrail clamps from BUY to FAIR with LOW confidence because deal score is 25!
       expect(adviceLowDealScore.decision).toBe('FAIR');
       expect(adviceLowDealScore.confidence).toBe('LOW');
+    });
+  });
+
+  describe('Mathematical Engine Audit: Edge Cases, Non-Finite & Single-Sample Bounds', () => {
+    it('handles Infinity, -Infinity, and NaN gracefully in calculateDealScore', () => {
+      // 1. Infinity price returns score 0, WAIT
+      const resInf = calculateDealScore({
+        priceEur: Infinity,
+        basePriceEur: 50.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 20.00
+      });
+      expect(resInf.score).toBe(0);
+      expect(resInf.verdict).toBe('WAIT');
+
+      // 2. NaN price returns score 0, WAIT
+      const resNaN = calculateDealScore({
+        priceEur: NaN,
+        basePriceEur: 50.00,
+        typicalSaleMedianEur: 30.00,
+        allTimeLowEur: 20.00
+      });
+      expect(resNaN.score).toBe(0);
+      expect(resNaN.verdict).toBe('WAIT');
+
+      // 3. NaN in typicalSaleMedianEur or anchor does not corrupt calculation
+      const resDirtyAnchors = calculateDealScore({
+        priceEur: 25.00,
+        basePriceEur: NaN as any,
+        typicalSaleMedianEur: NaN as any,
+        allTimeLowEur: NaN as any,
+        minOfferEur: NaN as any,
+        maxOfferEur: NaN as any
+      });
+      expect(Number.isFinite(resDirtyAnchors.score)).toBe(true);
+      expect(resDirtyAnchors.score).toBeGreaterThanOrEqual(0);
+      expect(resDirtyAnchors.score).toBeLessThanOrEqual(100);
+      expect(Number.isFinite(resDirtyAnchors.components!.historicalValue)).toBe(true);
+      expect(Number.isFinite(resDirtyAnchors.components!.marketPosition)).toBe(true);
+    });
+
+    it('safely handles detectSourceFamilyConflict with missing, null, or non-finite prices', () => {
+      const conflictWithDirty = detectSourceFamilyConflict([
+        { subCategory: 'Official', priceEur: 10.00 },
+        { subCategory: 'Keyshop', priceEur: 25.00 },
+        { subCategory: 'Corrupt', priceEur: undefined as any },
+        { subCategory: 'Corrupt2', priceEur: NaN as any }
+      ]);
+      expect(conflictWithDirty).not.toBeNull();
+      expect(conflictWithDirty?.ratio).toBe(2.5);
+      expect(conflictWithDirty?.details).toContain('Official=€10.00');
+      expect(conflictWithDirty?.details).toContain('Keyshop=€25.00');
+
+      // Less than 2 valid prices returns null
+      const insufficient = detectSourceFamilyConflict([
+        { subCategory: 'Official', priceEur: 10.00 },
+        { subCategory: 'Corrupt', priceEur: NaN as any }
+      ]);
+      expect(insufficient).toBeNull();
+    });
+
+    it('safely handles non-finite prices in evaluateSourceOwnHistoryAnomaly', () => {
+      const resDirtyHistory = evaluateSourceOwnHistoryAnomaly(10.00, [20.00, NaN as any, Infinity as any, 22.00, 21.00]);
+      expect(resDirtyHistory.applicable).toBe(true);
+      expect(Number.isFinite(resDirtyHistory.ownMedian!)).toBe(true);
+      expect(resDirtyHistory.ownMedian).toBe(21.00);
+    });
+
+    it('safely rejects Infinity in isTrustedHistoryEntry and exchangeRateService', () => {
+      const entryInf: PriceHistoryEntry = {
+        id: 'h1',
+        gameId: 'g1',
+        merchantId: 'm1',
+        sourceCode: 'steam',
+        priceEur: Infinity,
+        recordedAt: new Date().toISOString()
+      };
+      expect(isTrustedHistoryEntry(entryInf)).toBe(false);
+
+      expect(exchangeRateService.convertToEur(Infinity, 'USD')).toBe(0);
+      expect(exchangeRateService.convertFromEur(Infinity, 'USD')).toBe(0);
+    });
+
+    it('safely repairs inverted bounds in buildPriceChartData when historicalLow > MSRP', () => {
+      const mockGameInverted = {
+        id: 'g-inv',
+        steamAppId: 10001,
+        title: 'Inverted Bounds Game',
+        slug: 'inverted-bounds-game',
+        basePriceEur: 20.00,
+        historicalLowEur: 50.00 // Dirty/corrupted ATL higher than MSRP
+      } as unknown as Game;
+      const chart = buildPriceChartData(mockGameInverted, []);
+      expect(chart.minPrice).toBeLessThanOrEqual(chart.maxPrice);
+      expect(chart.minPrice).toBe(20.00);
+      expect(chart.maxPrice).toBe(50.00);
+    });
+
+    it('handles empty history and single-sample statistics without throwing', () => {
+      const emptyTypical = calculateTypicalSalePrice(29.99, []);
+      expect(emptyTypical.medianPriceEur).toBeNull();
+      expect(emptyTypical.sampleCount).toBe(0);
+      expect(emptyTypical.isLowConfidence).toBe(true);
+
+      const singleHistory: PriceHistoryEntry[] = [{
+        id: 'h1',
+        gameId: 'g1',
+        merchantId: 'm1',
+        sourceCode: 'steam',
+        priceEur: 15.00,
+        discountPercent: 50,
+        recordedAt: new Date().toISOString()
+      }];
+      const singleTypical = calculateTypicalSalePrice(30.00, singleHistory);
+      expect(singleTypical.medianPriceEur).toBe(15.00);
+      expect(singleTypical.sampleCount).toBe(1);
+      expect(singleTypical.isLowConfidence).toBe(true);
     });
   });
 });

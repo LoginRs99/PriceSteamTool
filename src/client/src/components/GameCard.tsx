@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { Game } from '../types.js';
 import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
@@ -8,16 +8,32 @@ import { getSteamReviewSentiment } from '../utils/steamMeta.js';
 import { isRecordDropEvent } from '../utils/priceEvents.js';
 import { useCurrency } from '../context/CurrencyContext.js';
 
-interface GameCardProps {
+export interface GameCardProps {
   game: Game;
-  onClick: () => void;
+  onClick?: () => void;
+  onSelect?: (id: string) => void;
   onExplain?: (game: Game) => void;
 }
 
-const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }) => {
+const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, onExplain }) => {
   const { formatPrice } = useCurrency();
   const [copiedSteam, setCopiedSteam] = useState(false);
   const [copyError, setCopyError] = useState(false);
+
+  const handleClick = useCallback(() => {
+    if (onClick) {
+      onClick();
+    } else if (onSelect) {
+      onSelect(game.id);
+    }
+  }, [onClick, onSelect, game.id]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }, [handleClick]);
 
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isFree = game.isFree || game.bestPriceEur === 0;
@@ -32,7 +48,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
   const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75);
 
   const railColor = isPricingError
-    ? '#ef4444'
+    ? 'rgba(239, 68, 68, 0.75)'
     : isHighRisk 
     ? 'var(--up)' 
     : isConfirmedATL 
@@ -44,14 +60,14 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
     : 'var(--dim)';
 
   const tierBadgeBg = 
-    isPricingError ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(220, 38, 38, 0.4) 100%)' :
+    isPricingError ? 'rgba(239, 68, 68, 0.15)' :
     dealTier === 'Exceptional' ? 'rgba(167, 139, 250, 0.2)' : 
     dealTier === 'Great' ? 'var(--down-dim)' : 
     dealTier === 'Good' ? 'rgba(56, 189, 248, 0.15)' :
     'rgba(107, 114, 128, 0.15)';
 
   const tierBadgeColor = 
-    isPricingError ? '#f87171' :
+    isPricingError ? '#fca5a5' :
     dealTier === 'Exceptional' ? 'var(--accent-purple)' : 
     dealTier === 'Great' ? 'var(--down)' : 
     dealTier === 'Good' ? 'var(--accent-blue)' :
@@ -76,7 +92,14 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
   };
 
   return (
-    <div className="game-card" onClick={onClick}>
+    <div 
+      className="game-card" 
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      aria-label={`${game.title}, best price ${formatPrice(game.bestPriceEur)}`}
+    >
       {/* Cover Image Container */}
       <div className="game-card-image-wrap" style={{ position: 'relative', overflow: 'hidden' }}>
         <GameImage 
@@ -143,7 +166,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               right: 8,
               background: tierBadgeBg, 
               color: tierBadgeColor,
-              border: isPricingError ? '1px solid #ef4444' : `1px solid ${tierBadgeColor}44`,
+              border: isPricingError ? '1px solid rgba(239, 68, 68, 0.4)' : `1px solid ${tierBadgeColor}44`,
               borderRadius: 'var(--radius-sm)',
               padding: '2px 7px',
               fontFamily: 'var(--font-mono)',
@@ -155,7 +178,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               alignItems: 'center',
               justifyContent: 'center',
               minWidth: 26,
-              boxShadow: isPricingError ? '0 0 8px rgba(239, 68, 68, 0.4)' : undefined
+              boxShadow: isPricingError ? '0 1px 3px rgba(0, 0, 0, 0.25)' : undefined
             }}
             title={isPricingError 
               ? "⚡ Potential Pricing Error — Immediate purchase recommended before store correction!"
@@ -167,7 +190,9 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onExplain }
               }
             }}
           >
-            <span className="deal-score-num ticker-num">{isPricingError ? '⚡' : dealScore}</span>
+            <span className="deal-score-num ticker-num" style={isPricingError ? { fontSize: '0.7rem', opacity: 0.9 } : undefined}>
+              {isPricingError ? '⚡' : dealScore}
+            </span>
           </div>
         )}
 

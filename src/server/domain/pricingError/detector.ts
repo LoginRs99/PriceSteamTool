@@ -1,4 +1,5 @@
 import type { PricingErrorInput, PricingErrorEvaluation, PricingErrorType, SourceFamilyConflict } from './types.js';
+import { EPSILON_EUR } from '../../../shared/types.js';
 
 export interface TriggeredSignal {
   type: PricingErrorType;
@@ -28,17 +29,21 @@ export const SOURCE_FAMILY_CONFLICT_RATIO = 2.0;
 export function detectSourceFamilyConflict(
   sameSourceOffers: { subCategory: string; priceEur: number }[]
 ): SourceFamilyConflict | null {
-  if (sameSourceOffers.length < 2) return null;
-  const prices = sameSourceOffers
-    .map(o => o.priceEur)
-    .filter(p => p !== undefined && p !== null && p > 0 && !isNaN(p));
-  if (prices.length < 2) return null;
+  if (!Array.isArray(sameSourceOffers) || sameSourceOffers.length < 2) return null;
+  const validOffers = sameSourceOffers.filter(
+    o => o && typeof o.priceEur === 'number' && Number.isFinite(o.priceEur) && o.priceEur > 0
+  );
+  if (validOffers.length < 2) return null;
 
-  const ratio = Math.max(...prices) / Math.min(...prices);
+  const prices = validOffers.map(o => o.priceEur);
+  const minPrice = Math.min(...prices);
+  if (minPrice <= 0) return null;
+
+  const ratio = Math.max(...prices) / minPrice;
   if (ratio >= SOURCE_FAMILY_CONFLICT_RATIO) {
     return {
       ratio,
-      details: `Same source reports conflicting prices: ${sameSourceOffers
+      details: `Same source reports conflicting prices: ${validOffers
         .map(o => `${o.subCategory}=€${o.priceEur.toFixed(2)}`)
         .join(' vs ')} (${ratio.toFixed(2)}x)`
     };
@@ -63,13 +68,13 @@ export function checkOverMsrp(priceEur: number, msrpEur: number | undefined): bo
 
 export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[] {
   const price = input.priceEur;
-  if (price <= 0 || isNaN(price)) {
+  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
     return [];
   }
 
   const triggered: TriggeredSignal[] = [];
   const freshPeers = (input.otherFreshPricesEur ?? []).filter(
-    p => p !== undefined && p !== null && p > 0 && !isNaN(p)
+    p => typeof p === 'number' && Number.isFinite(p) && p > 0
   );
   const msrp = input.steamBasePriceEur ?? input.claimedOriginalPriceEur;
   const minPeer = freshPeers.length > 0 ? Math.min(...freshPeers) : undefined;
@@ -169,7 +174,7 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
   const isAtlConfirmed = input.atlIsConfirmed !== false;
   if (isAtlConfirmed && atlEff !== undefined && atlEff >= 2.0) {
     const threshold = Math.max(atlEff * 0.40, atlEff - Math.max(atlEff * 0.60, 1.00));
-    if (price < threshold - 0.005) {
+    if (price < threshold - EPSILON_EUR) {
       triggered.push({
         type: 'BELOW_ATL_IMPLAUSIBLE',
         weight: 0.30,
@@ -189,21 +194,24 @@ export function getTriggeredSignals(input: PricingErrorInput): TriggeredSignal[]
 
   // Signal 5: OWN_HISTORY_BREAK (0.25)
   // ownHistoryEur (>=3 entries) IQR/median check
-  if (input.ownHistoryEur && input.ownHistoryEur.length >= 3) {
-    const sortedHistory = [...input.ownHistoryEur].sort((a, b) => a - b);
-    const median = sortedHistory[Math.floor(sortedHistory.length / 2)];
-    const q1 = sortedHistory[Math.floor(sortedHistory.length * 0.25)];
-    const q3 = sortedHistory[Math.floor(sortedHistory.length * 0.75)];
-    const iqr = Math.max(0, q3 - q1);
-    const scale = Math.max(iqr / 1.349, median * 0.08, 0.50);
-    const z = (median - price) / scale;
+  if (input.ownHistoryEur && Array.isArray(input.ownHistoryEur)) {
+    const cleanHistory = input.ownHistoryEur.filter(p => typeof p === 'number' && Number.isFinite(p) && p >= 0);
+    if (cleanHistory.length >= 3) {
+      const sortedHistory = [...cleanHistory].sort((a, b) => a - b);
+      const median = sortedHistory[Math.floor(sortedHistory.length / 2)];
+      const q1 = sortedHistory[Math.floor(sortedHistory.length * 0.25)];
+      const q3 = sortedHistory[Math.floor(sortedHistory.length * 0.75)];
+      const iqr = Math.max(0, q3 - q1);
+      const scale = Math.max(iqr / 1.349, median * 0.08, 0.50);
+      const z = (median - price) / scale;
 
-    if (z > 2.5) {
-      triggered.push({
-        type: 'OWN_HISTORY_BREAK',
-        weight: 0.25,
-        reason: `Price (€${price.toFixed(2)}) severely breaks store's historical distribution (z-score: ${z.toFixed(2)}, median: €${median.toFixed(2)})`
-      });
+      if (z > 2.5) {
+        triggered.push({
+          type: 'OWN_HISTORY_BREAK',
+          weight: 0.25,
+          reason: `Price (€${price.toFixed(2)}) severely breaks store's historical distribution (z-score: ${z.toFixed(2)}, median: €${median.toFixed(2)})`
+        });
+      }
     }
   }
 
@@ -254,7 +262,7 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
   const price = input.priceEur;
 
   // 1. Early returns: invalid/non-positive price is not a pricing error
-  if (price <= 0 || isNaN(price)) {
+  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
     return { isLikelyPricingError: false, confidence: 0, type: null, reason: null };
   }
 
@@ -266,7 +274,7 @@ export function detectPricingError(input: PricingErrorInput): PricingErrorEvalua
   // 1. Peer matching & multi-store corroboration calculation:
   // Tolerance: within +/- 1.50 EUR, or relative difference <= 20% (or FX tolerance <= 0.02 EUR, or sub-euro <= 30%)
   const freshPeers = (input.otherFreshPricesEur ?? []).filter(
-    p => p !== undefined && p !== null && p > 0 && !isNaN(p)
+    p => typeof p === 'number' && Number.isFinite(p) && p > 0
   );
   const matchingPeers = freshPeers.filter(p => {
     const diff = Math.abs(p - price);

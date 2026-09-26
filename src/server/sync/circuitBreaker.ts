@@ -104,10 +104,20 @@ export class CircuitBreakerRegistry {
     sourceRepo.incrementCounters(source, 'success', undefined, requestCount);
   }
 
+  private static readonly FAILURE_DECAY_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
   public recordRateLimit(source: SourceCode, retryAfterSec: number = 30, requestCount: number = 1): void {
     const info = this.getOrCreate(source);
+    const now = Date.now();
+
+    // Decay stale counters if previous failure was outside the decay window
+    if (info.lastFailureTime && (now - info.lastFailureTime > CircuitBreakerRegistry.FAILURE_DECAY_WINDOW_MS)) {
+      info.consecutiveFailures = 0;
+      info.consecutiveRateLimits = 0;
+    }
+
     info.consecutiveRateLimits++;
-    info.lastFailureTime = Date.now();
+    info.lastFailureTime = now;
 
     if (source === 'allkeyshop') {
       const cooldownMs = computeFailureCooldown(info.consecutiveRateLimits, retryAfterSec);
@@ -140,8 +150,16 @@ export class CircuitBreakerRegistry {
 
   public recordFailure(source: SourceCode, error: string | Error, requestCount: number = 1): void {
     const info = this.getOrCreate(source);
+    const now = Date.now();
+
+    // Decay stale counters if previous failure was outside the decay window
+    if (info.lastFailureTime && (now - info.lastFailureTime > CircuitBreakerRegistry.FAILURE_DECAY_WINDOW_MS)) {
+      info.consecutiveFailures = 0;
+      info.consecutiveRateLimits = 0;
+    }
+
     info.consecutiveFailures++;
-    info.lastFailureTime = Date.now();
+    info.lastFailureTime = now;
     const errMsg = typeof error === 'string' ? error : (error?.message || String(error));
 
     if (source === 'allkeyshop') {
@@ -207,6 +225,37 @@ export class CircuitBreakerRegistry {
 
   public getCooldownUntil(source: SourceCode): number | null {
     return this.getOrCreate(source).cooldownUntil;
+  }
+
+  public isCoolingDown(source: SourceCode): boolean {
+    const info = this.getOrCreate(source);
+    return Boolean(info.cooldownUntil && Date.now() < info.cooldownUntil);
+  }
+
+  public getRemainingCooldownSec(source: SourceCode): number {
+    const info = this.getOrCreate(source);
+    if (!info.cooldownUntil) return 0;
+    return Math.max(0, Math.ceil((info.cooldownUntil - Date.now()) / 1000));
+  }
+
+  public setCooldown(source: SourceCode, cooldownMs: number, reason?: string): void {
+    const info = this.getOrCreate(source);
+    info.cooldownUntil = Date.now() + Math.max(0, cooldownMs);
+    info.state = 'BACKOFF';
+    const cooldownIso = new Date(info.cooldownUntil).toISOString();
+    sourceRepo.updateCircuitState(source, 'BACKOFF', cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
+    if (reason) {
+      sourceRepo.incrementCounters(source, 'ratelimit', reason, 1);
+    }
+  }
+
+  public clearCooldown(source: SourceCode): void {
+    const info = this.getOrCreate(source);
+    info.cooldownUntil = null;
+    if (info.state === 'BACKOFF' || info.state === 'COOLDOWN') {
+      info.state = 'NORMAL';
+    }
+    sourceRepo.updateCircuitState(source, info.state, undefined, info.consecutiveFailures, info.consecutiveRateLimits);
   }
 
   public getAllStates(): Record<SourceCode, CircuitState> {

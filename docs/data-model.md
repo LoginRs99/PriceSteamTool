@@ -255,3 +255,7 @@ Managed via `src/server/db/migrations.ts`:
 - **025**: Added `is_delisted` column to `games`.
 - **026**: Dismissed false sub-euro glitches on offers $\ge 1.005\text{ €}$, unflagged offers, and recomputed best deals.
 - **027**: Created `family_sharing_exclusions` table and `idx_family_sharing_exclusions_app_id` index to track Steam-restricted unshareable titles.
+- **028**: Added composite performance indexes (`idx_wishlist_profile_active_priority`, `idx_offers_game_valid_error_price`) and exchange rate audit columns to `source_observations` (`fx_rate`, `fx_rate_timestamp`).
+- **029**: Added user feedback loop columns (`user_feedback`, `feedback_at`) and index `idx_pricing_errors_feedback` to `pricing_errors`.
+- **030**: Created `purchases` table and indexes (`idx_purchases_profile_date`, `idx_purchases_game`) for the Purchase Journal & Realized Savings Tracker.
+- **031**: High-performance composite indexes (`idx_sync_runs_started_at`, `idx_pricing_errors_offer`, `idx_pricing_errors_game_dismissed`, `idx_price_history_recorded_at`, `idx_price_history_game_merchant`, `idx_offers_game_best_deal`) and best deal recomputation write minimization.

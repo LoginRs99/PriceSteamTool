@@ -11,7 +11,9 @@ import type {
   PricingError as Anomaly,
   SourceCode, 
   PriceIntelligenceResponse,
-  DiscordSettings
+  DiscordSettings,
+  Purchase,
+  SavingsSummary
 } from './types.js';
 
 const API_BASE = '/api';
@@ -287,6 +289,32 @@ export const api = {
     await apiFetch<void>(`${API_BASE}/anomalies/${id}/dismiss`, { method: 'POST' });
   },
 
+  async sendAnomalyFeedback(id: string, feedback: 'CONFIRMED_ERROR' | 'FALSE_POSITIVE' | 'DISMISSED'): Promise<void> {
+    await apiFetch<void>(`${API_BASE}/anomalies/${id}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ feedback }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+  },
+
+  async getAnomalyStats(): Promise<{
+    merchants: Array<{
+      merchantId: string;
+      merchantName: string;
+      confirmedCount: number;
+      falsePositiveCount: number;
+      dismissedCount: number;
+      totalFeedback: number;
+      precision: number;
+    }>;
+    totalConfirmed: number;
+    totalFalsePositive: number;
+    totalDismissed: number;
+    overallPrecision: number;
+  }> {
+    return apiFetch(`${API_BASE}/anomalies/stats`);
+  },
+
   async dismissAllAnomalies(): Promise<void> {
     await apiFetch<void>(`${API_BASE}/anomalies/dismiss-all`, { method: 'POST' });
   },
@@ -326,6 +354,37 @@ export const api = {
 
   async getExchangeRates(): Promise<{ base: string; rates: Record<string, number> }> {
     return apiFetch<{ base: string; rates: Record<string, number> }>(`${API_BASE}/exchange-rates`);
+  },
+
+  // Purchase Journal & Savings Tracker
+  async getPurchases(profileId?: string): Promise<Purchase[]> {
+    const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+    return apiFetch<Purchase[]>(`${API_BASE}/purchases${query}`);
+  },
+
+  async recordPurchase(data: {
+    profileId?: string;
+    gameId: string;
+    offerId?: string;
+    merchantId?: string;
+    priceEur: number;
+    purchasedAt?: string;
+    notes?: string;
+  }): Promise<Purchase> {
+    return apiFetch<Purchase>(`${API_BASE}/purchases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deletePurchase(id: string): Promise<void> {
+    await apiFetch<void>(`${API_BASE}/purchases/${id}`, { method: 'DELETE' });
+  },
+
+  async getSavingsSummary(profileId?: string): Promise<SavingsSummary> {
+    const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+    return apiFetch<SavingsSummary>(`${API_BASE}/purchases/savings${query}`);
   }
 };
 

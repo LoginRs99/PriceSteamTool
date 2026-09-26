@@ -134,6 +134,32 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             </div>
           )}
 
+          {/* Data Confidence Breakdown */}
+          {game.bestConfidenceScore !== undefined && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)', margin: 0 }}>
+                  Data Confidence & Coverage
+                </h4>
+                <span style={{ fontSize: '0.8rem', color: 'var(--dim)' }}>
+                  Tier: <strong style={{ color: 'var(--ink)' }}>{game.bestConfidenceTier || 'Medium'}</strong>
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                  <span style={{ color: 'var(--dim)' }}>Overall Reliability Score:</span>
+                  <span className="ticker-num" style={{ fontWeight: 700, color: (game.bestConfidenceScore ?? 0) >= 70 ? 'var(--down)' : 'var(--signal)' }}>
+                    {game.bestConfidenceScore} / 100
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
+                  <span style={{ color: 'var(--dim)' }}>Historical Price Samples:</span>
+                  <span className="ticker-num" style={{ fontWeight: 600 }}>{sampleCount} observation{sampleCount !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Mathematical Anchor Breakdown */}
           <div>
             <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)', marginBottom: 10 }}>

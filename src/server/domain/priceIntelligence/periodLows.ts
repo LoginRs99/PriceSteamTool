@@ -113,7 +113,9 @@ export function calculatePeriodLows(
   };
 
   // Confirmed ATL calculation
-  let confirmedAtlEur = game.historicalLowEur;
+  let confirmedAtlEur = (typeof game.historicalLowEur === 'number' && Number.isFinite(game.historicalLowEur) && game.historicalLowEur > 0)
+    ? game.historicalLowEur
+    : undefined;
   let atlSource = game.historicalLowSource || 'Recorded low';
   let atlDate = game.historicalLowDate;
   let isConfirmed = false;
@@ -122,13 +124,13 @@ export function calculatePeriodLows(
     isConfirmed = Boolean((game as any).atlIsConfirmed);
   } else if ((game as any).atl_is_confirmed !== undefined && (game as any).atl_is_confirmed !== null) {
     isConfirmed = Boolean((game as any).atl_is_confirmed);
-  } else if (confirmedAtlEur !== undefined && confirmedAtlEur !== null) {
+  } else if (confirmedAtlEur !== undefined) {
     // Last-resort fallback: only direct official storefronts are tentatively confirmed;
     // aggregators (CheapShark, ITAD, GG.deals), keyshops, and unknown sources are not.
     isConfirmed = isOfficialStoreSource(atlSource);
   }
 
-  if (confirmedAtlEur === undefined || confirmedAtlEur === null) {
+  if (confirmedAtlEur === undefined) {
     if (trustedHistory.length > 0) {
       let minPrice = trustedHistory[0].priceEur;
       let minDate = trustedHistory[0].recordedAt;

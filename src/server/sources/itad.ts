@@ -101,6 +101,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
   public readonly name = 'IsThereAnyDeal';
   public readonly supportsBatch = true;
   private queue = new PacedSourceQueue('itad', config.delays.itad, 200);
+  private isCancelled = false;
 
   public isEnabled(): boolean {
     // Enabled by default; if API key is present, it uses official API, otherwise falls back gracefully
@@ -108,6 +109,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
   }
 
   public clearQueue(): void {
+    this.isCancelled = true;
     this.queue.clear();
   }
 
@@ -226,6 +228,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
     const resultMap = new Map<number, NormalizedSourceOffer[]>();
     if (!config.itadApiKey || games.length === 0) return resultMap;
 
+    this.isCancelled = false;
     const itadIdToAppId = new Map<string, number>();
     const itadIdsToFetch: string[] = [];
     const gamesNeedingLookup: { steamAppId: number; title: string }[] = [];
@@ -252,6 +255,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
 
       const worker = async () => {
         while (currentIndex < gamesNeedingLookup.length) {
+          if (this.isCancelled) break;
           const idx = currentIndex++;
           if (idx >= gamesNeedingLookup.length) break;
           const g = gamesNeedingLookup[idx];
@@ -277,6 +281,8 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
       await Promise.all(workers);
     }
 
+    if (this.isCancelled) return resultMap;
+
     if (onProgress) {
       onProgress(games.length, games.length, `Fetching ITAD price overviews for ${itadIdsToFetch.length} games...`);
     }
@@ -286,6 +292,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
     let failedChunks = 0;
     let totalChunks = 0;
     for (let i = 0; i < itadIdsToFetch.length; i += chunkSize) {
+      if (this.isCancelled) break;
       totalChunks++;
       const chunk = itadIdsToFetch.slice(i, i + chunkSize);
       try {

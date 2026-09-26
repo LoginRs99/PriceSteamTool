@@ -1,10 +1,11 @@
 import { config } from '../config/index.js';
-import { profileRepo, offerRepo } from '../db/index.js';
+import { profileRepo, offerRepo, createDatabaseBackup } from '../db/index.js';
 import { syncOrchestrator } from './orchestrator.js';
 import { logInfo, logWarn } from '../utils/logger.js';
 
 let timer: NodeJS.Timeout | null = null;
 let purgeTimer: NodeJS.Timeout | null = null;
+let backupTimer: NodeJS.Timeout | null = null;
 
 const PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // once a day is enough
 
@@ -52,6 +53,10 @@ export function stopAutoSyncScheduler(): void {
     clearInterval(purgeTimer);
     purgeTimer = null;
   }
+  if (backupTimer) {
+    clearInterval(backupTimer);
+    backupTimer = null;
+  }
 }
 
 export function initHistoryPurgeScheduler(): void {
@@ -76,3 +81,26 @@ export function initHistoryPurgeScheduler(): void {
   runPurge(); // run once at startup too
   purgeTimer = setInterval(runPurge, PURGE_INTERVAL_MS);
 }
+
+export function initBackupScheduler(): void {
+  if (!config.backupEnabled) {
+    logInfo('💾 Automatic database backup is DISABLED (BACKUP_ENABLED=false).');
+    return;
+  }
+
+  if (backupTimer) clearInterval(backupTimer);
+
+  const intervalMs = config.backupIntervalHours * 60 * 60 * 1000;
+  logInfo(`💾 Scheduled database backup enabled: every ${config.backupIntervalHours} hours (retention: ${config.backupRetentionDays} days).`);
+
+  const runBackup = async () => {
+    try {
+      await createDatabaseBackup();
+    } catch (err: any) {
+      logWarn(`[Backup] Scheduled database backup error: ${err.message}`);
+    }
+  };
+
+  backupTimer = setInterval(runBackup, intervalMs);
+}
+

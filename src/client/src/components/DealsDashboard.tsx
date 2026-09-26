@@ -14,7 +14,7 @@ interface DealsDashboardProps {
   filters?: WishlistFilterOptions;
 }
 
-export const DealsDashboard: React.FC<DealsDashboardProps> = ({
+const DealsDashboardComponent: React.FC<DealsDashboardProps> = ({
   stats,
   topDeals,
   onSelectGame,
@@ -224,3 +224,5 @@ export const DealsDashboard: React.FC<DealsDashboardProps> = ({
     </div>
   );
 };
+
+export const DealsDashboard = React.memo(DealsDashboardComponent);

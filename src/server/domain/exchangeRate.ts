@@ -102,10 +102,17 @@ export class ExchangeRateService {
   }
 
   /**
+   * Returns the ISO timestamp of the current exchange rate snapshot.
+   */
+  public getLastUpdatedTimestamp(): string {
+    return this.lastFetched > 0 ? new Date(this.lastFetched).toISOString() : new Date().toISOString();
+  }
+
+  /**
    * Converts an amount in given currency to normalized EUR
    */
   public convertToEur(amount: number, currency: string = 'EUR'): number {
-    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
       return 0;
     }
     const code = this.normalizeCurrencyCode(currency);
@@ -190,7 +197,7 @@ export class ExchangeRateService {
    * Converts EUR amount to target currency
    */
   public convertFromEur(eurAmount: number, targetCurrency: string): number {
-    if (typeof eurAmount !== 'number' || isNaN(eurAmount) || eurAmount <= 0) return 0;
+    if (typeof eurAmount !== 'number' || !Number.isFinite(eurAmount) || eurAmount <= 0) return 0;
     const code = this.normalizeCurrencyCode(targetCurrency);
     if (code === 'EUR') return eurAmount;
     const rateToEur = this.getRateToEur(code);

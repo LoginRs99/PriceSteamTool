@@ -17,7 +17,7 @@ export function buildPriceChartData(
   typicalSaleMedian?: number | null
 ): PriceChartData {
   // Create timeline points from trusted history
-  const points: PriceChartPoint[] = history
+  const rawPoints: PriceChartPoint[] = history
     .filter(h => isTrustedHistoryEntry(h) && !isNaN(new Date(h.recordedAt).getTime()))
     .map(h => ({
       timestamp: h.recordedAt,
@@ -32,7 +32,7 @@ export function buildPriceChartData(
   // Append current observation if available
   if (currentBestOffer && currentBestOffer.priceEur > 0) {
     const nowIso = new Date().toISOString();
-    points.push({
+    rawPoints.push({
       timestamp: nowIso,
       priceEur: Number(currentBestOffer.priceEur.toFixed(2)),
       merchantName: currentBestOffer.merchantName || 'Store',
@@ -43,6 +43,27 @@ export function buildPriceChartData(
     });
   }
 
+  // Aggregate daily minimum points: one point per day representing the best trusted deal of that day
+  const dailyPointsMap = new Map<string, PriceChartPoint>();
+  for (const p of rawPoints) {
+    const day = p.timestamp.slice(0, 10);
+    const existing = dailyPointsMap.get(day);
+    if (!existing) {
+      dailyPointsMap.set(day, p);
+    } else {
+      if (p.priceEur < existing.priceEur) {
+        dailyPointsMap.set(day, p);
+      } else if (p.priceEur === existing.priceEur) {
+        if (!existing.isOfficial && p.isOfficial) {
+          dailyPointsMap.set(day, p);
+        } else if ((p.dealScore ?? 0) > (existing.dealScore ?? 0)) {
+          dailyPointsMap.set(day, p);
+        }
+      }
+    }
+  }
+
+  const points = Array.from(dailyPointsMap.values());
   points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   // Downsample to max 150 points if large history
@@ -51,13 +72,23 @@ export function buildPriceChartData(
     finalPoints = downsamplePoints(points, 150);
   }
 
-  // Calculate bounds
-  let minPrice = game.historicalLowEur ?? (finalPoints[0]?.priceEur || 0);
-  let maxPrice = game.basePriceEur ?? (finalPoints[0]?.priceEur || 10);
+  // Calculate bounds with defense against inverted or uninitialized bounds
+  let minPrice = (typeof game.historicalLowEur === 'number' && Number.isFinite(game.historicalLowEur) && game.historicalLowEur > 0)
+    ? game.historicalLowEur
+    : (finalPoints[0]?.priceEur || 0);
+  let maxPrice = (typeof game.basePriceEur === 'number' && Number.isFinite(game.basePriceEur) && game.basePriceEur > 0)
+    ? game.basePriceEur
+    : (finalPoints[0]?.priceEur || 10);
 
   for (const p of finalPoints) {
     if (p.priceEur < minPrice) minPrice = p.priceEur;
     if (p.priceEur > maxPrice) maxPrice = p.priceEur;
+  }
+
+  if (minPrice > maxPrice) {
+    const tmp = minPrice;
+    minPrice = maxPrice;
+    maxPrice = tmp;
   }
 
   const startDate = finalPoints.length > 0 ? finalPoints[0].timestamp : new Date().toISOString();
@@ -105,5 +136,5 @@ function downsamplePoints(points: PriceChartPoint[], targetCount: number): Price
   }
 
   result.push(points[points.length - 1]);
-  return result.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  return result.sort((a, b) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0));
 }

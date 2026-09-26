@@ -420,12 +420,18 @@ export const gameRepo = {
     prepareStmt(`UPDATE games SET itad_id = ?, updated_at = datetime('now') WHERE steam_app_id = ?`).run(itadId, steamAppId);
   },
 
-  updateHistoricalLow(gameId: string, priceEur: number, date: string, source: string): void {
+  updateHistoricalLow(
+    gameId: string, 
+    priceEur: number, 
+    date: string, 
+    source: string,
+    options?: { isConfirmed?: boolean }
+  ): void {
     if (typeof priceEur !== 'number' || isNaN(priceEur) || priceEur <= 0) {
       return;
     }
     const isKeyshop = isKeyshopSourceStr(source);
-    const isConfirmed = isOfficialStoreSource(source) ? 1 : 0;
+    const isConfirmed = options?.isConfirmed ?? (isOfficialStoreSource(source) ? 1 : 0);
     prepareStmt(`
       UPDATE games 
       SET historical_low_eur = ?, 
@@ -434,8 +440,23 @@ export const gameRepo = {
           atl_is_confirmed = ?,
           atl_is_single_source_low = ?,
           updated_at = datetime('now')
-      WHERE id = ? AND (historical_low_eur IS NULL OR (historical_low_eur > 0 AND ? < historical_low_eur))
-    `).run(priceEur, date, source, isConfirmed, isKeyshop ? 1 : 0, gameId, priceEur);
+      WHERE id = ? AND (
+        historical_low_eur IS NULL 
+        OR (? = 0 AND ? < historical_low_eur)
+        OR (? = 1 AND ? < historical_low_eur)
+      )
+    `).run(
+      priceEur, 
+      date, 
+      source, 
+      isConfirmed ? 1 : 0, 
+      isKeyshop ? 1 : 0, 
+      gameId, 
+      isKeyshop ? 1 : 0, 
+      priceEur,
+      isConfirmed ? 1 : 0,
+      priceEur
+    );
   },
 
   reconcileAllHistoricalLows(): number {
@@ -444,13 +465,16 @@ export const gameRepo = {
       SET historical_low_eur = (
         SELECT MIN(o.price_eur)
         FROM offers o
+        JOIN merchants m ON o.merchant_id = m.id
         WHERE o.game_id = games.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          AND (m.is_official = 1 OR (SELECT COUNT(DISTINCT so.source_code) FROM source_observations so WHERE so.offer_id = o.id) >= 2)
       ),
       atl_is_confirmed = (
         SELECT CASE WHEN m.is_official = 1 THEN 1 ELSE 0 END
         FROM offers o
         JOIN merchants m ON o.merchant_id = m.id
         WHERE o.game_id = games.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          AND (m.is_official = 1 OR (SELECT COUNT(DISTINCT so.source_code) FROM source_observations so WHERE so.offer_id = o.id) >= 2)
         ORDER BY o.price_eur ASC, o.id ASC
         LIMIT 1
       ),
@@ -459,6 +483,7 @@ export const gameRepo = {
         FROM offers o
         JOIN merchants m ON o.merchant_id = m.id
         WHERE o.game_id = games.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          AND (m.is_official = 1 OR (SELECT COUNT(DISTINCT so.source_code) FROM source_observations so WHERE so.offer_id = o.id) >= 2)
         ORDER BY o.price_eur ASC, o.id ASC
         LIMIT 1
       ), games.historical_low_source),
@@ -467,7 +492,9 @@ export const gameRepo = {
         SELECT o.game_id
         FROM offers o
         JOIN games g ON g.id = o.game_id
+        JOIN merchants m ON o.merchant_id = m.id
         WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0
+          AND (m.is_official = 1 OR (SELECT COUNT(DISTINCT so.source_code) FROM source_observations so WHERE so.offer_id = o.id) >= 2)
           AND g.historical_low_eur IS NOT NULL AND g.historical_low_eur > 0
         GROUP BY o.game_id
         HAVING MIN(o.price_eur) < g.historical_low_eur
@@ -527,7 +554,22 @@ export const gameRepo = {
     };
   },
 
-  getBestDeals(profileId: string, limit: number = 12): Game[] {
+  getBestDeals(
+    profileId: string, 
+    limit: number = 12,
+    options?: { minTier?: string; hideFamilyShared?: boolean }
+  ): Game[] {
+    const hideFamilyShared = options?.hideFamilyShared ?? true;
+    const minTier = options?.minTier;
+
+    const familyFilterClause = hideFamilyShared ? `
+        AND NOT EXISTS (
+          SELECT 1 FROM family_owned_apps fo
+          JOIN profiles fp ON fo.profile_id = fp.id
+          WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id
+            AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id)
+        )` : '';
+
     const rows = prepareStmt(`
       SELECT g.*, 
         w.priority,
@@ -559,9 +601,13 @@ export const gameRepo = {
         AND (g.is_free = 0 OR g.is_free IS NULL)
         AND bo.is_valid = 1
         AND (bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))
+        ${familyFilterClause}
     `).all(profileId) as any[];
 
-    const games = rows.map(mapGameRow);
+    const qualifyingTiers = minTier ? new Set(['Exceptional', 'Great', 'Good']) : null;
+    const games = rows
+      .map(mapGameRow)
+      .filter(g => !qualifyingTiers || (g.bestDealTier && qualifyingTiers.has(g.bestDealTier)));
 
     games.sort((a, b) => {
       const scoreA = a.bestDealScore ?? 0;

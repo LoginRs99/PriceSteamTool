@@ -5,6 +5,50 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-09-26
+
+### Added
+* **ATL Quarantine & Single-Source Data Integrity (Step 1)**:
+  * Seeded ITAD price history rows now evaluate through `evaluatePriceMovement` / `detectPricingError` instead of hardcoding `is_pricing_error = 0`.
+  * Single-source unconfirmed new all-time low (ATL) offers from non-official sources are quarantined from immediately overwriting `games.historical_low_eur` and corrupting typical sale medians until corroborated or confirmed by official stores.
+* **DealScore & Confidence Calibration (Step 2)**:
+  * $S_{\text{atl}}$ pillar scales proportionally with discount depth relative to MSRP anchor (never-discounted games with ATL $\approx$ MSRP now receive low/zero $S_{\text{atl}}$ score).
+  * Continuous sigmoid confidence ramp for sample counts and sample recency replacing abrupt step thresholds.
+  * Weighted geometric mean across confidence factors with floor protection to prevent a single weak factor from zeroing overall confidence.
+  * ATL age dampening prevents stale multi-year drops from unfairly topping deal scores.
+* **Anomaly Feedback Loop (Step 3)**:
+  * User verification in Anomaly view: "Valódi hiba" (Confirmed Error) vs "Téves riasztás" (False Positive).
+  * False positives automatically unflag the offer and trigger instant recomputation of Best Deals.
+  * Per-merchant and per-signal accuracy tracking endpoints (`GET /api/anomalies/stats`, `POST /api/anomalies/:id/feedback`).
+* **Sync Resilience, Cooldowns & Batch Purging (Step 4)**:
+  * Introduced `sync_runs` table and tracking repository to capture granular per-source sync metadata, statuses, and performance timings.
+  * Cross-chunk circuit breaker cooldown preventing rapid retry thrashing on failing adapters.
+  * Safe chunked deletion (1000 items/chunk) in `purgeOldPriceHistory()` to avoid SQLite transaction locks.
+* **Database Hygiene & High-Performance Composite Indexes (Step 5)**:
+  * Composite indexes (`idx_wishlist_profile_active_priority`, `idx_offers_game_valid_error_price`) for instant wishlist rendering and best deal lookups.
+  * Stored FX rate and audit timestamp in `source_observations.fx_rate` and `fx_rate_timestamp`.
+  * Standardized EUR epsilon comparison (`EPSILON_EUR = 0.005`) and `isPriceEqual`/`isPriceDifferent` helpers.
+  * Automatic `PRAGMA optimize; ANALYZE;` post-sync optimization hook.
+* **Zero-Downtime SQLite Backup & Disaster Recovery (Step 7)**:
+  * Non-blocking online SQLite backup engine leveraging `better-sqlite3` backup API with `PRAGMA wal_checkpoint(PASSIVE)`.
+  * Post-backup integrity verification using `PRAGMA quick_check`.
+  * Rolling 7-day retention rotation (`pricetool-backup-*.db`).
+  * Automated 24h background backup scheduler and manual REST management endpoints (`POST /api/backup`, `GET /api/backups`).
+  * Complete operational disaster recovery documentation in `docs/backup-restore.md`.
+* **Megtakarítás-követő / Purchase Journal & Realized Savings Tracker (Step 9)**:
+  * Log bought games directly from Offers table ("Megvettem" button) or dedicated Journal.
+  * Snapshots purchase price, historical MSRP, and typical sale median at the moment of purchase.
+  * Realized savings analytics dashboard: total spent, savings vs MSRP, savings vs typical sale median, and monthly trends.
+  * REST API endpoints: `GET/POST/DELETE /api/purchases`, `GET /api/purchases/savings`.
+
+### Changed & Fixed
+* **Frontend Surfacing & UI Cleanup (Step 8 & 10)**:
+  * Surfaced `marketDepthCaveat` in DealScore tooltip and details hero.
+  * Rendered confidence breakdown indicators and visual tooltips.
+  * Cleaned up deprecated and unused `DenseTableView.tsx`.
+  * Fixed Steam / ITAD 0-priced giveaways handling so they remain properly classified.
+  * Hardened CheapShark / GGDeals adapter error reporting and currency parsing.
+
 ## [2.6.0] - 2026-09-18
 
 ### Added

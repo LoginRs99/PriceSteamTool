@@ -8,7 +8,8 @@ import {
   CheckCircle, 
   ExternalLink,
   Copy,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { useCurrency } from '../../context/CurrencyContext.js';
 
@@ -135,6 +136,28 @@ export const DecisionHero: React.FC<DecisionHeroProps> = ({
             </span>
           )}
         </div>
+
+        {advice.marketDepthCaveat && (
+          <div 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(245, 158, 11, 0.15)',
+              color: '#fbbf24',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              padding: '3px 8px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              marginTop: 4,
+              marginBottom: 8
+            }}
+          >
+            <AlertTriangle size={12} style={{ flexShrink: 0 }} />
+            <span>{advice.marketDepthCaveat}</span>
+          </div>
+        )}
 
         {/* Reasoning Bullet Points */}
         <ul className="advice-reasons-list">

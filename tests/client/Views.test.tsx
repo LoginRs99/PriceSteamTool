@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { DenseTableView } from '../../src/client/src/components/DenseTableView.js';
 import { CompactListView } from '../../src/client/src/components/CompactListView.js';
 import { FreeGamesView } from '../../src/client/src/components/FreeGamesView.js';
 import type { Game } from '../../src/client/src/types.js';
@@ -46,36 +45,7 @@ const mockFreeGame: Game = {
   updatedAt: '2026-01-01T00:00:00Z'
 };
 
-describe('Catalog Views: DenseTableView and FreeGamesView', () => {
-
-  describe('DenseTableView', () => {
-    it('renders table columns, sort changes, and row interactions', () => {
-      const clickMock = vi.fn();
-      const explainMock = vi.fn();
-      const sortMock = vi.fn();
-
-      render(
-        <DenseTableView
-          games={[mockPaidGame]}
-          onGameClick={clickMock}
-          onExplain={explainMock}
-          currentSort="best_value"
-          onSortChange={sortMock}
-        />
-      );
-
-      expect(screen.getByText('Title')).toBeInTheDocument();
-      expect(screen.getByText('Deal Score')).toBeInTheDocument();
-      expect(screen.getByText('Terraria')).toBeInTheDocument();
-
-      fireEvent.click(screen.getByText('Terraria'));
-      expect(clickMock).toHaveBeenCalledWith(mockPaidGame);
-
-      // Change sort by clicking Deal Score column header
-      fireEvent.click(screen.getByText('Deal Score'));
-      expect(sortMock).toHaveBeenCalled();
-    });
-  });
+describe('Catalog Views: CompactListView and FreeGamesView', () => {
 
   describe('CompactListView', () => {
     it('renders compact rows with badges, scores, prices and handles game click and refresh', async () => {

@@ -15,6 +15,7 @@ export const QUICK_PILL_BASE: Partial<WishlistFilterOptions> = {
   minDealScore: undefined,
   merchantType: 'all',
   hasPricingErrors: false,
+  activePill: 'all',
   page: 1
 };
 
@@ -94,6 +95,7 @@ export function useFilterState(
       buyOnly: false,
       merchantType: 'all',
       hasPricingErrors: false,
+      activePill: 'all',
       page: 1
     });
   };
@@ -105,6 +107,7 @@ export function useFilterState(
     if (pill === currentActive && pill !== 'all') {
       onFilterChange({
         ...QUICK_PILL_BASE,
+        activePill: 'all',
         sort: 'best_value'
       });
       return;
@@ -114,12 +117,14 @@ export function useFilterState(
       case 'all':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'all',
           sort: 'best_value'
         });
         break;
       case 'buy_recommendations':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'buy_recommendations',
           buyOnly: true,
           minDealScore: 70,
           sort: 'best_value'
@@ -128,6 +133,7 @@ export function useFilterState(
       case 'target_reached':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'target_reached',
           targetReachedOnly: true,
           sort: 'best_value'
         });
@@ -135,6 +141,7 @@ export function useFilterState(
       case 'best_deals':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'best_deals',
           minDealScore: 70,
           sort: 'best_value'
         });
@@ -142,6 +149,7 @@ export function useFilterState(
       case 'exceptional':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'exceptional',
           minDealScore: 80,
           sort: 'deal_score_desc'
         });
@@ -149,6 +157,7 @@ export function useFilterState(
       case 'discount_75':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'discount_75',
           minDiscount: 75,
           saleOnly: true,
           sort: 'price_drops'
@@ -157,6 +166,7 @@ export function useFilterState(
       case 'discount_50':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'discount_50',
           minDiscount: 50,
           saleOnly: true,
           sort: 'price_drops'
@@ -165,6 +175,7 @@ export function useFilterState(
       case 'atl':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'atl',
           allTimeLowOnly: true,
           sort: 'near_atl'
         });
@@ -172,6 +183,7 @@ export function useFilterState(
       case 'sale':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'sale',
           saleOnly: true,
           sort: 'price_drops'
         });
@@ -179,6 +191,7 @@ export function useFilterState(
       case 'under_5':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'under_5',
           underPrice: 5,
           maxPrice: 5,
           sort: 'price_asc'
@@ -187,6 +200,7 @@ export function useFilterState(
       case 'under_10':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'under_10',
           underPrice: 10,
           maxPrice: 10,
           sort: 'price_asc'
@@ -195,6 +209,7 @@ export function useFilterState(
       case 'under_20':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'under_20',
           underPrice: 20,
           maxPrice: 20,
           sort: 'price_asc'
@@ -203,6 +218,7 @@ export function useFilterState(
       case 'official':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'official',
           merchantType: 'official',
           sort: 'best_value'
         });
@@ -210,6 +226,7 @@ export function useFilterState(
       case 'keyshop':
         onFilterChange({
           ...QUICK_PILL_BASE,
+          activePill: 'keyshop',
           merchantType: 'keyshop',
           sort: 'best_value'
         });

@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.6.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-727%2F727%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-2.7.0-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-776%2F776%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -176,11 +176,12 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 
 Comprehensive architectural and user documentation is maintained in [`docs/`](file:///D:/github/Pricetool/docs/):
 * [`docs/architecture.md`](file:///D:/github/Pricetool/docs/architecture.md) — System architecture, security posture, and runtime components.
-* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (migrations 001–026), entity relations, and index designs.
+* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (migrations 001–031), entity relations, and index designs.
+* [`docs/backup-restore.md`](file:///D:/github/Pricetool/docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, and disaster recovery.
 * [`docs/sources.md`](file:///D:/github/Pricetool/docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
 * [`docs/api-data-matrix.md`](file:///D:/github/Pricetool/docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
 * [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, and pricing error detection.
-* [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.3 mathematics, purchase advice advisor, and view modes.
+* [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.7 mathematics, purchase advice advisor, and view modes.
 * [`docs/development.md`](file:///D:/github/Pricetool/docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
 * [`PROJECT_SUMMARY.md`](file:///D:/github/Pricetool/PROJECT_SUMMARY.md) — Quick architectural summary for developers and AI agents.
 * [`CHANGELOG.md`](file:///D:/github/Pricetool/CHANGELOG.md) — Complete release history and changes.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import type { 
   Game, 
   MainTab,
@@ -12,14 +12,17 @@ import { FilterBar } from './components/FilterBar.js';
 import { CompactListView } from './components/CompactListView.js';
 import { GameCard } from './components/GameCard.js';
 import { ViewModeToggle } from './components/filter/ViewModeToggle.js';
-import { FreeGamesView } from './components/FreeGamesView.js';
-import { GameDetailModal } from './components/GameDetailModal.js';
-import { ProfileModal } from './components/ProfileModal.js';
-import { SourcesModal } from './components/SourcesModal.js';
-import { AnomaliesView } from './components/AnomaliesView.js';
-import { SyncModal } from './components/SyncModal.js';
-import { DiscordModal } from './components/DiscordModal.js';
-import { ScoreExplainModal } from './components/ScoreExplainModal.js';
+
+const FreeGamesView = React.lazy(() => import('./components/FreeGamesView.js').then(m => ({ default: m.FreeGamesView })));
+const GameDetailModal = React.lazy(() => import('./components/GameDetailModal.js').then(m => ({ default: m.GameDetailModal })));
+const ProfileModal = React.lazy(() => import('./components/ProfileModal.js').then(m => ({ default: m.ProfileModal })));
+const SourcesModal = React.lazy(() => import('./components/SourcesModal.js').then(m => ({ default: m.SourcesModal })));
+const AnomaliesView = React.lazy(() => import('./components/AnomaliesView.js').then(m => ({ default: m.AnomaliesView })));
+const SyncModal = React.lazy(() => import('./components/SyncModal.js').then(m => ({ default: m.SyncModal })));
+const DiscordModal = React.lazy(() => import('./components/DiscordModal.js').then(m => ({ default: m.DiscordModal })));
+const ScoreExplainModal = React.lazy(() => import('./components/ScoreExplainModal.js').then(m => ({ default: m.ScoreExplainModal })));
+const SavingsView = React.lazy(() => import('./components/SavingsView.js').then(m => ({ default: m.SavingsView })));
+
 import { GameCardSkeleton, CompactListSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
@@ -33,6 +36,7 @@ import {
   Flame, 
   Gift, 
   AlertTriangle,
+  PiggyBank,
   RefreshCw 
 } from 'lucide-react';
 
@@ -119,6 +123,24 @@ export const App: React.FC = () => {
   const handleCloseDiscordModal = useCallback(() => setShowDiscordModal(false), []);
   const handleCloseSyncModal = useCallback(() => setShowSyncModal(false), []);
 
+  const handleOpenProfiles = useCallback(() => setShowProfilesModal(true), []);
+  const handleOpenSources = useCallback(() => setShowSourcesModal(true), []);
+  const handleOpenDiscord = useCallback(() => setShowDiscordModal(true), []);
+  const handleOpenSync = useCallback(() => setShowSyncModal(true), []);
+  const handleLogoClick = useCallback(() => setMainTab('wishlist'), []);
+
+  const handleSelectGame = useCallback((id: string) => {
+    setSelectedGameId(id);
+  }, []);
+
+  const handleExplainGame = useCallback((game: Game) => {
+    setExplainGame(game);
+  }, []);
+
+  const handleGameClick = useCallback((game: Game) => {
+    setSelectedGameId(game.id);
+  }, []);
+
   const handleTargetPriceUpdated = useCallback((gameId: string, targetPrice: number | null) => {
     setGames(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
     setTopDeals(prev => prev.map(g => g.id === gameId ? { ...g, targetPriceEur: targetPrice === null ? undefined : targetPrice } : g));
@@ -154,6 +176,49 @@ export const App: React.FC = () => {
     loadFreeGames();
     loadStatsAndDeals();
   }, [loadProfiles, loadGames, loadFreeGames, loadStatsAndDeals]);
+
+  // Global Keyboard Navigation: j / k list navigation when no modal is open
+  useEffect(() => {
+    if (selectedGameId || explainGame || showProfilesModal || showSourcesModal || showDiscordModal || showSyncModal) {
+      return;
+    }
+
+    const handleListKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'SELECT' || 
+        target.isContentEditable
+      );
+      if (isInput) return;
+
+      if (e.key === 'j' || e.key === 'k') {
+        const items = Array.from(document.querySelectorAll<HTMLElement>('.compact-row, .game-card'));
+        if (items.length === 0) return;
+
+        e.preventDefault();
+        const activeIdx = items.findIndex(el => el === document.activeElement || el.contains(document.activeElement));
+        let nextIdx = 0;
+        if (activeIdx === -1) {
+          nextIdx = e.key === 'j' ? 0 : items.length - 1;
+        } else {
+          nextIdx = e.key === 'j' 
+            ? Math.min(items.length - 1, activeIdx + 1)
+            : Math.max(0, activeIdx - 1);
+        }
+
+        const nextEl = items[nextIdx];
+        if (nextEl) {
+          nextEl.focus();
+          nextEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleListKeyDown);
+    return () => window.removeEventListener('keydown', handleListKeyDown);
+  }, [selectedGameId, explainGame, showProfilesModal, showSourcesModal, showDiscordModal, showSyncModal]);
 
   // Scroll to top
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -215,17 +280,74 @@ export const App: React.FC = () => {
     });
   }, [updateFilters]);
 
+  const handleFilterATL = useCallback(() => {
+    const isCurrentlyActive = Boolean(filters.allTimeLowOnly);
+    updateFilters({
+      buyOnly: false,
+      targetReachedOnly: false,
+      saleOnly: false,
+      majorDealsOnly: false,
+      allTimeLowOnly: !isCurrentlyActive,
+      underPrice: undefined,
+      maxPrice: undefined,
+      minPrice: undefined,
+      minDiscount: undefined,
+      minDealScore: undefined,
+      merchantType: 'all',
+      sort: isCurrentlyActive ? 'priority' : 'near_atl',
+      page: 1
+    });
+  }, [filters.allTimeLowOnly, updateFilters]);
+
+  const handleFilterMajor = useCallback(() => {
+    const isCurrentlyActive = Boolean(filters.majorDealsOnly);
+    updateFilters({
+      buyOnly: false,
+      targetReachedOnly: false,
+      saleOnly: false,
+      majorDealsOnly: !isCurrentlyActive,
+      allTimeLowOnly: false,
+      underPrice: undefined,
+      maxPrice: undefined,
+      minPrice: undefined,
+      minDiscount: undefined,
+      minDealScore: undefined,
+      merchantType: 'all',
+      sort: isCurrentlyActive ? 'priority' : 'best_value',
+      page: 1
+    });
+  }, [filters.majorDealsOnly, updateFilters]);
+
+  const handleFilterSale = useCallback(() => {
+    const isCurrentlyActive = Boolean(filters.saleOnly);
+    updateFilters({
+      buyOnly: false,
+      targetReachedOnly: false,
+      saleOnly: !isCurrentlyActive,
+      majorDealsOnly: false,
+      allTimeLowOnly: false,
+      underPrice: undefined,
+      maxPrice: undefined,
+      minPrice: undefined,
+      minDiscount: undefined,
+      minDealScore: undefined,
+      merchantType: 'all',
+      sort: isCurrentlyActive ? 'priority' : 'price_drops',
+      page: 1
+    });
+  }, [filters.saleOnly, updateFilters]);
+
   return (
     <div className="app-container">
       {/* Top Navigation */}
       <Navbar
         activeProfile={activeProfile}
         syncProgress={syncProgress}
-        onOpenProfiles={() => setShowProfilesModal(true)}
-        onOpenSources={() => setShowSourcesModal(true)}
-        onOpenDiscord={() => setShowDiscordModal(true)}
-        onTriggerSync={() => setShowSyncModal(true)}
-        onLogoClick={() => setMainTab('wishlist')}
+        onOpenProfiles={handleOpenProfiles}
+        onOpenSources={handleOpenSources}
+        onOpenDiscord={handleOpenDiscord}
+        onTriggerSync={handleOpenSync}
+        onLogoClick={handleLogoClick}
       />
 
       {/* Sync Progress Banner */}
@@ -241,7 +363,7 @@ export const App: React.FC = () => {
           </p>
           <button 
             className="btn btn-primary"
-            onClick={() => setShowProfilesModal(true)}
+            onClick={handleOpenProfiles}
           >
             <PlusCircle size={16} />
             <span>Add Steam Profile</span>
@@ -294,6 +416,14 @@ export const App: React.FC = () => {
                 {anomalies.length}
               </span>
             </button>
+
+            <button
+              className={`main-tab-btn ${mainTab === 'savings' ? 'active' : ''}`}
+              onClick={() => setMainTab('savings')}
+            >
+              <PiggyBank size={16} color="#34d399" />
+              <span>Savings Tracker</span>
+            </button>
           </div>
 
           {/* TAB 1: PAID WISHLIST VIEW */}
@@ -303,61 +433,10 @@ export const App: React.FC = () => {
                 stats={stats}
                 topDeals={topDeals}
                 filters={filters}
-                onSelectGame={(id) => setSelectedGameId(id)}
-                onFilterATL={() => {
-                  const isCurrentlyActive = Boolean(filters.allTimeLowOnly);
-                  updateFilters({
-                    buyOnly: false,
-                    targetReachedOnly: false,
-                    saleOnly: false,
-                    majorDealsOnly: false,
-                    allTimeLowOnly: !isCurrentlyActive,
-                    underPrice: undefined,
-                    maxPrice: undefined,
-                    minPrice: undefined,
-                    minDiscount: undefined,
-                    minDealScore: undefined,
-                    merchantType: 'all',
-                    sort: isCurrentlyActive ? 'priority' : 'near_atl',
-                    page: 1
-                  });
-                }}
-                onFilterMajor={() => {
-                  const isCurrentlyActive = Boolean(filters.majorDealsOnly);
-                  updateFilters({
-                    buyOnly: false,
-                    targetReachedOnly: false,
-                    saleOnly: false,
-                    majorDealsOnly: !isCurrentlyActive,
-                    allTimeLowOnly: false,
-                    underPrice: undefined,
-                    maxPrice: undefined,
-                    minPrice: undefined,
-                    minDiscount: undefined,
-                    minDealScore: undefined,
-                    merchantType: 'all',
-                    sort: isCurrentlyActive ? 'priority' : 'best_value',
-                    page: 1
-                  });
-                }}
-                onFilterSale={() => {
-                  const isCurrentlyActive = Boolean(filters.saleOnly);
-                  updateFilters({
-                    buyOnly: false,
-                    targetReachedOnly: false,
-                    saleOnly: !isCurrentlyActive,
-                    majorDealsOnly: false,
-                    allTimeLowOnly: false,
-                    underPrice: undefined,
-                    maxPrice: undefined,
-                    minPrice: undefined,
-                    minDiscount: undefined,
-                    minDealScore: undefined,
-                    merchantType: 'all',
-                    sort: isCurrentlyActive ? 'priority' : 'price_drops',
-                    page: 1
-                  });
-                }}
+                onSelectGame={handleSelectGame}
+                onFilterATL={handleFilterATL}
+                onFilterMajor={handleFilterMajor}
+                onFilterSale={handleFilterSale}
               />
 
               <FilterBar
@@ -451,16 +530,16 @@ export const App: React.FC = () => {
                         <GameCard
                           key={game.id}
                           game={game}
-                          onClick={() => setSelectedGameId(game.id)}
-                          onExplain={(g) => setExplainGame(g)}
+                          onSelect={handleSelectGame}
+                          onExplain={handleExplainGame}
                         />
                       ))}
                     </div>
                   ) : (
                     <CompactListView
                       games={games}
-                      onGameClick={(game) => setSelectedGameId(game.id)}
-                      onExplain={(g) => setExplainGame(g)}
+                      onGameClick={handleGameClick}
+                      onExplain={handleExplainGame}
                       onRefreshGame={handleRefreshSingleGame}
                     />
                   )}
@@ -526,10 +605,12 @@ export const App: React.FC = () => {
 
           {/* TAB 2: FREE TO PLAY GAMES */}
           {mainTab === 'free' && (
-            <FreeGamesView
-              games={freeGames}
-              onGameClick={(game) => setSelectedGameId(game.id)}
-            />
+            <Suspense fallback={<div className="loading-state"><RefreshCw className="spin" size={24} /><p>Loading Free Games...</p></div>}>
+              <FreeGamesView
+                games={freeGames}
+                onGameClick={handleGameClick}
+              />
+            </Suspense>
           )}
 
           {/* TAB 3: TOP BEST DEALS SHOWCASE */}
@@ -561,16 +642,16 @@ export const App: React.FC = () => {
                     <GameCard
                       key={game.id}
                       game={game}
-                      onClick={() => setSelectedGameId(game.id)}
-                      onExplain={(g) => setExplainGame(g)}
+                      onSelect={handleSelectGame}
+                      onExplain={handleExplainGame}
                     />
                   ))}
                 </div>
               ) : (
                 <CompactListView
                   games={topDeals}
-                  onGameClick={(game) => setSelectedGameId(game.id)}
-                  onExplain={(g) => setExplainGame(g)}
+                  onGameClick={handleGameClick}
+                  onExplain={handleExplainGame}
                   onRefreshGame={handleRefreshSingleGame}
                 />
               )}
@@ -579,66 +660,80 @@ export const App: React.FC = () => {
 
           {/* TAB 4: DATA SAFETY (ANOMALIES) VIEW */}
           {mainTab === 'safety' && (
-            <AnomaliesView
-              onSelectGame={(id) => setSelectedGameId(id)}
-              onRefresh={() => {
-                loadAnomalies();
-                loadGames();
-                loadFreeGames();
-                loadStatsAndDeals();
-              }}
-            />
+            <Suspense fallback={<div className="loading-state"><RefreshCw className="spin" size={24} /><p>Loading Data Safety...</p></div>}>
+              <AnomaliesView
+                onSelectGame={(id) => setSelectedGameId(id)}
+                onRefresh={() => {
+                  loadAnomalies();
+                  loadGames();
+                  loadFreeGames();
+                  loadStatsAndDeals();
+                }}
+              />
+            </Suspense>
+          )}
+
+          {/* TAB 5: SAVINGS TRACKER (PURCHASE JOURNAL) */}
+          {mainTab === 'savings' && (
+            <Suspense fallback={<div className="loading-state"><RefreshCw className="spin" size={24} /><p>Loading Savings Tracker...</p></div>}>
+              <SavingsView
+                profileId={activeProfile?.id}
+                onSelectGame={(id) => setSelectedGameId(id)}
+              />
+            </Suspense>
           )}
         </>
       )}
 
       {/* Modals */}
-      {selectedGameId && (
-        <GameDetailModal
-          gameId={selectedGameId}
-          onClose={handleCloseDetailModal}
-          onTargetPriceUpdated={handleTargetPriceUpdated}
-          onGameUpdated={handleGameUpdated}
-          onNavigateGame={handleNavigateGame}
-          hasPrev={hasPrevGame}
-          hasNext={hasNextGame}
-        />
-      )}
+      <Suspense fallback={null}>
+        {selectedGameId && (
+          <GameDetailModal
+            gameId={selectedGameId}
+            onClose={handleCloseDetailModal}
+            onTargetPriceUpdated={handleTargetPriceUpdated}
+            onGameUpdated={handleGameUpdated}
+            onNavigateGame={handleNavigateGame}
+            hasPrev={hasPrevGame}
+            hasNext={hasNextGame}
+          />
+        )}
 
-      {explainGame && (
-        <ScoreExplainModal
-          game={explainGame}
-          onClose={handleCloseExplainModal}
-        />
-      )}
+        {explainGame && (
+          <ScoreExplainModal
+            game={explainGame}
+            onClose={handleCloseExplainModal}
+          />
+        )}
 
-      {showProfilesModal && (
-        <ProfileModal
-          profiles={profiles}
-          activeProfile={activeProfile}
-          onClose={handleCloseProfilesModal}
-          onRefresh={handleProfileRefresh}
-        />
-      )}
+        {showProfilesModal && (
+          <ProfileModal
+            profiles={profiles}
+            activeProfile={activeProfile}
+            onClose={handleCloseProfilesModal}
+            onRefresh={handleProfileRefresh}
+          />
+        )}
 
-      {showSourcesModal && (
-        <SourcesModal onClose={handleCloseSourcesModal} />
-      )}
+        {showSourcesModal && (
+          <SourcesModal onClose={handleCloseSourcesModal} />
+        )}
 
-      {showSyncModal && (
-        <SyncModal
-          onClose={handleCloseSyncModal}
-          onStartSync={handleExecuteSync}
-          isSyncing={syncProgress?.status === 'RUNNING'}
-        />
-      )}
+        {showSyncModal && (
+          <SyncModal
+            onClose={handleCloseSyncModal}
+            onStartSync={handleExecuteSync}
+            isSyncing={syncProgress?.status === 'RUNNING'}
+          />
+        )}
 
-      {showDiscordModal && (
-        <DiscordModal
-          isOpen={showDiscordModal}
-          onClose={handleCloseDiscordModal}
-        />
-      )}
+        {showDiscordModal && (
+          <DiscordModal
+            isOpen={showDiscordModal}
+            onClose={handleCloseDiscordModal}
+          />
+        )}
+      </Suspense>
 
       {/* Floating Scroll to Top Button */}
       {showScrollTop && (

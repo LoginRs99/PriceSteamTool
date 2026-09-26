@@ -9,7 +9,7 @@ export function calculateTypicalSalePrice(
   basePriceEur: number | undefined,
   history: PriceHistoryEntry[]
 ): TypicalSalePrice {
-  if (!basePriceEur || basePriceEur <= 0) {
+  if (!basePriceEur || typeof basePriceEur !== 'number' || !Number.isFinite(basePriceEur) || basePriceEur <= 0) {
     return {
       medianPriceEur: null,
       sampleCount: 0,

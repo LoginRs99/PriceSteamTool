@@ -5,6 +5,7 @@ export * from './priceEvents.js';
 import { detectPricingError, getTriggeredSignals } from './detector.js';
 import { detectPriceEvent } from './priceEvents.js';
 import type { PricingErrorInput, PriceMovementInput, OfferAnomalyInput, PriceRiskInput } from './types.js';
+import { EPSILON_EUR } from '../../../shared/types.js';
 
 /**
  * Re-exports and backward compatibility wrappers for evaluating price movements and store history.
@@ -16,11 +17,16 @@ export function evaluateSourceOwnHistoryAnomaly(
   const MIN_OBSERVATIONS = 3;
   const Z_THRESHOLD = 2.5;
 
-  if (!sourceHistoryEur || sourceHistoryEur.length < MIN_OBSERVATIONS) {
+  if (!sourceHistoryEur || !Array.isArray(sourceHistoryEur)) {
     return { applicable: false, isBreak: false, zScore: null, ownMedian: null };
   }
 
-  const sorted = [...sourceHistoryEur].sort((a, b) => a - b);
+  const cleanHistory = sourceHistoryEur.filter(p => typeof p === 'number' && Number.isFinite(p) && p >= 0);
+  if (cleanHistory.length < MIN_OBSERVATIONS) {
+    return { applicable: false, isBreak: false, zScore: null, ownMedian: null };
+  }
+
+  const sorted = [...cleanHistory].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
 
   const q1 = sorted[Math.floor(sorted.length * 0.25)];
@@ -240,7 +246,7 @@ export function calculatePriceRisk(input: PriceRiskInput, flags?: Set<any>) {
   };
 
   const prevPrice = input.previousPriceEur;
-  if (prevPrice !== undefined && prevPrice > 0 && errorInput.priceEur >= prevPrice - 0.005) {
+  if (prevPrice !== undefined && prevPrice > 0 && errorInput.priceEur >= prevPrice - EPSILON_EUR) {
     return { riskScore: 0.0, riskLevel: 'SAFE' as const };
   }
 

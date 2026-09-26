@@ -378,4 +378,26 @@ export function convertToEur(price: number, currency: string = 'EUR'): number {
   return exchangeRateService.convertToEur(price, currency);
 }
 
+/**
+ * Global floating-point price comparison epsilon (0.005 EUR = half a cent).
+ * Used across the system to absorb FX conversion drift and round-off noise.
+ */
+export const EPSILON_EUR = 0.005;
+
+/**
+ * Checks if two prices are considered equal within EUR epsilon tolerance.
+ */
+export function isPriceEqual(a: number | null | undefined, b: number | null | undefined, epsilon: number = EPSILON_EUR): boolean {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  return Math.abs(a - b) < epsilon;
+}
+
+/**
+ * Checks if two prices differ by at least the EUR epsilon tolerance.
+ */
+export function isPriceDifferent(a: number | null | undefined, b: number | null | undefined, epsilon: number = EPSILON_EUR): boolean {
+  return !isPriceEqual(a, b, epsilon);
+}
+
 

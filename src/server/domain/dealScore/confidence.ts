@@ -12,7 +12,9 @@ export function calculateDataConfidence(input: {
   lastObservedAt?: string;
   sourceCount?: number;
 }): { confidence: number; tier: ConfidenceTier; factors: Record<string, number> } {
-  const n = Math.max(0, input.sampleCount || 0);
+  const n = (typeof input.sampleCount === 'number' && Number.isFinite(input.sampleCount) && input.sampleCount > 0)
+    ? input.sampleCount
+    : 0;
 
   // 1. Sample factor: sqrt(N / 16), capped at 1.0
   const cSample = Math.min(1.0, Math.sqrt(n / 16));
@@ -34,7 +36,9 @@ export function calculateDataConfidence(input: {
   else if (n <= 1) cCoverage = 0.40;
 
   // 3. Source independence factor
-  const sources = Math.max(1, input.sourceCount || 1);
+  const sources = (typeof input.sourceCount === 'number' && Number.isFinite(input.sourceCount) && input.sourceCount >= 1)
+    ? input.sourceCount
+    : 1;
   let cSources = sources >= 2 ? 1.0 : 0.85;
 
   // 4. Freshness factor

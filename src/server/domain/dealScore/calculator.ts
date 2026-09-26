@@ -1,4 +1,5 @@
 import type { DealScoreInput, DealScoreResult, DealVerdict } from './types.js';
+import { EPSILON_EUR } from '../../../shared/types.js';
 import {
   W_ATL,
   ATL_MATCH_BASE,
@@ -21,7 +22,7 @@ import { getDealScoreTier } from './tiers.js';
 import { calculateDataConfidence } from './confidence.js';
 
 function clamp(val: number, min: number, max: number): number {
-  if (isNaN(val)) return min;
+  if (typeof val !== 'number' || !Number.isFinite(val)) return min;
   return Math.min(Math.max(val, min), max);
 }
 
@@ -35,7 +36,7 @@ function clamp(val: number, min: number, max: number): number {
  */
 export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   // Defensive: if pricing error or invalid priceEur, return score 0, verdict 'WAIT'
-  if (input.isPricingError || typeof input.priceEur !== 'number' || isNaN(input.priceEur) || input.priceEur < 0) {
+  if (input.isPricingError || typeof input.priceEur !== 'number' || !Number.isFinite(input.priceEur) || input.priceEur < 0) {
     return {
       score: 0,
       tier: 'Weak',
@@ -63,14 +64,19 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   }
 
   const price = input.priceEur;
-  const anchor = input.basePriceEur ?? input.originalPriceEur;
-  const atlRaw = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
-  const med = input.typicalSaleMedianEur;
+  const rawAnchor = input.basePriceEur ?? input.originalPriceEur;
+  const anchor = (typeof rawAnchor === 'number' && Number.isFinite(rawAnchor) && rawAnchor > 0) ? rawAnchor : undefined;
+
+  const rawAtl = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
+  const atlRaw = (typeof rawAtl === 'number' && Number.isFinite(rawAtl) && rawAtl >= 0) ? rawAtl : undefined;
+
+  const rawMed = input.typicalSaleMedianEur;
+  const med = (typeof rawMed === 'number' && Number.isFinite(rawMed) && rawMed > 0) ? rawMed : undefined;
 
   // Reconcile ATL with typical sale median: ATL cannot exceed the typical sale median, and heal unconfirmed glitch ATL
   let atl: number | undefined;
-  if (atlRaw !== undefined && atlRaw !== null) {
-    if (med !== undefined && med !== null) {
+  if (atlRaw !== undefined) {
+    if (med !== undefined) {
       atl = Math.min(atlRaw, med);
       // If ATL is suspiciously far below median AND from unconfirmed/single source, use median * 0.20 as floor
       if (atl < med * 0.15 && (input.isConfirmedAtl === false || input.isSingleSourceLow === true)) {
@@ -84,14 +90,43 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   }
 
   // Pillar 1: S_atl (ATL Proximity: 0 - 40)
-  // At confirmed ATL (price == atl), awards ATL_MATCH_BASE (36 points).
+  // At confirmed ATL (price == atl), awards up to ATL_MATCH_BASE (36 points),
+  // scaled by how deep the ATL is below MSRP anchor (dampened when ATL == MSRP so never-discounted games don't score 36).
   // Undercutting confirmed ATL awards up to ATL_BEAT_BONUS_MAX (+4 points, maxing at 20% undercut).
   let S_atl = 0;
   if (atl !== undefined && atl !== null) {
-    const bandTop = anchor ?? (atl * 2);
-    // Prevent degenerate band when anchor ≈ ATL or when anchor is narrow
+    let bandTop: number;
+    let atlDepthFactor = 1.0;
+
+    if (input.isDelisted) {
+      bandTop = med ? Math.max(med, atl * 1.5) : atl * 2;
+      atlDepthFactor = 1.0;
+    } else if (input.isUnreleased) {
+      bandTop = anchor ?? (atl * 1.25);
+      atlDepthFactor = 0.0;
+    } else if (anchor !== undefined && anchor !== null && anchor > 0) {
+      // Normal game with MSRP anchor
+      bandTop = Math.max(anchor, atl);
+      const atlDiscountRatio = (anchor - atl) / anchor;
+      if (price < atl) {
+        // Genuinely beating ATL (new record low) -> full weight
+        atlDepthFactor = 1.0;
+      } else if (atlDiscountRatio <= EPSILON_EUR) {
+        // Never discounted: ATL is at or above MSRP and price merely matches it (HoneySelect / LET IT DIE case)
+        atlDepthFactor = 0.0;
+      } else {
+        // Continuous ramp: full weight when ATL is at least 10% below MSRP (e.g. Factorio 10% rare sale)
+        // and smoothly scales down to 0 when ATL approaches MSRP
+        atlDepthFactor = clamp(atlDiscountRatio / 0.10, 0, 1);
+      }
+    } else {
+      // Missing MSRP: fall back to implied retail upper bound
+      bandTop = atl * 2;
+      atlDepthFactor = 1.0;
+    }
+
     const band = Math.max(bandTop - atl, atl * 0.25, 0.01);
-    const baseAtlScore = ATL_MATCH_BASE * (1 - clamp((price - atl) / band, 0, 1));
+    const baseAtlScore = ATL_MATCH_BASE * atlDepthFactor * (1 - clamp((price - atl) / band, 0, 1));
     const beatBonus = (atl > 0 && price < atl)
       ? ATL_BEAT_BONUS_MAX * clamp((atl - price) / (atl * ATL_BEAT_FULL_UNDERCUT_RATIO), 0, 1)
       : 0;
@@ -154,8 +189,13 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
       const atlRef = atl ?? 0;
       const spread = med - atlRef;
       if (spread < 0.01) {
-        // Price is at or below the only known historic sale level
-        S_hist = W_HISTORY;
+        // If the only known historic level is full MSRP (no discount ever) and price is at/above MSRP, S_hist is 0
+        if (anchor !== undefined && anchor > 0 && med >= anchor - 0.01 && price >= med - 0.01) {
+          S_hist = 0;
+        } else {
+          // Price is at or below the only known historic sale level (or beating full MSRP)
+          S_hist = W_HISTORY;
+        }
       } else {
         S_hist = W_HISTORY * (1 - clamp((price - atlRef) / spread, 0, 1));
       }
@@ -168,9 +208,11 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   if (offersCount <= 1 && input.isOfficialStore === true) {
     S_mkt = 7; // Official store single offer gets higher market confidence
   } else if (offersCount > 1) {
-    const mktMin = input.minOfferEur ?? input.marketMinPriceEur ?? price;
-    const mktMax = input.maxOfferEur ?? price;
-    const spread = mktMax - mktMin;
+    const rawMin = input.minOfferEur ?? input.marketMinPriceEur;
+    const rawMax = input.maxOfferEur;
+    const mktMin = (typeof rawMin === 'number' && Number.isFinite(rawMin) && rawMin >= 0) ? rawMin : price;
+    const mktMax = (typeof rawMax === 'number' && Number.isFinite(rawMax) && rawMax >= 0) ? Math.max(rawMax, mktMin) : Math.max(mktMin, price);
+    const spread = Math.max(0, mktMax - mktMin);
     if (spread <= 0.02) {
       // All offers are within FX rounding tolerance (everyone matches market low)
       S_mkt = W_MARKET;
@@ -206,19 +248,32 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     }
   }
 
-  // 2. Stale history: if daysSinceLastSample > 90 → score = min(score, STALE_CAP)
-  const isStale = Boolean(input.isStalePrice || (input.daysSinceLastSample !== undefined && input.daysSinceLastSample > 90));
-  if (isStale) {
+  // 2. Stale history: continuous ramp down to STALE_CAP (50) for stale prices
+  if (input.isStalePrice) {
     score = Math.min(score, STALE_CAP);
+  } else if (input.daysSinceLastSample !== undefined && input.daysSinceLastSample > 60) {
+    const t = clamp((input.daysSinceLastSample - 60) / (180 - 60), 0, 1);
+    const staleCap = 100 - t * (100 - STALE_CAP);
+    score = Math.min(score, staleCap);
   }
 
   // 3. Score 100 reservation: cap at 99 unless price beats confirmed ATL by >= 5%
+  // ATL age decay: if the historical low record is older than 730 days (2 years), require a deeper >=25% undercut
+  let atlAgeDays = 0;
+  if (input.historicalLowDate || input.firstObservedAt) {
+    const rawDate = input.historicalLowDate || input.firstObservedAt;
+    const tAtl = new Date(rawDate!).getTime();
+    if (!isNaN(tAtl) && tAtl < Date.now()) {
+      atlAgeDays = (Date.now() - tAtl) / (1000 * 3600 * 24);
+    }
+  }
+  const minUndercutPct = atlAgeDays > 730 ? 0.75 : 0.95;
   const beatsConfirmedAtlBy5Pct =
     input.isConfirmedAtl === true &&
     input.isSingleSourceLow !== true &&
     atl !== undefined &&
     atl > 0 &&
-    price <= (atl * 0.95 + 0.0001);
+    price <= (atl * minUndercutPct + 0.0001);
 
   let finalScore = Math.round(clamp(score, 0, 100));
   if (finalScore >= 100 && !beatsConfirmedAtlBy5Pct) {
@@ -227,7 +282,7 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
 
   // Verdict / tier mapping: 0-39 WAIT, 40-59 FAIR, 60-79 GOOD, 80-100 BUY
   let verdict: DealVerdict;
-  if (!input.isDelisted && !input.isUnreleased && anchor !== undefined && anchor > 0 && price > anchor + 0.005) {
+  if (!input.isDelisted && !input.isUnreleased && anchor !== undefined && anchor > 0 && price > anchor + EPSILON_EUR) {
     verdict = 'OVERPRICED';
   } else if (finalScore >= 80) {
     verdict = 'INSTANT_BUY';

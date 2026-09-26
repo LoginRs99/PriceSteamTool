@@ -37,10 +37,14 @@ export function evaluatePurchaseAdvice(
   actionSignal?: ActionSignal,
   offersCount?: number
 ): PurchaseAdvice {
-  const currentPrice = currentBestOffer?.priceEur ?? game.bestPriceEur ?? 0;
-  const basePrice = game.basePriceEur ?? currentBestOffer?.originalPriceEur ?? 0;
-  const discount = currentBestOffer?.discountPercent ?? game.bestDiscountPercent ?? 0;
-  const dealScore = currentBestOffer?.dealScore ?? game.bestDealScore ?? 0;
+  const rawCurrent = currentBestOffer?.priceEur ?? game.bestPriceEur;
+  const currentPrice = (typeof rawCurrent === 'number' && Number.isFinite(rawCurrent) && rawCurrent >= 0) ? rawCurrent : 0;
+  const rawBase = game.basePriceEur ?? currentBestOffer?.originalPriceEur;
+  const basePrice = (typeof rawBase === 'number' && Number.isFinite(rawBase) && rawBase >= 0) ? rawBase : 0;
+  const rawDiscount = currentBestOffer?.discountPercent ?? game.bestDiscountPercent;
+  const discount = (typeof rawDiscount === 'number' && Number.isFinite(rawDiscount) && rawDiscount >= 0) ? rawDiscount : 0;
+  const rawScore = currentBestOffer?.dealScore ?? game.bestDealScore;
+  const dealScore = (typeof rawScore === 'number' && Number.isFinite(rawScore) && rawScore >= 0) ? rawScore : 0;
   const atl = periodLows.allTimeLow.priceEur;
   const marketDepthCaveat = computeMarketDepthCaveat(offersCount, currentPrice, typicalSale.medianPriceEur);
 

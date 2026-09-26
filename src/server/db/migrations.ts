@@ -684,6 +684,129 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 027] Notice:', err?.message);
       }
     }
+  },
+  {
+    name: '028_composite_indexes_and_fx_audit',
+    up: (db) => {
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_wishlist_profile_active_priority ON wishlist_entries(profile_id, is_active, priority);");
+      } catch (err: any) {
+        console.warn('[Migration 028] Notice idx_wishlist_profile_active_priority:', err?.message);
+      }
+
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_offers_game_valid_error_price ON offers(game_id, is_valid, is_likely_pricing_error, price_eur);");
+      } catch (err: any) {
+        console.warn('[Migration 028] Notice idx_offers_game_valid_error_price:', err?.message);
+      }
+
+      try {
+        db.exec("ALTER TABLE source_observations ADD COLUMN fx_rate REAL DEFAULT 1.0;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      try {
+        db.exec("ALTER TABLE source_observations ADD COLUMN fx_rate_timestamp TEXT;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+    }
+  },
+  {
+    name: '029_anomaly_feedback_loop',
+    up: (db) => {
+      try {
+        db.exec("ALTER TABLE pricing_errors ADD COLUMN user_feedback TEXT DEFAULT NULL;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      try {
+        db.exec("ALTER TABLE pricing_errors ADD COLUMN feedback_at TEXT DEFAULT NULL;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_pricing_errors_feedback ON pricing_errors(user_feedback);");
+      } catch (err: any) {
+        console.warn('[Migration 029] idx_pricing_errors_feedback notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '030_purchases_and_savings_tracker',
+    up: (db) => {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS purchases (
+            id TEXT PRIMARY KEY,
+            profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+            game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            offer_id TEXT REFERENCES offers(id) ON DELETE SET NULL,
+            merchant_id TEXT REFERENCES merchants(id) ON DELETE SET NULL,
+            price_eur REAL NOT NULL,
+            msrp_eur REAL,
+            typical_median_eur REAL,
+            savings_vs_msrp_eur REAL,
+            savings_vs_median_eur REAL,
+            purchased_at TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL
+          );
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 030] purchases table create notice:', err?.message);
+      }
+
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_purchases_profile_date ON purchases(profile_id, purchased_at DESC);");
+      } catch (err: any) {
+        console.warn('[Migration 030] idx_purchases_profile_date notice:', err?.message);
+      }
+
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_purchases_game ON purchases(game_id);");
+      } catch (err: any) {
+        console.warn('[Migration 030] idx_purchases_game notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '031_perf_indexes_and_best_deal_optimization',
+    up: (db) => {
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_sync_runs_started_at ON sync_runs(started_at DESC);");
+      } catch (err: any) {
+        console.warn('[Migration 031] idx_sync_runs_started_at notice:', err?.message);
+      }
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_pricing_errors_offer ON pricing_errors(offer_id, is_dismissed);");
+      } catch (err: any) {
+        console.warn('[Migration 031] idx_pricing_errors_offer notice:', err?.message);
+      }
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_pricing_errors_game_dismissed ON pricing_errors(game_id, is_dismissed);");
+      } catch (err: any) {
+        console.warn('[Migration 031] idx_pricing_errors_game_dismissed notice:', err?.message);
+      }
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_recorded_at ON price_history(recorded_at);");
+      } catch (err: any) {
+        console.warn('[Migration 031] idx_price_history_recorded_at notice:', err?.message);
+      }
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_price_history_game_merchant ON price_history(game_id, merchant_id, is_pricing_error, recorded_at DESC);");
+      } catch (err: any) {
+        console.warn('[Migration 031] idx_price_history_game_merchant notice:', err?.message);
+      }
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);");
+      } catch (err: any) {
+        console.warn('[Migration 031] idx_offers_game_best_deal notice:', err?.message);
+      }
+    }
   }
 ];
 

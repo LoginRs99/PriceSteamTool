@@ -3,11 +3,13 @@ import { getDb, prepareStmt, BEST_DEAL_RECOMPUTE_ALL_SQL } from '../core.js';
 import { gameRepo } from './game.js';
 import { merchantRepo } from './merchant.js';
 import { pricingErrorRepo } from './pricingError.js';
-import { evaluatePriceMovement, type PriceEvaluationInput } from '../../domain/pricingError.js';
+import { evaluatePriceMovement, detectPricingError, type PriceEvaluationInput } from '../../domain/pricingError.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource } from '../../domain/priceIntelligence/types.js';
 import { FRESHNESS_WINDOW_MS, OFFER_MAX_AGE_DAYS } from '../../domain/constants.js';
+import { isPriceEqual, isPriceDifferent, EPSILON_EUR } from '../../domain/normalizer.js';
+import { exchangeRateService } from '../../domain/exchangeRate.js';
 import type { 
   Game, 
   Offer, 
@@ -196,24 +198,34 @@ export const offerRepo = {
       };
 
       const obsId = randomUUID();
+      const rawCurr = data.rawCurrency || 'EUR';
+      const fxRate = exchangeRateService.getRateToEur(rawCurr) || 1.0;
+      const fxRateTimestamp = exchangeRateService.getLastUpdatedTimestamp();
+
       prepareStmt(`
-        INSERT INTO source_observations (id, offer_id, source_code, observed_price_eur, observed_raw_price, observed_currency, observed_at, raw_data_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO source_observations (
+          id, offer_id, source_code, observed_price_eur, observed_raw_price, observed_currency, observed_at, raw_data_json, fx_rate, fx_rate_timestamp
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(offer_id, source_code) DO UPDATE SET
           observed_price_eur = excluded.observed_price_eur,
           observed_raw_price = COALESCE(excluded.observed_raw_price, source_observations.observed_raw_price),
           observed_currency = COALESCE(excluded.observed_currency, source_observations.observed_currency),
           observed_at = excluded.observed_at,
-          raw_data_json = excluded.raw_data_json
+          raw_data_json = excluded.raw_data_json,
+          fx_rate = excluded.fx_rate,
+          fx_rate_timestamp = excluded.fx_rate_timestamp
       `).run(
         obsId, 
         offerId, 
         data.sourceCode, 
         data.priceEur, 
         data.rawPrice !== undefined ? data.rawPrice : null, 
-        data.rawCurrency || 'EUR', 
+        rawCurr, 
         now, 
-        JSON.stringify(obsMeta)
+        JSON.stringify(obsMeta),
+        fxRate,
+        fxRateTimestamp
       );
 
       // 2. Query all active source observations for this canonical offer to determine the winner deterministically
@@ -271,7 +283,7 @@ export const offerRepo = {
       const isStaleObservation = freshCandidates.length === 0 && candidates.length > 0;
 
       eligiblePool.sort((a, b) => {
-        if (Math.abs(a.priceEur - b.priceEur) >= 0.005) {
+        if (isPriceDifferent(a.priceEur, b.priceEur)) {
           return a.priceEur - b.priceEur;
         }
         const timeA = new Date(a.observedAt).getTime();
@@ -474,10 +486,10 @@ export const offerRepo = {
           target.rawPrice !== undefined && 
           target.rawPrice !== null
         ) {
-          return Math.abs(Number(histRow.raw_price) - target.rawPrice) < 0.005;
+          return isPriceEqual(Number(histRow.raw_price), target.rawPrice);
         }
         // EUR / standard comparison fallback
-        const isEurSame = Math.abs(Number(histRow.price_eur) - target.priceEur) < 0.005;
+        const isEurSame = isPriceEqual(Number(histRow.price_eur), target.priceEur);
         const isDiscountSame = Number(histRow.discount_percent || 0) === target.discount;
         return isEurSame && isDiscountSame;
       };
@@ -498,8 +510,8 @@ export const offerRepo = {
 
       const hasPriceChanged = !isSameAsLatestMerchant && !isSameAsLatestSource;
 
-      // Update historical low only on genuine price drop
-      if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW' || pricingEval.event === 'UNCONFIRMED_RECORD_DROP')) {
+      // Update historical low only on genuine confirmed price drop
+      if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW')) {
         gameRepo.updateHistoricalLow(data.gameId, active.priceEur, now, active.sourceCode);
       }
 
@@ -979,8 +991,16 @@ export const offerRepo = {
       const gameRow = prepareStmt(`SELECT historical_low_eur FROM games WHERE id = ?`).get(gameId) as any;
       if (gameRow && gameRow.historical_low_eur !== null && gameRow.historical_low_eur !== undefined && Number(gameRow.historical_low_eur) > 0 && Number(best.price_eur) > 0) {
         if (Number(best.price_eur) < Number(gameRow.historical_low_eur)) {
-          const source = best.merchant_name || (best.is_official ? 'Official Store' : 'Merchant');
-          gameRepo.updateHistoricalLow(gameId, Number(best.price_eur), new Date().toISOString(), source);
+          const isOfficial = Boolean(best.is_official) || isOfficialStoreSource(best.merchant_name);
+          const distinctSources = prepareStmt(`
+            SELECT COUNT(DISTINCT source_code) as cnt FROM source_observations WHERE offer_id = ?
+          `).get(best.id) as { cnt: number } | undefined;
+          const isCorroborated = (distinctSources?.cnt ?? 1) >= 2;
+
+          if (isOfficial || isCorroborated) {
+            const source = best.merchant_name || (isOfficial ? 'Official Store' : 'Corroborated Store');
+            gameRepo.updateHistoricalLow(gameId, Number(best.price_eur), new Date().toISOString(), source, { isConfirmed: true });
+          }
         }
       }
     } else {
@@ -1059,7 +1079,7 @@ export const offerRepo = {
         INSERT INTO price_history (
           id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency,
           fx_rate, discount_percent, price_event, is_pricing_error, recorded_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?, 0, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?, ?, ?)
       `);
 
       if (Array.isArray(historyPoints) && historyPoints.length > 0) {
@@ -1075,7 +1095,20 @@ export const offerRepo = {
           if (existing) continue;
 
           const disc = pt.discountPercent ? Math.round(pt.discountPercent) : 0;
-          const priceEvent = disc >= 50 ? 'MAJOR_DROP' : (disc >= 15 ? 'STANDARD_SALE' : 'NONE');
+          let priceEvent = disc >= 50 ? 'MAJOR_DROP' : (disc >= 15 ? 'STANDARD_SALE' : 'NONE');
+
+          const pricingEval = detectPricingError({
+            priceEur: pt.priceEur,
+            steamBasePriceEur: gameRow.base_price_eur ? Number(gameRow.base_price_eur) : undefined,
+            claimedOriginalPriceEur: pt.regularPriceEur,
+            isOfficialMerchant: isOfficialShop,
+            otherFreshPricesEur: []
+          });
+
+          const isPricingError = pricingEval.isLikelyPricingError ? 1 : 0;
+          if (isPricingError) {
+            priceEvent = 'PRICING_ERROR';
+          }
 
           insertHistStmt.run(
             randomUUID(),
@@ -1087,6 +1120,7 @@ export const offerRepo = {
             pt.rawCurrency || 'EUR',
             disc,
             priceEvent,
+            isPricingError,
             pt.timestamp
           );
         }
@@ -1154,6 +1188,10 @@ export const offerRepo = {
 
       for (const h of history) {
         if (h.isPricingError) continue;
+        // Quarantine: Unconfirmed keyshop price cannot overwrite an existing historical_low_eur
+        if (!h.isOfficial && isKeyshopSourceStr(h.merchantName) && gameRow.historical_low_eur !== null && gameRow.historical_low_eur !== undefined) {
+          continue;
+        }
         if (!newHistLowEur || h.priceEur < newHistLowEur) {
           newHistLowEur = h.priceEur;
           newHistLowDate = h.recordedAt;
@@ -1347,11 +1385,30 @@ export const offerRepo = {
    * Purges price_history rows older than retentionDays.
    * Does not touch games.historical_low_eur (all-time low) — that lives
    * separately and is unaffected by this cleanup.
+   * Purges in chunked batches (default 1000) to prevent table locks and journal spikes.
    */
-  purgeOldPriceHistory(retentionDays: number): { deletedCount: number } {
+  purgeOldPriceHistory(retentionDays: number, batchSize: number = 1000): { deletedCount: number } {
     if (!retentionDays || retentionDays <= 0) return { deletedCount: 0 };
     const cutoffIso = new Date(Date.now() - retentionDays * 24 * 3600 * 1000).toISOString();
-    const result = prepareStmt(`DELETE FROM price_history WHERE recorded_at < ?`).run(cutoffIso);
-    return { deletedCount: result.changes };
+    const batch = Math.max(1, batchSize);
+    let totalDeleted = 0;
+
+    while (true) {
+      const result = prepareStmt(`
+        DELETE FROM price_history
+        WHERE rowid IN (
+          SELECT rowid FROM price_history
+          WHERE recorded_at < ?
+          LIMIT ?
+        )
+      `).run(cutoffIso, batch);
+
+      totalDeleted += result.changes;
+      if (result.changes < batch) {
+        break;
+      }
+    }
+
+    return { deletedCount: totalDeleted };
   }
 };

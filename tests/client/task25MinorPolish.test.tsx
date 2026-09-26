@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { DenseTableView } from '../../src/client/src/components/DenseTableView.js';
+import { CompactListView } from '../../src/client/src/components/CompactListView.js';
 import { PriceChart } from '../../src/client/src/components/PriceChart.js';
 import type { Game, PriceChartData } from '../../src/client/src/types.js';
 
-describe('Task 25: Minor Polish (DenseTableView concurrent spinners & PriceChart tooltip)', () => {
-  describe('DenseTableView concurrent row refreshing', () => {
+describe('Task 25: Minor Polish (CompactListView concurrent spinners & PriceChart tooltip)', () => {
+  describe('CompactListView concurrent row refreshing', () => {
     const mockGames: Game[] = [
       {
         id: 'game-1',
@@ -53,15 +53,15 @@ describe('Task 25: Minor Polish (DenseTableView concurrent spinners & PriceChart
       });
 
       render(
-        <DenseTableView 
+        <CompactListView 
           games={mockGames} 
           onGameClick={() => {}} 
           onRefreshGame={onRefreshGame} 
         />
       );
 
-      const btn1 = screen.getByLabelText('Refresh prices for Game One');
-      const btn2 = screen.getByLabelText('Refresh prices for Game Two');
+      const btn1 = screen.getByLabelText('Refresh price for Game One');
+      const btn2 = screen.getByLabelText('Refresh price for Game Two');
 
       expect(btn1).not.toBeDisabled();
       expect(btn2).not.toBeDisabled();

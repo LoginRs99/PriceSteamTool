@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { prepareStmt } from '../core.js';
 import type { PricingError } from '../../../shared/types.js';
+import { EPSILON_EUR } from '../../../shared/types.js';
 import { logWarn } from '../../utils/logger.js';
 
 export const PRICING_ERROR_RETRIGGER_AFTER_DAYS = 30;
@@ -40,7 +41,7 @@ export const pricingErrorRepo = {
         `).run(confidence, reason, type, now, activeGameError.id);
         prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(offerId);
         return true;
-      } else if (newPrice < activePrice - 0.005) {
+      } else if (newPrice < activePrice - EPSILON_EUR) {
         // New offer is a cheaper / primary deal pricing error -> replace the existing active game pricing error
         prepareStmt(`
           UPDATE pricing_errors
@@ -68,7 +69,7 @@ export const pricingErrorRepo = {
       const isSameType = (dismissedExisting.error_type === type) ||
         (dismissedExisting.error_type === 'DECIMAL_SHIFT' && type === 'SUB_EURO_PREMIUM_GLITCH') ||
         (dismissedExisting.error_type === 'SUB_EURO_PREMIUM_GLITCH' && type === 'DECIMAL_SHIFT');
-      const isPriceDrop = (previousPriceEur !== undefined && currentPriceEur !== undefined && currentPriceEur < previousPriceEur - 0.005);
+      const isPriceDrop = (previousPriceEur !== undefined && currentPriceEur !== undefined && currentPriceEur < previousPriceEur - EPSILON_EUR);
 
       let isExpiredDismissal = false;
       if (dismissedExisting.detected_at) {
@@ -169,14 +170,118 @@ export const pricingErrorRepo = {
         confidence: Number(r.confidence || 0),
         reason: r.reason || 'Flagged price error',
         detectedAt: r.detected_at || new Date().toISOString(),
-        isDismissed: Boolean(r.is_dismissed)
+        isDismissed: Boolean(r.is_dismissed),
+        userFeedback: r.user_feedback || undefined,
+        feedbackAt: r.feedback_at || undefined
       };
     });
   },
 
+  recordFeedback(
+    id: string, 
+    feedback: 'CONFIRMED_ERROR' | 'FALSE_POSITIVE' | 'DISMISSED'
+  ): { gameId?: string; offerId?: string; feedback: string } | null {
+    const errorRow = prepareStmt(`SELECT offer_id, game_id FROM pricing_errors WHERE id = ?`).get(id) as any;
+    if (!errorRow) return null;
+
+    const now = new Date().toISOString();
+    prepareStmt(`
+      UPDATE pricing_errors 
+      SET is_dismissed = 1, user_feedback = ?, feedback_at = ? 
+      WHERE id = ?
+    `).run(feedback, now, id);
+
+    if (errorRow.offer_id) {
+      if (feedback === 'FALSE_POSITIVE' || feedback === 'DISMISSED') {
+        // False positive: unflag the offer so it is restored to active valid status and eligible for best deal
+        prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(errorRow.offer_id);
+      } else if (feedback === 'CONFIRMED_ERROR') {
+        // Confirmed real glitch: ensure offer stays quarantined (is_likely_pricing_error = 1)
+        prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(errorRow.offer_id);
+      }
+    }
+
+    return {
+      gameId: errorRow.game_id,
+      offerId: errorRow.offer_id,
+      feedback
+    };
+  },
+
+  getMerchantStats(): {
+    merchants: Array<{
+      merchantId: string;
+      merchantName: string;
+      confirmedCount: number;
+      falsePositiveCount: number;
+      dismissedCount: number;
+      totalFeedback: number;
+      precision: number;
+    }>;
+    totalConfirmed: number;
+    totalFalsePositive: number;
+    totalDismissed: number;
+    overallPrecision: number;
+  } {
+    const rows = prepareStmt(`
+      SELECT 
+        m.id as merchant_id,
+        m.name as merchant_name,
+        COUNT(CASE WHEN pe.user_feedback = 'CONFIRMED_ERROR' THEN 1 END) as confirmed_count,
+        COUNT(CASE WHEN pe.user_feedback = 'FALSE_POSITIVE' THEN 1 END) as false_positive_count,
+        COUNT(CASE WHEN pe.user_feedback = 'DISMISSED' THEN 1 END) as dismissed_count,
+        COUNT(pe.id) as total_feedback
+      FROM pricing_errors pe
+      JOIN offers o ON pe.offer_id = o.id
+      JOIN merchants m ON o.merchant_id = m.id
+      WHERE pe.user_feedback IS NOT NULL
+      GROUP BY m.id, m.name
+      ORDER BY total_feedback DESC
+    `).all() as any[];
+
+    let totalConfirmed = 0;
+    let totalFalsePositive = 0;
+    let totalDismissed = 0;
+
+    const merchants = rows.map(r => {
+      const confirmed = Number(r.confirmed_count || 0);
+      const falsePositive = Number(r.false_positive_count || 0);
+      const dismissed = Number(r.dismissed_count || 0);
+      const total = Number(r.total_feedback || 0);
+      const judgedTotal = confirmed + falsePositive;
+      const precision = judgedTotal > 0 ? Math.round((confirmed / judgedTotal) * 100) / 100 : 1.0;
+
+      totalConfirmed += confirmed;
+      totalFalsePositive += falsePositive;
+      totalDismissed += dismissed;
+
+      return {
+        merchantId: r.merchant_id,
+        merchantName: r.merchant_name,
+        confirmedCount: confirmed,
+        falsePositiveCount: falsePositive,
+        dismissedCount: dismissed,
+        totalFeedback: total,
+        precision
+      };
+    });
+
+    const overallJudged = totalConfirmed + totalFalsePositive;
+    const overallPrecision = overallJudged > 0 ? Math.round((totalConfirmed / overallJudged) * 100) / 100 : 1.0;
+
+    return {
+      merchants,
+      totalConfirmed,
+      totalFalsePositive,
+      totalDismissed,
+      overallPrecision
+    };
+  },
+
   dismiss(id: string): string | undefined {
     const errorRow = prepareStmt(`SELECT offer_id, game_id FROM pricing_errors WHERE id = ?`).get(id) as any;
-    prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE id = ?`).run(id);
+    const now = new Date().toISOString();
+    prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1, user_feedback = COALESCE(user_feedback, 'DISMISSED'), feedback_at = COALESCE(feedback_at, ?) WHERE id = ?`).run(now, id);
     if (errorRow?.offer_id) {
       prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(errorRow.offer_id);
     }
@@ -187,7 +292,8 @@ export const pricingErrorRepo = {
     const affected = prepareStmt(`
       SELECT DISTINCT game_id FROM pricing_errors WHERE is_dismissed = 0 AND game_id IS NOT NULL
     `).all() as { game_id: string }[];
-    prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1 WHERE is_dismissed = 0`).run();
+    const now = new Date().toISOString();
+    prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1, user_feedback = COALESCE(user_feedback, 'DISMISSED'), feedback_at = COALESCE(feedback_at, ?) WHERE is_dismissed = 0`).run(now);
     prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE is_likely_pricing_error = 1`).run();
     return affected.map(a => a.game_id);
   }

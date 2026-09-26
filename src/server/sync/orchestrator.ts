@@ -12,6 +12,8 @@ import {
   offerRepo, 
   merchantRepo, 
   sourceRepo,
+  syncRunRepo,
+  runAnalyze,
   type WishlistSyncGame 
 } from '../db/index.js';
 import { circuitBreakers } from './circuitBreaker.js';
@@ -144,6 +146,7 @@ export class SyncOrchestrator {
   }
 
   public cancelSync(): void {
+    this.isCancelled = true;
     priceHistoryQueue.cancel();
     allkeyshopQueue.clear();
     steamAdapter.clearQueue();
@@ -151,9 +154,18 @@ export class SyncOrchestrator {
     cheapsharkAdapter.clearQueue();
     ggdealsAdapter.clearQueue();
     if (this.isRunning) {
-      this.isCancelled = true;
       this.progress.status = 'CANCELLED';
       this.progress.currentAction = 'Synchronization cancelled by user.';
+      this.progress.completedAt = new Date().toISOString();
+      if (this.activeRunId) {
+        try {
+          syncRunRepo.update(this.activeRunId, {
+            status: 'CANCELLED',
+            completedAt: new Date().toISOString(),
+            errorMessage: 'Synchronization cancelled by user'
+          });
+        } catch {}
+      }
       this.broadcast();
     }
   }
@@ -186,6 +198,21 @@ export class SyncOrchestrator {
     this.isCancelled = false;
     this.activeRunId = randomUUID();
     this.startTime = Date.now();
+
+    try {
+      syncRunRepo.create({
+        id: this.activeRunId,
+        triggerType: trigger,
+        status: 'RUNNING',
+        startedAt: new Date(this.startTime).toISOString(),
+        totalGames: 0,
+        processedGames: 0,
+        offersFound: 0,
+        offersUpdated: 0
+      });
+    } catch (e: any) {
+      logWarn(`Failed to create sync_runs record: ${e?.message}`);
+    }
 
     this.progress = {
       status: 'RUNNING',
@@ -266,10 +293,12 @@ export class SyncOrchestrator {
       if (this.isCancelled) return;
 
       if (wishlistItems.length === 0) {
+        const duration = Math.round((Date.now() - this.startTime) / 1000);
         this.progress.status = 'COMPLETED';
         this.progress.currentAction = 'Wishlist is empty or profile is private.';
         this.progress.completedAt = new Date().toISOString();
         this.broadcast();
+        this.generateSummary(profileName, steamId, trigger, 'COMPLETED (EMPTY)', duration, 0, 0, 100, 0, selectedSources);
         return;
       }
 
@@ -347,6 +376,11 @@ export class SyncOrchestrator {
 
         for (let i = 0; i < gamesToRefresh.length; i++) {
           if (this.isCancelled) return;
+          if (circuitBreakers.getState('steam') === 'PAUSED') {
+            logWarn(`[Steam] Storefront circuit breaker is PAUSED. Skipping remaining ${gamesToRefresh.length - i} games in core sync.`);
+            steamFailures += (gamesToRefresh.length - i);
+            break;
+          }
           const g = gamesToRefresh[i];
           this.progress.processedGames = i + 1;
           this.progress.currentAction = `Steam storefront: [${i + 1}/${gamesToRefresh.length}] ${g.title}`;
@@ -357,21 +391,23 @@ export class SyncOrchestrator {
             steamSuccesses++;
             for (const offer of steamOffers) {
               const details = offer.rawPayload;
-              if (details && details.title && !details.title.startsWith('App ') && g.title.startsWith('App ')) {
+              if (details) {
+                const isTitlePlaceholder = g.title.startsWith('App ');
+                const hasValidNewTitle = details.title && !details.title.startsWith('App ');
+                const titleToUpdate = (isTitlePlaceholder && hasValidNewTitle) ? details.title : undefined;
+
+                if (titleToUpdate) {
+                  g.title = titleToUpdate;
+                }
+
                 gameRepo.updateMetadata(g.steamAppId, {
-                  title: details.title,
+                  title: titleToUpdate,
                   headerImage: details.headerImage,
                   capsuleImage: details.capsuleImage,
                   releaseDate: details.releaseDate,
                   isDlc: details.isDlc,
                   isFree: details.isFree,
                   basePriceEur: details.basePriceEur,
-                  metacriticScore: details.metacriticScore,
-                  metacriticUrl: details.metacriticUrl
-                });
-                g.title = details.title;
-              } else if (details && (details.metacriticScore !== undefined || details.metacriticUrl)) {
-                gameRepo.updateMetadata(g.steamAppId, {
                   metacriticScore: details.metacriticScore,
                   metacriticUrl: details.metacriticUrl
                 });
@@ -606,6 +642,10 @@ export class SyncOrchestrator {
         if (healedCount > 0) {
           logInfo(`[Sync] Reconciled ${healedCount} game(s) where valid active offers established new all-time lows.`);
         }
+
+        // Optimize database statistics and query planner
+        runAnalyze();
+        logInfo('[Cleanup] Ran PRAGMA optimize and ANALYZE on database.');
       } catch (purgeErr: any) {
         logWarn(`[Cleanup] Failed to purge old price history / invalidate offers: ${purgeErr.message}`);
       }
@@ -623,10 +663,19 @@ export class SyncOrchestrator {
       this.progress.currentAction = `Sync failed: ${err.message || 'Unknown error'}`;
       this.broadcast();
 
-      this.generateSummary(profileName, steamId, trigger, 'FAILED', duration, totalWishlistCount, staleQueriedCount, 0, totalOffersIngested, selectedSources);
+      this.generateSummary(profileName, steamId, trigger, 'FAILED', duration, totalWishlistCount, staleQueriedCount, 0, totalOffersIngested, selectedSources, err?.message);
       throw err;
     } finally {
       this.isRunning = false;
+      if (this.isCancelled && this.activeRunId) {
+        try {
+          syncRunRepo.update(this.activeRunId, {
+            status: 'CANCELLED',
+            completedAt: new Date().toISOString(),
+            errorMessage: 'Synchronization cancelled by user'
+          });
+        } catch {}
+      }
     }
   }
 
@@ -695,6 +744,11 @@ export class SyncOrchestrator {
     try {
       for (let i = 0; i < prioritizedGames.length; i++) {
         if (this.isCancelled) break;
+        if (!circuitBreakers.canExecute('allkeyshop').allowed || allkeyshopQueue.isCoolingDown) {
+          const remainingSec = allkeyshopQueue.getCooldownRemainingSec();
+          logInfo(`[Enrichment] AllKeyShop entered cooldown (${remainingSec}s remaining). Halting enrichment pass.`);
+          break;
+        }
         const g = prioritizedGames[i];
         this.enrichmentStatus.processed = i + 1;
         this.enrichmentStatus.currentGameTitle = g.title;
@@ -809,8 +863,25 @@ export class SyncOrchestrator {
     staleQueried: number,
     cacheHitPercent: number,
     offersUpdated: number,
-    selectedSources?: SourceCode[]
+    selectedSources?: SourceCode[],
+    errorMessage?: string
   ): void {
+    if (this.activeRunId) {
+      try {
+        syncRunRepo.update(this.activeRunId, {
+          status,
+          completedAt: new Date().toISOString(),
+          totalGames: totalWishlist,
+          processedGames: staleQueried,
+          offersFound: offersUpdated,
+          offersUpdated,
+          errorMessage
+        });
+      } catch (e: any) {
+        logWarn(`Failed to update sync_runs record: ${e?.message}`);
+      }
+    }
+
     const currentSources = sourceRepo.list();
     const sourceStats: Record<string, any> = {};
 

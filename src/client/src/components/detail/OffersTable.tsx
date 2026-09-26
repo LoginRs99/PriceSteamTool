@@ -14,12 +14,16 @@ interface OffersTableProps {
   offers: Offer[];
   copiedVoucherId: string | null;
   onCopyVoucher: (offerId: string, voucherCode: string) => void;
+  onRecordPurchase?: (offer: Offer) => void;
+  recordedOfferId?: string | null;
 }
 
 export const OffersTable: React.FC<OffersTableProps> = ({
   offers,
   copiedVoucherId,
-  onCopyVoucher
+  onCopyVoucher,
+  onRecordPurchase,
+  recordedOfferId
 }) => {
   const { formatPrice } = useCurrency();
   const [showExpired, setShowExpired] = useState(false);
@@ -254,15 +258,37 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                       </div>
                     </td>
                     <td>
-                      <a
-                        href={offer.dealUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary"
-                        style={{ padding: '4px 10px', fontSize: 12 }}
-                      >
-                        Buy
-                      </a>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <a
+                          href={offer.dealUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: 12 }}
+                        >
+                          Buy
+                        </a>
+                        {onRecordPurchase && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: 11,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              color: recordedOfferId === offer.id ? '#10b981' : '#34d399',
+                              borderColor: 'rgba(16, 185, 129, 0.3)'
+                            }}
+                            onClick={() => onRecordPurchase(offer)}
+                            title="Megvettem ezen az áron (mentés a vásárlási és megtakarítási naplóba)"
+                          >
+                            <Check size={11} />
+                            <span>{recordedOfferId === offer.id ? 'Megvéve!' : 'Megvettem'}</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
         );

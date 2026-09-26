@@ -4,6 +4,9 @@ PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
+PRAGMA cache_size = -64000;
+PRAGMA temp_store = MEMORY;
+PRAGMA mmap_size = 268435456;
 
 -- 1. Profiles Table
 CREATE TABLE IF NOT EXISTS profiles (
@@ -84,6 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_wishlist_profile_game ON wishlist_entries(profile
 CREATE INDEX IF NOT EXISTS idx_wishlist_game_id ON wishlist_entries(game_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_priority ON wishlist_entries(priority);
 CREATE INDEX IF NOT EXISTS idx_wishlist_active_priority ON wishlist_entries(is_active, profile_id, priority);
+CREATE INDEX IF NOT EXISTS idx_wishlist_profile_active_priority ON wishlist_entries(profile_id, is_active, priority);
 
 -- 4. Merchants Table
 CREATE TABLE IF NOT EXISTS merchants (
@@ -134,6 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is
 CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
 CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
 CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
+CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);
 
 -- 6. Source Observations Table
 CREATE TABLE IF NOT EXISTS source_observations (
@@ -145,6 +150,8 @@ CREATE TABLE IF NOT EXISTS source_observations (
   observed_currency TEXT DEFAULT 'EUR',
   observed_at TEXT NOT NULL,
   raw_data_json TEXT,
+  fx_rate REAL DEFAULT 1.0,
+  fx_rate_timestamp TEXT,
   UNIQUE(offer_id, source_code)
 );
 
@@ -170,6 +177,7 @@ CREATE TABLE IF NOT EXISTS price_history (
 
 CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_price_history_recorded_at ON price_history(recorded_at);
 
 
 -- 8. Sources Metadata Table
@@ -207,6 +215,8 @@ CREATE TABLE IF NOT EXISTS sync_runs (
   error_message TEXT
 );
 
+CREATE INDEX IF NOT EXISTS idx_sync_runs_started_at ON sync_runs(started_at DESC);
+
 -- 10. Pricing Errors Table
 CREATE TABLE IF NOT EXISTS pricing_errors (
   id TEXT PRIMARY KEY,
@@ -216,11 +226,16 @@ CREATE TABLE IF NOT EXISTS pricing_errors (
   confidence REAL NOT NULL,
   reason TEXT NOT NULL,
   detected_at TEXT NOT NULL,
-  is_dismissed INTEGER NOT NULL DEFAULT 0
+  is_dismissed INTEGER NOT NULL DEFAULT 0,
+  user_feedback TEXT DEFAULT NULL,
+  feedback_at TEXT DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_game ON pricing_errors(game_id);
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_dismissed ON pricing_errors(is_dismissed);
+CREATE INDEX IF NOT EXISTS idx_pricing_errors_feedback ON pricing_errors(user_feedback);
+CREATE INDEX IF NOT EXISTS idx_pricing_errors_offer ON pricing_errors(offer_id, is_dismissed);
+CREATE INDEX IF NOT EXISTS idx_pricing_errors_game_dismissed ON pricing_errors(game_id, is_dismissed);
 
 -- 11. Application Settings Table
 CREATE TABLE IF NOT EXISTS settings (
@@ -271,6 +286,26 @@ CREATE TABLE IF NOT EXISTS family_sharing_exclusions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_family_sharing_exclusions_app_id ON family_sharing_exclusions(steam_app_id);
+
+-- 16. Purchases Table (Purchase Journal & Savings Tracker)
+CREATE TABLE IF NOT EXISTS purchases (
+  id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  offer_id TEXT REFERENCES offers(id) ON DELETE SET NULL,
+  merchant_id TEXT REFERENCES merchants(id) ON DELETE SET NULL,
+  price_eur REAL NOT NULL,
+  msrp_eur REAL,
+  typical_median_eur REAL,
+  savings_vs_msrp_eur REAL,
+  savings_vs_median_eur REAL,
+  purchased_at TEXT NOT NULL,
+  notes TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_purchases_profile_date ON purchases(profile_id, purchased_at DESC);
+CREATE INDEX IF NOT EXISTS idx_purchases_game ON purchases(game_id);
 `;
 
 export const SEED_SOURCES_SQL = `

@@ -91,6 +91,11 @@ export async function safeFetchJson<T>(
   let lastError: any = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (options.signal?.aborted) {
+      const abortErr: any = new Error('This operation was aborted');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -103,10 +108,14 @@ export async function safeFetchJson<T>(
         headers.set('Accept', 'application/json, text/plain, */*');
       }
 
+      const combinedSignal = options.signal
+        ? AbortSignal.any([controller.signal, options.signal])
+        : controller.signal;
+
       const response = await fetch(url, {
         ...options,
         headers,
-        signal: controller.signal,
+        signal: combinedSignal,
       });
 
       if (!response) {
@@ -178,6 +187,9 @@ export async function safeFetchJson<T>(
       }
     } catch (err: any) {
       lastError = err;
+      if (options.signal?.aborted) {
+        throw err;
+      }
       const isTransientErr = 
         err?.status === 408 || 
         err?.status === 502 || 

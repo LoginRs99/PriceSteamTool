@@ -70,10 +70,13 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/games
   fastify.get('/api/v1/games', async (request, reply) => {
     const query = request.query as any;
-    const page = Math.max(1, parseInt(query.page || '1', 10));
-    const limit = Math.min(250, Math.max(1, parseInt(query.limit || '50', 10)));
+    const pageParsed = parseInt(query.page || '1', 10);
+    const page = isNaN(pageParsed) ? 1 : Math.max(1, pageParsed);
+    const limitParsed = parseInt(query.limit || '50', 10);
+    const limit = isNaN(limitParsed) ? 50 : Math.min(250, Math.max(1, limitParsed));
     const search = query.q || query.search || undefined;
-    const steamAppId = query.steam_app_id ? parseInt(query.steam_app_id, 10) : undefined;
+    const rawAppId = query.steam_app_id ? parseInt(query.steam_app_id, 10) : undefined;
+    const steamAppId = rawAppId !== undefined && !isNaN(rawAppId) ? rawAppId : undefined;
 
     const activeProfile = profileRepo.getActive();
     if (!activeProfile) {
@@ -287,7 +290,8 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/v1/games/:id/history', async (request, reply) => {
     const { id } = request.params as { id: string };
     const query = request.query as any;
-    const limit = Math.min(365, Math.max(1, parseInt(query.days || '90', 10)));
+    const daysParsed = parseInt(query.days || '90', 10);
+    const limit = isNaN(daysParsed) ? 90 : Math.min(365, Math.max(1, daysParsed));
 
     const game = resolveGame(id);
 

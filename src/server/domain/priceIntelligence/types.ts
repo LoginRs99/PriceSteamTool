@@ -12,7 +12,7 @@ export interface PriceIntelligenceInput {
  * Excludes anomalous, high-risk, or glitch observations from corrupting analytical baselines (ATL, Typical Sale, Volatility).
  */
 export function isTrustedHistoryEntry(entry: PriceHistoryEntry): boolean {
-  if (!entry || typeof entry.priceEur !== 'number' || isNaN(entry.priceEur) || entry.priceEur <= 0) {
+  if (!entry || typeof entry.priceEur !== 'number' || !Number.isFinite(entry.priceEur) || entry.priceEur <= 0) {
     return false;
   }
   if (entry.isPricingError === true) {

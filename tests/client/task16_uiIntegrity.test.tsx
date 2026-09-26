@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import { getSteamReviewSentiment } from '../../src/client/src/utils/steamMeta.js';
 import { IntelMetricsGrid } from '../../src/client/src/components/detail/IntelMetricsGrid.js';
 import { GameCard } from '../../src/client/src/components/GameCard.js';
-import { DenseTableView } from '../../src/client/src/components/DenseTableView.js';
+import { CompactListView } from '../../src/client/src/components/CompactListView.js';
 import { ScoreExplainModal } from '../../src/client/src/components/ScoreExplainModal.js';
 import type { Game, PriceIntelligenceResponse } from '../../src/client/src/types.js';
 
@@ -79,10 +79,10 @@ describe('Task 16 UI Integrity', () => {
       expect(screen.getByText('⚡')).toBeInTheDocument();
     });
 
-    it('DenseTableView renders ⚡ GLITCH without 99', () => {
-      const { container } = render(<DenseTableView games={[glitchGame]} onGameClick={() => {}} />);
+    it('CompactListView renders ⚡ GLITCH without 99', () => {
+      const { container } = render(<CompactListView games={[glitchGame]} onGameClick={() => {}} />);
       expect(screen.queryByText(/⚡ GLITCH 99/)).not.toBeInTheDocument();
-      const scoreChip = container.querySelector('.cell-score .score-chip-sm');
+      const scoreChip = container.querySelector('.score-chip-glitch');
       expect(scoreChip).toHaveTextContent('⚡ GLITCH');
       expect(scoreChip).not.toHaveTextContent('99');
     });

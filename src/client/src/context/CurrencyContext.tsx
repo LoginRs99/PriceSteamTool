@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../api.js';
 
 export type SupportedCurrency = 'EUR' | 'USD' | 'GBP' | 'CAD' | 'AUD' | 'HUF';
@@ -80,31 +80,31 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
   }, []);
 
-  const setCurrency = (c: SupportedCurrency) => {
+  const setCurrency = useCallback((c: SupportedCurrency) => {
     setCurrencyState(c);
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, c);
     } catch {}
-  };
+  }, []);
 
-  const convertEurToLocal = (eurVal: number | null | undefined): number | null => {
+  const convertEurToLocal = useCallback((eurVal: number | null | undefined): number | null => {
     if (eurVal === null || eurVal === undefined || isNaN(eurVal)) return null;
     if (currency === 'EUR') return eurVal;
     const rate = rates[currency] ?? DEFAULT_RATES_FROM_EUR[currency] ?? 1.0;
     return eurVal * rate;
-  };
+  }, [currency, rates]);
 
-  const convertLocalToEur = (localVal: number | null | undefined): number | null => {
+  const convertLocalToEur = useCallback((localVal: number | null | undefined): number | null => {
     if (localVal === null || localVal === undefined || isNaN(localVal)) return null;
     if (currency === 'EUR') return localVal;
     const rate = rates[currency] ?? DEFAULT_RATES_FROM_EUR[currency] ?? 1.0;
     if (rate <= 0) return localVal;
     return localVal / rate;
-  };
+  }, [currency, rates]);
 
-  const currencyInfo = CURRENCY_MAP[currency] || CURRENCY_MAP.EUR;
+  const currencyInfo = useMemo(() => CURRENCY_MAP[currency] || CURRENCY_MAP.EUR, [currency]);
 
-  const formatPrice = (eurVal: number | null | undefined): string => {
+  const formatPrice = useCallback((eurVal: number | null | undefined): string => {
     if (eurVal === null || eurVal === undefined || isNaN(eurVal)) return '—';
     const localVal = convertEurToLocal(eurVal);
     if (localVal === null) return '—';
@@ -120,18 +120,20 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return `${currencyInfo.symbol}${formattedNum}`;
     }
     return `${formattedNum} ${currencyInfo.symbol}`;
-  };
+  }, [convertEurToLocal, currency, currencyInfo]);
+
+  const contextValue = useMemo(() => ({
+    currency,
+    setCurrency,
+    currencyInfo,
+    rates,
+    formatPrice,
+    convertEurToLocal,
+    convertLocalToEur,
+  }), [currency, setCurrency, currencyInfo, rates, formatPrice, convertEurToLocal, convertLocalToEur]);
 
   return (
-    <CurrencyContext.Provider value={{
-      currency,
-      setCurrency,
-      currencyInfo,
-      rates,
-      formatPrice,
-      convertEurToLocal,
-      convertLocalToEur,
-    }}>
+    <CurrencyContext.Provider value={contextValue}>
       {children}
     </CurrencyContext.Provider>
   );
