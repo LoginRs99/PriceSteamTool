@@ -218,6 +218,9 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 CREATE INDEX IF NOT EXISTS idx_sync_runs_started_at ON sync_runs(started_at DESC);
 
 -- 10. Pricing Errors Table
+-- NOTE: user_feedback, feedback_at columns are added by migration 029
+-- NOTE: idx_pricing_errors_feedback is created by migration 029
+-- NOTE: idx_pricing_errors_offer is created by migration 031
 CREATE TABLE IF NOT EXISTS pricing_errors (
   id TEXT PRIMARY KEY,
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
@@ -226,15 +229,11 @@ CREATE TABLE IF NOT EXISTS pricing_errors (
   confidence REAL NOT NULL,
   reason TEXT NOT NULL,
   detected_at TEXT NOT NULL,
-  is_dismissed INTEGER NOT NULL DEFAULT 0,
-  user_feedback TEXT DEFAULT NULL,
-  feedback_at TEXT DEFAULT NULL
+  is_dismissed INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_game ON pricing_errors(game_id);
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_dismissed ON pricing_errors(is_dismissed);
-CREATE INDEX IF NOT EXISTS idx_pricing_errors_feedback ON pricing_errors(user_feedback);
-CREATE INDEX IF NOT EXISTS idx_pricing_errors_offer ON pricing_errors(offer_id, is_dismissed);
 CREATE INDEX IF NOT EXISTS idx_pricing_errors_game_dismissed ON pricing_errors(game_id, is_dismissed);
 
 -- 11. Application Settings Table
