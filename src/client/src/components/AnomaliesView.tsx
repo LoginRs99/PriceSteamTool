@@ -749,10 +749,10 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                                 borderColor: 'rgba(239, 68, 68, 0.3)'
                               }}
                               onClick={() => handleFeedback(a.id, 'CONFIRMED_ERROR')}
-                              title="Megerősítem: ez valóban egy árhiba / glitch (maradjon karanténban)"
+                              title="Confirm: this is a genuine pricing error / glitch (keep in quarantine)"
                             >
                               <AlertTriangle size={11} />
-                              <span>Valódi hiba</span>
+                              <span>Genuine Error</span>
                             </button>
                             <button
                               className="btn btn-secondary"
@@ -766,10 +766,10 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                                 borderColor: 'rgba(16, 185, 129, 0.3)'
                               }}
                               onClick={() => handleFeedback(a.id, 'FALSE_POSITIVE')}
-                              title="Téves riasztás: ez egy valódi, érvényes akció (oldja fel a legjobb ajánlatok közé)"
+                              title="False alarm: this is a genuine, valid sale (unblock from best deals)"
                             >
                               <CheckCircle2 size={11} />
-                              <span>Téves riasztás (Valódi ár)</span>
+                              <span>False Alarm (Real Price)</span>
                             </button>
                             <button
                               className="btn btn-secondary"

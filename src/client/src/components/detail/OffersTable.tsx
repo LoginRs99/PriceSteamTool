@@ -282,10 +282,10 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                               borderColor: 'rgba(16, 185, 129, 0.3)'
                             }}
                             onClick={() => onRecordPurchase(offer)}
-                            title="Megvettem ezen az áron (mentés a vásárlási és megtakarítási naplóba)"
+                            title="I bought it at this price (save to purchase and savings log)"
                           >
                             <Check size={11} />
-                            <span>{recordedOfferId === offer.id ? 'Megvéve!' : 'Megvettem'}</span>
+                            <span>{recordedOfferId === offer.id ? 'Bought!' : 'I Bought It'}</span>
                           </button>
                         )}
                       </div>

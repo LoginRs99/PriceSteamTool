@@ -48,7 +48,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
   }, [fetchData]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Biztosan törölni szeretnéd ezt a vásárlást a naplóból?')) return;
+    if (!confirm('Are you sure you want to delete this purchase from the log?')) return;
     try {
       setDeletingId(id);
       await api.deletePurchase(id);
@@ -64,7 +64,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
     return (
       <div className="loading-state" style={{ padding: '60px 0', textAlign: 'center' }}>
         <RefreshCw className="spin" size={28} />
-        <p style={{ marginTop: 12, color: 'var(--text-muted)' }}>Megtakarítási napló betöltése...</p>
+        <p style={{ marginTop: 12, color: 'var(--text-muted)' }}>Loading savings log...</p>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
                 Purchase Journal & Savings Tracker
               </h2>
               <p style={{ fontSize: 13, color: 'var(--dim)', margin: '3px 0 0' }}>
-                Kövesd nyomon a realizált megtakarításaidat az eredeti árhoz (MSRP) és az átlagos akciókhoz képest.
+                Track your realized savings compared to the original price (MSRP) and typical sale prices.
               </p>
             </div>
           </div>
@@ -112,10 +112,10 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
             className="btn btn-secondary"
             onClick={fetchData}
             style={{ fontSize: 13, padding: '7px 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            title="Adatok frissítése"
+            title="Refresh data"
           >
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
-            <span>Frissítés</span>
+            <span>Refresh</span>
           </button>
         </div>
       </div>
@@ -135,13 +135,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
         }}>
           <div style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <ShoppingBag size={14} color="var(--accent-blue)" />
-            <span>Összes Költés</span>
+            <span>Total Spent</span>
           </div>
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--ink)', marginTop: 6 }}>
             {formatPrice(totalSpent)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>
-            {totalCount} rögzített vásárlás
+            {totalCount} recorded purchases
           </div>
         </div>
 
@@ -153,13 +153,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
         }}>
           <div style={{ fontSize: 12, color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <TrendingUp size={14} color="#34d399" />
-            <span>Megtakarítás (MSRP)</span>
+            <span>Savings (MSRP)</span>
           </div>
           <div style={{ fontSize: 24, fontWeight: 800, color: '#34d399', marginTop: 6 }}>
             +{formatPrice(savedVsMsrp)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>
-            Az eredeti listaárhoz képest
+            vs. original list price
           </div>
         </div>
 
@@ -171,13 +171,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
         }}>
           <div style={{ fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sparkles size={14} color="var(--accent-blue)" />
-            <span>Akciós Felülmúlás</span>
+            <span>Sale Beat</span>
           </div>
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-blue)', marginTop: 6 }}>
             +{formatPrice(savedVsMedian)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>
-            A típusos akciós medián felett
+            Above typical sale median
           </div>
         </div>
       </div>
@@ -193,18 +193,18 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Calendar size={16} color="var(--accent-blue)" />
-            <span>Havi bontású megtakarítás</span>
+            <span>Monthly Savings Breakdown</span>
           </h3>
 
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--dim)', textAlign: 'left' }}>
-                  <th style={{ padding: '8px 12px' }}>Hónap</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vásárlások</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Költés</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Megtakarítás (MSRP)</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Megtakarítás (Medián)</th>
+                  <th style={{ padding: '8px 12px' }}>Month</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center' }}>Purchases</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Spent</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Savings (MSRP)</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Savings (Median)</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,15 +232,15 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
       }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ShoppingBag size={16} color="#34d399" />
-          <span>Vásárlási Napló ({purchases.length})</span>
+          <span>Purchase Log ({purchases.length})</span>
         </h3>
 
         {purchases.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--dim)' }}>
             <PiggyBank size={36} color="var(--dim)" style={{ marginBottom: 10, opacity: 0.6 }} />
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>Még nincs rögzített vásárlásod</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>No purchases recorded yet</div>
             <p style={{ fontSize: 13, marginTop: 4 }}>
-              Nyisd meg bármelyik játék adatlapját a listában, és kattints a <strong>"Megvettem"</strong> gombra egy ajánlat mellett a naplózáshoz!
+              Open any game's detail page and click the <strong>"I Bought It"</strong> button next to an offer to log it!
             </p>
           </div>
         ) : (
@@ -272,9 +272,9 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
                           cursor: onSelectGame ? 'pointer' : 'default'
                         }}
                         onClick={() => onSelectGame && onSelectGame(p.gameId)}
-                        title={onSelectGame ? 'Játék adatlap megnyitása' : undefined}
+                        title={onSelectGame ? 'Open game detail' : undefined}
                       >
-                        {p.gameTitle || 'Játék'}
+                        {p.gameTitle || 'Game'}
                       </span>
                       {onSelectGame && (
                         <ExternalLink size={12} color="var(--dim)" style={{ cursor: 'pointer' }} onClick={() => onSelectGame(p.gameId)} />
@@ -300,7 +300,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
                       </div>
                       {p.savingsVsMsrpEur > 0 && (
                         <div style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>
-                          Megtakarítás: +{formatPrice(p.savingsVsMsrpEur)}
+                          Saved: +{formatPrice(p.savingsVsMsrpEur)}
                         </div>
                       )}
                     </div>
@@ -310,7 +310,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
                       onClick={() => handleDelete(p.id)}
                       disabled={deletingId === p.id}
                       style={{ padding: '6px 10px', fontSize: 12, color: '#f87171' }}
-                      title="Vásárlás törlése a naplóból"
+                      title="Remove purchase from log"
                     >
                       <Trash2 size={13} />
                     </button>
