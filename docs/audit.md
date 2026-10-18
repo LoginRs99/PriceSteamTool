@@ -1,14 +1,14 @@
 # Pricetool — Deep Technical Audit & Validation Report
 
 **Date**: 2026-09-26 (Audited & Verified: 2026-10-18)  
-**Version**: 2.7.0  
-**Scope**: Complete architecture, Deal Score v2.3 with Continuous Sigmoid Confidence, Pricing Error Engine with Self-Healing and User Feedback Loop, Best Deal Selection & ATL Quarantine / Auto-Reconciliation, SQLite WAL persistence & Migrations 001–031, Zero-Downtime Backup Engine with `PRAGMA quick_check`, Purchase Journal & Realized Savings Tracker, CheapShark true multi-AppID batching, source queue pacing & circuit breakers, Live Multi-Currency (EUR/USD/GBP/HUF), Steam Family Sharing Exclusions (Category 62), Docker containerization, and automated test suite.
+**Version**: 2.7.1  
+**Scope**: Complete architecture, Fastify schema-first validation, Deal Score v2.3 with Continuous Sigmoid Confidence, Pricing Error Engine with Self-Healing and User Feedback Loop, Best Deal Selection & ATL Quarantine / Auto-Reconciliation, SQLite WAL persistence & Migrations 001–031, Zero-Downtime Backup Engine with `PRAGMA quick_check`, Purchase Journal & Realized Savings Tracker with Anti-UI-Slop (<SavingsSkeleton />), CheapShark true multi-AppID batching, AllKeyShop 204k compressed catalog seed index, source queue pacing & circuit breakers, Live Multi-Currency (EUR/USD/GBP/HUF), Steam Family Sharing Exclusions (Category 62), Docker containerization, and automated test suite.
 
 ---
 
 ## 1. Executive Summary
 
-A comprehensive technical and domain audit was conducted across the codebase following the release of **v2.4.0**, **v2.5.0**, **v2.6.0**, and **v2.7.0**. All core components have been verified with **82 automated test suites (776 tests passing 100%)**, full TypeScript compilation (`tsc --noEmit`), and real-data edge-case validation.
+A comprehensive technical and domain audit was conducted across the codebase following the release of **v2.4.0**, **v2.5.0**, **v2.6.0**, **v2.7.0**, and **v2.7.1**. All core components have been verified with **84 automated test suites (797 tests passing 100%)**, full TypeScript compilation (`tsc --noEmit`), and real-data edge-case validation.
 
 ### Area Status Scorecard
 
@@ -28,7 +28,7 @@ A comprehensive technical and domain audit was conducted across the codebase fol
 | **Zero-Downtime Backup & DR** | **PASS** | Non-blocking online SQLite backup via `better-sqlite3` backup API, `PRAGMA wal_checkpoint(PASSIVE)`, `PRAGMA quick_check`, and rolling 7-day retention. |
 | **Purchase Journal & Savings** | **PASS** | "Megvettem" purchase logging, baseline MSRP and typical sale median snapshots, and realized savings dashboard analytics. |
 | **Live Multi-Currency** | **PASS** | On-the-fly currency switching (EUR, USD, GBP, CAD, AUD, HUF) with integer separation for HUF (`3 990 Ft`) and 100% normalized EUR database storage. |
-| **Testing Coverage** | **PASS** | **82 test files / 776 automated unit & integration tests passing (100%) cleanly in 106s**. |
+| **Testing Coverage** | **PASS** | **84 test files / 797 automated unit & integration tests passing (100%) cleanly in 75s**. |
 
 ---
 
@@ -117,6 +117,7 @@ A comprehensive technical and domain audit was conducted across the codebase fol
  ✓  server  tests/unit/processSafety.test.ts (2 tests)
  ✓  server  tests/unit/strategicFeaturesAndFixes.test.ts (6 tests)
  ✓  server  tests/unit/exchangeRate.test.ts (6 tests)
+ ✓  server  tests/unit/allkeyshopTddHardening.test.ts (16 tests)
  ✓  client  tests/client/App.test.tsx (8 tests)
  ✓  client  tests/client/GameDetailModal.test.tsx (6 tests)
  ✓  client  tests/client/FilterBar.test.tsx (13 tests)
@@ -124,6 +125,7 @@ A comprehensive technical and domain audit was conducted across the codebase fol
  ✓  client  tests/client/Modals.test.tsx (11 tests)
  ✓  client  tests/client/GameCard.test.tsx (10 tests)
  ✓  client  tests/client/apiFetchAndModals.test.tsx (13 tests)
+ ✓  client  tests/client/SavingsView.test.tsx (5 tests)
  ✓  client  tests/client/sourcesModalHygiene.test.tsx (4 tests)
  ✓  client  tests/client/OffersTable.test.tsx (5 tests)
  ✓  client  tests/client/task16_uiIntegrity.test.tsx (7 tests)
@@ -134,7 +136,7 @@ A comprehensive technical and domain audit was conducted across the codebase fol
  ✓  client  tests/client/useWishlistSync.test.ts (7 tests)
  ✓  client  tests/client/useWishlistGames.test.ts (3 tests)
 
- Test Files  82 passed (82)
-      Tests  776 passed (776)
-   Duration  106.38s
+ Test Files  84 passed (84)
+      Tests  797 passed (797)
+   Duration  74.96s
 ```

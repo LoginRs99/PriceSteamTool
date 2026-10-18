@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   pricetool:
     image: ghcr.io/loginrs99/pricesteamtool:latest

@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.7.0-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-776%2F776%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-2.7.1-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-797%2F797%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -136,7 +136,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (82 test files / 776 unit & integration tests)
+# 3. Run test suite (84 test files / 797 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck
@@ -188,6 +188,6 @@ Comprehensive architectural, operational, and user documentation is maintained i
 * [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, ATL quarantine, and pricing error detection.
 * [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.3 mathematics, purchase journal, multi-currency, and view modes.
 * [`docs/development.md`](file:///D:/github/Pricetool/docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
-* [`docs/audit.md`](file:///D:/github/Pricetool/docs/audit.md) — Technical audit & verification scorecard (82 test suites, 776 tests passing).
+* [`docs/audit.md`](file:///D:/github/Pricetool/docs/audit.md) — Technical audit & verification scorecard (84 test suites, 797 tests passing).
 * [`PROJECT_SUMMARY.md`](file:///D:/github/Pricetool/PROJECT_SUMMARY.md) — Quick architectural summary for developers and AI agents.
 * [`CHANGELOG.md`](file:///D:/github/Pricetool/CHANGELOG.md) — Complete release history and changes.

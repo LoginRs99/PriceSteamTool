@@ -21,6 +21,9 @@ COPY src/ ./src/
 RUN npm run build:client
 RUN npm run build:server
 
+# Ensure static seed assets are copied into dist/server/sources/seed
+RUN node --input-type=module -e "import fs from 'node:fs'; if (fs.existsSync('src/server/sources/seed')) fs.cpSync('src/server/sources/seed', 'dist/server/sources/seed', { recursive: true, force: true });"
+
 # Prune devDependencies while keeping compiled native modules intact
 RUN npm prune --omit=dev
 

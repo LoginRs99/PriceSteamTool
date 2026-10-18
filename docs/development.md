@@ -1,6 +1,6 @@
 # Development & Deployment Guide
 
-This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.7.0).
+This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.7.1).
 
 ---
 
@@ -13,7 +13,7 @@ Pricetool/
 │       └── docker-publish.yml     # GitHub Actions CI/CD to GHCR (multi-arch build)
 ├── docs/                          # Architectural & user documentation
 │   ├── README.md                  # Master documentation hub and sitemap
-│   ├── project-summary.md         # Master technical specification (v2.7.0)
+│   ├── project-summary.md         # Master technical specification (v2.7.1)
 │   ├── project-logs.md            # Release chronicle, migrations 001-031, ADRs, post-mortems
 │   ├── ideas-and-roadmap.md       # Innovation ledger, ML prediction, bundles, features
 │   ├── user-guide.md              # User guide: Deal Score, Purchase Journal, Currencies
@@ -21,7 +21,7 @@ Pricetool/
 │   ├── sources.md                 # Source comparison, batching, and rate limiting
 │   ├── data-model.md              # SQLite schema (16 tables), migrations, and ER diagrams
 │   ├── sync.md                    # Queue orchestration, circuit breakers, and pricing errors
-│   ├── audit.md                   # Audit verification and validation reports (776 tests)
+│   ├── audit.md                   # Audit verification and validation reports (797 tests)
 │   ├── backup-restore.md          # Disaster recovery, zero-downtime backups, restore steps
 │   ├── api-data-matrix.md         # API data matrix and source query capabilities
 │   └── development.md             # This file
@@ -53,7 +53,7 @@ Pricetool/
 │   │   ├── index.html
 │   │   └── vite.config.ts
 │   └── shared/                    # Canonical domain types (src/shared/types.ts)
-├── tests/                         # Automated unit & integration tests (82 suites, 776 tests)
+├── tests/                         # Automated unit & integration tests (84 suites, 797 tests)
 │   ├── unit/                      # Domain logic, Deal Score, Pricing Errors, Normalizers, Adapters
 │   ├── integration/               # Real-world validation, Family Sharing exclusions, and API tests
 │   └── client/                    # React 19 UI component and hook tests
@@ -127,7 +127,7 @@ npm run dev
 
 ### 3.3 Run Automated Tests
 ```bash
-npm test               # Run all 82 test files (776 tests) with vitest
+npm test               # Run all 84 test files (797 tests) with vitest
 npm run test:server    # Run server tests only
 npm run test:client    # Run client tests only
 npm run test:sources   # Run live network adapter connectivity checks
@@ -172,4 +172,4 @@ The workflow `.github/workflows/docker-publish.yml` triggers on `push` to `main`
 4. **Publish**: Pushes multi-arch images to GitHub Container Registry:
    - `ghcr.io/<owner>/pricesteamtool:latest`
    - `ghcr.io/<owner>/pricesteamtool:<git-sha>`
-   - `ghcr.io/<owner>/pricesteamtool:v2.7.0` (on release tag)
+   - `ghcr.io/<owner>/pricesteamtool:v2.7.1` (on release tag)
