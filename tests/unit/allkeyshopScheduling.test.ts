@@ -689,7 +689,7 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         let requestedUrl = '';
 
         fs.default.existsSync = ((p: any) => {
-          if (String(p).includes('allkeyshop_catalog.json')) return false;
+          if (String(p).includes('allkeyshop_catalog.json') || String(p).includes('aks_catalog_v2.json')) return false;
           return origExistsSync(p);
         }) as any;
 
@@ -735,13 +735,22 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       const { AllKeyShopSourceAdapter } = await import('../../src/server/sources/allkeyshop.js');
       const { config } = await import('../../src/server/config/index.js');
       const { circuitBreakers } = await import('../../src/server/sync/circuitBreaker.js');
+      const fs = await import('node:fs');
+      const path = await import('node:path');
       circuitBreakers.reset('allkeyshop');
 
+      const tempDir = fs.default.mkdtempSync(path.default.join(process.cwd(), 'temp-sched-test-'));
+      const origDataDir = config.dataDir;
       const origSolverUrl = config.allkeyshopSolverUrl;
       const origFetch = global.fetch;
 
       try {
+        config.dataDir = tempDir;
         config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        fs.default.writeFileSync(
+          path.default.join(tempDir, 'allkeyshop_catalog.json'),
+          JSON.stringify({ status: 'success', games: [{ id: 101, name: 'Borderlands' }] })
+        );
 
         global.fetch = (async () => {
           // Solver returns 503 for gameNames
@@ -758,9 +767,12 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         // Should return existing on-disk catalog without throwing
         expect(Array.isArray(catalog)).toBe(true);
         expect(catalog.length).toBeGreaterThan(0);
+        expect(catalog.some(g => g.id === 101)).toBe(true);
       } finally {
+        config.dataDir = origDataDir;
         config.allkeyshopSolverUrl = origSolverUrl;
         global.fetch = origFetch;
+        try { fs.default.rmSync(tempDir, { recursive: true, force: true }); } catch {}
       }
     });
   });

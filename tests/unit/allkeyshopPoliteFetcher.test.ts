@@ -16,6 +16,7 @@ import { AllKeyShopSourceAdapter } from '../../src/server/sources/allkeyshop.js'
 import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { config } from '../../src/server/config/index.js';
 import fs from 'node:fs';
+import path from 'node:path';
 
 describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
   beforeEach(() => {
@@ -204,7 +205,8 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
     it('uses 48h TTL and retains valid on-disk cache if remote refresh fails', async () => {
       const adapter = new AllKeyShopSourceAdapter();
       const origSolver = config.allkeyshopSolverUrl;
-      const cachePath = `${config.dataDir}/aks_catalog_v2.json`;
+      const cachePath = path.join(config.dataDir, 'allkeyshop_catalog.json');
+      const legacyPath = path.join(config.dataDir, 'aks_catalog_v2.json');
 
       try {
         config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
@@ -226,6 +228,8 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
         expect(catalog.length).toBeGreaterThan(0);
       } finally {
         config.allkeyshopSolverUrl = origSolver;
+        try { if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath); } catch {}
+        try { if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath); } catch {}
       }
     });
   });

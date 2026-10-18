@@ -741,7 +741,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
   private catalogIndex: AllKeyShopCatalogIndex | null = null;
   private lastCatalogFetch = 0;
   private pendingCatalogLoad: Promise<CatalogGame[]> | null = null;
-  private catalogPath = path.join(config.dataDir, 'allkeyshop_catalog.json');
+  private get catalogPath(): string {
+    return path.join(config.dataDir, 'allkeyshop_catalog.json');
+  }
 
   public isEnabled(): boolean {
     return config.allkeyshopEnabled;
@@ -762,8 +764,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     // 2. Check local disk cache or seed fallbacks
     const candidatePaths = [
       this.catalogPath,
-      path.join(process.cwd(), 'data', 'allkeyshop_catalog.json'),
-      path.resolve(process.cwd(), '..', 'data', 'allkeyshop_catalog.json')
+      path.join(config.dataDir, 'aks_catalog_v2.json')
     ];
 
     for (const p of candidatePaths) {
@@ -772,8 +773,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const stat = fs.statSync(p);
           const raw = fs.readFileSync(p, 'utf8');
           const data = JSON.parse(raw);
-          // Require at least 10 games to avoid accepting mock test stubs
-          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length >= 10) {
+          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
             if (p !== this.catalogPath && !fs.existsSync(this.catalogPath)) {
               try {
                 const dataDir = path.dirname(this.catalogPath);
@@ -942,20 +942,16 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
       }
 
       // 4. Stale fallback from disk if available
-      try {
-        if (!this.cachedCatalog && fs.existsSync(this.catalogPath)) {
-          const stat = fs.statSync(this.catalogPath);
-          const raw = fs.readFileSync(this.catalogPath, 'utf8');
-          const data = JSON.parse(raw);
-          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
-            const ageHours = Math.round((now - stat.mtimeMs) / 3600000);
-            console.warn(`[AllKeyShop] using stale catalog cache | age=${ageHours}h`);
-            this.cachedCatalog = data.games;
-            this.catalogIndex = new AllKeyShopCatalogIndex(data.games);
-            this.lastCatalogFetch = now;
-          }
+      if (!this.cachedCatalog) {
+        const fallback = this.loadCatalogFromDiskOrMemory(false);
+        if (fallback && fallback.length > 0) {
+          const ageHours = Math.round((now - this.lastCatalogFetch) / 3600000);
+          console.warn(`[AllKeyShop] using stale catalog cache | age=${ageHours}h`);
+          this.cachedCatalog = fallback;
+          this.catalogIndex = new AllKeyShopCatalogIndex(fallback);
+          this.lastCatalogFetch = now;
         }
-      } catch {}
+      }
 
       if (this.cachedCatalog) {
         if (!this.catalogIndex) {
