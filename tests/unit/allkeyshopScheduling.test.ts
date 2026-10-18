@@ -678,9 +678,13 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       const origFetch = global.fetch;
 
       const fs = await import('node:fs');
+      const path = await import('node:path');
+      const tempDir = fs.default.mkdtempSync(path.default.join(process.cwd(), 'temp-sched-test-'));
+      const origDataDir = config.dataDir;
       const origExistsSync = fs.default.existsSync;
 
       try {
+        config.dataDir = tempDir;
         config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
         let requestedUrl = '';
 
@@ -721,7 +725,9 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
       } finally {
         fs.default.existsSync = origExistsSync;
         config.allkeyshopSolverUrl = origSolverUrl;
+        config.dataDir = origDataDir;
         global.fetch = origFetch;
+        try { fs.default.rmSync(tempDir, { recursive: true, force: true }); } catch {}
       }
     });
 

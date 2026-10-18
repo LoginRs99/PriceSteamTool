@@ -1,6 +1,6 @@
 # Synchronization & Rate Limiting Engine
 
-This document details the synchronization workflow, queue orchestrator, circuit breaker state machine, data normalization pipeline, and pricing error detection engine for **Pricetool** (v2.5.0).
+This document details the synchronization workflow, queue orchestrator, circuit breaker state machine, data normalization pipeline, sync runs tracking, and pricing error detection engine for **Pricetool** (v2.7.0).
 
 ---
 
@@ -233,3 +233,23 @@ ORDER BY
 When the winning best safe deal has `price_eur < game.historical_low_eur`:
 1. `gameRepo.updateHistoricalLow(gameId, best.price_eur, timestamp, source)` immediately updates `historical_low_eur`, `historical_low_date`, and `historical_low_source`.
 2. `BEST_DEAL_RECOMPUTE_ALL_SQL` and database startup sweeps batch-update all games where valid offers undercut recorded historical lows.
+
+### 6.3 ATL Quarantine & Single-Source Protection
+To prevent unverified keyshop listings from permanently poisoning `games.historical_low_eur` and corrupting typical sale medians:
+* If a new record low is reported solely by a single unverified keyshop source without peer corroboration, the offer is quarantined from immediately overwriting `games.historical_low_eur`.
+* The low is flagged with `atl_is_confirmed = 0` and `atl_is_single_source_low = 1`.
+* Only when the price is confirmed by an authorized official retailer or corroborated by $\ge 2$ independent peers is it promoted to confirmed ATL.
+
+---
+
+## 7. Sync Runs Tracking & High-Performance Data Purging
+
+### 7.1 Granular Sync Telemetry (`sync_runs`)
+Every synchronization pass creates an execution record in `sync_runs`:
+* Tracks `trigger_type` (`MANUAL`, `SCHEDULED`, `STARTUP`), `status` (`RUNNING`, `COMPLETED`, `CANCELLED`, `FAILED`), start/completion timestamps, total games scheduled, processed games count, and new/updated offers count.
+* Enables operational visibility and health telemetry via `/api/sync/overview`.
+
+### 7.2 Non-Blocking Chunked Data Purging
+* Old price history records older than the retention threshold are purged via `purgeOldPriceHistory()`.
+* Deletions execute in isolated chunks of 1,000 rows to prevent long-held SQLite write transaction locks and avoid blocking incoming API reads or active sync tasks.
+* Automatic `PRAGMA optimize; ANALYZE;` post-sync hooks update SQLite query planner statistics for sustained sub-millisecond query performance.

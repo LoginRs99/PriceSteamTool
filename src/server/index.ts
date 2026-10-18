@@ -111,7 +111,7 @@ export async function createApp(): Promise<FastifyInstance> {
       reply.status(statusCode).send({
         error: error?.message || 'Request Error',
         statusCode,
-        ...(error?.issues ? { details: error.issues } : {})
+        ...(error?.validation ? { details: error.validation } : error?.issues ? { details: error.issues } : {})
       });
     }
   });

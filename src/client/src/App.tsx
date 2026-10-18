@@ -23,7 +23,7 @@ const DiscordModal = React.lazy(() => import('./components/DiscordModal.js').the
 const ScoreExplainModal = React.lazy(() => import('./components/ScoreExplainModal.js').then(m => ({ default: m.ScoreExplainModal })));
 const SavingsView = React.lazy(() => import('./components/SavingsView.js').then(m => ({ default: m.SavingsView })));
 
-import { GameCardSkeleton, CompactListSkeleton } from './components/skeletons/index.js';
+import { GameCardSkeleton, CompactListSkeleton, DenseTableSkeleton, SavingsSkeleton } from './components/skeletons/index.js';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -605,7 +605,7 @@ export const App: React.FC = () => {
 
           {/* TAB 2: FREE TO PLAY GAMES */}
           {mainTab === 'free' && (
-            <Suspense fallback={<div className="loading-state"><RefreshCw className="spin" size={24} /><p>Loading Free Games...</p></div>}>
+            <Suspense fallback={<DenseTableSkeleton rows={8} />}>
               <FreeGamesView
                 games={freeGames}
                 onGameClick={handleGameClick}
@@ -675,7 +675,7 @@ export const App: React.FC = () => {
 
           {/* TAB 5: SAVINGS TRACKER (PURCHASE JOURNAL) */}
           {mainTab === 'savings' && (
-            <Suspense fallback={<div className="loading-state"><RefreshCw className="spin" size={24} /><p>Loading Savings Tracker...</p></div>}>
+            <Suspense fallback={<SavingsSkeleton />}>
               <SavingsView
                 profileId={activeProfile?.id}
                 onSelectGame={(id) => setSelectedGameId(id)}

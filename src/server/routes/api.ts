@@ -34,6 +34,35 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Health & Diagnostics
   // ----------------------------------------------------
+  const errorResponseSchema = {
+    type: 'object',
+    properties: {
+      error: { type: 'string' },
+      statusCode: { type: 'number' },
+      details: { type: 'array' }
+    },
+    additionalProperties: true
+  };
+
+  const healthResponseSchema = {
+    type: 'object',
+    properties: {
+      status: { type: 'string' },
+      timestamp: { type: 'string' },
+      database: { type: 'string' },
+      syncRunning: { type: 'boolean' },
+      circuitBreakers: { type: 'object', additionalProperties: true },
+      uptimeSeconds: { type: 'number' },
+      memory: {
+        type: 'object',
+        properties: {
+          rssMb: { type: 'number' },
+          heapUsedMb: { type: 'number' }
+        }
+      }
+    }
+  };
+
   const healthHandler = async () => {
     let dbStatus = 'ok';
     try {
@@ -60,13 +89,35 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     };
   };
 
-  fastify.get('/api/health', healthHandler);
-  fastify.get('/health', healthHandler);
+  fastify.get('/api/health', { schema: { response: { 200: healthResponseSchema } } }, healthHandler);
+  fastify.get('/health', { schema: { response: { 200: healthResponseSchema } } }, healthHandler);
 
   // ----------------------------------------------------
   // Database Backup & Maintenance API
   // ----------------------------------------------------
-  fastify.post('/api/backup', async (request, reply) => {
+  const backupItemSchema = {
+    type: 'object',
+    properties: {
+      filename: { type: 'string' },
+      sizeBytes: { type: 'number' },
+      createdAt: { type: 'string' }
+    }
+  };
+
+  fastify.post('/api/backup', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            backup: backupItemSchema
+          }
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const { createDatabaseBackup } = await import('../db/index.js');
       const result = await createDatabaseBackup();
@@ -77,7 +128,24 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
   });
 
-  fastify.get('/api/backups', async (request, reply) => {
+  fastify.get('/api/backups', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            count: { type: 'number' },
+            backups: {
+              type: 'array',
+              items: backupItemSchema
+            }
+          }
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const { listBackups } = await import('../db/index.js');
       const backups = listBackups();
@@ -90,11 +158,42 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Profiles API
   // ----------------------------------------------------
-  fastify.get('/api/profiles', async () => {
+  const profileItemSchema = {
+    type: 'object',
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      steamId: { type: 'string' },
+      customUrl: { type: ['string', 'null'] },
+      avatarUrl: { type: ['string', 'null'] },
+      isActive: { type: 'boolean' },
+      isFamily: { type: 'boolean' },
+      createdAt: { type: 'string' },
+      updatedAt: { type: 'string' }
+    }
+  };
+
+  fastify.get('/api/profiles', {
+    schema: {
+      response: {
+        200: {
+          type: 'array',
+          items: profileItemSchema
+        }
+      }
+    }
+  }, async () => {
     return profileRepo.list();
   });
 
-  fastify.post('/api/profiles', async (request, reply) => {
+  fastify.post('/api/profiles', {
+    schema: {
+      response: {
+        201: profileItemSchema,
+        400: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const schema = z.object({
       name: z.string().min(1),
       steamId: z.string().min(1),
@@ -120,12 +219,52 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return reply.status(201).send(profile);
   });
 
-  fastify.put('/api/profiles/:id/active', async (request, reply) => {
+  fastify.put('/api/profiles/:id/active', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string' } }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: { success: { type: 'boolean' } }
+        },
+        404: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const ok = profileRepo.setActive(id);
     if (!ok) {
       return reply.status(404).send({ error: `Profile not found with id "${id}"` });
     }
+    return { success: true };
+  });
+
+  fastify.delete('/api/profiles/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string' } }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: { success: { type: 'boolean' } }
+        },
+        404: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existing = profileRepo.getById(id);
+    if (!existing) {
+      return reply.status(404).send({ error: `Profile not found with id "${id}"` });
+    }
+    profileRepo.delete(id);
     return { success: true };
   });
 
@@ -159,20 +298,29 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
   });
 
-  fastify.delete('/api/profiles/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const existing = profileRepo.getById(id);
-    if (!existing) {
-      return reply.status(404).send({ error: `Profile not found with id "${id}"` });
-    }
-    profileRepo.delete(id);
-    return { success: true };
-  });
-
   // ----------------------------------------------------
   // Family Sharing Exclusions API
   // ----------------------------------------------------
-  fastify.get('/api/family-sharing/exclusions', async () => {
+  const exclusionItemSchema = {
+    type: 'object',
+    properties: {
+      steamAppId: { type: 'number' },
+      title: { type: ['string', 'null'] },
+      reason: { type: ['string', 'null'] },
+      createdAt: { type: 'string' }
+    }
+  };
+
+  fastify.get('/api/family-sharing/exclusions', {
+    schema: {
+      response: {
+        200: {
+          type: 'array',
+          items: exclusionItemSchema
+        }
+      }
+    }
+  }, async () => {
     const activeProfile = profileRepo.getActive();
     if (activeProfile) {
       profileRepo.pruneExclusionsNotInWishlist(activeProfile.id);
@@ -180,7 +328,21 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return profileRepo.getFamilySharingExclusions();
   });
 
-  fastify.post('/api/family-sharing/exclude', async (request, reply) => {
+  fastify.post('/api/family-sharing/exclude', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            steamAppId: { type: 'number' },
+            reason: { type: ['string', 'null'] }
+          }
+        },
+        400: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const schema = z.object({
       steamAppId: z.number().int().positive(),
       reason: z.string().max(500).optional()
@@ -193,7 +355,20 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return { success: true, steamAppId: parsed.data.steamAppId, reason: parsed.data.reason };
   });
 
-  fastify.post('/api/family-sharing/include', async (request, reply) => {
+  fastify.post('/api/family-sharing/include', {
+    schema: {
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            steamAppId: { type: 'number' }
+          }
+        },
+        400: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const schema = z.object({
       steamAppId: z.number().int().positive()
     });
@@ -338,7 +513,26 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   fastify.get('/api/wishlist/best-deals', getBestDealsHandler);
   fastify.get('/api/games/best-deals', getBestDealsHandler);
 
-  fastify.post('/api/wishlist/:gameId/target-price', async (request, reply) => {
+  fastify.post('/api/wishlist/:gameId/target-price', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['gameId'],
+        properties: { gameId: { type: 'string' } }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            gameId: { type: 'string' },
+            targetPriceEur: { type: ['number', 'null'] }
+          }
+        },
+        400: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const activeProfile = profileRepo.getActive();
     if (!activeProfile) {
       return reply.status(400).send({ error: 'No active profile found' });
@@ -559,7 +753,24 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Sources & Diagnostics API
   // ----------------------------------------------------
-  fastify.get('/api/exchange-rates', async () => {
+  const exchangeRatesResponseSchema = {
+    type: 'object',
+    properties: {
+      base: { type: 'string' },
+      rates: {
+        type: 'object',
+        additionalProperties: { type: 'number' }
+      }
+    }
+  };
+
+  fastify.get('/api/exchange-rates', {
+    schema: {
+      response: {
+        200: exchangeRatesResponseSchema
+      }
+    }
+  }, async () => {
     return {
       base: 'EUR',
       rates: exchangeRateService.getRatesFromEur()
@@ -635,30 +846,33 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   // ----------------------------------------------------
   // Pricing Errors API (with /api/anomalies backward-compatibility aliases)
   // ----------------------------------------------------
-  fastify.get('/api/pricing-errors', async () => {
-    return pricingErrorRepo.list();
-  });
+  const listPricingErrorsHandler = async () => pricingErrorRepo.list();
 
-  fastify.post('/api/pricing-errors/:id/dismiss', async (request) => {
+  const dismissPricingErrorHandler = async (request: any) => {
     const { id } = request.params as { id: string };
     const gameId = pricingErrorRepo.dismiss(id);
     if (gameId) {
       offerRepo.recomputeBestDealForGame(gameId);
     }
     return { success: true };
-  });
+  };
 
-  fastify.post('/api/pricing-errors/dismiss-all', async () => {
+  const dismissAllPricingErrorsHandler = async () => {
     const affectedGameIds = pricingErrorRepo.dismissAll();
     for (const gameId of affectedGameIds) {
       offerRepo.recomputeBestDealForGame(gameId);
     }
     return { success: true, count: affectedGameIds.length };
-  });
+  };
 
-  fastify.get('/api/anomalies', async () => {
-    return pricingErrorRepo.list();
-  });
+  fastify.get('/api/pricing-errors', listPricingErrorsHandler);
+  fastify.get('/api/anomalies', listPricingErrorsHandler);
+
+  fastify.post('/api/pricing-errors/:id/dismiss', dismissPricingErrorHandler);
+  fastify.post('/api/anomalies/:id/dismiss', dismissPricingErrorHandler);
+
+  fastify.post('/api/pricing-errors/dismiss-all', dismissAllPricingErrorsHandler);
+  fastify.post('/api/anomalies/dismiss-all', dismissAllPricingErrorsHandler);
 
   fastify.post('/api/anomalies/:id/feedback', async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -686,27 +900,72 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return pricingErrorRepo.getMerchantStats();
   });
 
-  fastify.post('/api/anomalies/:id/dismiss', async (request) => {
-    const { id } = request.params as { id: string };
-    const gameId = pricingErrorRepo.dismiss(id);
-    if (gameId) {
-      offerRepo.recomputeBestDealForGame(gameId);
-    }
-    return { success: true };
-  });
-
-  fastify.post('/api/anomalies/dismiss-all', async () => {
-    const affectedGameIds = pricingErrorRepo.dismissAll();
-    for (const gameId of affectedGameIds) {
-      offerRepo.recomputeBestDealForGame(gameId);
-    }
-    return { success: true, count: affectedGameIds.length };
-  });
-
   // ----------------------------------------------------
   // Purchase Journal & Savings Tracker API
   // ----------------------------------------------------
-  fastify.get('/api/purchases', async (request, reply) => {
+  const purchaseItemSchema = {
+    type: 'object',
+    properties: {
+      id: { type: 'string' },
+      profileId: { type: 'string' },
+      profileName: { type: ['string', 'null'] },
+      gameId: { type: 'string' },
+      gameTitle: { type: ['string', 'null'] },
+      steamAppId: { type: ['number', 'null'] },
+      offerId: { type: ['string', 'null'] },
+      merchantId: { type: ['string', 'null'] },
+      merchantName: { type: ['string', 'null'] },
+      priceEur: { type: 'number' },
+      msrpEur: { type: ['number', 'null'] },
+      typicalMedianEur: { type: ['number', 'null'] },
+      savingsVsMsrpEur: { type: 'number' },
+      savingsVsMedianEur: { type: 'number' },
+      purchasedAt: { type: 'string' },
+      notes: { type: ['string', 'null'] },
+      createdAt: { type: 'string' }
+    }
+  };
+
+  const savingsSummarySchema = {
+    type: 'object',
+    properties: {
+      totalSpentEur: { type: 'number' },
+      totalSavedVsMsrpEur: { type: 'number' },
+      totalSavedVsMedianEur: { type: 'number' },
+      totalPurchases: { type: 'number' },
+      monthly: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            month: { type: 'string' },
+            spentEur: { type: 'number' },
+            savedVsMsrpEur: { type: 'number' },
+            savedVsMedianEur: { type: 'number' },
+            count: { type: 'number' }
+          }
+        }
+      }
+    }
+  };
+
+  fastify.get('/api/purchases', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          profileId: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: purchaseItemSchema
+        },
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const { profileId } = request.query as { profileId?: string };
       return purchaseRepo.list(profileId);
@@ -716,7 +975,15 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
   });
 
-  fastify.post('/api/purchases', async (request, reply) => {
+  fastify.post('/api/purchases', {
+    schema: {
+      response: {
+        201: purchaseItemSchema,
+        400: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const schema = z.object({
       profileId: z.string().optional(),
       gameId: z.string().min(1),
@@ -749,7 +1016,22 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
   });
 
-  fastify.delete('/api/purchases/:id', async (request, reply) => {
+  fastify.delete('/api/purchases/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string' } }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: { success: { type: 'boolean' } }
+        },
+        404: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const ok = purchaseRepo.delete(id);
     if (!ok) {
@@ -758,7 +1040,20 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return { success: true };
   });
 
-  fastify.get('/api/purchases/savings', async (request, reply) => {
+  fastify.get('/api/purchases/savings', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          profileId: { type: 'string' }
+        }
+      },
+      response: {
+        200: savingsSummarySchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (request, reply) => {
     try {
       const { profileId } = request.query as { profileId?: string };
       return purchaseRepo.getSavingsSummary(profileId);
@@ -913,7 +1208,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     try {
       const catalog = await allkeyshopAdapter.getCatalogForCandidateSearch();
       if (catalog && catalog.length > 0) {
-        candidates = findCandidateGamesInCatalog(catalog, game.title, game.steamAppId, game.releaseDate);
+        const catalogIndex = allkeyshopAdapter.getCatalogIndex();
+        candidates = findCandidateGamesInCatalog(catalogIndex || catalog, game.title, game.steamAppId, game.releaseDate);
       }
     } catch (err: any) {
       logWarn(`[AllKeyShop] Candidate catalog discovery unavailable for "${game.title}": ${err?.message}`);

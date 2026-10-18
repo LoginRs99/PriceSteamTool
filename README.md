@@ -136,7 +136,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (68 test files / 624 unit & integration tests)
+# 3. Run test suite (82 test files / 776 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck
@@ -156,6 +156,7 @@ npm start
 All persistent runtime data is stored in the `/data` directory:
 * `/data/pricetool.db` — SQLite database running in WAL (Write-Ahead Logging) mode with cached prepared statements.
 * `/data/pricetool.db-wal` & `/data/pricetool.db-shm` — Write-ahead buffers for non-blocking concurrent reads.
+* `/data/backups/` — Rolling 7-day automated zero-downtime snapshots verified with `PRAGMA quick_check`.
 
 In Docker, `./data` on the host is mapped to `/data` in the container. Upgrades and container rebuilds **never** destroy your wishlist, observations, or price history.
 
@@ -174,14 +175,19 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 
 ## 📚 Documentation
 
-Comprehensive architectural and user documentation is maintained in [`docs/`](file:///D:/github/Pricetool/docs/):
+Comprehensive architectural, operational, and user documentation is maintained in [`docs/`](file:///D:/github/Pricetool/docs/):
+* [`docs/README.md`](file:///D:/github/Pricetool/docs/README.md) — Master documentation hub and sitemap.
+* [`docs/project-summary.md`](file:///D:/github/Pricetool/docs/project-summary.md) — Master technical specification, engines, and architecture (v2.7.0).
+* [`docs/project-logs.md`](file:///D:/github/Pricetool/docs/project-logs.md) — Complete release history, migrations 001–031, ADR-001–012, and incident post-mortems.
+* [`docs/ideas-and-roadmap.md`](file:///D:/github/Pricetool/docs/ideas-and-roadmap.md) — Comprehensive innovation backlog (ML forecasting, budget cart optimizer, bundles).
 * [`docs/architecture.md`](file:///D:/github/Pricetool/docs/architecture.md) — System architecture, security posture, and runtime components.
-* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (migrations 001–031), entity relations, and index designs.
+* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (all 16 tables, migrations 001–031), entity relations, and index designs.
 * [`docs/backup-restore.md`](file:///D:/github/Pricetool/docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, and disaster recovery.
 * [`docs/sources.md`](file:///D:/github/Pricetool/docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
 * [`docs/api-data-matrix.md`](file:///D:/github/Pricetool/docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
-* [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, and pricing error detection.
-* [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.7 mathematics, purchase advice advisor, and view modes.
+* [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, ATL quarantine, and pricing error detection.
+* [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.3 mathematics, purchase journal, multi-currency, and view modes.
 * [`docs/development.md`](file:///D:/github/Pricetool/docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
+* [`docs/audit.md`](file:///D:/github/Pricetool/docs/audit.md) — Technical audit & verification scorecard (82 test suites, 776 tests passing).
 * [`PROJECT_SUMMARY.md`](file:///D:/github/Pricetool/PROJECT_SUMMARY.md) — Quick architectural summary for developers and AI agents.
 * [`CHANGELOG.md`](file:///D:/github/Pricetool/CHANGELOG.md) — Complete release history and changes.

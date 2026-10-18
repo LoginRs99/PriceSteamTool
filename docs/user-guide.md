@@ -1,6 +1,6 @@
 # Pricetool User & Intelligence Guide
 
-This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, and generates actionable purchase advice (v2.5.0).
+This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, generates actionable purchase advice, tracks realized savings, and handles multi-currency conversion (v2.7.0).
 
 ---
 
@@ -25,18 +25,19 @@ Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts`
 * **`DECIMAL_SHIFT`**: Sub-euro glitches ($\le 1.005\text{ €}$) on titles with MSRP $\ge 10\text{ €}$, missing digit shifts ($\sim 1/10$ or $\sim 1/100$ of MSRP on MSRP $\ge 30\text{ €}$), or extreme drops ($\le 3\%$ on MSRP $\ge 15\text{ €}$).
 * **`SOURCE_FAMILY_CONFLICT`**: Severe intra-family price split between official stores and keyshops under the same aggregator (e.g. GG.deals). Offers at or above a known confirmed low (`price >= ATL - 0.05`) are immune. For prices $> 1.005\text{ €}$, only extreme uncorroborated discrepancies ($\ge 12.0\times$) are flagged, while sub-euro glitches ($\le 1.005\text{ €}$) require a $\ge 3.0\times$ split.
 * **`OVER_MSRP`**: Informational indicator signaling when an offer exceeds official Steam baseline MSRP.
-* **`MARKET_OUTLIER`**: Lone store $> 50\%$ below single peer or $> 75\%$ below multi-peer median (unless at or above confirmed ATL).
+* **`MARKET_OUTLIER`**: Lone store $> 50\%$ below single peer or $> 75\%$ below multi-peer median (threshold 0.55 on cheapest comparable offer with $\ge 2.00\text{ €}$ gap).
 * **`BELOW_ATL_IMPLAUSIBLE`**: Price $> 50\%$ below established confirmed ATL.
 * **`OWN_HISTORY_BREAK`**: Sudden price collapse vs merchant's own historical median ($z > 2.5$).
 * **`FRESH_RELEASE_DROP`**: $> 40\%$ drop on games released $< 30$ days ago without publisher confirmation.
 * **`EDITION_INVERSION`**: Deluxe/Gold edition cheaper than base game by $> 30\%$.
 * **`FAKE_DISCOUNT`**: Claimed original price $> 1.5\times$ base MSRP.
-* **Independent Corroboration**: When $\ge 2$ independent fresh peer prices match within $\pm 20\%$ or $\pm 1.50\text{ €}$, selling-price anomaly flags are overridden.
+* **Independent Corroboration**: When $\ge 2$ independent fresh peer prices match within $\pm 40\%$, selling-price anomaly flags are overridden.
 * **Automated Self-Healing**: Dismisses errors automatically when prices rise, when cheaper valid deals exist, or when offers match known historical lows. Flagged offers are excluded from best deal calculations.
+* **User Feedback Loop**: Users can verify anomalies directly in the Data Safety tab by clicking **"Valódi hiba"** (Confirmed Error) or **"Téves riasztás"** (False Positive). Flagging an offer as a false positive immediately clears the flag and restores it to Best Deals.
 
 ---
 
-## 2. Computed Deal Score v2.4 (0 – 100)
+## 2. Computed Deal Score v2.3 (0 – 100)
 
 The **Deal Score v2.3** provides an objective, monotonic mathematical evaluation of deal attractiveness across 4 pillars:
 
@@ -47,7 +48,8 @@ $$\text{RawScore} = S_{\text{atl}} (0\text{--}40) + S_{\text{disc}} (0\text{--}3
 1. **$S_{\text{atl}}$ (Proximity to All-Time Low, 0–40 pts):**
    * At confirmed ATL ($price = atl$), awards **36 points base**.
    * Undercutting confirmed ATL awards up to **+4 points bonus** (maxing at 20% undercut).
-   * Unconfirmed or single-source ATL is penalized by 50% ($S_{\text{atl}} \times 0.5$).
+   * Unconfirmed or single-source keyshop ATL is penalized by 50% ($S_{\text{atl}} \times 0.5$).
+   * Scales proportionally with discount depth relative to MSRP anchor (never-discounted games with ATL $\approx$ MSRP receive low/zero $S_{\text{atl}}$ score).
 2. **$S_{\text{disc}}$ (Discount Depth, 0–30 pts):**
    * Diminishing-returns power curve:
      $$S_{\text{disc}} = 30 \times \left(\frac{\text{anchor} - \text{price}}{\text{anchor}}\right)^{0.75}$$
@@ -61,7 +63,7 @@ $$\text{RawScore} = S_{\text{atl}} (0\text{--}40) + S_{\text{disc}} (0\text{--}3
    * Ranks price within the spread of all fresh peer offers in the market.
    * Single offer from an official store receives a default market confidence score of 7.
 
-### 2.2 Safety Caps & Score Reservations
+### 2.2 Safety Caps & Continuous Confidence Ramps
 
 * **Provisional History Cap:** If $< 5$ historical samples are recorded:
   * Discount $\ge 60\%$: Capped at **80** (or **85** for official store with known MSRP).
@@ -70,6 +72,8 @@ $$\text{RawScore} = S_{\text{atl}} (0\text{--}40) + S_{\text{disc}} (0\text{--}3
 * **Stale History Cap:** If observations are $> 90$ days old, score is capped at **60**.
 * **Score 100 Reservation:** Score is capped at **99** unless the price beats the confirmed ATL by $\ge 5\%$.
 * **Pricing Error Cap:** Any active pricing error yields **Score 0**, **Tier Weak**, **Verdict WAIT**.
+* **Continuous Sigmoid Ramps**: Sample counts and recency ramp smoothly using logistic sigmoid curves rather than stepped thresholds.
+* **Weighted Geometric Mean**: Multiple confidence factors are aggregated with floor protection to prevent a single weak factor from zeroing overall confidence.
 
 ### 2.3 Score Tiers & Verdicts
 
@@ -140,34 +144,67 @@ The recommendation card provides factual guidance based on strict deterministic 
 
 ---
 
-## 5. Review & Rating Enrichment
+## 5. 💰 Realized Savings & Purchase Journal ("Megtakarítások")
 
-* **Steam Reviews:** Displays sentiment text (e.g. "Very Positive"), positive percentage, and formatted review totals.
-* **SteamDB Rating:** Calculates the Bayesian Wilson score rating.
-* **Metacritic Integration:** Displays Metacritic critic score (0–100) and direct review links enriched automatically via CheapShark batching.
+Pricetool includes a built-in purchase journal to track bought games and calculate your cumulative financial savings:
+
+### 5.1 Logging a Purchase ("Megvettem")
+* From the **Offers Table** inside any game slide-in panel, click the green **"Megvettem"** button next to the deal you purchased.
+* The system snapshots:
+  * **Purchase Price**: Exact price paid.
+  * **MSRP Snapshot**: Official Steam baseline MSRP at that moment.
+  * **Typical Median Snapshot**: Tukey IQR historical sale median at that moment.
+  * **Savings vs MSRP**: Money saved compared to buying at full price.
+  * **Savings vs Median**: Money saved compared to standard repeating sales.
+
+### 5.2 Savings Analytics Dashboard
+Accessible via the **Megtakarítások** tab on the navigation bar:
+* **Total Spent**: Total money spent across all purchases.
+* **Savings vs MSRP**: Cumulative money saved vs full retail price.
+* **Savings vs Typical Sale**: True net savings beating regular recurring discounts.
+* **Monthly Spending & Savings Trends**: Bar chart visualizing monthly purchases.
+* **Purchase History Table**: List of all bought games with timestamps, stores, and 1-click delete/refund removal.
 
 ---
 
-## 6. Navigation, Split-View Panel & View Modes
+## 6. 💱 Live Multi-Currency Display (EUR, USD, GBP, CAD, AUD, HUF)
 
-For wishlists with 2,500+ items, Pricetool provides dedicated navigation and layout modes:
+* Switch your active currency anytime via the currency selector dropdown in the navigation header.
+* **Supported Currencies**: `EUR (€)`, `USD ($)`, `GBP (£)`, `CAD ($)`, `AUD ($)`, and `HUF (Ft)`.
+* **Hungarian Forint (`HUF`)**: Native localized formatting with integer separation and symbol (e.g. `3 990 Ft`).
+* **100% Normalized Database Integrity**: All prices in SQLite remain stored strictly in `EUR`. The client converts values on-the-fly for display and automatically converts target price inputs back to EUR before saving.
 
-### 6.1 Main Navigation Tabs
+---
+
+## 7. 🎯 Smart Target Price Presets
+
+When editing target prices in the slide-in details panel (`TargetPriceEditor.tsx`), quick-select presets recommend optimal alert points:
+* 🟢 **Typical**: Sets your target price to the Tukey IQR typical sale median price.
+* 🔵 **Great (Q1)**: Sets your target price to the 25th percentile discount price.
+* 🟣 **Record Low**: Sets your target price to the confirmed historical all-time low.
+Values automatically convert to your selected display currency.
+
+---
+
+## 8. Navigation, Split-View Panel & View Modes
+
+### 8.1 Main Navigation Tabs
 * **Wishlist Deals**: Paid wishlist games, filtering out free titles so metrics remain unskewed.
 * **Free to Play**: Gathers all free titles (`is_free = 1`) with direct Steam store links and 1-click launch (`steam://run/<appId>`).
 * **Top Best Deals**: Highlights the highest Deal Score opportunities across the entire catalog.
-* **Data Safety**: Dedicated review interface for active pricing errors with 1-click dismissal and 14-column CSV export.
+* **Data Safety**: Dedicated review interface for active pricing errors with user feedback and 14-column CSV export.
+* **Megtakarítások**: Purchase journal and realized savings analytics dashboard.
 
-### 6.2 Hybrid Split-View / Slide-in Details Panel
+### 8.2 Hybrid Split-View / Slide-in Details Panel
 Clicking any game row opens a slide-in intelligence panel from the right while keeping the main wishlist visible and keyboard-interactive:
 * **Keyboard Navigation**: Press `j` / `↓` for next game, `k` / `↑` for previous game, `Enter` to open/jump, and `Escape` to close the panel.
 * **Mobile-Responsive**: Automatically transforms into a swipeable bottom sheet on mobile screens (<768px).
-* **Target Price Alerts**: Set personal threshold alerts directly inside the game panel with real-time target status indicators.
+* **Target Price Alerts**: Set personal threshold alerts directly inside the game panel with smart preset buttons.
 * **Candidate Match Selector**: Fast AllKeyShop match verification with instant non-blocking save and asynchronous background scraping.
 
-### 6.3 Ergonomic View Modes
+### 8.3 Ergonomic View Modes
 * 📄 **Compact List View**: Single-line dense horizontal cards showing Priority, Title, Steam MSRP, Best Deal, Discount %, Store badge, and deal links.
 * 🔲 **Grid View**: Visual cover artwork with Deal Score badges, price tags, and quick price event flags.
 
-### 6.4 Page Size Flexibility
+### 8.4 Page Size Flexibility
 Choose between **24**, **50**, **100**, or **200 items per page**. View mode preferences are automatically remembered via `localStorage`.

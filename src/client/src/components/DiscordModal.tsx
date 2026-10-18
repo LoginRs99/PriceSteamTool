@@ -42,6 +42,7 @@ export const DiscordModal: React.FC<DiscordModalProps> = ({ isOpen, onClose }) =
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
+    return undefined;
   }, [isOpen]);
 
   const loadSettings = async () => {

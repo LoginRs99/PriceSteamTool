@@ -1,6 +1,6 @@
 # Development & Deployment Guide
 
-This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.4.0).
+This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.7.0).
 
 ---
 
@@ -12,23 +12,30 @@ Pricetool/
 │   └── workflows/
 │       └── docker-publish.yml     # GitHub Actions CI/CD to GHCR (multi-arch build)
 ├── docs/                          # Architectural & user documentation
-│   ├── user-guide.md              # User guide: Deal Score v2.4, Pricing Error Engine, Advisor
+│   ├── README.md                  # Master documentation hub and sitemap
+│   ├── project-summary.md         # Master technical specification (v2.7.0)
+│   ├── project-logs.md            # Release chronicle, migrations 001-031, ADRs, post-mortems
+│   ├── ideas-and-roadmap.md       # Innovation ledger, ML prediction, bundles, features
+│   ├── user-guide.md              # User guide: Deal Score, Purchase Journal, Currencies
 │   ├── architecture.md            # System architecture, security, and components
 │   ├── sources.md                 # Source comparison, batching, and rate limiting
-│   ├── data-model.md              # SQLite schema, migrations 001-027, and ER diagrams
+│   ├── data-model.md              # SQLite schema (16 tables), migrations, and ER diagrams
 │   ├── sync.md                    # Queue orchestration, circuit breakers, and pricing errors
-│   ├── audit.md                   # Audit verification and validation reports
+│   ├── audit.md                   # Audit verification and validation reports (776 tests)
+│   ├── backup-restore.md          # Disaster recovery, zero-downtime backups, restore steps
+│   ├── api-data-matrix.md         # API data matrix and source query capabilities
 │   └── development.md             # This file
 ├── src/
 │   ├── server/                    # Fastify backend & sync engine
 │   │   ├── config/                # Environment variables, constants, and delay defaults
 │   │   ├── db/                    # SQLite database & migrations (better-sqlite3)
-│   │   │   ├── migrations.ts      # Migrations 001–027
-│   │   │   ├── schema.ts          # Core SQLite schema
+│   │   │   ├── migrations.ts      # Migrations 001–031
+│   │   │   ├── schema.ts          # Core SQLite schema (16 tables)
+│   │   │   ├── backup.ts          # Online zero-downtime backup engine
 │   │   │   ├── core.ts            # getDb(), stmtCache, BEST_DEAL_RECOMPUTE_ALL_SQL
-│   │   │   └── repositories/      # game, offer, merchant, profile, pricingError, source
-│   │   ├── domain/                # Pricing Engine, Deal Score v2.4, Price Intelligence, Normalizer
-│   │   │   ├── dealScore/         # 4-Pillar calculator, confidence, tiers
+│   │   │   └── repositories/      # game, offer, merchant, profile, pricingError, purchase, source
+│   │   ├── domain/                # Pricing Engine, Deal Score, Price Intelligence, Normalizer
+│   │   │   ├── dealScore/         # 4-Pillar calculator, sigmoid confidence, tiers
 │   │   │   ├── pricingError/      # Pricing error detector, price events, self-healing
 │   │   │   └── priceIntelligence/ # Purchase advice, IQR typical sale, period lows, volatility
 │   │   ├── sources/               # Source adapters (ITAD, GGDeals, CheapShark, Steam, AllKeyShop)
@@ -37,18 +44,19 @@ Pricetool/
 │   │   └── index.ts               # Server entry point & graceful shutdown
 │   ├── client/                    # Modern React 19 SPA (Vite)
 │   │   ├── src/
-│   │   │   ├── components/        # DealsDashboard, FilterBar, GameCard, CompactListView, GameDetailModal
-│   │   │   ├── hooks/             # Custom hooks (useWishlist, useSyncProgress, useFilters)
+│   │   │   ├── components/        # DealsDashboard, FilterBar, GameCard, CompactListView, GameDetailModal, SavingsView
+│   │   │   ├── context/           # CurrencyContext (EUR, USD, GBP, CAD, AUD, HUF)
+│   │   │   ├── hooks/             # Custom hooks (useWishlist, useSyncProgress, useFilters, useProfiles, useAnomalies)
 │   │   │   ├── types/             # Frontend shared domain types
 │   │   │   ├── App.tsx            # Main application
 │   │   │   └── index.css          # Design system CSS tokens & styles
 │   │   ├── index.html
 │   │   └── vite.config.ts
 │   └── shared/                    # Canonical domain types (src/shared/types.ts)
-├── tests/                         # Automated unit & integration tests (72 suites, 674 tests)
+├── tests/                         # Automated unit & integration tests (82 suites, 776 tests)
 │   ├── unit/                      # Domain logic, Deal Score, Pricing Errors, Normalizers, Adapters
 │   ├── integration/               # Real-world validation, Family Sharing exclusions, and API tests
-│   └── client/                    # React UI component and hook tests
+│   └── client/                    # React 19 UI component and hook tests
 ├── Dockerfile                     # Multi-stage production container
 ├── docker-compose.yml             # Local production compose
 ├── CHANGELOG.md                   # Release history
@@ -95,6 +103,11 @@ DISCORD_ENABLED=true               # Enable push alerts
 DISCORD_MIN_DEAL_SCORE=75          # Minimum Deal Score for notification
 DISCORD_NOTIFY_ATL_ONLY=false      # Set true to notify only on confirmed ATL
 DISCORD_NOTIFY_PRICING_ERRORS=true # Glitch Hunter push alerts for pricing errors
+
+# Zero-Downtime SQLite Backup Engine
+BACKUP_ENABLED=true                # Enable automated 24h background backups
+BACKUP_INTERVAL_HOURS=24           # Backup frequency in hours
+BACKUP_RETENTION_DAYS=7            # Rolling retention limit (prunes older archives)
 ```
 
 ---
@@ -114,7 +127,7 @@ npm run dev
 
 ### 3.3 Run Automated Tests
 ```bash
-npm test               # Run all 68 test files (624 tests) with vitest
+npm test               # Run all 82 test files (776 tests) with vitest
 npm run test:server    # Run server tests only
 npm run test:client    # Run client tests only
 npm run test:sources   # Run live network adapter connectivity checks
@@ -145,7 +158,7 @@ docker compose up -d --build
 ```
 Access the application at `http://localhost:3000`.
 
-Persistent database and cache files will be stored in `./data` on the host mapped to `/data` in the container.
+Persistent database, cache files, and automated backups will be stored in `./data` on the host mapped to `/data` in the container.
 
 ---
 
@@ -153,10 +166,10 @@ Persistent database and cache files will be stored in `./data` on the host mappe
 
 The workflow `.github/workflows/docker-publish.yml` triggers on `push` to `main` and on version tags (`v*.*.*`).
 
-1. **Lint & Test**: Runs automated unit and adapter tests (`npm test`).
+1. **Lint & Test**: Runs automated unit, integration, and client tests (`npm test`).
 2. **Build**: Compiles frontend and backend TypeScript.
 3. **Container Build**: Uses Docker Buildx with layer caching.
 4. **Publish**: Pushes multi-arch images to GitHub Container Registry:
    - `ghcr.io/<owner>/pricesteamtool:latest`
    - `ghcr.io/<owner>/pricesteamtool:<git-sha>`
-   - `ghcr.io/<owner>/pricesteamtool:v2.3.0` (on release tag)
+   - `ghcr.io/<owner>/pricesteamtool:v2.7.0` (on release tag)

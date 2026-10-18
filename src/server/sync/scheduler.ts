@@ -42,6 +42,7 @@ export function initAutoSyncScheduler(): void {
       logWarn(`Scheduled auto-sync error: ${err.message}`);
     }
   }, intervalMs);
+  timer.unref();
 }
 
 export function stopAutoSyncScheduler(): void {
@@ -80,6 +81,7 @@ export function initHistoryPurgeScheduler(): void {
 
   runPurge(); // run once at startup too
   purgeTimer = setInterval(runPurge, PURGE_INTERVAL_MS);
+  purgeTimer.unref();
 }
 
 export function initBackupScheduler(): void {
@@ -102,5 +104,6 @@ export function initBackupScheduler(): void {
   };
 
   backupTimer = setInterval(runBackup, intervalMs);
+  backupTimer.unref();
 }
 

@@ -1,6 +1,6 @@
 # System Architecture
 
-This document describes the design, component interactions, security posture, and technical choices for **Pricetool** (v2.5.0).
+This document describes the design, component interactions, security posture, and technical choices for **Pricetool** (v2.7.0).
 
 ---
 
@@ -13,12 +13,13 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │                                   Frontend (React 19 SPA)                              │
 │  - Linear / Raycast Dark Aesthetic (JetBrains Mono numbers, crisp 1px borders, blur)   │
 │  - Hybrid Split-View / Slide-in Details Panel (Keyboard j/k/Enter/Esc + touch sheet)   │
-│  - Inline Target Price Alerts & Status Evaluation in Slide-in Panel                    │
+│  - Live Multi-Currency Engine (EUR, USD, GBP, CAD, AUD, and native HUF Ft formatting)  │
+│  - Realized Savings Tracker & Purchase Journal (Megtakarítás-követő)                   │
 │  - Real-time Sync Progress Monitor (Server-Sent Events: /api/sync/events)               │
 │  - Source Adapters Diagnostics & Self-Healing (1-click Reset / Unpause button)         │
 │  - Game Detail View (All Offers, Price History, Interactive SVG Chart, Review Badges)  │
 │  - Steam Family Sharing Exclusions & 1-Click Storefront Category 62 Validation         │
-│  - Grouped Data Safety Review View (/api/pricing-errors) & CSV Export (/api/export)    │
+│  - Grouped Data Safety Review View (/api/anomalies) with User Feedback & CSV Export    │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │ HTTP REST, ETag 304, & SSE
 ┌───────────────────────────────────────────▼────────────────────────────────────────────┐
@@ -26,7 +27,7 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │  ┌─────────────────────────────────┐      ┌──────────────────────────────────────────┐ │
 │  │       REST API Endpoints        │      │          Wishlist & Sync Manager         │ │
 │  │   /api/profiles, /api/games     │      │  - Steam Wishlist Ingestion (IWishlist)  │ │
-│  │   /api/sync, /api/status        │      │  - Priority Multi-Source Queues          │ │
+│  │   /api/sync, /api/purchases     │      │  - Priority Multi-Source Queues          │ │
 │  │   /api/v1/* (Anti-Rate-Limit)   │      │  - Cache-First Refresh & TTL Manager     │ │
 │  └────────────────┬────────────────┘      └────────────────────┬─────────────────────┘ │
 │                   │                                            │                       │
@@ -34,11 +35,12 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │  │                            Domain Intelligence Engines                            │ │
 │  │  - Normalizer & Region Filter (EU/HU/Global verification, DRM key check)          │ │
 │  │  - Offer Deduplicator & Multi-Source Observation Tracker (source_observations)    │ │
-│  │  - Pricing Error Detector (DECIMAL_SHIFT, MARKET_OUTLIER, Peer Corroboration)     │ │
-│  │  - Pricing Error Self-Healing (Startup checks & post-sync auto-dismissal)          │ │
-│  │  - Deal Score v2.3 Calculator (4 Mathematical Pillars: ATL, Disc, Hist, Mkt)     │ │
-│  │  - Historical Low Evaluator & Instant ATL Auto-Reconciliation                     │ │
+│  │  - Pricing Error Engine (8 Error Types, Peer Corroboration, Self-Healing)         │ │
+│  │  - Deal Score v2.3 Engine (4 Pillars, Diminishing-Returns Curve, Sigmoid Ramps)   │ │
+│  │  - ATL Quarantine & Auto-Reconciliation (Single-source keyshop low protection)   │ │
 │  │  - Price Intelligence Advisor (Period Lows, IQR Typical Sale, Volatility CV)      │ │
+│  │  - Realized Savings Calculator (Snapshots vs MSRP & typical median)               │ │
+│  │  - Automated Zero-Downtime Backup Engine (Online snapshot, quick_check, 7d prune) │ │
 │  └────────────────────────────────────────┬──────────────────────────────────────────┘ │
 │                                           │                                            │
 │  ┌────────────────────────────────────────▼──────────────────────────────────────────┐ │
@@ -57,7 +59,7 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │  ┌────────────────────────────────────────▼──────────────────────────────────────────┐ │
 │  │                         Persistent Store (SQLite 3 in WAL Mode)                   │ │
 │  │  /data/pricetool.db (WAL Journal, Busy Timeout 5000ms, Foreign Keys, Stmt Cache)   │ │
-│  │  Migrations 001–026 (pricing_errors, steam_assets, family_owned_apps, indexes)     │ │
+│  │  16 Tables, Migrations 001–031, Automated Backups (/data/backups/)                 │ │
 │  └───────────────────────────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -72,7 +74,7 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 
 ### 2.2 Domain-Level Offer Deduplication & Provenance
 * **Decision**: Strict separation between `Merchant`, `Offer`, and `SourceObservation`.
-* **Rationale**: When multiple adapters (e.g. ITAD and CheapShark) observe the same merchant (e.g. Fanatical at €14.99), it is stored as **one canonical Offer** for Fanatical, supported by **two SourceObservations**. If prices diverge slightly due to FX rounding or crawl timing, both observations are preserved, and the freshest/most valid observation updates the canonical offer price.
+* **Rationale**: When multiple adapters (e.g. ITAD and CheapShark) observe the same merchant (e.g. Fanatical at €14.99), it is stored as **one canonical Offer** for Fanatical, supported by **two SourceObservations**. If prices diverge slightly due to FX rounding or crawl timing, both observations are preserved, with stored `fx_rate` and `fx_rate_timestamp`, and the freshest/most valid observation updates the canonical offer price.
 
 ### 2.3 Strict Pacing, Jitter & Circuit Breaker Engine
 * **Decision**: Every adapter operates via an isolated `PacedSourceQueue` with token-bucket interval, exponential-tailed jitter, and a 4-state Circuit Breaker (`NORMAL` → `BACKOFF` → `PAUSED` → `COOLDOWN` → `NORMAL`).
@@ -88,15 +90,25 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 * **Decision**: Bundle **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`) with pagination up to 3 pages, Metacritic review/score enrichment, and 429 re-enqueue handling.
 * **Rationale**: Replaced legacy per-game requests with true multi-ID batching supported by CheapShark's public API. Reduced HTTP traffic by >90% (from 150 requests down to 6 requests for 150 games), completely preventing Cloudflare 429 rate-limit tripping while enriching games with Metacritic metadata.
 
-### 2.5 Best Deal Selection & Instant ATL Auto-Reconciliation
+### 2.5 Best Deal Selection, ATL Quarantine & Instant Auto-Reconciliation
 * **Decision**: Canonical ranking hierarchy enforced across SQLite queries:
   $$\text{Fresh Safe Offers } (\le 72\text{h}) > \text{Stale Safe Offers} > \text{Pricing Errors (Excluded)}$$
   Within each freshness tier, offers sort strictly by `price_eur ASC`, then `last_observed_at DESC`.
+* **ATL Quarantine**: Single-source unconfirmed new ATL offers from non-official sources are quarantined from immediately overwriting `games.historical_low_eur` and corrupting typical sale medians until corroborated or confirmed by official stores.
 * **Auto-Reconciliation**: When `recomputeBestDealForGame` or `BEST_DEAL_RECOMPUTE_ALL_SQL` evaluates a safe valid offer whose price is strictly lower than `game.historical_low_eur`, it immediately reconciles `historical_low_eur`, `historical_low_date`, and `historical_low_source`. Startup database sweeps automatically heal any catalog-wide discrepancies.
 
 ### 2.6 Dedicated Pricing Error Architecture with Self-Healing
 * **Decision**: Complete isolation of glitched prices into a dedicated `pricing_errors` table and `is_likely_pricing_error` flag on `offers`, backed by independent peer corroboration and automatic self-healing.
 * **Rationale**: Glitches never distort Deal Scores, historical lows, or best deal badges. When prices return to normal or cheaper valid offers appear, errors auto-dismiss without manual operator intervention.
+
+### 2.7 Zero-Downtime SQLite Backup & Disaster Recovery Architecture
+* **Decision**: Online non-blocking SQLite backup leveraging `better-sqlite3` native backup API (`db.backup()`) with `PRAGMA wal_checkpoint(PASSIVE)`.
+* **Verification & Retention**: Immediately after backup creation, `PRAGMA quick_check` verifies archive integrity. Rolling 7-day retention prunes obsolete backups automatically in `/data/backups/`.
+* **Rationale**: Prevents database corruption from naive file copying during active concurrent transactions, ensuring instantaneous zero-downtime backups in <50ms.
+
+### 2.8 Purchase Journal & Realized Savings Tracking Engine
+* **Decision**: Snapshot-based purchase accounting in `purchases` table.
+* **Rationale**: When the user buys a game ("Megvettem" button), the system records the exact purchase price alongside the game's official MSRP and typical sale median at that specific moment. This allows the `SavingsView` to compute true historical savings versus both full retail price and standard recurring sales.
 
 ---
 

@@ -311,13 +311,16 @@ export function backfillDealScoreStats(): void {
   } catch {}
 }
 
-export function prepareStmt(sql: string): Database.Statement {
+export function prepareStmt<BindParams extends unknown[] | {} = any[], Result = any>(sql: string): Database.Statement<BindParams, Result> {
   let stmt = stmtCache.get(sql);
   if (!stmt) {
+    if (stmtCache.size > 200) {
+      stmtCache.clear();
+    }
     stmt = getDb().prepare(sql);
     stmtCache.set(sql, stmt);
   }
-  return stmt;
+  return stmt as unknown as Database.Statement<BindParams, Result>;
 }
 
 export function clearStmtCache(): void {
