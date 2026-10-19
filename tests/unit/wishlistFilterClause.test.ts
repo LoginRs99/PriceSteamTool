@@ -90,6 +90,19 @@ describe('buildWishlistFilterClause Unit Tests', () => {
     expect(params).toEqual(['profile-fam']);
   });
 
+  it('handles minMetacritic, minSteamRating, and belowTypicalSaleOnly filters correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-new-filters', {
+      minMetacritic: 80,
+      minSteamRating: 85,
+      belowTypicalSaleOnly: true
+    });
+
+    expect(whereSql).toContain('g.metacritic_score >= ?');
+    expect(whereSql).toContain('g.steam_review_percent >= ?');
+    expect(whereSql).toContain('g.typical_sale_median_eur IS NOT NULL AND bo.price_eur IS NOT NULL AND bo.price_eur < g.typical_sale_median_eur');
+    expect(params).toEqual(['profile-new-filters', 80, 85]);
+  });
+
   it('handles steamAppId filter correctly', () => {
     const { whereSql, params } = buildWishlistFilterClause('profile-steam', {
       steamAppId: 1091500

@@ -133,7 +133,8 @@ export class CircuitBreakerRegistry {
       return;
     }
 
-    const cooldownMs = Math.max(retryAfterSec * 1000, 30000);
+    const minCooldownMs = process.env.NODE_ENV === 'test' ? 100 : 30000;
+    const cooldownMs = Math.min(Math.max(retryAfterSec * 1000, minCooldownMs), 300000);
     info.cooldownUntil = Date.now() + cooldownMs;
 
     if (info.consecutiveRateLimits >= 3 || info.state === 'COOLDOWN') {

@@ -367,6 +367,9 @@ export interface WishlistFilterOptions {
   minDiscount?: number;
   minDealScore?: number;
   minConfidence?: number;
+  minMetacritic?: number;
+  minSteamRating?: number;
+  belowTypicalSaleOnly?: boolean;
   hidePricingErrors?: boolean;
   hideProvisional?: boolean;
   buyOnly?: boolean;

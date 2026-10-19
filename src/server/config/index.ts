@@ -36,6 +36,7 @@ export const config = {
   allkeyshopChunkSize: parseInt(process.env.ALLKEYSHOP_CHUNK_SIZE || '50', 10),
   allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || '20000', 10),
   ggdealsChunkPauseMs: parseInt(process.env.GGDEALS_CHUNK_PAUSE_MS || '60000', 10),
+  cheapsharkChunkPauseMs: parseInt(process.env.CHEAPSHARK_CHUNK_PAUSE_MS || '3000', 10),
 
   // Cache & Periodic Auto-Sync settings
   cacheTtlHours: parseInt(process.env.CACHE_TTL_HOURS || '6', 10),

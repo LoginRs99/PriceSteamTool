@@ -1,11 +1,18 @@
 import React, { useEffect, useState, useRef } from 'react';
 import type { SourceStatus, SourceCode } from '../types.js';
 import { api } from '../api.js';
-import { X, Activity, AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react';
+import { X, Activity, AlertTriangle, RefreshCw, RotateCcw, FileText } from 'lucide-react';
 
 interface SourcesModalProps {
   onClose: () => void;
 }
+
+const STATE_DESCRIPTIONS: Record<string, string> = {
+  NORMAL: 'Healthy – standard operation and polite pacing',
+  BACKOFF: 'Backoff – temporarily throttled due to upstream rate limits',
+  PAUSED: 'Paused – circuit breaker opened to protect your IP from bans',
+  COOLDOWN: 'Cooldown – probing adapter recovery with test requests'
+};
 
 export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   const onCloseRef = useRef(onClose);
@@ -109,7 +116,8 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
               className="btn btn-outline"
               style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
             >
-              <span>📋 View Raw Logs</span>
+              <FileText size={14} />
+              <span>View Raw Logs</span>
             </a>
           </div>
 
@@ -144,6 +152,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>{s.name}</span>
                         <span 
+                          title={STATE_DESCRIPTIONS[s.state] || s.state}
                           style={{
                             fontSize: 11,
                             fontWeight: 700,
@@ -152,11 +161,17 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                             background: `${stateColor}20`,
                             color: stateColor,
                             border: `1px solid ${stateColor}40`,
-                            textTransform: 'uppercase'
+                            textTransform: 'uppercase',
+                            cursor: 'help'
                           }}
                         >
                           {s.state}
                         </span>
+                        {s.state !== 'NORMAL' && (
+                          <span style={{ fontSize: 12, color: stateColor, fontWeight: 500 }}>
+                            {STATE_DESCRIPTIONS[s.state]}
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

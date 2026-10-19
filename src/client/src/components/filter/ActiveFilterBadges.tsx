@@ -1,6 +1,15 @@
 import React from 'react';
 import type { WishlistFilterOptions } from '../../types.js';
-import { X } from 'lucide-react';
+import { 
+  X, 
+  Sparkles, 
+  Target, 
+  Trophy, 
+  TrendingDown, 
+  Users, 
+  ThumbsUp 
+} from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 interface ActiveFilterBadgesProps {
   filters: WishlistFilterOptions;
@@ -15,6 +24,8 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
   onFilterChange,
   onResetAll
 }) => {
+  const { currencyInfo } = useCurrency();
+
   if (!isFiltered) return null;
 
   return (
@@ -32,15 +43,25 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
 
       {filters.buyOnly && (
         <span className="filter-active-tag" style={{ borderColor: 'rgba(251, 191, 36, 0.4)', color: '#fbbf24' }}>
-          🔥 Buy Recommendations
+          <Sparkles size={11} style={{ marginRight: 4 }} />
+          Buy Recommendations
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ buyOnly: false, minDealScore: filters.minDealScore === 70 ? undefined : filters.minDealScore, page: 1 })} />
         </span>
       )}
 
       {filters.targetReachedOnly && (
         <span className="filter-active-tag" style={{ borderColor: 'rgba(34, 211, 165, 0.4)', color: 'var(--down)' }}>
-          🎯 Target Reached
+          <Target size={11} style={{ marginRight: 4 }} />
+          Target Reached
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ targetReachedOnly: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.belowTypicalSaleOnly && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(34, 211, 165, 0.4)', color: 'var(--down)' }}>
+          <TrendingDown size={11} style={{ marginRight: 4 }} />
+          Below Typical Sale
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ belowTypicalSaleOnly: false, page: 1 })} />
         </span>
       )}
 
@@ -48,6 +69,22 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
         <span className="filter-active-tag">
           Score ≥ {filters.minDealScore}
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minDealScore: undefined, page: 1 })} />
+        </span>
+      )}
+
+      {filters.minMetacritic !== undefined && filters.minMetacritic > 0 && (
+        <span className="filter-active-tag">
+          <Trophy size={11} style={{ marginRight: 4 }} />
+          Metacritic ≥ {filters.minMetacritic}
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minMetacritic: undefined, page: 1 })} />
+        </span>
+      )}
+
+      {filters.minSteamRating !== undefined && filters.minSteamRating > 0 && (
+        <span className="filter-active-tag">
+          <ThumbsUp size={11} style={{ marginRight: 4 }} />
+          Steam Reviews ≥ {filters.minSteamRating}%
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minSteamRating: undefined, page: 1 })} />
         </span>
       )}
 
@@ -60,14 +97,14 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
 
       {filters.minPrice !== undefined && filters.minPrice > 0 && (
         <span className="filter-active-tag">
-          Min: €{filters.minPrice}
+          Min: {currencyInfo.symbol}{filters.minPrice}
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ minPrice: undefined, page: 1 })} />
         </span>
       )}
 
       {filters.maxPrice !== undefined && filters.maxPrice > 0 && (
         <span className="filter-active-tag">
-          Max: €{filters.maxPrice}
+          Max: {currencyInfo.symbol}{filters.maxPrice}
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ maxPrice: undefined, underPrice: undefined, page: 1 })} />
         </span>
       )}
@@ -123,7 +160,8 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
 
       {filters.hideFamilyShared && (
         <span className="filter-active-tag" style={{ borderColor: 'rgba(59, 130, 246, 0.4)', color: '#60a5fa' }}>
-          👨‍👩‍👧 Hide Family Games
+          <Users size={11} style={{ marginRight: 4 }} />
+          Hide Family Shared
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ hideFamilyShared: false, page: 1 })} />
         </span>
       )}

@@ -13,6 +13,9 @@ export const QUICK_PILL_BASE: Partial<WishlistFilterOptions> = {
   maxPrice: undefined,
   minDiscount: undefined,
   minDealScore: undefined,
+  minMetacritic: undefined,
+  minSteamRating: undefined,
+  belowTypicalSaleOnly: false,
   merchantType: 'all',
   hasPricingErrors: false,
   activePill: 'all',
@@ -60,6 +63,9 @@ export function useFilterState(
   if (filters.allTimeLowOnly) activeFilterCount++;
   if (filters.majorDealsOnly) activeFilterCount++;
   if (filters.minDealScore && filters.minDealScore > 0) activeFilterCount++;
+  if (filters.minMetacritic && filters.minMetacritic > 0) activeFilterCount++;
+  if (filters.minSteamRating && filters.minSteamRating > 0) activeFilterCount++;
+  if (filters.belowTypicalSaleOnly) activeFilterCount++;
   if (filters.minPrice !== undefined && filters.minPrice > 0) activeFilterCount++;
   if (filters.maxPrice !== undefined && filters.maxPrice > 0) activeFilterCount++;
   if (filters.underPrice !== undefined && filters.underPrice > 0) activeFilterCount++;
@@ -86,6 +92,9 @@ export function useFilterState(
       maxPrice: undefined,
       minDiscount: undefined,
       minDealScore: undefined,
+      minMetacritic: undefined,
+      minSteamRating: undefined,
+      belowTypicalSaleOnly: false,
       hidePricingErrors: false,
       hideProvisional: false,
       hideUnreleased: false,
@@ -152,6 +161,22 @@ export function useFilterState(
           activePill: 'exceptional',
           minDealScore: 80,
           sort: 'deal_score_desc'
+        });
+        break;
+      case 'below_typical':
+        onFilterChange({
+          ...QUICK_PILL_BASE,
+          activePill: 'below_typical',
+          belowTypicalSaleOnly: true,
+          sort: 'best_value'
+        });
+        break;
+      case 'metacritic_80':
+        onFilterChange({
+          ...QUICK_PILL_BASE,
+          activePill: 'metacritic_80',
+          minMetacritic: 80,
+          sort: 'best_value'
         });
         break;
       case 'discount_75':

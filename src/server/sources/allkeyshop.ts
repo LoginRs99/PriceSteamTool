@@ -116,6 +116,85 @@ export function validateAllKeyShopCatalog(data: unknown): AllKeyShopCatalogApiRe
   };
 }
 
+export function parseAllKeyShopGamePageTransData(raw: unknown, defaultDealUrl: string): NormalizedSourceOffer[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const data = (typeof (raw as any).data === 'object' && (raw as any).data !== null) ? (raw as any).data : (raw as any);
+  const merchants = typeof data.merchants === 'object' && data.merchants !== null ? data.merchants : {};
+  const editions = typeof data.editions === 'object' && data.editions !== null ? data.editions : {};
+  const regions = typeof data.regions === 'object' && data.regions !== null ? data.regions : {};
+  const prices = Array.isArray(data.prices) ? data.prices : [];
+
+  const merchantOffers = new Map<string, NormalizedSourceOffer>();
+
+  for (const p of prices) {
+    if (!p || typeof p !== 'object') continue;
+
+    // 1. Exclude Steam account sales (only want game activation keys/gifts)
+    if (p.account) continue;
+
+    // 2. Exclude out of stock items
+    if (p.dispo !== undefined && p.dispo !== 1 && p.dispo !== '1') continue;
+
+    // 3. Platform check: Steam only
+    if (p.activationPlatform && typeof p.activationPlatform === 'string') {
+      if (p.activationPlatform.toLowerCase() !== 'steam') continue;
+    }
+
+    const merchantObj = merchants[p.merchant] || {};
+    const merchantName = merchantObj.name || p.merchantName || '';
+    if (!merchantName) continue;
+
+    const merchantCode = merchantName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const isOfficial = Boolean(merchantObj.official || p.isOfficial);
+
+    // Prefer priceCard (price incl. credit card fees) as the real user-facing price
+    const priceEur = Number(p.priceCard || p.price || p.originalPrice);
+    if (isNaN(priceEur) || priceEur <= 0 || (priceEur > 0 && priceEur <= 0.05)) continue;
+
+    const rawBarePrice = p.price !== undefined ? Number(p.price) : undefined;
+    const rawOriginalPrice = p.originalPrice !== undefined ? Number(p.originalPrice) : undefined;
+
+    const editionName = editions[p.edition]?.name || undefined;
+    const regionName = regions[p.region]?.name || 'GLOBAL';
+
+    let regionRaw = 'GLOBAL';
+    if (regionName.toLowerCase().includes('eu') || regionName.toLowerCase().includes('europe')) {
+      regionRaw = 'EU';
+    } else if (regionName.toLowerCase().includes('row')) {
+      regionRaw = 'ROW';
+    }
+
+    const isGift = regionName.toLowerCase().includes('gift') || (editionName && editionName.toLowerCase().includes('gift'));
+    const productTypeRaw = isGift ? 'Steam Gift' : 'Steam Key';
+    const voucherCode = p.voucher_code ? String(p.voucher_code).trim() : undefined;
+
+    const offerKey = `${merchantCode}_${productTypeRaw}`;
+    const existing = merchantOffers.get(offerKey);
+
+    // Keep cheapest in-stock offer per merchant
+    if (!existing || existing.priceEur > priceEur) {
+      merchantOffers.set(offerKey, {
+        merchantCode,
+        merchantName,
+        isOfficial,
+        productTypeRaw,
+        regionRaw,
+        priceEur,
+        originalPriceEur: rawOriginalPrice,
+        rawPrice: rawBarePrice ?? priceEur,
+        rawCurrency: 'EUR',
+        rawOriginalPrice,
+        voucherCode,
+        dealUrl: defaultDealUrl,
+        editionName,
+        rawPayload: p
+      });
+    }
+  }
+
+  return Array.from(merchantOffers.values());
+}
+
 export function parseAllKeyShopGamePage(html: string, defaultDealUrl: string): NormalizedSourceOffer[] {
   if (!html || typeof html !== 'string') return [];
   const m = html.match(/var\s+gamePageTrans\s*=\s*(\{[\s\S]*?\});/);
@@ -123,80 +202,7 @@ export function parseAllKeyShopGamePage(html: string, defaultDealUrl: string): N
 
   try {
     const data = JSON.parse(m[1]);
-    const merchants = typeof data.merchants === 'object' && data.merchants !== null ? data.merchants : {};
-    const editions = typeof data.editions === 'object' && data.editions !== null ? data.editions : {};
-    const regions = typeof data.regions === 'object' && data.regions !== null ? data.regions : {};
-    const prices = Array.isArray(data.prices) ? data.prices : [];
-
-    const merchantOffers = new Map<string, NormalizedSourceOffer>();
-
-    for (const p of prices) {
-      if (!p || typeof p !== 'object') continue;
-
-      // 1. Exclude Steam account sales (only want game activation keys/gifts)
-      if (p.account) continue;
-
-      // 2. Exclude out of stock items
-      if (p.dispo !== undefined && p.dispo !== 1 && p.dispo !== '1') continue;
-
-      // 3. Platform check: Steam only
-      if (p.activationPlatform && typeof p.activationPlatform === 'string') {
-        if (p.activationPlatform.toLowerCase() !== 'steam') continue;
-      }
-
-      const merchantObj = merchants[p.merchant] || {};
-      const merchantName = merchantObj.name || p.merchantName || '';
-      if (!merchantName) continue;
-
-      const merchantCode = merchantName.toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const isOfficial = Boolean(merchantObj.official || p.isOfficial);
-
-      // Prefer priceCard (price incl. credit card fees) as the real user-facing price
-      const priceEur = Number(p.priceCard || p.price || p.originalPrice);
-      if (isNaN(priceEur) || priceEur <= 0 || (priceEur > 0 && priceEur <= 0.05)) continue;
-
-      const rawBarePrice = p.price !== undefined ? Number(p.price) : undefined;
-      const rawOriginalPrice = p.originalPrice !== undefined ? Number(p.originalPrice) : undefined;
-
-      const editionName = editions[p.edition]?.name || undefined;
-      const regionName = regions[p.region]?.name || 'GLOBAL';
-
-      let regionRaw = 'GLOBAL';
-      if (regionName.toLowerCase().includes('eu') || regionName.toLowerCase().includes('europe')) {
-        regionRaw = 'EU';
-      } else if (regionName.toLowerCase().includes('row')) {
-        regionRaw = 'ROW';
-      }
-
-      const isGift = regionName.toLowerCase().includes('gift') || (editionName && editionName.toLowerCase().includes('gift'));
-      const productTypeRaw = isGift ? 'Steam Gift' : 'Steam Key';
-      const voucherCode = p.voucher_code ? String(p.voucher_code).trim() : undefined;
-
-      const offerKey = `${merchantCode}_${productTypeRaw}`;
-      const existing = merchantOffers.get(offerKey);
-
-      // Keep cheapest in-stock offer per merchant
-      if (!existing || existing.priceEur > priceEur) {
-        merchantOffers.set(offerKey, {
-          merchantCode,
-          merchantName,
-          isOfficial,
-          productTypeRaw,
-          regionRaw,
-          priceEur,
-          originalPriceEur: rawOriginalPrice,
-          rawPrice: rawBarePrice ?? priceEur,
-          rawCurrency: 'EUR',
-          rawOriginalPrice,
-          voucherCode,
-          dealUrl: defaultDealUrl,
-          editionName,
-          rawPayload: p
-        });
-      }
-    }
-
-    return Array.from(merchantOffers.values());
+    return parseAllKeyShopGamePageTransData(data, defaultDealUrl);
   } catch (err: any) {
     console.warn('Failed to parse AllKeyShop gamePageTrans:', err?.message);
     return [];
@@ -995,7 +1001,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const cbCheck = circuitBreakers.canExecute('allkeyshop');
           if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
             console.warn(`[AllKeyShop] Skipping targeted price lookup for "${gameTitle}": source is cooling down.`);
-            return [];
+            throw new AllKeyShopUnavailableError(`AllKeyShop solver is cooling down or circuit open for "${gameTitle}"`);
           }
 
           if (cIdx > 0) {
@@ -1034,11 +1040,31 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
               if (apiErr?.status === 403 || apiErr?.status === 429) {
                 throw apiErr;
               }
-              console.warn(`[AllKeyShop] Direct API lookup failed for "${gameTitle}" (${apiErr?.message || apiErr}), attempting HTML page fallback`);
+              console.warn(`[AllKeyShop] Direct API lookup failed for "${gameTitle}" (${apiErr?.message || apiErr}), attempting gamePageTrans API fallback`);
             }
           }
 
-          // 2. Secondary fallback: Live Comparison Page if API had no offers or game had no numeric id
+          // 2. Secondary fallback: Direct gamePageTrans JSON API if numeric id is available
+          if (offers.length === 0 && matched.id) {
+            try {
+              const transUrl = buildAksApiUrl('v2/vaks.php', {
+                action: 'gamePageTrans',
+                id: matched.id,
+                currency: 'eur'
+              });
+              const transRaw = await fetchWithAllkeyshopSolver<unknown>(transUrl, 35000);
+              if (transRaw) {
+                offers = parseAllKeyShopGamePageTransData(transRaw, defaultDealUrl);
+              }
+            } catch (transErr: any) {
+              if (transErr?.status === 403 || transErr?.status === 429) {
+                throw transErr;
+              }
+              console.warn(`[AllKeyShop] gamePageTrans API lookup failed for "${gameTitle}" (${transErr?.message || transErr}), attempting HTML page fallback`);
+            }
+          }
+
+          // 3. Tertiary fallback: Live Comparison Page if API had no offers or game had no numeric id
           if (offers.length === 0) {
             try {
               const pageResponse = await fetchWithAllkeyshopSolver<unknown>(defaultDealUrl, 35000);

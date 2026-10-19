@@ -29,10 +29,6 @@ export const OffersTable: React.FC<OffersTableProps> = ({
   const [showExpired, setShowExpired] = useState(false);
   const [storeFilter, setStoreFilter] = useState<'ALL' | 'OFFICIAL' | 'KEYSHOP'>('ALL');
 
-  // Active in-stock offers vs expired / stale offers
-  const activeOffers = offers.filter(o => o.isValid !== false && o.isFresh !== false);
-  const expiredOffers = offers.filter(o => o.isValid === false || o.isFresh === false);
-
   // Filter by store type
   const filterByStore = (list: Offer[]) => {
     if (storeFilter === 'OFFICIAL') return list.filter(o => o.isOfficial);
@@ -40,13 +36,31 @@ export const OffersTable: React.FC<OffersTableProps> = ({
     return [...list];
   };
 
-  // Fallback: If no offers are strictly fresh, show all in active table so user still sees data.
-  // Both sections strictly sorted by price ascending (cheapest first).
-  const baseActive = activeOffers.length > 0 ? [...activeOffers] : [...offers];
-  const displayActive = filterByStore(baseActive).sort((a, b) => a.priceEur - b.priceEur);
-  const displayExpired = filterByStore(activeOffers.length > 0 ? expiredOffers : []).sort((a, b) => a.priceEur - b.priceEur);
+  const currentFilteredOffers = filterByStore(offers);
+  const currentActive = currentFilteredOffers.filter(o => o.isValid !== false && o.isFresh !== false);
+  const currentValid = currentFilteredOffers.filter(o => o.isValid !== false);
+  const currentExpired = currentFilteredOffers.filter(o => o.isValid === false || o.isFresh === false);
 
-  const bestOffer = baseActive.sort((a, b) => a.priceEur - b.priceEur)[0];
+  // If there are fresh active offers in the selected view, show them.
+  // If none are strictly fresh, fallback to showing valid (though stale) offers so the user still sees prices.
+  // Fallback to all offers if no valid offers exist. Both sections strictly sorted by price ascending.
+  const displayActive = (
+    currentActive.length > 0
+      ? currentActive
+      : currentValid.length > 0
+        ? currentValid
+        : currentFilteredOffers
+  ).slice().sort((a, b) => a.priceEur - b.priceEur);
+
+  const displayExpired = (
+    currentActive.length > 0
+      ? currentExpired
+      : currentValid.length > 0
+        ? currentFilteredOffers.filter(o => o.isValid === false)
+        : []
+  ).slice().sort((a, b) => a.priceEur - b.priceEur);
+
+  const bestOffer = displayActive[0] || offers.find(o => o.isValid !== false) || offers[0];
   const lowestPrice = bestOffer ? bestOffer.priceEur : 0;
 
   const renderOfferRows = (offerList: Offer[], isExpiredSection = false) => {

@@ -21,6 +21,24 @@ data/
 npm-debug.log*
 yarn-debug.log*
 
+# Test artifacts & coverage
+coverage/
+.nyc_output/
+test-results/
+
+# Temporary files & caches
+*.tmp
+*.temp
+*.cache
+*.swp
+desktop.ini
+
+# Binaries & compiled executables
+*.exe
+*.dll
+*.so
+*.dylib
+
 # System & IDE
 .DS_Store
 Thumbs.db
@@ -29,4 +47,8 @@ Thumbs.db
 screenshots/
 docs/*.htm
 repomix*.txt
+
+# Local tool caches & configs
+.impeccable/
+.codex/
 

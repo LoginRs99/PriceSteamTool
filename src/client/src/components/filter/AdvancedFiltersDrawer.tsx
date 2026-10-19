@@ -1,5 +1,6 @@
 import React from 'react';
 import type { WishlistFilterOptions } from '../../types.js';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 interface AdvancedFiltersDrawerProps {
   filters: WishlistFilterOptions;
@@ -10,6 +11,8 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
   filters,
   onFilterChange
 }) => {
+  const { currencyInfo } = useCurrency();
+
   return (
     <div className="advanced-filters-panel" style={{
       background: 'var(--surface)',
@@ -54,12 +57,12 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
       {/* Price Range Filter */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--dim)' }}>
-          Price Range (€ EUR)
+          Price Range ({currencyInfo.symbol} {currencyInfo.code})
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             type="number"
-            placeholder="Min €"
+            placeholder={`Min ${currencyInfo.symbol}`}
             min="0"
             value={filters.minPrice ?? ''}
             onChange={(e) => onFilterChange({ minPrice: e.target.value ? parseFloat(e.target.value) : undefined, page: 1 })}
@@ -76,7 +79,7 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
           <span style={{ color: 'var(--text-muted)' }}>–</span>
           <input
             type="number"
-            placeholder="Max €"
+            placeholder={`Max ${currencyInfo.symbol}`}
             min="0"
             value={filters.maxPrice ?? ''}
             onChange={(e) => onFilterChange({ maxPrice: e.target.value ? parseFloat(e.target.value) : undefined, page: 1 })}
@@ -93,6 +96,74 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
         </div>
       </div>
 
+      {/* Metacritic Score Filter */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label htmlFor="filter-metacritic" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--dim)' }}>
+            Metacritic Score
+          </label>
+          <span className="ticker-num" style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: (filters.minMetacritic || 0) >= 80 ? 'var(--up)' : 'var(--ink)',
+            background: 'var(--bg-void)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--line)'
+          }}>
+            {filters.minMetacritic ? `${filters.minMetacritic}+` : 'Any Score'}
+          </span>
+        </div>
+        <select
+          id="filter-metacritic"
+          className="select-input"
+          aria-label="Filter by Metacritic score"
+          style={{ padding: '7px 12px', fontSize: 13 }}
+          value={filters.minMetacritic ?? ''}
+          onChange={(e) => onFilterChange({ minMetacritic: e.target.value ? parseInt(e.target.value, 10) : undefined, page: 1 })}
+        >
+          <option value="">Any Metacritic Score</option>
+          <option value="90">90+ Universal Acclaim</option>
+          <option value="85">85+ Highly Acclaimed</option>
+          <option value="80">80+ Generally Favorable</option>
+          <option value="75">75+ Positive (75+)</option>
+          <option value="70">70+ Above Average (70+)</option>
+        </select>
+      </div>
+
+      {/* Steam Review Sentiment Filter */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label htmlFor="filter-steam-rating" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--dim)' }}>
+            Steam User Reviews
+          </label>
+          <span className="ticker-num" style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: (filters.minSteamRating || 0) >= 80 ? 'var(--up)' : 'var(--ink)',
+            background: 'var(--bg-void)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--line)'
+          }}>
+            {filters.minSteamRating ? `${filters.minSteamRating}%+` : 'Any Rating'}
+          </span>
+        </div>
+        <select
+          id="filter-steam-rating"
+          className="select-input"
+          aria-label="Filter by Steam user reviews sentiment"
+          style={{ padding: '7px 12px', fontSize: 13 }}
+          value={filters.minSteamRating ?? ''}
+          onChange={(e) => onFilterChange({ minSteamRating: e.target.value ? parseInt(e.target.value, 10) : undefined, page: 1 })}
+        >
+          <option value="">Any Steam Rating</option>
+          <option value="90">90%+ Overwhelmingly Positive</option>
+          <option value="80">80%+ Very Positive</option>
+          <option value="70">70%+ Mostly Positive</option>
+        </select>
+      </div>
+
       {/* Store Type Selection */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -104,14 +175,32 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
           value={filters.merchantType || 'all'}
           onChange={(e) => onFilterChange({ merchantType: e.target.value as any, page: 1 })}
         >
-          <option value="all">All Stores (Official & Authorized Keyshops)</option>
+          <option value="all">All Stores (Official & Marketplaces)</option>
           <option value="official">Official Stores Only (Steam, Humble, etc.)</option>
-          <option value="keyshop">Authorized Keyshops Only</option>
+          <option value="keyshop">Keyshops & Marketplaces (Eneba, Kinguin, etc.)</option>
         </select>
       </div>
 
       {/* Clean Toggles */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.belowTypicalSaleOnly)}
+            onChange={(e) => onFilterChange({ belowTypicalSaleOnly: e.target.checked, page: 1 })}
+          />
+          <span>Below Typical Sale Price</span>
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.buyOnly)}
+            onChange={(e) => onFilterChange({ buyOnly: e.target.checked, page: 1 })}
+          />
+          <span>Buy Recommendations Only</span>
+        </label>
+
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
           <input 
             type="checkbox"
@@ -163,7 +252,7 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
             checked={Boolean(filters.hideFamilyShared)}
             onChange={(e) => onFilterChange({ hideFamilyShared: e.target.checked, page: 1 })}
           />
-          <span>Hide Family Shared Games (👨‍👩‍👧 Family Library)</span>
+          <span>Hide Family Shared Games (Family Library)</span>
         </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>

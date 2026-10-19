@@ -1,13 +1,13 @@
 # 📜 PriceSteamTool — Comprehensive Project Logs & Engineering Ledger
 
 > **Master Engineering Chronicle, Migration History, ADRs & Post-Mortems**  
-> This document records the complete development history, version release logs, database migration ledger, architectural decisions, and critical incident post-mortems for **PriceSteamTool** (v1.0.0 through v2.7.0).
+> This document records the complete development history, version release logs, database migration ledger, architectural decisions, and critical incident post-mortems for **PriceSteamTool** (v1.0.0 through v2.8.0).
 
 ---
 
 ## 📑 Table of Contents
 
-1. [Version Release History & Feature Logs (v1.0.0 – v2.7.0)](#1-version-release-history--feature-logs)
+1. [Version Release History & Feature Logs (v1.0.0 – v2.8.0)](#1-version-release-history--feature-logs)
 2. [Complete Database Migration Ledger (001 – 031)](#2-complete-database-migration-ledger)
 3. [Architectural Decision Records (ADRs)](#3-architectural-decision-records)
 4. [Incident Post-Mortems & Engineering Breakthroughs](#4-incident-post-mortems--engineering-breakthroughs)
@@ -16,6 +16,32 @@
 ---
 
 ## 1. Version Release History & Feature Logs
+
+### 🚀 v2.8.0 — Multi-Buyer Filters, CheapShark Adaptive Pacing & Craft Polish (2026-10-20)
+* **Multi-Buyer Filters & Game Selection Assistance**:
+  * **Metacritic Filter (`minMetacritic`)**: Integrated numeric slider and quick filter pills to isolate high-scoring titles (e.g., 75+, 80+, 85+).
+  * **Steam Review Sentiment Filter (`minSteamRating`)**: Direct filter for positive Steam user review percentage (e.g., 70%+, 80%+, 90%+ positive reviews).
+  * **Below Typical Sale Filter (`belowTypicalSale`)**: Instant boolean filter targeting games currently discounted below their historical interquartile range (IQR) typical sale median.
+  * **Buy Recommendation Filter (`buyRecommendationOnly`)**: Quick toggle filtering for deterministic `BUY` / `STRONG BUY` rated deals.
+  * **Dynamic Server SQL Engine**: Added parameter-safe dynamic SQL clauses in `src/server/db/repositories/game.ts` to seamlessly compose all new filter constraints.
+* **CheapShark API Resilience & Adaptive Rate Limiting**:
+  * Resolved 429 rate limit errors and occasional network failures.
+  * Re-architected batch querying to use adaptive chunking (`CHEAPSHARK_BATCH_CHUNK_SIZE = 25`) preventing request timeouts and URL length overflows.
+  * Implemented exponential backoff with jitter on HTTP 429, 503, 504 in `fetchWithRetry`.
+  * Added RFC 7231 HTTP-date and delta-seconds parsing in `parseRetryAfterHeader` and synchronized with source circuit breakers.
+* **AllKeyShop Matching & Year/Edition Disambiguation**:
+  * Fixed missing matches for franchise and reboot titles (such as *The Medium*, *Beast of Reincarnation*) by extracting and comparing release years, edition qualifiers, and multi-alias indices.
+  * Fallback to pre-indexed compressed seed catalog ensures seamless matching without live Cloudflare stalls.
+* **Universal Multi-Currency Localization**:
+  * Replaced hardcoded euro symbols across `ActiveFilterBadges.tsx`, `AdvancedFiltersDrawer.tsx`, `QuickFilterPills.tsx`, `SourcesModal.tsx`, `IntelMetricsGrid.tsx`, and `ScoreExplainModal.tsx` with dynamic `formatPrice` from `useCurrency()`.
+* **UX Craftsmanship & Anti-UI-Slop Polish**:
+  * Replaced raw emoji soup with Lucide icons across `Navbar.tsx`, `AnomaliesView.tsx`, `SourcesModal.tsx`, `ScoreExplainModal.tsx`, and `TickerFlag.tsx`.
+  * Preserved full target hit flag semantics and test suite compatibility.
+  * Added clear educational tooltips for statistical metrics (IQR, price volatility, sample size, confidence) in `IntelMetricsGrid.tsx`.
+  * Restructured `ScoreExplainModal.tsx` with visual cards breaking down the 4 Deal Score v2.4 pillars.
+* **Test Suite Expansion**:
+  * Added unit and integration tests across `FilterBar.test.tsx` and `wishlistFilterClause.test.ts`.
+  * Test suite expanded to **84 test files, 806 tests (100% passing)**.
 
 ### 🚀 v2.7.1 — Fastify Schema-First, Anti-UI-Slop Craftsmanship & AllKeyShop Catalog Hardening (2026-10-18)
 * **Fastify Best Practices & Schema-First API Architecture**:

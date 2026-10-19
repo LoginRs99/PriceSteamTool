@@ -96,7 +96,7 @@ export class PacedSourceQueue {
           if (!isAbort) {
             const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
             if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
-              const retryAfter = err?.retryAfterSec ?? 30;
+              const retryAfter = Math.min(err?.retryAfterSec ?? 30, 300);
               circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
             } else {
               circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);

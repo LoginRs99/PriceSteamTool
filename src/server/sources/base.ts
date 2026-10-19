@@ -167,10 +167,11 @@ export async function safeFetchJson<T>(
         lastError = error;
         await sleepBackoff(attempt);
       } else {
+        let parsedData: T;
         if (typeof response.text === 'function') {
           const rawText = await response.text();
           try {
-            return JSON.parse(rawText) as T;
+            parsedData = JSON.parse(rawText) as T;
           } catch (jsonErr: any) {
             const contentType = response.headers?.get?.('content-type') || 'unknown';
             const preview = rawText.slice(0, 160).replace(/\s+/g, ' ').trim();
@@ -182,8 +183,20 @@ export async function safeFetchJson<T>(
             throw parseError;
           }
         } else {
-          return (await response.json()) as T;
+          parsedData = (await response.json()) as T;
         }
+
+        if (parsedData && (typeof parsedData === 'object' || Array.isArray(parsedData))) {
+          try {
+            Object.defineProperty(parsedData, '_headers', {
+              value: response.headers,
+              enumerable: false,
+              writable: true,
+              configurable: true
+            });
+          } catch {}
+        }
+        return parsedData;
       }
     } catch (err: any) {
       lastError = err;

@@ -140,6 +140,9 @@ export const api = {
     if (options.minDiscount !== undefined) params.set('minDiscount', String(options.minDiscount));
     if (options.minDealScore !== undefined) params.set('minDealScore', String(options.minDealScore));
     if (options.minConfidence !== undefined) params.set('minConfidence', String(options.minConfidence));
+    if (options.minMetacritic !== undefined) params.set('minMetacritic', String(options.minMetacritic));
+    if (options.minSteamRating !== undefined) params.set('minSteamRating', String(options.minSteamRating));
+    if (options.belowTypicalSaleOnly) params.set('belowTypicalSaleOnly', 'true');
     if (options.hidePricingErrors) params.set('hidePricingErrors', 'true');
     if (options.hideProvisional) params.set('hideProvisional', 'true');
     if (options.buyOnly) params.set('buyOnly', 'true');

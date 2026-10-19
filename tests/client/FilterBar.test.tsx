@@ -341,4 +341,63 @@ describe('FilterBar Component (Monolith & Decomposed Regression Tests)', () => {
     fireEvent.click(compactBtn);
     expect(handleViewModeChange).toHaveBeenCalledWith('compact');
   });
+
+  it('triggers metacritic and below typical sale filters when clicking preset pills', () => {
+    const handleFilterChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={defaultFilters}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    // Click 80+ Metacritic pill
+    const metacriticBtn = screen.getByRole('button', { name: /80\+ Metacritic/i });
+    fireEvent.click(metacriticBtn);
+    expect(handleFilterChange).toHaveBeenCalledWith(expect.objectContaining({
+      minMetacritic: 80,
+      activePill: 'metacritic_80',
+      page: 1
+    }));
+
+    // Click Below Typical pill
+    const belowTypicalBtn = screen.getByRole('button', { name: /Below Typical/i });
+    fireEvent.click(belowTypicalBtn);
+    expect(handleFilterChange).toHaveBeenCalledWith(expect.objectContaining({
+      belowTypicalSaleOnly: true,
+      activePill: 'below_typical',
+      page: 1
+    }));
+  });
+
+  it('updates Metacritic, Steam Reviews, and Below Typical in the advanced filter drawer', () => {
+    const handleFilterChange = vi.fn();
+    render(
+      <FilterBar 
+        filters={defaultFilters}
+        totalGames={100}
+        onFilterChange={handleFilterChange}
+      />
+    );
+
+    const filtersBtn = screen.getByRole('button', { name: /Filters/i });
+    fireEvent.click(filtersBtn);
+
+    // Select Metacritic 85+
+    const metacriticSelect = screen.getByLabelText(/Filter by Metacritic score/i);
+    fireEvent.change(metacriticSelect, { target: { value: '85' } });
+    expect(handleFilterChange).toHaveBeenCalledWith({ minMetacritic: 85, page: 1 });
+
+    // Select Steam reviews 80%+
+    const steamSelect = screen.getByLabelText(/Filter by Steam user reviews sentiment/i);
+    fireEvent.change(steamSelect, { target: { value: '80' } });
+    expect(handleFilterChange).toHaveBeenCalledWith({ minSteamRating: 80, page: 1 });
+
+    // Check Below Typical Sale Price checkbox
+    const belowTypicalCheck = screen.getByRole('checkbox', { name: 'Below Typical Sale Price' });
+    fireEvent.click(belowTypicalCheck);
+    expect(handleFilterChange).toHaveBeenCalledWith({ belowTypicalSaleOnly: true, page: 1 });
+  });
 });
+

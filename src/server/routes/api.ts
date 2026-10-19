@@ -448,6 +448,9 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       minDiscount: safeInt(query.minDiscount),
       minDealScore: safeInt(query.minDealScore),
       minConfidence: safeInt(query.minConfidence),
+      minMetacritic: safeInt(query.minMetacritic),
+      minSteamRating: safeInt(query.minSteamRating),
+      belowTypicalSaleOnly: query.belowTypicalSaleOnly === 'true' || query.belowTypicalSaleOnly === true,
       hidePricingErrors: query.hidePricingErrors === 'true' || query.hidePricingErrors === true || query.hideAnomalies === 'true' || query.hideAnomalies === true,
       hideProvisional: query.hideProvisional === 'true' || query.hideProvisional === true,
       buyOnly: query.buyOnly === 'true' || query.buyOnly === true,
@@ -1295,10 +1298,12 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
             freshOfferIds.push(savedOffer.id);
           }
 
-          // Drop orphaned AllKeyShop offers from previous (incorrect) match
-          const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', freshOfferIds);
-          if (staleRes.invalidatedCount > 0 || freshOfferIds.length > 0) {
-            offerRepo.recomputeBestDealForGame(game.id);
+          // Drop orphaned AllKeyShop offers from previous (incorrect) match ONLY if fresh offers were retrieved
+          if (freshOfferIds.length > 0) {
+            const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', freshOfferIds);
+            if (staleRes.invalidatedCount > 0 || freshOfferIds.length > 0) {
+              offerRepo.recomputeBestDealForGame(game.id);
+            }
           }
         } catch (err: any) {
           console.warn('Failed to refresh AllKeyShop prices in background after override:', err.message);

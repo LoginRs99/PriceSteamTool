@@ -5,7 +5,8 @@ import {
   validateAllKeyShopPriceResponse,
   validateAllKeyShopCatalog,
   parseAllKeyShopGamePage,
-  parseAllKeyShopPriceHistory
+  parseAllKeyShopPriceHistory,
+  parseAllKeyShopGamePageTransData
 } from '../../src/server/sources/allkeyshop.js';
 import { config } from '../../src/server/config/index.js';
 
@@ -355,6 +356,33 @@ describe('AllKeyShop API Wrapper & Solver Resilience Suite', () => {
 
       const offers = parseAllKeyShopPriceHistory(payload, 'https://example.com/kinguin');
       expect(offers.length).toBe(0);
+    });
+
+    it('parses direct JSON payload using parseAllKeyShopGamePageTransData', () => {
+      const directJson = {
+        merchants: { '100': { name: 'Eneba' } },
+        editions: { '1': { name: 'Standard' } },
+        regions: { '2': { name: 'Global' } },
+        prices: [
+          {
+            id: 1,
+            merchant: 100,
+            price: 5.13,
+            priceCard: 5.13,
+            voucher_code: 'AKS10',
+            account: false,
+            dispo: 1,
+            activationPlatform: 'steam'
+          }
+        ]
+      };
+
+      const offers = parseAllKeyShopGamePageTransData(directJson, 'https://example.com/deal');
+      expect(offers.length).toBe(1);
+      expect(offers[0].merchantName).toBe('Eneba');
+      expect(offers[0].priceEur).toBe(5.13);
+      expect(offers[0].voucherCode).toBe('AKS10');
+      expect(offers[0].productTypeRaw).toBe('Steam Key');
     });
   });
 });

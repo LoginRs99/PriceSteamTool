@@ -100,6 +100,20 @@ export function buildWishlistFilterClause(
     whereClauses.push(`w.target_price_eur IS NOT NULL AND bo.price_eur IS NOT NULL AND bo.price_eur <= w.target_price_eur`);
   }
 
+  if (options.minMetacritic !== undefined && options.minMetacritic > 0) {
+    whereClauses.push(`g.metacritic_score >= ?`);
+    params.push(options.minMetacritic);
+  }
+
+  if (options.minSteamRating !== undefined && options.minSteamRating > 0) {
+    whereClauses.push(`g.steam_review_percent >= ?`);
+    params.push(options.minSteamRating);
+  }
+
+  if (options.belowTypicalSaleOnly) {
+    whereClauses.push(`g.typical_sale_median_eur IS NOT NULL AND bo.price_eur IS NOT NULL AND bo.price_eur < g.typical_sale_median_eur`);
+  }
+
   // Unreleased / Coming soon filtering
   // When hideUnreleased is true, exclude games that have no price observations AND either have no release date,
   // a release date containing 'coming soon'/'tba', or a future timestamp.

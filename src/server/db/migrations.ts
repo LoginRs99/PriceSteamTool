@@ -807,6 +807,92 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 031] idx_offers_game_best_deal notice:', err?.message);
       }
     }
+  },
+  {
+    name: '032_restore_uninvalidated_keyshop_offers',
+    up: (db) => {
+      // Find games where all AllKeyShop-exclusive offers were mistakenly wiped out to 0 valid
+      // (e.g. from manual override calling invalidateStaleForGameSource with empty offer list)
+      try {
+        const games = db.prepare(`
+          SELECT o.game_id
+          FROM offers o
+          JOIN source_observations so ON so.offer_id = o.id AND so.source_code = 'allkeyshop'
+          WHERE NOT EXISTS (
+            SELECT 1 FROM source_observations other_so 
+            WHERE other_so.offer_id = o.id AND other_so.source_code != 'allkeyshop'
+          )
+          GROUP BY o.game_id
+          HAVING COUNT(CASE WHEN o.is_valid = 1 THEN 1 END) = 0
+             AND COUNT(CASE WHEN o.is_valid = 0 AND o.last_observed_at >= datetime('now', '-14 days') THEN 1 END) > 0
+        `).all() as { game_id: string }[];
+
+        if (games.length > 0) {
+          const restoreStmt = db.prepare(`
+            UPDATE offers
+            SET is_valid = 1, updated_at = datetime('now')
+            WHERE id IN (
+              SELECT o.id
+              FROM offers o
+              JOIN source_observations so ON so.offer_id = o.id AND so.source_code = 'allkeyshop'
+              WHERE o.game_id = ?
+                AND o.is_valid = 0
+                AND o.last_observed_at >= datetime('now', '-14 days')
+                AND NOT EXISTS (
+                  SELECT 1 FROM source_observations other_so 
+                  WHERE other_so.offer_id = o.id AND other_so.source_code != 'allkeyshop'
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM offers newer_o
+                  JOIN source_observations newer_so ON newer_so.offer_id = newer_o.id AND newer_so.source_code = 'allkeyshop'
+                  WHERE newer_o.game_id = o.game_id
+                    AND newer_o.merchant_id = o.merchant_id
+                    AND newer_o.last_observed_at > o.last_observed_at
+                )
+            )
+          `);
+
+          const updateAksPriceStmt = db.prepare(`
+            UPDATE games
+            SET allkeyshop_last_price_eur = (
+              SELECT MIN(price_eur) FROM offers
+              WHERE game_id = ? AND is_valid = 1 AND price_eur > 0.05
+              AND id IN (
+                SELECT offer_id FROM source_observations WHERE source_code = 'allkeyshop'
+              )
+            )
+            WHERE id = ? AND allkeyshop_last_price_eur IS NULL
+          `);
+
+          for (const { game_id } of games) {
+            restoreStmt.run(game_id);
+            updateAksPriceStmt.run(game_id, game_id);
+          }
+
+          // Recompute best deal assignment across affected games
+          db.exec(`
+            UPDATE offers SET is_best_deal = 0 WHERE is_best_deal = 1;
+            WITH ranked AS (
+              SELECT id, ROW_NUMBER() OVER (
+                PARTITION BY game_id
+                ORDER BY
+                  CASE
+                    WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= 72 THEN 0
+                    ELSE 1
+                  END ASC,
+                  price_eur ASC,
+                  COALESCE(last_observed_at, fetched_at) DESC
+              ) as rn
+              FROM offers
+              WHERE is_valid = 1 AND is_likely_pricing_error = 0
+            )
+            UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
+          `);
+        }
+      } catch (err: any) {
+        console.warn('[Migration 032] restore_uninvalidated_keyshop_offers notice:', err?.message);
+      }
+    }
   }
 ];
 

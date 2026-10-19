@@ -243,4 +243,33 @@ describe('OffersTable Component & Badge Integrity', () => {
     expect(staleOffers[0].priceEur).toBe(25);
     expect(staleOffers[1].priceEur).toBe(5);
   });
+
+  it('displays valid keyshop offers with STALE badge under Keyshops tab when no keyshop is fresh', () => {
+    // 2 fresh official offers, 1 valid but stale keyshop offer
+    const mixedOffers: Offer[] = [
+      { ...sampleOffers[1], id: 'off-official-1', isOfficial: true, isFresh: true, isValid: true, priceEur: 19.99 },
+      { ...sampleOffers[2], id: 'off-official-2', isOfficial: true, isFresh: true, isValid: true, priceEur: 24.99 },
+      { ...sampleOffers[0], id: 'off-aks-stale', merchantName: 'GameBoost', isOfficial: false, isFresh: false, isValid: true, priceEur: 4.58 }
+    ];
+
+    render(
+      <OffersTable
+        offers={mixedOffers}
+        copiedVoucherId={null}
+        onCopyVoucher={() => {}}
+      />
+    );
+
+    // In 'All' view: fresh active count is 2 (official stores), GameBoost is in expired
+    expect(screen.getByText('Available Offers (2)')).toBeInTheDocument();
+    expect(screen.getByText(/Show Expired \(1\)/)).toBeInTheDocument();
+
+    // Click 'Keyshops' filter tab
+    fireEvent.click(screen.getByRole('button', { name: 'Keyshops' }));
+
+    // Under Keyshops filter, GameBoost should be rendered in the active list with Stale badge
+    expect(screen.getByText('Available Offers (1)')).toBeInTheDocument();
+    expect(screen.getByText('GameBoost')).toBeInTheDocument();
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+  });
 });

@@ -5,6 +5,40 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-10-20
+
+### Added
+* **Multi-Buyer Filters & Game Selection Assistance**:
+  * **Metacritic Score Filter**: Min Metacritic score slider and quick filter pills to isolate critically acclaimed titles.
+  * **Steam Review Sentiment Filter**: Filter wishlist by minimum Steam user review sentiment percentage (e.g. 70%+, 80%+, 90%+ positive).
+  * **Below Typical Sale Filter**: Instant filter toggle isolating games currently discounted below their historical interquartile range (IQR) typical sale price median.
+  * **Buy Recommendation Filter**: Dedicated toggle to isolate deterministic `BUY` / `STRONG BUY` rated deals.
+  * Dynamic backend SQL generation in `src/server/db/repositories/game.ts` supporting all new filter clauses seamlessly with existing priority, store, and price constraints.
+* **CheapShark API Resilience & Adaptive Rate Limiting**:
+  * Implemented adaptive chunking (`CHEAPSHARK_BATCH_CHUNK_SIZE = 25`) preventing request timeouts and URI length limitations.
+  * Resilient backoff with exponential retry & jitter on HTTP 429, 503, 504 and transient network drops in `fetchWithRetry`.
+  * Dynamic `Retry-After` header parsing (supporting both delta-seconds and HTTP-date formats) and source circuit breaker integration.
+* **AllKeyShop Matching & Year/Edition Disambiguation**:
+  * Enhanced candidate title matching in `allkeyshop.ts` to disambiguate release years (e.g., *The Medium*, *Beast of Reincarnation*), multi-word roman numerals, and edition suffixes (*Standard Edition*, *Deluxe*, *Remastered*).
+  * Robust fallback to pre-indexed seed catalog preventing live Cloudflare lookup stalls.
+* **Universal Multi-Currency Support**:
+  * Dynamic localized currency formatting (`useCurrency()`) replaces hardcoded euro symbols across `ActiveFilterBadges.tsx`, `AdvancedFiltersDrawer.tsx`, `QuickFilterPills.tsx`, `SourcesModal.tsx`, `IntelMetricsGrid.tsx`, and `ScoreExplainModal.tsx`.
+* **UX Craftsmanship & Anti-UI-Slop Polish**:
+  * Replaced inconsistent emoji iconography with clean, semantic Lucide icons in `Navbar.tsx`, `AnomaliesView.tsx`, `SourcesModal.tsx`, `ScoreExplainModal.tsx`, and `TickerFlag.tsx`.
+  * Added rich explanation tooltips demystifying IQR, price volatility, sample size, and confidence metrics in `IntelMetricsGrid.tsx`.
+  * Redesigned `ScoreExplainModal.tsx` with dedicated cards breaking down the 4 Deal Score v2.4 pillars ($S_{\text{atl}}$, $S_{\text{cur}}$, $S_{\text{med}}$, $S_{\text{pos}}$).
+
+### Changed & Fixed
+* Updated client filter test suite (`FilterBar.test.tsx`) and unit test suite (`wishlistFilterClause.test.ts`) covering all new filter permutations (84 test files, 806 tests, 100% pass).
+* Resolved dead imports and unused variables across client and server modules.
+
+## [2.7.1] - 2026-10-18
+
+### Added
+* **Fastify Schema-First Route Validation**: Native JSON Schema validation and serialization across API endpoints.
+* **Seed Catalog Provisioning**: Bundled compressed AllKeyShop seed catalog (`allkeyshop_catalog.seed.json.gz`) for sub-50ms cold boots.
+* **Anti-UI-Slop Craftsmanship**: Added zero-layout-shift skeletons (`SavingsSkeleton`), connection error boundaries, and `tabular-nums` formatting.
+
 ## [2.7.0] - 2026-09-26
 
 ### Added

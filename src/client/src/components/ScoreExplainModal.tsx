@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Game } from '../types.js';
-import { X, HelpCircle, Award, ShieldCheck, Database, Calendar, TrendingDown, Info, AlertTriangle } from 'lucide-react';
+import { X, HelpCircle, Info, AlertTriangle, Zap } from 'lucide-react';
+import { useCurrency } from '../context/CurrencyContext.js';
 
 interface ScoreExplainModalProps {
   game: Game | null;
@@ -8,6 +9,7 @@ interface ScoreExplainModalProps {
 }
 
 export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onClose }) => {
+  const { formatPrice } = useCurrency();
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -88,19 +90,19 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
-                  <span style={{ color: 'var(--dim)' }}>ATL Proximity (40):</span>
+                  <span style={{ color: 'var(--dim)' }}>Proximity to All-Time Low (max 40 pts):</span>
                   <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.atlProximity}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
-                  <span style={{ color: 'var(--dim)' }}>Discount Depth (30):</span>
+                  <span style={{ color: 'var(--dim)' }}>Discount Depth vs MSRP (max 30 pts):</span>
                   <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.discountDepth}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
-                  <span style={{ color: 'var(--dim)' }}>Historical Value (20):</span>
+                  <span style={{ color: 'var(--dim)' }}>Historical Value vs Typical (max 20 pts):</span>
                   <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.historicalValue}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
-                  <span style={{ color: 'var(--dim)' }}>Market Position (10):</span>
+                  <span style={{ color: 'var(--dim)' }}>Market Competition (max 10 pts):</span>
                   <span className="ticker-num" style={{ fontWeight: 600 }}>{game.bestScoreComponents.marketPosition}</span>
                 </div>
               </div>
@@ -110,9 +112,9 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
           {/* Pricing Error / Glitch Alert Banner */}
           {(game.bestPriceEvent === 'PRICING_ERROR' || (game.hasPricingError && (game.bestDiscountPercent ?? 0) >= 75)) ? (
             <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>⚡</span>
+              <Zap size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: '0.82rem', color: 'var(--ink)' }}>
-                <strong>⚡ Potential Pricing Error!</strong> This offer is dramatically cheaper than the market median and other stores. If this is an unintended pricing glitch, the store may soon correct or cancel orders — consider purchasing immediately if you want the game!
+                <strong>Potential Pricing Error:</strong> This offer is dramatically cheaper than the market median and other stores. If this is an unintended pricing glitch, the store may soon correct or cancel orders — consider purchasing immediately if you want the game!
               </div>
             </div>
           ) : game.hasPricingError ? (
@@ -168,25 +170,25 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
                 <span style={{ color: 'var(--dim)' }}>Current Best Price:</span>
-                <span className="ticker-num" style={{ fontWeight: 700, color: 'var(--ink)' }}>€{currentPrice.toFixed(2)}</span>
+                <span className="ticker-num" style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatPrice(currentPrice)}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
                 <span style={{ color: 'var(--dim)' }}>Typical Sale Price (Historical Median):</span>
-                <span className="ticker-num" style={{ fontWeight: 600 }}>€{medianPrice.toFixed(2)}</span>
+                <span className="ticker-num" style={{ fontWeight: 600 }}>{formatPrice(medianPrice)}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
                 <span style={{ color: 'var(--dim)' }}>Historical Savings vs Typical:</span>
                 <span className="ticker-num" style={{ fontWeight: 700, color: savingEur > 0 ? 'var(--down)' : 'inherit' }}>
-                  {savingEur > 0 ? `€${savingEur.toFixed(2)} cheaper (${Math.round((savingEur / medianPrice) * 100)}% off typical)` : 'At or above typical sale'}
+                  {savingEur > 0 ? `${formatPrice(savingEur)} cheaper (${Math.round((savingEur / medianPrice) * 100)}% off typical)` : 'At or above typical sale'}
                 </span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)', fontSize: '0.88rem' }}>
                 <span style={{ color: 'var(--dim)' }}>Confirmed All-Time Low (ATL):</span>
                 <span className="ticker-num" style={{ fontWeight: 600 }}>
-                  €{atl.toFixed(2)} {atlDist === 0 ? '★ (Matches Record ATL)' : `(+€${atlDist.toFixed(2)})`}
+                  {formatPrice(atl)} {atlDist === 0 ? '★ (Matches Record ATL)' : `(+${formatPrice(atlDist)} above ATL)`}
                 </span>
               </div>
             </div>
@@ -221,7 +223,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
                   {game.actionSignal.expectedSaleTargetEur && (
                     <div style={{ fontSize: '0.82rem', textAlign: 'right' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Expected sale target: </span>
-                      <strong style={{ color: '#10b981' }}>€{game.actionSignal.expectedSaleTargetEur.toFixed(2)}</strong>
+                      <strong style={{ color: '#10b981' }}>{formatPrice(game.actionSignal.expectedSaleTargetEur)}</strong>
                     </div>
                   )}
                 </div>

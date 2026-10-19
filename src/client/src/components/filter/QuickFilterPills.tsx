@@ -6,8 +6,12 @@ import {
   ShieldCheck, 
   Tag, 
   Target,
-  RotateCcw 
+  RotateCcw,
+  Award,
+  TrendingDown,
+  Trophy
 } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext.js';
 
 interface QuickFilterPillsProps {
   filters: WishlistFilterOptions;
@@ -22,6 +26,8 @@ export const getActivePill = (filters: WishlistFilterOptions): string => {
   if (filters.hasPricingErrors) return 'anomaly';
   if (filters.targetReachedOnly) return 'target_reached';
   if (filters.buyOnly) return 'buy_recommendations';
+  if (filters.belowTypicalSaleOnly) return 'below_typical';
+  if (filters.minMetacritic === 80) return 'metacritic_80';
   if (filters.minDiscount === 75) return 'discount_75';
   if (filters.minDiscount === 50) return 'discount_50';
   if (filters.allTimeLowOnly) return 'atl';
@@ -44,6 +50,7 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
   onResetAll
 }) => {
   const currentPill = getActivePill(filters);
+  const { currencyInfo } = useCurrency();
 
   return (
     <div className="filter-pills-row">
@@ -59,7 +66,7 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
         onClick={() => onPillSelect('buy_recommendations')}
       >
         <Sparkles size={13} />
-        <span>🔥 Buy Recommendations</span>
+        <span>Buy Recommendations</span>
       </button>
 
       <button
@@ -68,7 +75,7 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
         title="Show games where best deal has reached your target price"
       >
         <Target size={13} />
-        <span>🎯 Target Reached</span>
+        <span>Target Reached</span>
       </button>
 
       <button
@@ -83,7 +90,8 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
         className={`pill-btn pill-gold ${currentPill === 'exceptional' ? 'active' : ''}`}
         onClick={() => onPillSelect('exceptional')}
       >
-        🔥 Exceptional (80+)
+        <Award size={13} />
+        <span>Exceptional (80+)</span>
       </button>
 
       <button
@@ -92,6 +100,24 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
       >
         <Flame size={13} />
         <span>All-Time Low</span>
+      </button>
+
+      <button
+        className={`pill-btn ${currentPill === 'below_typical' ? 'active' : ''}`}
+        onClick={() => onPillSelect('below_typical')}
+        title="Show games priced below their historical typical sale price"
+      >
+        <TrendingDown size={13} />
+        <span>Below Typical</span>
+      </button>
+
+      <button
+        className={`pill-btn ${currentPill === 'metacritic_80' ? 'active' : ''}`}
+        onClick={() => onPillSelect('metacritic_80')}
+        title="Show critically acclaimed games with Metacritic score 80 or higher"
+      >
+        <Trophy size={13} />
+        <span>80+ Metacritic</span>
       </button>
 
       <button
@@ -120,21 +146,21 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
         className={`pill-btn ${currentPill === 'under_5' ? 'active' : ''}`}
         onClick={() => onPillSelect('under_5')}
       >
-        Under €5
+        Under {currencyInfo.symbol}5
       </button>
 
       <button
         className={`pill-btn ${currentPill === 'under_10' ? 'active' : ''}`}
         onClick={() => onPillSelect('under_10')}
       >
-        Under €10
+        Under {currencyInfo.symbol}10
       </button>
 
       <button
         className={`pill-btn ${currentPill === 'under_20' ? 'active' : ''}`}
         onClick={() => onPillSelect('under_20')}
       >
-        Under €20
+        Under {currencyInfo.symbol}20
       </button>
 
       <button

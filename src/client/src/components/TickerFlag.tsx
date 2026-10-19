@@ -1,7 +1,8 @@
 import React from 'react';
 import type { Game } from '../types.js';
-import { Flame } from 'lucide-react';
+import { Flame, Target, Zap } from 'lucide-react';
 import { isRecordDropEvent } from '../utils/priceEvents.js';
+import { useCurrency } from '../context/CurrencyContext.js';
 
 interface TickerFlagProps {
   game: Game;
@@ -10,6 +11,7 @@ interface TickerFlagProps {
 }
 
 const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', style }) => {
+  const { formatPrice } = useCurrency();
   const hasBestDeal = game.bestPriceEur !== undefined;
   const isConfirmedATL = isRecordDropEvent(game.bestPriceEvent) && !game.bestIsProvisional;
   const isTargetHit = game.targetPriceEur !== undefined && hasBestDeal && game.bestPriceEur! <= game.targetPriceEur;
@@ -31,11 +33,15 @@ const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', 
           border: '1px solid #f87171',
           fontWeight: 800,
           boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 3,
           ...style 
         }} 
-        title="⚡ Pricing Error / Glitch Deal — Immediate purchase recommended before correction!"
+        title="Pricing Error / Glitch Deal — Immediate purchase recommended before correction!"
       >
-        <span>⚡ GLITCH</span>
+        <Zap size={11} fill="currentColor" />
+        <span>GLITCH</span>
       </span>
     );
   }
@@ -56,7 +62,7 @@ const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', 
       <span
         className={`ticker-flag ticker-flag-down ${className}`}
         style={style}
-        title={`Target price (€${game.targetPriceEur!.toFixed(2)}) reached!`}
+        title={`Target price (${formatPrice(game.targetPriceEur)}) reached!`}
       >
         <span>🎯 HIT</span>
       </span>
@@ -69,9 +75,9 @@ const TickerFlagComponent: React.FC<TickerFlagProps> = ({ game, className = '', 
       <span
         className={`ticker-flag ticker-flag-dim ${className}`}
         style={style}
-        title={`Target alert set at €${game.targetPriceEur!.toFixed(2)}`}
+        title={`Target alert set at ${formatPrice(game.targetPriceEur)}`}
       >
-        <span>🎯 €{game.targetPriceEur!.toFixed(2)}</span>
+        <span>🎯 {formatPrice(game.targetPriceEur)}</span>
       </span>
     );
   }

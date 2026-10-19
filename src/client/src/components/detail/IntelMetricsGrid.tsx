@@ -27,7 +27,7 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
         <span className="intel-sub">
           {typicalSale?.medianPriceEur != null
             ? (typicalSale.q1PriceEur != null && typicalSale.q3PriceEur != null && (typicalSale.sampleCount ?? 0) >= 3
-                ? `IQR Range: ${formatPrice(typicalSale.q1PriceEur)} – ${formatPrice(typicalSale.q3PriceEur)} (${typicalSale.sampleCount} sales)`
+                ? `Typical band: ${formatPrice(typicalSale.q1PriceEur)} – ${formatPrice(typicalSale.q3PriceEur)} (${typicalSale.sampleCount} sales)`
                 : `Based on ${typicalSale.sampleCount} recorded sale${typicalSale.sampleCount === 1 ? '' : 's'}`)
             : 'Insufficient historical sales'}
         </span>
@@ -58,7 +58,7 @@ export const IntelMetricsGrid: React.FC<IntelMetricsGridProps> = ({ intelligence
         </div>
         <span className="intel-sub">
           {volatility
-            ? `${volatility.priceChangesCount} price shifts on observed days (CV: ${volatility.rawCv})`
+            ? `${volatility.priceChangesCount} price shift${volatility.priceChangesCount === 1 ? '' : 's'} recorded (fluctuation index: ${volatility.rawCv})`
             : 'Stable pricing'}
         </span>
       </div>

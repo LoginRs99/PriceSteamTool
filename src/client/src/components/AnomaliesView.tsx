@@ -13,10 +13,10 @@ import {
   Layers, 
   Search, 
   Store, 
-  TrendingDown, 
   SlidersHorizontal,
   Eye
 } from 'lucide-react';
+import { useCurrency } from '../context/CurrencyContext.js';
 
 interface AnomaliesViewProps {
   onRefresh?: () => void;
@@ -24,6 +24,7 @@ interface AnomaliesViewProps {
 }
 
 export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelectGame }) => {
+  const { formatPrice } = useCurrency();
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(true);
   const [dismissing, setDismissing] = useState(false);
@@ -471,7 +472,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
           {filteredGroups.map(group => {
             const isCollapsed = Boolean(collapsedGames[group.gameKey]);
             const scorePct = Math.round(group.highestScore * 100);
-            const cheapestPrice = typeof group.cheapestPrice === 'number' ? `€${group.cheapestPrice.toFixed(2)}` : null;
+            const cheapestPrice = typeof group.cheapestPrice === 'number' ? formatPrice(group.cheapestPrice) : null;
             const isCriticalRisk = group.highestScore >= 0.60;
 
             return (
@@ -662,7 +663,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
                   }}>
                     {group.items.map(a => {
                       const itemScorePct = typeof a.confidence === 'number' ? Math.round(a.confidence * 100) : 0;
-                      const itemPrice = typeof a.priceEur === 'number' ? `€${a.priceEur.toFixed(2)}` : null;
+                      const itemPrice = typeof a.priceEur === 'number' ? formatPrice(a.priceEur) : null;
 
                       return (
                         <div

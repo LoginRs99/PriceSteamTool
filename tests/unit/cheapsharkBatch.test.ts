@@ -24,7 +24,8 @@ describe('CheapShark Batch Source Adapter', () => {
 
   beforeEach(() => {
     resetDatabase();
-    circuitBreakers.recordSuccess('cheapshark');
+    cheapsharkAdapter.clearQueue();
+    circuitBreakers.resetAll();
     (cheapsharkAdapter as any).storesMap.clear();
     global.fetch = async (url: any) => {
       const urlStr = String(url);
@@ -50,6 +51,8 @@ describe('CheapShark Batch Source Adapter', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    cheapsharkAdapter.clearQueue();
+    circuitBreakers.resetAll();
   });
 
   it('supportsBatch should be true and code should be cheapshark', () => {
@@ -222,4 +225,105 @@ describe('CheapShark Batch Source Adapter', () => {
     expect(page1Called).toBe(true);
     expect(results.get(10)?.length).toBe(61);
   });
+
+  it('respects X-Total-Page-Count header and avoids redundant pageNumber=1 calls', async () => {
+    let page0Called = false;
+    let page1Called = false;
+
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/stores')) {
+        return new Response(JSON.stringify([{ storeID: '1', storeName: 'Steam', isActive: 1 }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('pageNumber=0')) {
+        page0Called = true;
+        // Return 60 deals, but server explicitly says total page count is 1
+        return new Response(JSON.stringify(Array.from({ length: 60 }, (_, i) => ({
+          steamAppID: '10',
+          storeID: '1',
+          dealID: `deal_p0_${i}`,
+          salePrice: '5.00',
+          normalPrice: '10.00'
+        }))), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Total-Page-Count': '1'
+          }
+        });
+      }
+      if (urlStr.includes('pageNumber=1')) {
+        page1Called = true;
+        return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('[]');
+    };
+
+    const results = await cheapsharkAdapter.fetchBatchPrices([{ steamAppId: 10, title: 'Counter-Strike' }]);
+    expect(page0Called).toBe(true);
+    expect(page1Called).toBe(false); // Did not make redundant page 1 request!
+    expect(results.get(10)?.length).toBe(60);
+  });
+
+  it('retries 429 rate limit on attempt 0 and succeeds on attempt 1', async () => {
+    let callCount = 0;
+
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/stores')) {
+        return new Response(JSON.stringify([{ storeID: '1', storeName: 'Steam', isActive: 1 }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('/deals')) {
+        callCount++;
+        if (callCount === 1) {
+          // Attempt 0 hits 429 with small Retry-After (1 second)
+          return new Response(JSON.stringify({ message: 'Rate limited' }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', 'Retry-After': '1' }
+          });
+        }
+        // Attempt 1 succeeds
+        return new Response(JSON.stringify([{
+          steamAppID: '10',
+          storeID: '1',
+          dealID: 'deal_retry_success',
+          salePrice: '7.50',
+          normalPrice: '15.00'
+        }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('[]');
+    };
+
+    const results = await cheapsharkAdapter.fetchBatchPrices([{ steamAppId: 10, title: 'Counter-Strike' }]);
+    expect(callCount).toBe(2);
+    expect(results.get(10)?.length).toBe(1);
+    expect(results.get(10)?.[0].rawPrice).toBe(7.50);
+  });
+
+  it('caps upstream 429 Retry-After header to 300s', async () => {
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/stores')) {
+        return new Response(JSON.stringify([{ storeID: '1', storeName: 'Steam', isActive: 1 }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      // Return 429 with 3600s Retry-After header
+      return new Response(JSON.stringify({ message: 'Rate limited by Cloudflare' }), {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': '3600'
+        }
+      });
+    };
+
+    const games = [{ steamAppId: 10, title: 'Counter-Strike' }];
+    await expect(cheapsharkAdapter.fetchBatchPrices(games)).rejects.toThrow(/All 1 CheapShark chunks failed/);
+
+    expect(circuitBreakers.isCoolingDown('cheapshark')).toBe(true);
+    const remaining = circuitBreakers.getRemainingCooldownSec('cheapshark');
+    // Cooldown must be capped at 300s, NOT 3600s
+    expect(remaining).toBeLessThanOrEqual(300);
+    expect(remaining).toBeGreaterThanOrEqual(250);
+  });
 });
+

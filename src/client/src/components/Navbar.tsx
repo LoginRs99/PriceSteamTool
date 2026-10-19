@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Profile, SyncProgressUpdate } from '../types.js';
-import { RefreshCw, User, Activity, Download, Globe } from 'lucide-react';
+import { RefreshCw, User, Activity, Download, Globe, Bell, Zap } from 'lucide-react';
 import { useCurrency, CURRENCY_MAP, type SupportedCurrency } from '../context/CurrencyContext.js';
 
 interface NavbarProps {
@@ -52,13 +52,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         style={{ cursor: onLogoClick ? 'pointer' : 'default', userSelect: 'none' }}
         title={onLogoClick ? "Return to Wishlist Deals" : undefined}
       >
-        <div className="brand-icon">⚡</div>
+        <div className="brand-icon"><Zap size={16} fill="currentColor" /></div>
         <div className="brand-name">
           PRICETOOL
           <span className="brand-badge">Self-Hosted</span>
           <span className={`telemetry-badge ${isSyncing ? 'pulse-syncing' : activeProfile ? 'pulse-live' : 'pulse-idle'}`}>
             <span className="telemetry-dot" />
-            {isSyncing ? `SYNCING ${percent > 0 ? `${percent}%` : 'ACTIVE'}` : activeProfile ? 'ENGINE LIVE' : 'STANDBY'}
+            {isSyncing ? `SYNCING ${percent > 0 ? `${percent}%` : 'ACTIVE'}` : activeProfile ? 'ENGINE LIVE' : 'READY'}
           </span>
         </div>
       </div>
@@ -105,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Discord Webhook Deal Alerts */}
         <button className="btn btn-outline" onClick={onOpenDiscord} title="Discord Webhook Deal Alerts">
-          <span style={{ color: '#5865F2' }}>🔔</span>
+          <Bell size={15} style={{ color: '#5865F2' }} />
           <span>Discord</span>
         </button>
 

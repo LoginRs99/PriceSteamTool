@@ -127,6 +127,14 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       const chunkIndex = totalChunks;
       totalChunks++;
 
+      // Periodic breathing pause every 10 chunks to avoid triggering Cloudflare rolling rate limits
+      if (chunkIndex > 0 && chunkIndex % 10 === 0 && !this.isCancelled) {
+        const pauseMs = process.env.NODE_ENV === 'test' ? 0 : (config.cheapsharkChunkPauseMs || 3000);
+        if (pauseMs > 0) {
+          await new Promise(r => setTimeout(r, pauseMs));
+        }
+      }
+
       // Check shared cross-chunk cooldown before attempting HTTP calls
       if (circuitBreakers.isCoolingDown('cheapshark')) {
         const remainingSec = circuitBreakers.getRemainingCooldownSec('cheapshark');
@@ -153,11 +161,11 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
             while (hasMorePages && pageNumber < maxPages) {
               if (pageNumber > 0) {
                 // Respectful inter-page delay to prevent burst 429s
-                await new Promise(r => setTimeout(r, Math.max(600, Math.floor(config.delays.cheapshark / 2))));
+                await new Promise(r => setTimeout(r, Math.max(1500, config.delays.cheapshark)));
               }
               totalRequestsMade++;
               const url = `https://www.cheapshark.com/api/1.0/deals?steamAppID=${appIds.join(',')}&pageSize=60&pageNumber=${pageNumber}`;
-              const deals: any = await safeFetchJson(url);
+              const deals: any = await safeFetchJson(url, {}, 20000);
 
               if (Array.isArray(deals) && deals.length > 0) {
                 for (const d of deals) {
@@ -170,7 +178,15 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
                   resultMap.set(dealAppId, existing);
                 }
 
-                if (deals.length >= 60) {
+                const totalPagesHeader = (deals as any)?._headers?.get?.('x-total-page-count');
+                const totalPageCount = totalPagesHeader ? parseInt(totalPagesHeader, 10) : undefined;
+                if (typeof totalPageCount === 'number' && !isNaN(totalPageCount)) {
+                  if (pageNumber + 1 < totalPageCount && deals.length >= 60) {
+                    pageNumber++;
+                  } else {
+                    hasMorePages = false;
+                  }
+                } else if (deals.length >= 60) {
                   pageNumber++;
                 } else {
                   hasMorePages = false;
@@ -185,25 +201,29 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
           const isRateLimit = err?.status === 429 || err?.message?.includes('429');
           const retryAfterSec = err?.retryAfterSec ?? 30;
           if (isRateLimit) {
-            const isLargeRetry = retryAfterSec > 60;
+            // Cap excessive upstream Cloudflare cooldowns (e.g. 3600s / 1 hour) to a sensible ceiling (max 300s = 5m)
+            const effectiveRetryAfterSec = Math.min(retryAfterSec, 300);
+            const isLargeRetry = effectiveRetryAfterSec > 60;
             if (attempt === 0 && !isLargeRetry) {
-              const waitSec = Math.max(retryAfterSec, 1);
+              const waitSec = Math.max(effectiveRetryAfterSec, 1);
+              const sleepMs = process.env.NODE_ENV === 'test' ? 50 : (waitSec * 1000);
               logWarn(`[CheapShark] Rate limit (429) encountered. Backing off for ${waitSec}s before retrying chunk...`, {
                 chunkIndex,
                 retryAfterSec: waitSec
               });
-              await new Promise(r => setTimeout(r, waitSec * 1000));
+              await new Promise(r => setTimeout(r, sleepMs));
               continue;
             }
 
-            circuitBreakers.recordRateLimit('cheapshark', retryAfterSec);
+            circuitBreakers.recordRateLimit('cheapshark', effectiveRetryAfterSec);
             failedChunks++;
-            logWarn(`[CheapShark] Rate limit (429) encountered. Source cooldown set for ${retryAfterSec}s; skipping chunk ${chunkIndex}...`, {
+            logWarn(`[CheapShark] Rate limit (429) encountered. Source cooldown set for ${effectiveRetryAfterSec}s; skipping chunk ${chunkIndex}...`, {
               chunkIndex,
-              retryAfterSec
+              retryAfterSec: effectiveRetryAfterSec
             });
             break;
           }
+
           failedChunks++;
           logWarn(`CheapShark chunk failure: ${err?.message || 'Unknown error'}`, {
             chunkIndex,
@@ -246,7 +266,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       const offers: NormalizedSourceOffer[] = [];
       try {
         const url = `https://www.cheapshark.com/api/1.0/deals?steamAppID=${steamAppId}`;
-        const deals: any = await safeFetchJson(url);
+        const deals: any = await safeFetchJson(url, {}, 15000);
 
         if (Array.isArray(deals)) {
           for (const d of deals) {
@@ -274,8 +294,13 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       // Check historical low in a resilient sub-block so a title lookup error does not discard active offers
       try {
         if (gameTitle && gameTitle.trim()) {
+          // Space out the second call to avoid instant back-to-back requests
+          const spacingMs = process.env.NODE_ENV === 'test' ? 0 : 500;
+          if (spacingMs > 0) {
+            await new Promise(r => setTimeout(r, spacingMs));
+          }
           const gamesUrl = `https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(gameTitle.trim())}&limit=1`;
-          const gameResults: any = await safeFetchJson(gamesUrl);
+          const gameResults: any = await safeFetchJson(gamesUrl, {}, 15000);
           if (Array.isArray(gameResults) && gameResults.length > 0 && gameResults[0].cheapestPriceEver) {
             if (Number(gameResults[0].steamAppID) === steamAppId) {
               const cpe = gameResults[0].cheapestPriceEver;
