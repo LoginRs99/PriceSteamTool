@@ -779,7 +779,8 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           const stat = fs.statSync(p);
           const raw = fs.readFileSync(p, 'utf8');
           const data = JSON.parse(raw);
-          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length > 0) {
+          const minRequiredGames = allowSeedFallback ? 1000 : 1;
+          if (data?.status === 'success' && Array.isArray(data?.games) && data.games.length >= minRequiredGames) {
             if (p !== this.catalogPath && !fs.existsSync(this.catalogPath)) {
               try {
                 const dataDir = path.dirname(this.catalogPath);

@@ -341,6 +341,8 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
         } finally {
           if (hasDiskCatalog && fs.existsSync(backupDiskPath)) {
             fs.renameSync(backupDiskPath, (adapter as any).catalogPath);
+          } else if (!hasDiskCatalog && fs.existsSync((adapter as any).catalogPath)) {
+            try { fs.unlinkSync((adapter as any).catalogPath); } catch {}
           }
         }
       } finally {
@@ -438,6 +440,8 @@ describe('AllKeyShop Polite Adaptive Fetcher Suite', () => {
         } finally {
           if (hasDiskCatalog && fs.existsSync(backupDiskPath)) {
             fs.renameSync(backupDiskPath, (adapter as any).catalogPath);
+          } else if (!hasDiskCatalog && fs.existsSync((adapter as any).catalogPath)) {
+            try { fs.unlinkSync((adapter as any).catalogPath); } catch {}
           }
         }
       } finally {
