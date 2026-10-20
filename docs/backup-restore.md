@@ -57,6 +57,12 @@ Válasz formátum:
 curl http://localhost:3000/api/backups
 ```
 
+### C) Webes felületről (UI — Adatbiztonság fül)
+A webes felület **Adatbiztonság** (Data Safety / Anomalies) nézetében a jobb felső sarokban található **"Biztonsági mentés"** (Backup DB) gombra kattintva bármikor egyetlen kattintással készíthető azonnali snapshot mentés:
+- Azonnal meghívja a `POST /api/backup` végpontot.
+- Folyamatjelző spinner mutatja a futást.
+- Sikeres mentéskor zöld visszajelző sávban megjelenik a mentett fájl neve, mérete (MB-ban) és az integritás-ellenőrzés sikere.
+
 ---
 
 ## 4. Visszaállítási eljárás (Restore Guide)

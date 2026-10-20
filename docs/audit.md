@@ -1,34 +1,36 @@
 # Pricetool — Deep Technical Audit & Validation Report
 
-**Date**: 2026-09-26 (Audited & Verified: 2026-10-18)  
-**Version**: 2.7.1  
-**Scope**: Complete architecture, Fastify schema-first validation, Deal Score v2.3 with Continuous Sigmoid Confidence, Pricing Error Engine with Self-Healing and User Feedback Loop, Best Deal Selection & ATL Quarantine / Auto-Reconciliation, SQLite WAL persistence & Migrations 001–031, Zero-Downtime Backup Engine with `PRAGMA quick_check`, Purchase Journal & Realized Savings Tracker with Anti-UI-Slop (<SavingsSkeleton />), CheapShark true multi-AppID batching, AllKeyShop 204k compressed catalog seed index, source queue pacing & circuit breakers, Live Multi-Currency (EUR/USD/GBP/HUF), Steam Family Sharing Exclusions (Category 62), Docker containerization, and automated test suite.
+**Date**: 2026-10-20  
+**Version**: 2.8.1  
+**Scope**: Complete architecture, Fastify schema-first validation, Deal Score v2.4 with Continuous Sigmoid Confidence, Multi-Buyer Filters (Metacritic score, Steam sentiment %, Below Typical Sale IQR median, Buy recommendation, Target reached), Pricing Error Engine with Self-Healing and User Feedback Loop, Best Deal Selection & ATL Quarantine / Auto-Reconciliation, SQLite WAL persistence & Migrations 001–033, Zero-Downtime Backup Engine with `PRAGMA quick_check` & Data Safety UI snapshot trigger, Purchase Journal & Realized Savings Tracker with Anti-UI-Slop (<SavingsSkeleton />), CheapShark true multi-AppID batching with rate limit backoff, AllKeyShop 204k compressed catalog seed index with 7-day auto TTL & on-demand manual refresh, source queue pacing & circuit breakers, Live Multi-Currency (EUR/USD/GBP/HUF), Steam Family Sharing Exclusions (Category 62), Docker containerization, and automated test suite.
 
 ---
 
 ## 1. Executive Summary
 
-A comprehensive technical and domain audit was conducted across the codebase following the release of **v2.4.0**, **v2.5.0**, **v2.6.0**, **v2.7.0**, and **v2.7.1**. All core components have been verified with **84 automated test suites (797 tests passing 100%)**, full TypeScript compilation (`tsc --noEmit`), and real-data edge-case validation.
+A comprehensive technical and domain audit was conducted across the codebase following the release of **v2.8.0** and **v2.8.1**. All core components have been verified with **84 automated test suites (809 tests passing 100%)**, full TypeScript compilation (`tsc --noEmit`), and real-data edge-case validation.
 
 ### Area Status Scorecard
 
 | Area | Status | Verification Notes |
 | :--- | :---: | :--- |
 | **Architecture** | **PASS** | Monolithic Fastify 5 + React 19 SPA + SQLite WAL on `/data`. Zero-latency IPC and sub-5ms query latency for 2,000+ items. |
-| **Deal Score v2.3** | **PASS** | 4 mathematical pillars ($S_{\text{atl}}$, $S_{\text{disc}}$, $S_{\text{hist}}$, $S_{\text{mkt}}$) with diminishing-returns power curve, sigmoid confidence ramps, weighted geometric mean, and score 100 reservation. |
+| **Deal Score v2.4** | **PASS** | 4 mathematical pillars ($S_{\text{atl}}$, $S_{\text{disc}}$, $S_{\text{hist}}$, $S_{\text{mkt}}$) with diminishing-returns power curve, sigmoid confidence ramps, weighted geometric mean, and score 100 reservation. |
+| **Multi-Buyer Filters** | **PASS** | Metacritic slider, Steam sentiment %, Below Typical Sale toggle, Buy recommendation toggle, Target reached pill with dynamic SQL generation. |
 | **Pricing Error Engine** | **PASS** | Multi-signal error evaluation (`DECIMAL_SHIFT`, `MARKET_OUTLIER`, `SOURCE_FAMILY_CONFLICT`, etc.) with independent peer corroboration override ($\ge 2$ peers within $\pm 40\%$). |
 | **Pricing Error Self-Healing**| **PASS** | Automatic startup and post-sync sweeps dismiss resolved errors when prices rise or when cheaper valid deals exist. |
 | **Anomaly Feedback Loop** | **PASS** | User confirmation in Anomaly view ("Valódi hiba" vs "Téves riasztás") with instant Best Deal recomputation on false-positive unflagging. |
 | **Best Deal Selection** | **PASS** | Strict hierarchy: Fresh safe offers ($\le 72\text{h}$) > Stale safe offers > Pricing errors excluded. |
 | **ATL Quarantine & Reconciliation** | **PASS** | Uncorroborated single-source keyshop lows are quarantined from overwriting `historical_low_eur`. Safe deals beating ATL auto-reconcile immediately. |
 | **CheapShark True Batching**| **PASS** | Bundles 25 Steam AppIDs comma-separated per request, handles pagination up to 3 pages, enriches Metacritic scores, and re-enqueues on 429 backoff. |
+| **AllKeyShop 7-Day TTL & Refresh**| **PASS** | Automatic 7-day TTL expiration check with cold boot compressed seed unpacking and `POST /api/sources/allkeyshop/refresh-catalog` UI on-demand update. |
 | **Pacing & Rate Limiting** | **PASS** | Respectful delays (Steam: 2000ms, ITAD: 1000ms, CheapShark: 1500ms, GGDeals: 1500ms, AllKeyShop: 2500ms) with exponential jitter. |
 | **Epoch Header Parsing** | **PASS** | `parseRetryAfterHeader` handles integer delta seconds, HTTP-date, and Unix epoch timestamps (> 1,000,000,000) from Cloudflare rate-limit headers. |
-| **SQLite Persistence & Migrations**| **PASS** | Migrations 001–031 execute idempotently. 16 tables, composite indexes, and cached prepared statements. |
-| **Zero-Downtime Backup & DR** | **PASS** | Non-blocking online SQLite backup via `better-sqlite3` backup API, `PRAGMA wal_checkpoint(PASSIVE)`, `PRAGMA quick_check`, and rolling 7-day retention. |
+| **SQLite Persistence & Migrations**| **PASS** | Migrations 001–033 execute idempotently. Index `idx_offers_game_valid_anomaly` accelerates candidate selection. |
+| **Zero-Downtime Backup & DR** | **PASS** | Non-blocking online SQLite backup via `better-sqlite3` backup API, `PRAGMA wal_checkpoint(PASSIVE)`, `PRAGMA quick_check`, rolling 7-day retention, and UI 1-click snapshot button. |
 | **Purchase Journal & Savings** | **PASS** | "Megvettem" purchase logging, baseline MSRP and typical sale median snapshots, and realized savings dashboard analytics. |
 | **Live Multi-Currency** | **PASS** | On-the-fly currency switching (EUR, USD, GBP, CAD, AUD, HUF) with integer separation for HUF (`3 990 Ft`) and 100% normalized EUR database storage. |
-| **Testing Coverage** | **PASS** | **84 test files / 797 automated unit & integration tests passing (100%) cleanly in 75s**. |
+| **Testing Coverage** | **PASS** | **84 test files / 809 automated unit & integration tests passing (100%) cleanly in 79s**. |
 
 ---
 
@@ -111,7 +113,7 @@ A comprehensive technical and domain audit was conducted across the codebase fol
  ✓  server  tests/unit/circuitBreaker.test.ts (9 tests)
  ✓  server  tests/unit/itad.test.ts (7 tests)
  ✓  server  tests/unit/rating.test.ts (9 tests)
- ✓  server  tests/unit/wishlistFilterClause.test.ts (9 tests)
+ ✓  server  tests/unit/wishlistFilterClause.test.ts (10 tests)
  ✓  server  tests/unit/actionSignal.test.ts (7 tests)
  ✓  server  tests/unit/steamMetacritic.test.ts (1 test)
  ✓  server  tests/unit/processSafety.test.ts (2 tests)
@@ -120,14 +122,14 @@ A comprehensive technical and domain audit was conducted across the codebase fol
  ✓  server  tests/unit/allkeyshopTddHardening.test.ts (16 tests)
  ✓  client  tests/client/App.test.tsx (8 tests)
  ✓  client  tests/client/GameDetailModal.test.tsx (6 tests)
- ✓  client  tests/client/FilterBar.test.tsx (13 tests)
+ ✓  client  tests/client/FilterBar.test.tsx (15 tests)
  ✓  client  tests/client/useGameIntelligenceHygiene.test.tsx (5 tests)
- ✓  client  tests/client/Modals.test.tsx (11 tests)
+ ✓  client  tests/client/Modals.test.tsx (12 tests)
  ✓  client  tests/client/GameCard.test.tsx (10 tests)
- ✓  client  tests/client/apiFetchAndModals.test.tsx (13 tests)
+ ✓  client  tests/client/apiFetchAndModals.test.tsx (14 tests)
  ✓  client  tests/client/SavingsView.test.tsx (5 tests)
  ✓  client  tests/client/sourcesModalHygiene.test.tsx (4 tests)
- ✓  client  tests/client/OffersTable.test.tsx (5 tests)
+ ✓  client  tests/client/OffersTable.test.tsx (6 tests)
  ✓  client  tests/client/task16_uiIntegrity.test.tsx (7 tests)
  ✓  client  tests/client/task26FrontendSmoke.test.tsx (5 tests)
  ✓  client  tests/client/Views.test.tsx (3 tests)
@@ -137,6 +139,6 @@ A comprehensive technical and domain audit was conducted across the codebase fol
  ✓  client  tests/client/useWishlistGames.test.ts (3 tests)
 
  Test Files  84 passed (84)
-      Tests  797 passed (797)
-   Duration  74.96s
+      Tests  809 passed (809)
+   Duration  79.17s
 ```

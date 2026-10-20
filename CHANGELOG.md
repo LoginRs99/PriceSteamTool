@@ -5,6 +5,26 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-10-20
+
+### Added
+* **AllKeyShop 7-Day Auto TTL & On-Demand Catalog Refresh**:
+  * Enforced automatic 7-day catalog expiration (`CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000`) via `isCatalogFresh()`, ensuring stale AllKeyShop master title indexes are regularly refreshed.
+  * Added `POST /api/sources/allkeyshop/refresh-catalog` endpoint to manually trigger a fresh catalog re-download.
+  * Added interactive "Update Catalog" button with live status badge in the Source Adapters modal (`SourcesModal.tsx`).
+* **Point-in-Time Database Backup in Data Safety Tab**:
+  * Added a dedicated "Backup DB" manual action button with progress spinner and status alert banner in `AnomaliesView.tsx`.
+  * Integrates directly with `POST /api/backup` for instant zero-downtime database snapshots before inspecting or modifying data.
+* **Database Optimization (Migration 033)**:
+  * Added index `idx_offers_game_valid_anomaly` on `offers(game_id, is_valid, is_likely_pricing_error)` to accelerate candidate selection and anomaly subqueries.
+
+### Fixed
+* **Filter Parameter Serialization & Target Reached Filtering**:
+  * Wired `targetReachedOnly`, `actionDecision`, and `priceEvent` filter parameters across client API requests (`api.ts`) and backend route query parsing (`api.ts` and `v1.ts`).
+  * The "🎯 Target Reached" quick-filter pill now accurately isolates games whose best offer is at or below the user's custom target price.
+* **Filter Reset & Empty-State Alignment**:
+  * Expanded `hasActiveFilters` and `handleResetFilters` in `App.tsx` to include `minMetacritic`, `minSteamRating`, `belowTypicalSaleOnly`, `underPrice`, and `hidePricingErrors`, ensuring filters are cleanly cleared in empty state and drawer reset actions.
+
 ## [2.8.0] - 2026-10-20
 
 ### Added

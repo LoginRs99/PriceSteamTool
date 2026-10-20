@@ -103,6 +103,9 @@ Following technical audits, several key resilience and accuracy enhancements wer
    * Implemented `buildAksApiUrl()` with strict host allowlisting (`www.allkeyshop.com`) to prevent SSRF vulnerabilities.
    * Upgraded `parseRetryAfterHeader()` to parse both numeric seconds and RFC 7231 HTTP dates.
    * Isolated test runners from production cache paths so unit tests never overwrite `data/allkeyshop_catalog.json`.
+5. **Automatic 7-Day Catalog TTL & On-Demand Manual Refresh**:
+   * Master title catalog enforces a 7-day TTL (`CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000`) verified via `isCatalogFresh()`. If the file is older than 7 days, the adapter automatically redownloads the latest catalog from upstream.
+   * On-demand catalog refresh endpoint: `POST /api/sources/allkeyshop/refresh-catalog` allows users to force a fresh catalog download at any time (e.g. for brand new releases) via the Source Adapters modal.
 
 ## 3. Rate Limit & Pacing Engine (`src/server/sources/base.ts`)
 

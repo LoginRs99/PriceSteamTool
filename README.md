@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.7.1-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-797%2F797%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-2.8.1-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-809%2F809%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -24,7 +24,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **IsThereAnyDeal (ITAD v2/v3)**: Primary batch aggregator covering 40+ official stores (Steam, Humble, Fanatical, GOG, GMG, Gamesplanet, WinGameStore, etc.) with verified historical records (Pacing: 1000ms delay, 200ms jitter, chunk-isolated error resilience).
 * **CheapShark True Multi-AppID Batching**: Public batch API covering 25+ official retailers (Steam, Green Man Gaming, Fanatical, GOG, Epic Games, GameBillet, etc.) without requiring an API key. Bundles **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`), handles pagination up to 3 pages, enriches Metacritic scores and review links, and gracefully re-enqueues on 429 backoff (Pacing: 1500ms delay, 250ms jitter).
 * **GG.deals**: Direct official retail and marketplace cross-verification with intra-source family conflict detection (`SOURCE_FAMILY_CONFLICT`, $\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms delay, 300ms jitter).
-* **AllKeyShop (Internal API via Solver)**: Structured keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.) with real-time voucher and merchant breakdowns. Strictly routed through an anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h intervals) and exponential jitter (Pacing: 2500ms delay, 500ms jitter).
+* **AllKeyShop (Internal API via Solver)**: Structured keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.) with real-time voucher and merchant breakdowns. Strictly routed through an anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h intervals), exponential jitter (Pacing: 2500ms delay, 500ms jitter), pre-indexed 204k compressed seed catalog, 7-day automatic master catalog TTL, and on-demand manual catalog refresh.
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
 * **Epoch-Aware Rate Limit Parsing**: Handles delta seconds, HTTP-dates, and Unix epoch timestamps (from Cloudflare `X-RateLimit-Reset` and `ratelimit-reset` headers).
@@ -34,6 +34,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **Multi-Signal Error Classification**: Automatic categorization for `DECIMAL_SHIFT` (sub-euro glitches $\le 1.005\text{ €}$ on premium titles, missing digit shifts $\sim 1/10$ or $\sim 1/100$ on MSRP $\ge 30\text{ €}$, extreme drops $\le 3\%$ on MSRP $\ge 15\text{ €}$), `SOURCE_FAMILY_CONFLICT` (intra-family split $\ge 2.0\times$ between official and keyshops), `MARKET_OUTLIER`, `BELOW_ATL_IMPLAUSIBLE`, `OWN_HISTORY_BREAK`, `FRESH_RELEASE_DROP`, `EDITION_INVERSION`, and `FAKE_DISCOUNT`.
 * **Independent Merchant Corroboration**: When $\ge 2$ independent fresh peer prices match within $\pm 40\%$, pricing error flags are safely overridden (`SUB_EURO_PREMIUM_GLITCH_CORROBORATED`), eliminating false alarms on genuine publisher flash sales.
 * **Automated Self-Healing**: Database startup sweeps and post-sync hooks automatically dismiss pricing errors when prices increase, when offers are unflagged, or when cheaper valid offers exist.
+* **Point-in-Time Database Snapshots**: 1-click manual database backup ("Backup DB") right inside the Data Safety review tab, performing zero-downtime snapshots via `better-sqlite3` backup API with `PRAGMA quick_check`.
 * **Discord Glitch Hunter**: Real-time push alerts to Discord webhooks with crimson red embeds linking directly to the flagged offer and reporting error confidence.
 
 ### 3. Computed Deal Score v2.4 (0–100)
@@ -48,7 +49,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
   * **Score 100 Reservation**: Capped at 99 unless the price beats the confirmed ATL by $\ge 5\%$.
 * **Best Deals Dashboard**: Top deals carousel ranked by Deal Score with aligned tier badges (`Exceptional` $\ge 80$, `Great` $\ge 60$, `Fair` $\ge 40$, `Weak` $< 40$).
 * **Wishlist Statistics**: Live overview of total games, active discounts, confirmed all-time lows, active pricing errors, and average savings.
-* **Smart Filter Bar**: Filter by Major Deals, Confirmed ATL, Trusted Stores Only, Active Anomalies, Maximum Price, Family Shared, and Delisted games.
+* **Smart Filter Bar & Quick Filters**: Multi-buyer filters including Metacritic Score slider, Steam User Review sentiment threshold (70%+, 80%+, 90%+), Below Typical Sale (IQR median discount), Buy Recommendation (`BUY`/`STRONG BUY`), Target Reached, Major Deals, Confirmed ATL, Trusted Stores Only, Active Anomalies, Maximum Price, and Family Shared exclusions.
 
 ### 4. Best Deal Selection & ATL Auto-Reconciliation
 * **Canonical Freshness Hierarchy**: Best deal selection strictly prioritizes:
@@ -72,6 +73,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
   * Real-time monitoring of all source queues, token-buckets, and circuit breakers.
   * **Automatic Note Dismissal**: Error notes disappear automatically once the next request succeeds or the circuit returns to `NORMAL`.
   * **Interactive Reset / Unpause**: 1-click button to reset degraded or paused circuit breakers and re-enable sources immediately.
+  * **On-Demand AllKeyShop Catalog Refresh**: 1-click "Update Catalog" button to re-download the latest AllKeyShop master title catalog.
 * **Dedicated Free-to-Play Section**: Free games (`is_free = 1`) are separated into their own navigation tab with direct Steam launcher (`steam://run/<id>`) and store links, keeping the paid deal catalog clean.
 * **Steam Family Sharing Exclusions & Auto-Detection**:
   * Automatically detects games owned by family accounts that are excluded by Steam from Family Sharing (e.g. EA App, Ubisoft Connect, Rockstar Games Launcher, lack of Storefront Category 62).
@@ -136,7 +138,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (84 test files / 797 unit & integration tests)
+# 3. Run test suite (84 test files / 809 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck

@@ -1,8 +1,8 @@
 # 🎮 PriceSteamTool — Master Project Summary & Architecture Reference
 
 > **Comprehensive Technical Specification & System Overview**  
-> **Version**: 2.7.1  
-> **Status**: Production Ready | 84 Test Suites | 797 Tests Passing (100%)  
+> **Version**: 2.8.1  
+> **Status**: Production Ready | 84 Test Suites | 809 Tests Passing (100%)  
 > **Runtime**: Node.js 22 LTS, Fastify 5, React 19, Vite, Better-SQLite3 (WAL Mode)
 
 ---
@@ -23,12 +23,13 @@ Unlike generic price alert bots, PriceSteamTool separates **price magnitude** fr
 │                                   Frontend (React 19 SPA)                              │
 │  - Linear / Raycast Dark Aesthetic (JetBrains Mono numbers, crisp 1px borders, blur)   │
 │  - Hybrid Split-View / Slide-in Details Panel (Keyboard j/k/Enter/Esc + touch sheet)   │
+│  - Multi-Buyer Filters (Metacritic slider, Steam reviews %, IQR typical sale, Buy pills)│
 │  - Live Multi-Currency Engine (EUR, USD, GBP, CAD, AUD, and native HUF Ft formatting)  │
 │  - Realized Savings Tracker & Purchase Journal (Megtakarítás-követő)                   │
 │  - Real-time Sync Progress Monitor (Server-Sent Events: /api/sync/events)               │
-│  - Source Adapters Diagnostics & Self-Healing (1-click Reset / Unpause button)         │
+│  - Source Adapters Diagnostics & Self-Healing (1-click Reset & AKS Catalog Refresh)     │
 │  - Steam Family Sharing Exclusions & 1-Click Storefront Category 62 Validation         │
-│  - Grouped Data Safety Review View (/api/anomalies) with User Feedback & CSV Export    │
+│  - Grouped Data Safety Review (/api/anomalies) with 1-click DB Backup & Feedback       │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │ HTTP REST, ETag 304, & SSE
 ┌───────────────────────────────────────────▼────────────────────────────────────────────┐

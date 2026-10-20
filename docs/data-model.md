@@ -314,6 +314,7 @@ CREATE INDEX idx_wishlist_game_id ON wishlist_entries(game_id);
 
 -- Best Deal election & pricing error filtering
 CREATE INDEX idx_offers_game_valid_error_price ON offers(game_id, is_valid, is_likely_pricing_error, price_eur);
+CREATE INDEX idx_offers_game_valid_anomaly ON offers(game_id, is_valid, is_likely_pricing_error);
 CREATE INDEX idx_offers_game_best_deal ON offers(game_id, is_best_deal);
 
 -- Price history timeseries retrieval

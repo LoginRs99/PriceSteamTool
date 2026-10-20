@@ -5,14 +5,14 @@
 
 ---
 
-## 📌 TL;DR Overview (v2.7.1)
+## 📌 TL;DR Overview (v2.8.1)
 
 PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Price Aggregator and Deal Intelligence platform designed to monitor 2,000+ games reliably without aggressive scraping or IP bans:
 
-- **Backend Runtime:** Node.js 22+ LTS, Fastify 5, TypeScript 5+, Better-SQLite3 (WAL journal mode, prepared statement caching, composite indexing, foreign key constraints, zero-downtime online backup API).
-- **Frontend SPA:** React 19, TypeScript, Vite, Linear / Raycast dark design system with JetBrains Mono numbers, Hybrid Split-View / Slide-in Details Panel (keyboard `j`/`k`/`↑`/`↓`/`Enter`/`Esc` + mobile touch bottom sheet), Live Multi-Currency display (EUR, USD, GBP, CAD, AUD, HUF), Realized Savings Journal ("Megtakarítások"), Smart Target Price Presets (Typical, Q1 Great, Record Low), Source Adapters Diagnostics with 1-click Reset/Unpause, Steam Family Sharing Exclusions with 1-click Storefront Category 62 checking, Data Safety error review with User Feedback loop, and 14-column CSV export.
+- **Backend Runtime:** Node.js 22+ LTS, Fastify 5, TypeScript 5+, Better-SQLite3 (WAL journal mode, prepared statement caching, composite indexing up to migration 033, foreign key constraints, zero-downtime online backup API).
+- **Frontend SPA:** React 19, TypeScript, Vite, Linear / Raycast dark design system with JetBrains Mono numbers, Hybrid Split-View / Slide-in Details Panel (keyboard `j`/`k`/`↑`/`↓`/`Enter`/`Esc` + mobile touch bottom sheet), Multi-Buyer Smart Filters (Metacritic score slider, Steam user review sentiment %, Below Typical Sale IQR median, Buy recommendation, Target Reached), Live Multi-Currency display (EUR, USD, GBP, CAD, AUD, HUF), Realized Savings Journal ("Megtakarítások"), Smart Target Price Presets (Typical, Q1 Great, Record Low), Source Adapters Diagnostics with 1-click Reset/Unpause and AllKeyShop Catalog Refresh, Steam Family Sharing Exclusions with 1-click Storefront Category 62 checking, Data Safety error review with User Feedback loop and 1-click "Backup DB" snapshots, and 14-column CSV export.
 - **REST & Real-Time APIs:**
-  - Standard SPA routes: `/api/profiles`, `/api/games`, `/api/sources`, `/api/sources/:code/reset`, `/api/sync`, `/api/pricing-errors`, `/api/anomalies/feedback`, `/api/purchases`, `/api/purchases/savings`, `/api/backup`, `/api/family-sharing/exclusions`, `/api/export/offers.csv`.
+  - Standard SPA routes: `/api/profiles`, `/api/games`, `/api/sources`, `/api/sources/:code/reset`, `/api/sources/allkeyshop/refresh-catalog`, `/api/sync`, `/api/pricing-errors`, `/api/anomalies/feedback`, `/api/purchases`, `/api/purchases/savings`, `/api/backup`, `/api/family-sharing/exclusions`, `/api/export/offers.csv`.
   - Server-Sent Events (SSE): `/api/sync/events` for live per-game synchronization telemetry.
   - Anti-Rate-Limit v1 API: `/api/v1/offers/batch` (bulk pricing up to 250 games), `/api/v1/games/resolve` (bulk AppID/title match), `GET /api/v1/games` with ETag `304 Not Modified` caching and standard IETF rate-limit headers.
 - **Data Sources & Paced Adapters:**
@@ -20,7 +20,7 @@ PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Pric
   - **IsThereAnyDeal (ITAD v2/v3):** High-batch official store aggregator for 40+ stores with chunk-isolated failure resilience (Pacing: 1000ms, jitter 200ms).
   - **CheapShark:** True multi-AppID comma-separated batching (25 App IDs per request, `pageSize=60`, up to 3 pages pagination, Metacritic review/score enrichment, 429 single re-enqueue backoff, Pacing: 1500ms, jitter 250ms).
   - **GG.deals:** Hybrid official + marketplace deal aggregator with `SOURCE_FAMILY_CONFLICT` detection ($\ge 12.0\times$ or sub-euro $\ge 3.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms, jitter 300ms).
-  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, dual-layer page & API fallback, phantom 0.02 EUR guardrails, and solver error propagation (Pacing: 2500ms, jitter 500ms).
+  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, dual-layer page & API fallback, phantom 0.02 EUR guardrails, solver error propagation, 7-day automatic master catalog TTL, and on-demand refresh (Pacing: 2500ms, jitter 500ms).
 - **Canonical Type System:** Single Source of Truth in [`src/shared/types.ts`](file:///D:/github/Pricetool/src/shared/types.ts), defining unified models (`Game`, `Offer`, `PricingErrorEvaluation`, `PricingErrorType`, `PriceEventType`, `DealScoreBreakdown`, `DealVerdict`, `WishlistEntry`, `PurchaseEntry`).
 
 ---
