@@ -837,10 +837,10 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     return this.catalogIndex;
   }
 
-  public async getCatalogForCandidateSearch(): Promise<CatalogGame[]> {
+  public async getCatalogForCandidateSearch(forceRemote = false): Promise<CatalogGame[]> {
     // 1. Fast path: check memory or disk (instant, 0ms latency)
     const local = this.loadCatalogFromDiskOrMemory(true);
-    if (local && local.length > 0) {
+    if (this.isCatalogFresh(local, forceRemote)) {
       return local;
     }
 
@@ -865,21 +865,27 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     }
   }
 
-  public async ensureCatalogQueued(): Promise<CatalogGame[]> {
+  public isCatalogFresh(local: CatalogGame[] | null, forceRemote = false): local is CatalogGame[] {
+    if (forceRemote || !local || local.length === 0) return false;
+    const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    return (Date.now() - this.lastCatalogFetch) < CATALOG_TTL_MS;
+  }
+
+  public async ensureCatalogQueued(forceRemote = false): Promise<CatalogGame[]> {
     const local = this.loadCatalogFromDiskOrMemory(false);
-    if (local && local.length > 0) {
+    if (this.isCatalogFresh(local, forceRemote)) {
       return local;
     }
 
-    return allkeyshopQueue.enqueue('__catalog__', () => this.ensureCatalog(), 'Catalog Sync');
+    return allkeyshopQueue.enqueue('__catalog__', () => this.ensureCatalog(forceRemote), 'Catalog Sync');
   }
 
-  public async ensureCatalog(): Promise<CatalogGame[]> {
+  public async ensureCatalog(forceRemote = false): Promise<CatalogGame[]> {
     const now = Date.now();
     const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
     const local = this.loadCatalogFromDiskOrMemory(false);
-    if (local && local.length > 0) {
+    if (this.isCatalogFresh(local, forceRemote)) {
       return local;
     }
 

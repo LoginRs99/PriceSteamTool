@@ -180,4 +180,30 @@ describe('AllKeyShop TDD Hardening & Resolution Suite', () => {
       }
     });
   });
+
+  // =========================================================================
+  // 6. Catalog Freshness & Automatic Expiration
+  // =========================================================================
+  describe('Catalog Freshness & Expiration (7-Day TTL)', () => {
+    it('correctly determines whether an in-memory or on-disk catalog is fresh', () => {
+      const adapter = new AllKeyShopSourceAdapter();
+      const mockGames: CatalogGame[] = [{ id: 1, name: 'Test Game', slug: 'test-game' }];
+
+      // 1. Null or empty catalog is never fresh
+      expect(adapter.isCatalogFresh(null)).toBe(false);
+      expect(adapter.isCatalogFresh([])).toBe(false);
+
+      // 2. forceRemote = true always bypasses freshness
+      (adapter as any).lastCatalogFetch = Date.now();
+      expect(adapter.isCatalogFresh(mockGames, true)).toBe(false);
+
+      // 3. Brand new fetch (< 7 days) is fresh
+      (adapter as any).lastCatalogFetch = Date.now() - (2 * 24 * 60 * 60 * 1000); // 2 days ago
+      expect(adapter.isCatalogFresh(mockGames, false)).toBe(true);
+
+      // 4. Stale fetch (> 7 days) is expired
+      (adapter as any).lastCatalogFetch = Date.now() - (8 * 24 * 60 * 60 * 1000); // 8 days ago
+      expect(adapter.isCatalogFresh(mockGames, false)).toBe(false);
+    });
+  });
 });

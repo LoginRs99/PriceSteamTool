@@ -24,6 +24,8 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resettingCode, setResettingCode] = useState<SourceCode | null>(null);
+  const [refreshingCatalog, setRefreshingCatalog] = useState(false);
+  const [catalogMessage, setCatalogMessage] = useState<string | null>(null);
 
   const fetchSources = async (isMounted = true) => {
     if (typeof document !== 'undefined' && document.hidden) return;
@@ -71,6 +73,21 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
     }
   };
 
+  const handleRefreshCatalog = async () => {
+    try {
+      setRefreshingCatalog(true);
+      setError(null);
+      setCatalogMessage(null);
+      const res = await api.refreshAllkeyshopCatalog();
+      setCatalogMessage(`AllKeyShop catalog refreshed: ${res.count.toLocaleString()} games indexed.`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to download catalog. Ensure solver is running.');
+    } finally {
+      setRefreshingCatalog(false);
+      fetchSources();
+    }
+  };
+
   const handleReset = async (code: SourceCode) => {
     try {
       setResettingCode(code);
@@ -103,6 +120,12 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
             <div style={{ padding: '8px 12px', background: 'var(--up-dim)', border: '1px solid var(--up)', borderRadius: 6, color: 'var(--up)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               <AlertTriangle size={16} />
               <span>{error}</span>
+            </div>
+          )}
+          {catalogMessage && (
+            <div style={{ padding: '8px 12px', background: 'var(--down-dim)', border: '1px solid var(--down)', borderRadius: 6, color: 'var(--down)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RefreshCw size={16} />
+              <span>{catalogMessage}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -196,6 +219,30 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                           >
                             <RotateCcw size={12} className={resettingCode === s.code ? 'spin' : ''} />
                             <span>Reset / Unpause</span>
+                          </button>
+                        )}
+
+                        {s.code === 'allkeyshop' && s.isEnabled && (
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={handleRefreshCatalog}
+                            disabled={refreshingCatalog}
+                            style={{
+                              fontSize: 11,
+                              padding: '3px 8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              borderColor: 'var(--accent-blue)',
+                              color: 'var(--accent-blue)',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer'
+                            }}
+                            title="Force re-download latest master catalog from AllKeyShop for new game releases"
+                          >
+                            <RefreshCw size={12} className={refreshingCatalog ? 'spin' : ''} />
+                            <span>{refreshingCatalog ? 'Downloading...' : 'Update Catalog'}</span>
                           </button>
                         )}
 

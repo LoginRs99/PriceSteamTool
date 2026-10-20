@@ -829,6 +829,16 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return { success: true, code, state: 'NORMAL' };
   });
 
+  fastify.post('/api/sources/allkeyshop/refresh-catalog', async (request, reply) => {
+    try {
+      const { allkeyshopAdapter } = await import('../sources/allkeyshop.js');
+      const catalog = await allkeyshopAdapter.ensureCatalogQueued(true);
+      return { success: true, count: catalog.length };
+    } catch (err: any) {
+      return reply.status(502).send({ error: `Catalog refresh failed: ${err.message}` });
+    }
+  });
+
   // Diagnostics & Debug Logs Export
   fastify.get('/api/diagnostics/logs', async (request, reply) => {
     const { getRecentDiagnosticsLogs } = await import('../utils/logger.js');

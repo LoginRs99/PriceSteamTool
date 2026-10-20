@@ -272,6 +272,12 @@ export const api = {
     });
   },
 
+  async refreshAllkeyshopCatalog(): Promise<{ success: boolean; count: number }> {
+    return apiFetch<{ success: boolean; count: number }>(`${API_BASE}/sources/allkeyshop/refresh-catalog`, {
+      method: 'POST'
+    });
+  },
+
   async resetSource(code: SourceCode): Promise<void> {
     await apiFetch<void>(`${API_BASE}/sources/${code}/reset`, {
       method: 'POST'
