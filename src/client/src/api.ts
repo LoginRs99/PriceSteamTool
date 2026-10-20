@@ -399,6 +399,17 @@ export const api = {
   async getSavingsSummary(profileId?: string): Promise<SavingsSummary> {
     const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
     return apiFetch<SavingsSummary>(`${API_BASE}/purchases/savings${query}`);
+  },
+
+  // Backups
+  async createBackup(): Promise<{ success: boolean; backup: any }> {
+    return apiFetch<{ success: boolean; backup: any }>(`${API_BASE}/backup`, {
+      method: 'POST'
+    });
+  },
+
+  async getBackups(): Promise<{ success: boolean; count: number; backups: any[] }> {
+    return apiFetch<{ success: boolean; count: number; backups: any[] }>(`${API_BASE}/backups`);
   }
 };
 

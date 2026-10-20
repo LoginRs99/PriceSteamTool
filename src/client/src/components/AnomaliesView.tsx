@@ -14,7 +14,8 @@ import {
   Search, 
   Store, 
   SlidersHorizontal,
-  Eye
+  Eye,
+  Database
 } from 'lucide-react';
 import { useCurrency } from '../context/CurrencyContext.js';
 
@@ -28,8 +29,27 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(true);
   const [dismissing, setDismissing] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [collapsedGames, setCollapsedGames] = useState<Record<string, boolean>>({});
+
+  const handleCreateBackup = async () => {
+    try {
+      setBackingUp(true);
+      setError(null);
+      setBackupMessage(null);
+      const res = await api.createBackup();
+      const mb = res?.backup?.sizeBytes ? (res.backup.sizeBytes / 1024 / 1024).toFixed(1) : null;
+      setBackupMessage(`Database snapshot created successfully${mb ? ` (${mb} MB)` : ''}.`);
+      setTimeout(() => setBackupMessage(null), 5000);
+    } catch (e: any) {
+      console.error('Failed to create backup:', e);
+      setError(e.message || 'Failed to create backup. Please try again.');
+    } finally {
+      setBackingUp(false);
+    }
+  };
 
   const fetchAnomalies = async () => {
     try {
@@ -276,6 +296,17 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
               <Download size={14} />
               <span>Export CSV</span>
             </a>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleCreateBackup}
+              disabled={loading || dismissing || backingUp}
+              style={{ fontSize: 13, padding: '7px 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              title="Create a point-in-time snapshot backup of the SQLite database"
+            >
+              <Database size={14} className={backingUp ? 'spin-icon' : ''} />
+              <span>{backingUp ? 'Backing up...' : 'Backup DB'}</span>
+            </button>
             <button 
               className="btn btn-secondary" 
               onClick={fetchAnomalies}
@@ -324,6 +355,24 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ onRefresh, onSelec
           </div>
         </div>
       </div>
+
+      {backupMessage && (
+        <div style={{
+          background: 'rgba(34, 197, 94, 0.1)',
+          border: '1px solid rgba(34, 197, 94, 0.3)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          color: '#4ade80',
+          fontSize: 13,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 16
+        }}>
+          <CheckCircle2 size={16} />
+          <span>{backupMessage}</span>
+        </div>
+      )}
 
       {/* 3. Search & Filtering Toolbar */}
       {anomalies.length > 0 && (

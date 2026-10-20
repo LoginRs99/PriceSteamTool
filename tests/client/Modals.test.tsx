@@ -314,5 +314,29 @@ describe('Modals & Ancillary Components', () => {
 
       expect(dismissSpy).toHaveBeenCalledWith('anom-1');
     });
+
+    it('triggers manual database backup when Backup DB button is clicked', async () => {
+      vi.spyOn(api, 'getAnomalies').mockResolvedValue([]);
+      const backupSpy = vi.spyOn(api, 'createBackup').mockResolvedValue({
+        success: true,
+        backup: { sizeBytes: 2097152 } as any
+      });
+
+      render(<AnomaliesView />);
+
+      const backupBtn = screen.getByRole('button', { name: /Backup DB/i });
+      await waitFor(() => {
+        expect(backupBtn).not.toBeDisabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(backupBtn);
+      });
+
+      expect(backupSpy).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText(/Database snapshot created successfully/i)).toBeInTheDocument();
+      });
+    });
   });
 });
