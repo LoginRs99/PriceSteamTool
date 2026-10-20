@@ -83,9 +83,16 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
       return { data: [], pagination: { total: 0, page, limit, totalPages: 0 } };
     }
 
+    const targetReachedOnly = query.target_reached_only === 'true' || query.targetReachedOnly === 'true' || query.targetReachedOnly === true;
+    const rawMinMetacritic = query.min_metacritic || query.minMetacritic;
+    const parsedMeta = rawMinMetacritic ? parseInt(rawMinMetacritic, 10) : undefined;
+    const minMetacritic = (parsedMeta !== undefined && !isNaN(parsedMeta)) ? parsedMeta : undefined;
+
     const { games, total } = gameRepo.getWishlistGames(activeProfile.id, {
       search,
       steamAppId,
+      targetReachedOnly: targetReachedOnly || undefined,
+      minMetacritic,
       page,
       limit
     });

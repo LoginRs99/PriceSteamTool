@@ -146,12 +146,17 @@ export const api = {
     if (options.hidePricingErrors) params.set('hidePricingErrors', 'true');
     if (options.hideProvisional) params.set('hideProvisional', 'true');
     if (options.buyOnly) params.set('buyOnly', 'true');
+    if (options.targetReachedOnly) params.set('targetReachedOnly', 'true');
     if (options.merchantType) params.set('merchantType', options.merchantType);
     if (options.hasPricingErrors) params.set('hasPricingErrors', 'true');
     if (options.hideUnreleased) params.set('hideUnreleased', 'true');
     if (options.hideDlcs) params.set('hideDlcs', 'true');
     if (options.includeFreeGames) params.set('includeFreeGames', 'true');
     if (options.hideFamilyShared) params.set('hideFamilyShared', 'true');
+    if (options.priceEvent) params.set('priceEvent', options.priceEvent);
+    if (options.actionDecision && options.actionDecision.length > 0) {
+      params.set('actionDecision', options.actionDecision.join(','));
+    }
     if (options.page) params.set('page', String(options.page));
     if (options.limit) params.set('limit', String(options.limit));
 

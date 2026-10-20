@@ -235,4 +235,30 @@ describe('Task 12: apiFetch, typed DiscordSettings, error handling in modals', (
       expect(consoleSpy).toHaveBeenCalledWith('Failed to cancel sync:', expect.any(Error));
     });
   });
+
+  describe('api.getWishlistGames parameter serialization', () => {
+    it('serializes targetReachedOnly, minMetacritic, priceEvent, and actionDecision into query string', async () => {
+      let requestedUrl = '';
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        requestedUrl = url;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ games: [], total: 0 })),
+        } as any);
+      });
+
+      await api.getWishlistGames({
+        targetReachedOnly: true,
+        minMetacritic: 80,
+        priceEvent: 'RECORD_DROP',
+        actionDecision: ['STRONG_BUY', 'BUY']
+      });
+
+      expect(requestedUrl).toContain('targetReachedOnly=true');
+      expect(requestedUrl).toContain('minMetacritic=80');
+      expect(requestedUrl).toContain('priceEvent=RECORD_DROP');
+      expect(requestedUrl).toContain('actionDecision=STRONG_BUY%2CBUY');
+    });
+  });
 });

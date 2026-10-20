@@ -893,6 +893,16 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 032] restore_uninvalidated_keyshop_offers notice:', err?.message);
       }
     }
+  },
+  {
+    name: '033_add_offers_game_valid_anomaly_index',
+    up: (db) => {
+      try {
+        db.exec("CREATE INDEX IF NOT EXISTS idx_offers_game_valid_anomaly ON offers(game_id, is_valid, is_likely_pricing_error)");
+      } catch (err: any) {
+        console.warn('[Migration 033] notice:', err?.message);
+      }
+    }
   }
 ];
 

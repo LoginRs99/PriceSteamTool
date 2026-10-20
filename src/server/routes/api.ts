@@ -454,6 +454,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       hidePricingErrors: query.hidePricingErrors === 'true' || query.hidePricingErrors === true || query.hideAnomalies === 'true' || query.hideAnomalies === true,
       hideProvisional: query.hideProvisional === 'true' || query.hideProvisional === true,
       buyOnly: query.buyOnly === 'true' || query.buyOnly === true,
+      targetReachedOnly: query.targetReachedOnly === 'true' || query.targetReachedOnly === true,
+      actionDecision: typeof query.actionDecision === 'string'
+        ? (query.actionDecision.split(',').map((s: string) => s.trim()).filter(Boolean) as any)
+        : Array.isArray(query.actionDecision) ? query.actionDecision : undefined,
+      priceEvent: query.priceEvent ? String(query.priceEvent).trim() as any : undefined,
       merchantType: query.merchantType || 'all',
       hasPricingErrors: query.hasPricingErrors === 'true' || query.hasPricingErrors === true || query.hasAnomaly === 'true' || query.hasAnomaly === true,
       hideUnreleased: query.hideUnreleased === 'true' || query.hideUnreleased === true,

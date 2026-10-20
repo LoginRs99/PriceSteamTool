@@ -254,16 +254,27 @@ export const App: React.FC = () => {
     filters.allTimeLowOnly ||
     filters.buyOnly ||
     filters.targetReachedOnly ||
-    filters.minPrice !== undefined ||
-    filters.maxPrice !== undefined ||
-    filters.minDiscount !== undefined ||
-    filters.minDealScore !== undefined ||
+    (filters.minPrice !== undefined && filters.minPrice > 0) ||
+    (filters.maxPrice !== undefined && filters.maxPrice > 0) ||
+    (filters.underPrice !== undefined && filters.underPrice > 0) ||
+    (filters.minDiscount !== undefined && filters.minDiscount > 0) ||
+    (filters.minDealScore !== undefined && filters.minDealScore > 0) ||
+    (filters.minMetacritic !== undefined && filters.minMetacritic > 0) ||
+    (filters.minSteamRating !== undefined && filters.minSteamRating > 0) ||
+    filters.belowTypicalSaleOnly ||
+    filters.hidePricingErrors ||
+    filters.hideProvisional ||
+    filters.hideUnreleased ||
+    filters.hideDlcs ||
+    filters.includeFreeGames ||
+    filters.hideFamilyShared ||
     (filters.merchantType && filters.merchantType !== 'all')
   );
 
   const handleResetFilters = useCallback(() => {
     updateFilters({
       search: '',
+      sort: 'best_value',
       saleOnly: false,
       majorDealsOnly: false,
       allTimeLowOnly: false,
@@ -274,8 +285,18 @@ export const App: React.FC = () => {
       maxPrice: undefined,
       minDiscount: undefined,
       minDealScore: undefined,
+      minMetacritic: undefined,
+      minSteamRating: undefined,
+      belowTypicalSaleOnly: false,
+      hidePricingErrors: false,
+      hideProvisional: false,
+      hideUnreleased: false,
+      hideDlcs: false,
+      includeFreeGames: false,
+      hideFamilyShared: false,
       merchantType: 'all',
-      sort: 'priority',
+      hasPricingErrors: false,
+      activePill: 'all',
       page: 1,
     });
   }, [updateFilters]);
