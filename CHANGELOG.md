@@ -5,6 +5,33 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.2] - 2026-10-28
+
+### Security
+* **CWE-1236 CSV Formula Injection Mitigation**:
+  * Sanitized CSV exports in `escapeCsvCell` (`src/server/routes/api.ts`) by prepending a single quote (`'`) to values starting with formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`).
+* **CWE-918 SSRF Mitigation in Discord Webhook Configuration**:
+  * Enforced strict validation (`isValidDiscordWebhookUrl`) on `POST /api/settings/discord` and `saveDiscordSettings` (`discordNotifier.ts`), prohibiting internal addresses or arbitrary external origins from being persisted.
+* **In-Memory Rate Limiter Resource Protection (CWE-400 / CWE-770)**:
+  * Enforced a hard capacity ceiling (`MAX_ENTRIES = 5000`) with LRU/oldest-entry eviction in `rateLimit.ts` to prevent unbounded memory growth and heap exhaustion from distributed/spoofed IP headers.
+
+### Fixed & Stabilized
+* **Steam ID Parameter Encoding & Path Traversal Prevention**:
+  * Encoded `steamId64` with `encodeURIComponent` across Steam Storefront wishlist pagination and Steam Web API request paths (`steam.ts`).
+* **Unannounced & Textual Release Date Normalization**:
+  * Enhanced `normalizer.ts` with `isGameUnreleased` and `isGameDelisted` to reliably handle non-standard text strings returned by Steam (e.g. `"Coming soon"`, `"TBA"`, `"To be announced"`, `"Upcoming"`).
+  * Unified game and offer repository row mappers (`game.ts`, `offer.ts`) to avoid misidentifying unreleased titles as released games.
+* **Safe Timestamp Slicing & Exception Prevention in Price Intelligence**:
+  * Replaced unsafe direct `.slice(0, 10)` invocations on `recorded_at` in `volatility.ts` and `chartData.ts` with null-safe fallbacks, preventing unhandled `TypeError` crashes during price intelligence queries on incomplete historical data.
+* **Ongoing Steam Seasonal Sales Detection**:
+  * Added active sale duration tracking in `seasonalSales.ts` (`isOngoing: true`, `daysUntil: 0`) ensuring ongoing major Steam sales (Autumn, Winter, Spring, Summer) are correctly recognized rather than skipped until the following year's event.
+* **Discord Webhook 429 Rate-Limit Retry Handling**:
+  * Clamped Discord `retry_after` header backoffs to a bounded operational window (`[500, 15000]` ms) and added an automatic retry in `discordNotifier.ts` to prevent deal notification loss under transient Discord rate limits.
+* **Pagination Parameters in `/api/v1/alerts`**:
+  * Corrected `GET /api/v1/alerts` in `v1.ts` to respect `page` and `limit` query parameters with accurate `totalPages` metadata matching the v1 OpenAPI specification.
+* **Global Currency Normalization**:
+  * Expanded `exchangeRate.ts` (`normalizeCurrencyCode`) to support international currency symbols: `₺`/`TL` (TRY), `₩` (KRW), `₱` (PHP), `₹` (INR), `₫` (VND), `₽`/`РУБ` (RUB), and `₴` (UAH).
+
 ## [2.8.1] - 2026-10-20
 
 ### Added

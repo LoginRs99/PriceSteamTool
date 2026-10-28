@@ -7,7 +7,7 @@ import { generatePriceIntelligence } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource, isAggregatorSource } from '../../domain/priceIntelligence/types.js';
 import { FRESHNESS_WINDOW_MS } from '../../domain/constants.js';
 import { calculateSteamDbRating } from '../../domain/rating.js';
-import { repairMojibake } from '../../domain/normalizer.js';
+import { repairMojibake, isGameUnreleased, isGameDelisted } from '../../domain/normalizer.js';
 import type { 
   Game, 
   WishlistFilterOptions, 
@@ -1123,9 +1123,9 @@ function mapGameRow(r: any): Game {
     const obsTime = r.best_last_observed_at ? new Date(r.best_last_observed_at).getTime() : NaN;
     const daysSinceLastSample = !isNaN(obsTime) ? Math.floor((Date.now() - obsTime) / 86400000) : undefined;
 
-    const isDelisted = Boolean(r.is_delisted) ||
-      (!r.base_price_eur && Boolean(r.release_date) && new Date(r.release_date).getTime() < Date.now());
-    const isUnreleased = Boolean(r.release_date && new Date(r.release_date).getTime() > Date.now());
+    const isDelisted = isGameDelisted(r.is_delisted, r.base_price_eur ? Number(r.base_price_eur) : null, r.release_date);
+
+    const isUnreleased = isGameUnreleased(r.release_date);
 
     const dealResult = calculateDealScore({
       priceEur: bestPrice,

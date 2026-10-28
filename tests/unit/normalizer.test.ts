@@ -217,6 +217,35 @@ describe('Domain Normalizer — Comprehensive Audit Suite', () => {
       expect(normalizeGameTitle('Petőfi Sándor')).toBe('petofisandor');
       expect(normalizeGameTitle('The Witcher: Kraków Edition')).toBe('thewitcherkrakow');
     });
+
+    it('correctly identifies unreleased games across text placeholders and future timestamps', async () => {
+      const { isGameUnreleased, isGameDelisted } = await import('../../src/server/domain/normalizer.js');
+
+      // Text placeholders common on Steam
+      expect(isGameUnreleased('Coming soon')).toBe(true);
+      expect(isGameUnreleased('TBA')).toBe(true);
+      expect(isGameUnreleased('To be announced')).toBe(true);
+      expect(isGameUnreleased('TBD')).toBe(true);
+      expect(isGameUnreleased('Upcoming 2027')).toBe(true);
+      expect(isGameUnreleased('2030')).toBe(true);
+
+      // Future ISO date
+      const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+      expect(isGameUnreleased(futureDate)).toBe(true);
+
+      // Released games
+      expect(isGameUnreleased('2020-05-01')).toBe(false);
+      expect(isGameUnreleased('2015')).toBe(false);
+      expect(isGameUnreleased(null)).toBe(false);
+      expect(isGameUnreleased(undefined)).toBe(false);
+
+      // Delisted checks
+      expect(isGameDelisted(1, null, null)).toBe(true);
+      expect(isGameDelisted(false, null, '2018-01-01')).toBe(true);
+      expect(isGameDelisted(false, 19.99, '2018-01-01')).toBe(false);
+      // Unreleased game with no base price is NOT delisted
+      expect(isGameDelisted(false, null, 'Coming soon')).toBe(false);
+    });
   });
 });
 

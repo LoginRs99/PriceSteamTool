@@ -8,7 +8,7 @@ import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource } from '../../domain/priceIntelligence/types.js';
 import { FRESHNESS_WINDOW_MS, OFFER_MAX_AGE_DAYS } from '../../domain/constants.js';
-import { isPriceEqual, isPriceDifferent, EPSILON_EUR } from '../../domain/normalizer.js';
+import { isPriceEqual, isPriceDifferent, EPSILON_EUR, isGameUnreleased, isGameDelisted } from '../../domain/normalizer.js';
 import { exchangeRateService } from '../../domain/exchangeRate.js';
 import type { 
   Game, 
@@ -377,9 +377,9 @@ export const offerRepo = {
         }
       }
 
-      const isDelisted = Boolean((gameInfo as any)?.is_delisted) ||
-        (!gameInfo?.base_price_eur && Boolean(gameInfo?.release_date) && new Date(gameInfo.release_date).getTime() < Date.now());
-      const isUnreleased = Boolean(gameInfo?.release_date && new Date(gameInfo.release_date).getTime() > Date.now());
+      const isDelisted = isGameDelisted((gameInfo as any)?.is_delisted, gameInfo?.base_price_eur ? Number(gameInfo.base_price_eur) : null, gameInfo?.release_date);
+
+      const isUnreleased = isGameUnreleased(gameInfo?.release_date);
 
       const evalInput: PriceEvaluationInput = {
         currentPriceEur: active.priceEur,

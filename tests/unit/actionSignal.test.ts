@@ -157,5 +157,24 @@ describe('Action Signal & Discount Cycle Engine', () => {
       expect(signalSparse.decision).toBe('PROVISIONAL');
       expect(signalSparse.badgeLabel).toBe('Provisional Data');
     });
+
+    it('detects currently ongoing Steam Seasonal Sales accurately', () => {
+      // June 28 is in the middle of Steam Summer Sale (starts June 25, 14 days duration)
+      const duringSummer = new Date(2026, 5, 28);
+      const sale = getUpcomingSteamSale(duringSummer);
+      expect(sale).not.toBeNull();
+      expect(sale?.name).toBe('Steam Summer Sale');
+      expect(sale?.daysUntil).toBe(0);
+      expect(sale?.isOngoing).toBe(true);
+      expect(sale?.isImminent).toBe(true);
+
+      // June 10 is 15 days before Summer Sale
+      const beforeSummer = new Date(2026, 5, 10);
+      const upcoming = getUpcomingSteamSale(beforeSummer);
+      expect(upcoming).not.toBeNull();
+      expect(upcoming?.name).toBe('Steam Summer Sale');
+      expect(upcoming?.daysUntil).toBe(15);
+      expect(upcoming?.isOngoing).toBe(false);
+    });
   });
 });

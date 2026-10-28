@@ -34,6 +34,13 @@ export function checkRateLimit(
         rateLimitStore.delete(k);
       }
     }
+    // Hard ceiling safety: if store still exceeds 5000 entries (e.g. distributed IP flood), prune oldest
+    if (rateLimitStore.size > 5000) {
+      const keysToDelete = Array.from(rateLimitStore.keys()).slice(0, 1000);
+      for (const k of keysToDelete) {
+        rateLimitStore.delete(k);
+      }
+    }
   }
 
   let record = rateLimitStore.get(key);

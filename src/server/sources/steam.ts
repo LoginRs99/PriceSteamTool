@@ -139,7 +139,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       let page = 0;
       const maxPages = 60; // Safety cap (up to ~6,000 games)
 
-      const targetPath = /^\d+$/.test(steamId64) ? `profiles/${steamId64}` : `id/${steamId64}`;
+      const targetPath = /^\d+$/.test(steamId64) ? `profiles/${steamId64}` : `id/${encodeURIComponent(steamId64)}`;
 
       let requestsMade = 0;
 
@@ -312,7 +312,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       try {
         requestsMade++;
         const apiKeyParam = config.steamApiKey ? `&key=${encodeURIComponent(config.steamApiKey)}` : '';
-        const url = `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${steamId64}${apiKeyParam}`;
+        const url = `https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${encodeURIComponent(steamId64)}${apiKeyParam}`;
         const data: any = await safeFetchJson(url);
         
         if (data?.response?.items && Array.isArray(data.response.items)) {

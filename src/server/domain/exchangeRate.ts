@@ -81,7 +81,13 @@ export class ExchangeRateService {
     if (clean === '¥' || clean === 'JPY') return 'JPY';
     if (clean === 'R$' || clean === 'BRL') return 'BRL';
     if (clean === 'CHF') return 'CHF';
-    if (clean === 'TRY' || clean === 'TL') return 'TRY';
+    if (clean === 'TRY' || clean === 'TL' || clean === '₺') return 'TRY';
+    if (clean === 'KRW' || clean === '₩') return 'KRW';
+    if (clean === 'PHP' || clean === '₱') return 'PHP';
+    if (clean === 'INR' || clean === '₹') return 'INR';
+    if (clean === 'VND' || clean === '₫') return 'VND';
+    if (clean === 'RUB' || clean === 'РУБ' || clean === '₽') return 'RUB';
+    if (clean === 'UAH' || clean === '₴') return 'UAH';
     return clean || 'EUR';
   }
 

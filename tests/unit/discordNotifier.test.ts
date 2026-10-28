@@ -32,6 +32,33 @@ describe('Discord Notifier Service', () => {
     expect(settings.cooldownHours).toBe(48);
   });
 
+  it('should reject invalid or SSRF webhook URLs when saving', () => {
+    expect(() => {
+      saveDiscordSettings({
+        webhookUrl: 'http://169.254.169.254/latest/meta-data'
+      });
+    }).toThrow(/Invalid Discord Webhook URL/);
+
+    expect(() => {
+      saveDiscordSettings({
+        webhookUrl: 'http://localhost:3000/internal'
+      });
+    }).toThrow(/Invalid Discord Webhook URL/);
+
+    expect(() => {
+      saveDiscordSettings({
+        webhookUrl: 'https://attacker.com/webhook'
+      });
+    }).toThrow(/Invalid Discord Webhook URL/);
+
+    // Allowing empty string to clear
+    expect(() => {
+      saveDiscordSettings({
+        webhookUrl: ''
+      });
+    }).not.toThrow();
+  });
+
   it('should handle test notification with mocked fetch', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ ok: true }), { status: 200 })

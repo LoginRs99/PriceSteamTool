@@ -140,4 +140,39 @@ describe('CSV Export API — GET /api/export/offers.csv', () => {
     expect(lines.length).toBe(1);
     expect(lines[0]).toBe('game_title,merchant_name,merchant_is_official,price_eur,msrp_eur,typical_sale_median_eur,atl_eur,atl_is_confirmed,risk_level,risk_score,risk_flags,is_anomaly,is_best_deal,last_observed_at');
   });
+
+  it('neutralizes CSV formula injection characters (=, +, -, @) to prevent CWE-1236 spreadsheet execution', async () => {
+    const profile = profileRepo.create('Formula User', '76561198000000002');
+    const game = gameRepo.upsert({
+      steamAppId: 1003,
+      title: '=cmd|/c calc!A0',
+      basePriceEur: 9.99
+    });
+    gameRepo.syncWishlistEntries(profile.id, [
+      { steamAppId: 1003, title: '=cmd|/c calc!A0', priority: 1, basePriceEur: 9.99 }
+    ]);
+    const merchant = merchantRepo.getOrCreate('test_merchant', '@InjectedStore', true);
+    offerRepo.upsertOffer({
+      gameId: game.id,
+      merchantId: merchant.id,
+      productType: 'STEAM_KEY',
+      regionType: 'GLOBAL',
+      priceEur: 5.00,
+      dealUrl: 'https://store.example.com',
+      isValid: true,
+      sourceCode: 'steam'
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/export/offers.csv'
+    });
+
+    expect(res.statusCode).toBe(200);
+    const lines = res.body.trim().split(/\r?\n/);
+    expect(lines.length).toBe(2);
+    // Formula triggers must be prefixed with single quote
+    expect(lines[1].startsWith(`'=cmd|/c calc!A0`)).toBe(true);
+    expect(lines[1]).toContain(`'@InjectedStore`);
+  });
 });

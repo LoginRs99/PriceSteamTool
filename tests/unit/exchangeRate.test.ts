@@ -14,6 +14,15 @@ describe('Exchange Rate Service & Currency Normalization', () => {
     expect(exchangeRateService.normalizeCurrencyCode('Ft')).toBe('HUF');
     expect(exchangeRateService.normalizeCurrencyCode('PLN')).toBe('PLN');
     expect(exchangeRateService.normalizeCurrencyCode('zł')).toBe('PLN');
+    expect(exchangeRateService.normalizeCurrencyCode('₺')).toBe('TRY');
+    expect(exchangeRateService.normalizeCurrencyCode('TL')).toBe('TRY');
+    expect(exchangeRateService.normalizeCurrencyCode('₩')).toBe('KRW');
+    expect(exchangeRateService.normalizeCurrencyCode('₱')).toBe('PHP');
+    expect(exchangeRateService.normalizeCurrencyCode('₹')).toBe('INR');
+    expect(exchangeRateService.normalizeCurrencyCode('₫')).toBe('VND');
+    expect(exchangeRateService.normalizeCurrencyCode('₽')).toBe('RUB');
+    expect(exchangeRateService.normalizeCurrencyCode('руб')).toBe('RUB');
+    expect(exchangeRateService.normalizeCurrencyCode('₴')).toBe('UAH');
   });
 
   it('correctly converts amounts in standard currencies to EUR', () => {

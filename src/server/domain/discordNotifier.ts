@@ -84,6 +84,9 @@ export function saveDiscordSettings(settings: Partial<DiscordSettings>): Discord
     const trimmed = settings.webhookUrl.trim();
     // Do not overwrite existing real webhook URL if client sent back masked string (...xxxxxx)
     if (!trimmed.startsWith('...')) {
+      if (trimmed !== '' && !isValidDiscordWebhookUrl(trimmed)) {
+        throw new Error('Invalid Discord Webhook URL. URL must start with https://discord.com/api/webhooks/');
+      }
       settingsRepo.set('discord_webhook_url', trimmed);
     }
   }
@@ -475,10 +478,38 @@ export async function sendDealNotifications(deals: Game[], trigger: string = 'MA
         let retryAfterMs = 2000;
         try {
           const body: any = await res.json();
-          if (body?.retry_after) retryAfterMs = Math.ceil(Number(body.retry_after) * 1000) + 100;
+          if (body?.retry_after) {
+            const rawVal = Number(body.retry_after);
+            const computedMs = rawVal > 100 ? rawVal : Math.ceil(rawVal * 1000);
+            retryAfterMs = Math.min(15000, Math.max(500, computedMs + 100));
+          }
         } catch {}
-        logWarn(`[Discord] Hit rate limit 429. Backing off for ${retryAfterMs}ms`);
+        logWarn(`[Discord] Hit rate limit 429. Backing off for ${retryAfterMs}ms before retrying "${game.title}"...`);
         await new Promise(r => setTimeout(r, retryAfterMs));
+
+        try {
+          const retryRes = await fetch(settings.webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: 'PriceSteamTool',
+              avatar_url: 'https://raw.githubusercontent.com/LoginRs99/PriceSteamTool/main/src/client/public/favicon.svg',
+              embeds: [embed]
+            }),
+            signal: AbortSignal.timeout(8000)
+          });
+
+          if (retryRes.ok) {
+            notificationsRepo.logNotification(game.id, bestPrice, dealScore, 'discord');
+            sentCount++;
+            logInfo(`[Discord] Retry succeeded: Alert sent for "${game.title}" (€${bestPrice.toFixed(2)}, Score: ${dealScore})`);
+          } else {
+            const retryErrBody = await retryRes.text();
+            logWarn(`[Discord] Retry failed for "${game.title}": ${retryRes.status} ${retryErrBody}`);
+          }
+        } catch (retryError: any) {
+          logWarn(`[Discord] Retry network error for "${game.title}": ${retryError.message}`);
+        }
       } else {
         const errBody = await res.text();
         logWarn(`[Discord] Failed to send alert for "${game.title}": ${res.status} ${errBody}`);

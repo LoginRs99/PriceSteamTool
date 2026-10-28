@@ -401,3 +401,54 @@ export function isPriceDifferent(a: number | null | undefined, b: number | null 
 }
 
 
+
+
+/**
+ * Determines whether a game is unreleased based on its release date string.
+ * Accurately recognizes future dates as well as standard Steam text placeholders ("Coming soon", "TBA", "To be announced", "TBD").
+ */
+export function isGameUnreleased(releaseDate?: string | null): boolean {
+  if (!releaseDate || typeof releaseDate !== 'string') return false;
+  const clean = releaseDate.trim();
+  if (!clean) return false;
+
+  // Common text placeholders from Steam Storefront
+  if (/(coming soon|tba|to be announced|tbd|announced|upcoming)/i.test(clean)) {
+    return true;
+  }
+
+  // Parseable date: future timestamp
+  const parsedMs = Date.parse(clean);
+  if (!isNaN(parsedMs)) {
+    return parsedMs > Date.now();
+  }
+
+  // 4-digit future year (e.g. "2027" or "2028")
+  if (/^\d{4}$/.test(clean)) {
+    const year = parseInt(clean, 10);
+    const currentYear = new Date().getFullYear();
+    return year > currentYear;
+  }
+
+  return false;
+}
+
+/**
+ * Determines whether a game is delisted from the store.
+ */
+export function isGameDelisted(
+  isDelistedFlag?: boolean | number | null,
+  basePriceEur?: number | null,
+  releaseDate?: string | null
+): boolean {
+  if (Boolean(isDelistedFlag)) return true;
+  if (!basePriceEur && releaseDate) {
+    if (!isGameUnreleased(releaseDate)) {
+      const parsedMs = Date.parse(releaseDate);
+      if (!isNaN(parsedMs) && parsedMs < Date.now()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}

@@ -14,7 +14,7 @@ export function calculatePriceVolatility(
 
   for (const h of history) {
     if (isTrustedHistoryEntry(h)) {
-      const day = h.recordedAt.slice(0, 10);
+      const day = (h.recordedAt && typeof h.recordedAt === 'string') ? h.recordedAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
       const existing = dailyMap.get(day);
       if (existing === undefined || h.priceEur < existing) {
         dailyMap.set(day, h.priceEur);
@@ -23,7 +23,8 @@ export function calculatePriceVolatility(
   }
 
   if (currentBestOffer && currentBestOffer.priceEur > 0 && !currentBestOffer.isLikelyPricingError) {
-    const today = (currentBestOffer.lastObservedAt || currentBestOffer.fetchedAt).slice(0, 10);
+    const obsDateStr = currentBestOffer.lastObservedAt || currentBestOffer.fetchedAt;
+    const today = (obsDateStr && typeof obsDateStr === 'string') ? obsDateStr.slice(0, 10) : new Date().toISOString().slice(0, 10);
     const existing = dailyMap.get(today);
     if (existing === undefined || currentBestOffer.priceEur < existing) {
       dailyMap.set(today, currentBestOffer.priceEur);

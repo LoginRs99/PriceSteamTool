@@ -362,17 +362,26 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   // ----------------------------------------------------
 
   // GET /api/v1/alerts
-  fastify.get('/api/v1/alerts', async () => {
+  fastify.get('/api/v1/alerts', async (request) => {
     const activeProfile = profileRepo.getActive();
+    const query = request.query as any;
+    const pageParsed = parseInt(query?.page || '1', 10);
+    const page = isNaN(pageParsed) ? 1 : Math.max(1, pageParsed);
+    const limitParsed = parseInt(query?.limit || '50', 10);
+    const limit = isNaN(limitParsed) ? 50 : Math.min(250, Math.max(1, limitParsed));
+
     if (!activeProfile) {
-      return { data: [], pagination: { total: 0, page: 1, limit: 50, totalPages: 0 } };
+      return { data: [], pagination: { total: 0, page, limit, totalPages: 0 } };
     }
 
     const games = gameRepo.getAllWishlistGameIds(activeProfile.id);
     const withAlerts = games.filter(g => g.targetPriceEur !== undefined && g.targetPriceEur !== null);
+    const total = withAlerts.length;
+    const offset = (page - 1) * limit;
+    const paged = withAlerts.slice(offset, offset + limit);
 
     return {
-      data: withAlerts.map(g => ({
+      data: paged.map(g => ({
         gameId: g.id,
         steamAppId: g.steamAppId,
         title: g.title,
@@ -380,10 +389,10 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
         status: 'ACTIVE'
       })),
       pagination: {
-        total: withAlerts.length,
-        page: 1,
-        limit: 50,
-        totalPages: 1
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
       }
     };
   });

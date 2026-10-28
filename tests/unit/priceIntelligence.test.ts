@@ -232,6 +232,19 @@ describe('Price Intelligence Domain Engine — v1.3', () => {
       expect(res.priceChangesCount).toBe(1); // Exactly 1 change from Aug 02 (59.99) -> Aug 04 (29.99)
       expect(res.category).toBeDefined();
     });
+
+    it('safely handles missing or malformed timestamp properties on offers and history without crashing', () => {
+      const history: any[] = [
+        { id: 'ph-1', gameId: 'game-1', sourceCode: 'steam', priceEur: 49.99, recordedAt: null },
+        { id: 'ph-2', gameId: 'game-1', sourceCode: 'steam', priceEur: 39.99, recordedAt: undefined }
+      ];
+      const badOffer: any = {
+        priceEur: 29.99,
+        lastObservedAt: undefined,
+        fetchedAt: undefined
+      };
+      expect(() => calculatePriceVolatility(history, badOffer)).not.toThrow();
+    });
   });
 
   describe('5. Market Comparison Scope', () => {

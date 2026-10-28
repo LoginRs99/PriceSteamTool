@@ -46,7 +46,7 @@ export function buildPriceChartData(
   // Aggregate daily minimum points: one point per day representing the best trusted deal of that day
   const dailyPointsMap = new Map<string, PriceChartPoint>();
   for (const p of rawPoints) {
-    const day = p.timestamp.slice(0, 10);
+    const day = (p.timestamp && typeof p.timestamp === 'string') ? p.timestamp.slice(0, 10) : new Date().toISOString().slice(0, 10);
     const existing = dailyPointsMap.get(day);
     if (!existing) {
       dailyPointsMap.set(day, p);

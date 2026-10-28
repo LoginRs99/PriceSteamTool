@@ -1097,7 +1097,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
       const escapeCsvCell = (val: any): string => {
         if (val === null || val === undefined) return '';
-        const str = String(val);
+        let str = String(val);
+        // Formula injection mitigation (CWE-1236): neutralize spreadsheet formula execution triggers
+        if (/^[=+\-@\t\r]/.test(str)) {
+          str = `'${str}`;
+        }
         if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
           return `"${str.replace(/"/g, '""')}"`;
         }
@@ -1184,9 +1188,13 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       return reply.status(400).send({ error: parsed.error.message });
     }
 
-    const { saveDiscordSettings } = await import('../domain/discordNotifier.js');
-    const updated = saveDiscordSettings(parsed.data);
-    return updated;
+    try {
+      const { saveDiscordSettings } = await import('../domain/discordNotifier.js');
+      const updated = saveDiscordSettings(parsed.data);
+      return updated;
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || 'Failed to save Discord settings' });
+    }
   });
 
   fastify.post('/api/settings/discord/test', async (request, reply) => {
