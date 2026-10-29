@@ -806,23 +806,33 @@ export class SyncOrchestrator {
           // Ignore individual keyshop scraping errors and do not mark as checked
         }
 
-        if (isSourceOnly) {
-          this.progress.currentAction = `AllKeyShop: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
-        }
+        this.progress.currentAction = isSourceOnly
+          ? `AllKeyShop: [${i + 1}/${prioritizedGames.length}] ${g.title}`
+          : `Keyshop enrichment: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
         this.broadcast();
 
-        // Anti-ban Cooldown Break: every `chunkSize` games
+        // Anti-ban Cooldown Break: every `chunkSize` games with responsive cancellation
         const isChunkEnd = (i + 1) % chunkSize === 0 && (i + 1) < prioritizedGames.length;
         if (isChunkEnd && !this.isCancelled) {
           logInfo(`[Enrichment] Completed chunk of ${chunkSize} games. Cooling down for ${Math.round(pauseMs / 1000)}s.`);
-          await new Promise(r => setTimeout(r, pauseMs));
+          let elapsed = 0;
+          while (elapsed < pauseMs && !this.isCancelled) {
+            const step = Math.min(500, pauseMs - elapsed);
+            await new Promise(r => setTimeout(r, step));
+            elapsed += step;
+          }
         } else if (!hasSolver && (i + 1) < prioritizedGames.length && !this.isCancelled) {
           // Occasional irregular hesitation break (~5% probability) of 5-15 minutes ONLY for raw scraping without solver
           if (Math.random() < 0.05) {
             const hesitationMinutes = 5 + Math.random() * 10;
             const hesitationMs = Math.round(hesitationMinutes * 60 * 1000);
             logInfo(`[Enrichment] Natural pacing hesitation: pausing for ${(hesitationMs / 1000 / 60).toFixed(1)} minutes.`);
-            await new Promise(r => setTimeout(r, hesitationMs));
+            let elapsed = 0;
+            while (elapsed < hesitationMs && !this.isCancelled) {
+              const step = Math.min(500, hesitationMs - elapsed);
+              await new Promise(r => setTimeout(r, step));
+              elapsed += step;
+            }
           }
         }
       }

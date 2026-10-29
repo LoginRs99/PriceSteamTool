@@ -473,7 +473,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     // ETag caching header support: eliminate redundant network transfers when unchanged
     const latestUpdate = result.games.reduce((latest, g) => (g.updatedAt > latest ? g.updatedAt : latest), '');
-    const etag = `W/"wishlist-${activeProfile.id}-${result.total}-${filterOptions.page}-${filterOptions.limit}-${latestUpdate}"`;
+    const queryHash = crypto.createHash('md5').update(JSON.stringify(query || {})).digest('hex').slice(0, 8);
+    const etag = `W/"wishlist-${activeProfile.id}-${result.total}-${filterOptions.page}-${filterOptions.limit}-${latestUpdate}-${queryHash}"`;
     reply.header('ETag', etag);
 
     if (request.headers['if-none-match'] === etag) {

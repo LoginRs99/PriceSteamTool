@@ -311,11 +311,17 @@ export function backfillDealScoreStats(): void {
   } catch {}
 }
 
+const MAX_STMT_CACHE_SIZE = 500;
+
 export function prepareStmt<BindParams extends unknown[] | {} = any[], Result = any>(sql: string): Database.Statement<BindParams, Result> {
   let stmt = stmtCache.get(sql);
   if (!stmt) {
-    if (stmtCache.size > 200) {
-      stmtCache.clear();
+    if (stmtCache.size >= MAX_STMT_CACHE_SIZE) {
+      // Bounded eviction: prune the 50 oldest compiled statements to preserve frequently used hot queries
+      const keysToDelete = Array.from(stmtCache.keys()).slice(0, 50);
+      for (const k of keysToDelete) {
+        stmtCache.delete(k);
+      }
     }
     stmt = getDb().prepare(sql);
     stmtCache.set(sql, stmt);

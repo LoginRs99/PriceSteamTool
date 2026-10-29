@@ -28,6 +28,14 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const isMountedRef = React.useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -37,13 +45,19 @@ export const SavingsView: React.FC<SavingsViewProps> = ({ profileId, onSelectGam
         api.getPurchases(profileId),
         api.getSavingsSummary(profileId)
       ]);
-      setPurchases(Array.isArray(purchasesList) ? purchasesList : []);
-      setSummary(summaryData);
+      if (isMountedRef.current) {
+        setPurchases(Array.isArray(purchasesList) ? purchasesList : []);
+        setSummary(summaryData);
+      }
     } catch (err: any) {
-      console.error('Failed to load savings data:', err);
-      setError(err?.message || 'Failed to load savings records. Please check backend connection.');
+      if (isMountedRef.current) {
+        console.error('Failed to load savings data:', err);
+        setError(err?.message || 'Failed to load savings records. Please check backend connection.');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [profileId]);
 

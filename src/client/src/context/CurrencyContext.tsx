@@ -66,9 +66,10 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [rates, setRates] = useState<Record<string, number>>(DEFAULT_RATES_FROM_EUR);
 
   useEffect(() => {
+    let isMounted = true;
     api.getExchangeRates()
       .then((res: { base: string; rates: Record<string, number> }) => {
-        if (res?.rates) {
+        if (isMounted && res?.rates) {
           setRates(prev => ({
             ...prev,
             ...res.rates
@@ -78,6 +79,9 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       .catch(() => {
         // Fallback rates already loaded
       });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const setCurrency = useCallback((c: SupportedCurrency) => {
