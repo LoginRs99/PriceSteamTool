@@ -355,7 +355,9 @@ export async function fetchWithAllkeyshopSolver<T = any>(
   const now = Date.now();
   const validCookies = (now - lastCookieTimestamp < COOKIE_TTL_MS) ? cachedSolverCookies : [];
 
-  const maxSolverTimeout = Math.max(15000, timeoutMs);
+  const defaultMinTimeout = config.allkeyshopProxyUrl ? 65000 : 35000;
+  const effectiveTimeout = timeoutMs ? Math.max(15000, timeoutMs) : (config.allkeyshopSolverTimeoutMs || defaultMinTimeout);
+  const maxSolverTimeout = Math.max(defaultMinTimeout, effectiveTimeout);
   const payload: Record<string, any> = {
     cmd: 'request.get',
     url,
@@ -1030,6 +1032,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             : `https://www.allkeyshop.com/blog/buy-${encodeURIComponent(cleanSlug)}-cd-key-compare-prices/`;
 
           let offers: NormalizedSourceOffer[] = [];
+          const aksTimeout = config.allkeyshopSolverTimeoutMs || (config.allkeyshopProxyUrl ? 65000 : 35000);
 
           // 1. Primary fast path: Direct Numeric API (Deterministic, zero 404s, works for all 204,640 catalog items)
           if (matched.id) {
@@ -1041,7 +1044,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
             });
 
             try {
-              const raw = await fetchWithAllkeyshopSolver<unknown>(priceApiUrl, 35000);
+              const raw = await fetchWithAllkeyshopSolver<unknown>(priceApiUrl, aksTimeout);
               if (raw) {
                 const validated = validateAllKeyShopPriceResponse(raw);
                 if (validated) {
@@ -1064,7 +1067,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
                 id: matched.id,
                 currency: 'eur'
               });
-              const transRaw = await fetchWithAllkeyshopSolver<unknown>(transUrl, 35000);
+              const transRaw = await fetchWithAllkeyshopSolver<unknown>(transUrl, aksTimeout);
               if (transRaw) {
                 offers = parseAllKeyShopGamePageTransData(transRaw, defaultDealUrl);
               }
@@ -1079,7 +1082,7 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
           // 3. Tertiary fallback: Live Comparison Page if API had no offers or game had no numeric id
           if (offers.length === 0) {
             try {
-              const pageResponse = await fetchWithAllkeyshopSolver<unknown>(defaultDealUrl, 35000);
+              const pageResponse = await fetchWithAllkeyshopSolver<unknown>(defaultDealUrl, aksTimeout);
               if (typeof pageResponse === 'string' && pageResponse.includes('gamePageTrans')) {
                 offers = parseAllKeyShopGamePage(pageResponse, defaultDealUrl);
               }
