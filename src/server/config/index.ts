@@ -46,7 +46,7 @@ export const config = {
   allkeyshopEnabled: process.env.ALLKEYSHOP_ENABLED !== 'false' && Boolean(
     process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL
   ),
-  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '400', 10), // default cap per enrichment run; 0 = unlimited
+  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '50', 10), // default cap per enrichment run (prevents Cloudflare IP bans)
   allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '', // Byparr / FlareSolverr anti-bot solver (e.g. http://localhost:8191)
 
   // Database Backup Settings
