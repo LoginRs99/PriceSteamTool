@@ -593,6 +593,73 @@ describe('AllKeyShop Adaptive Scheduling & Pacing Gating', () => {
         global.fetch = origFetch;
       }
     });
+
+    it('forwards proxy configuration and increases default solver timeout to 65s when proxy is enabled', async () => {
+      const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origProxyUrl = config.allkeyshopProxyUrl;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        config.allkeyshopProxyUrl = 'http://proxy-user:secret-pass@p.webshare.io:80';
+        let capturedPayload: any = null;
+
+        global.fetch = vi.fn().mockImplementation(async (_url: any, options: any) => {
+          capturedPayload = JSON.parse(options.body);
+          return {
+            ok: true,
+            json: async () => ({
+              status: 'ok',
+              solution: { status: 200, response: '{"ok": true}' }
+            })
+          };
+        });
+
+        await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 15000);
+        expect(capturedPayload.proxy).toEqual({ url: 'http://proxy-user:secret-pass@p.webshare.io:80' });
+        expect(capturedPayload.maxTimeout).toBe(65000);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        config.allkeyshopProxyUrl = origProxyUrl;
+        global.fetch = origFetch;
+      }
+    });
+
+    it('respects custom allkeyshopSolverTimeoutMs override when configured', async () => {
+      const { fetchWithAllkeyshopSolver } = await import('../../src/server/sources/allkeyshop.js');
+      const { config } = await import('../../src/server/config/index.js');
+
+      const origSolverUrl = config.allkeyshopSolverUrl;
+      const origTimeout = config.allkeyshopSolverTimeoutMs;
+      const origFetch = global.fetch;
+
+      try {
+        config.allkeyshopSolverUrl = 'http://127.0.0.1:8191';
+        config.allkeyshopSolverTimeoutMs = 85000;
+        let capturedPayload: any = null;
+
+        global.fetch = vi.fn().mockImplementation(async (_url: any, options: any) => {
+          capturedPayload = JSON.parse(options.body);
+          return {
+            ok: true,
+            json: async () => ({
+              status: 'ok',
+              solution: { status: 200, response: '{"ok": true}' }
+            })
+          };
+        });
+
+        await fetchWithAllkeyshopSolver('https://www.allkeyshop.com/api/test', 10000);
+        expect(capturedPayload.maxTimeout).toBe(85000);
+      } finally {
+        config.allkeyshopSolverUrl = origSolverUrl;
+        config.allkeyshopSolverTimeoutMs = origTimeout;
+        global.fetch = origFetch;
+      }
+    });
   });
 
   describe('5. Smart Multi-Candidate Catalog Matching (Release Year, Suffix, & Overrides)', () => {

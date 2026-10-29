@@ -355,9 +355,10 @@ export async function fetchWithAllkeyshopSolver<T = any>(
   const now = Date.now();
   const validCookies = (now - lastCookieTimestamp < COOKIE_TTL_MS) ? cachedSolverCookies : [];
 
-  const defaultMinTimeout = config.allkeyshopProxyUrl ? 65000 : 35000;
-  const effectiveTimeout = timeoutMs ? Math.max(15000, timeoutMs) : (config.allkeyshopSolverTimeoutMs || defaultMinTimeout);
-  const maxSolverTimeout = Math.max(defaultMinTimeout, effectiveTimeout);
+  const minTimeout = config.allkeyshopSolverTimeoutMs
+    ? config.allkeyshopSolverTimeoutMs
+    : (config.allkeyshopProxyUrl ? 65000 : 15000);
+  const maxSolverTimeout = Math.max(minTimeout, timeoutMs);
   const payload: Record<string, any> = {
     cmd: 'request.get',
     url,

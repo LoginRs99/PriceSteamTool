@@ -66,7 +66,8 @@ describe('SavingsView (Anti-UI-Slop & Craftsmanship)', () => {
   });
 
   it('renders SavingsSkeleton layout on initial load without layout shift', () => {
-    // Return a pending promise so loading state persists
+    // Return a pending promise so loading state persists and CurrencyProvider doesn't fire microtask updates
+    vi.mocked(api.getExchangeRates).mockReturnValue(new Promise(() => {}));
     vi.mocked(api.getPurchases).mockReturnValue(new Promise(() => {}));
     vi.mocked(api.getSavingsSummary).mockReturnValue(new Promise(() => {}));
 
@@ -136,41 +137,46 @@ describe('SavingsView (Anti-UI-Slop & Craftsmanship)', () => {
   });
 
   it('renders explicit error state with Retry button when fetch fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(api.getPurchases).mockRejectedValue(new Error('Network error 503'));
     vi.mocked(api.getSavingsSummary).mockRejectedValue(new Error('Network error 503'));
 
-    render(
-      <CurrencyProvider>
-        <SavingsView profileId="prof-1" />
-      </CurrencyProvider>
-    );
+    try {
+      render(
+        <CurrencyProvider>
+          <SavingsView profileId="prof-1" />
+        </CurrencyProvider>
+      );
 
-    await waitFor(() => {
-      expect(screen.getByText('Unable to Load Savings Journal')).toBeInTheDocument();
-      expect(screen.getByText(/Network error 503/)).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(screen.getByText('Unable to Load Savings Journal')).toBeInTheDocument();
+        expect(screen.getByText(/Network error 503/)).toBeInTheDocument();
+      });
 
-    // Verify retry button is present and clickable
-    const retryBtn = screen.getByRole('button', { name: /Retry Connection/i });
-    expect(retryBtn).toBeInTheDocument();
+      // Verify retry button is present and clickable
+      const retryBtn = screen.getByRole('button', { name: /Retry Connection/i });
+      expect(retryBtn).toBeInTheDocument();
 
-    // Re-resolve for retry
-    vi.mocked(api.getPurchases).mockResolvedValue([]);
-    vi.mocked(api.getSavingsSummary).mockResolvedValue({
-      totalSpentEur: 0,
-      totalSavedVsMsrpEur: 0,
-      totalSavedVsMedianEur: 0,
-      totalPurchases: 0,
-      monthly: []
-    });
+      // Re-resolve for retry
+      vi.mocked(api.getPurchases).mockResolvedValue([]);
+      vi.mocked(api.getSavingsSummary).mockResolvedValue({
+        totalSpentEur: 0,
+        totalSavedVsMsrpEur: 0,
+        totalSavedVsMedianEur: 0,
+        totalPurchases: 0,
+        monthly: []
+      });
 
-    await act(async () => {
-      fireEvent.click(retryBtn);
-    });
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
 
-    await waitFor(() => {
-      expect(screen.getByText('No purchases recorded yet')).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(screen.getByText('No purchases recorded yet')).toBeInTheDocument();
+      });
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 
   it('deletes purchase when delete button is confirmed', async () => {
