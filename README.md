@@ -3,8 +3,8 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.8.1-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-809%2F809%20Passed-emerald.svg)](./tests)
+[![Version](https://img.shields.io/badge/Version-2.8.2-blue.svg)](./package.json)
+[![Tests](https://img.shields.io/badge/Tests-815%2F815%20Passed-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -24,7 +24,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **IsThereAnyDeal (ITAD v2/v3)**: Primary batch aggregator covering 40+ official stores (Steam, Humble, Fanatical, GOG, GMG, Gamesplanet, WinGameStore, etc.) with verified historical records (Pacing: 1000ms delay, 200ms jitter, chunk-isolated error resilience).
 * **CheapShark True Multi-AppID Batching**: Public batch API covering 25+ official retailers (Steam, Green Man Gaming, Fanatical, GOG, Epic Games, GameBillet, etc.) without requiring an API key. Bundles **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`), handles pagination up to 3 pages, enriches Metacritic scores and review links, and gracefully re-enqueues on 429 backoff (Pacing: 1500ms delay, 250ms jitter).
 * **GG.deals**: Direct official retail and marketplace cross-verification with intra-source family conflict detection (`SOURCE_FAMILY_CONFLICT`, $\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms delay, 300ms jitter).
-* **AllKeyShop (Internal API via Solver)**: Structured keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.) with real-time voucher and merchant breakdowns. Strictly routed through an anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h intervals), exponential jitter (Pacing: 2500ms delay, 500ms jitter), pre-indexed 204k compressed seed catalog, 7-day automatic master catalog TTL, and on-demand manual catalog refresh.
+* **AllKeyShop (Internal API via Solver)**: Structured keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.) with real-time voucher and merchant breakdowns. Strictly routed through an anti-bot solver (Byparr / FlareSolverr) with optional proxy forwarding (`ALLKEYSHOP_PROXY_URL` for Webshare rotating proxies), adaptive check backoff (24h to 168h intervals), exponential jitter (Pacing: 2500ms delay, 500ms jitter), pre-indexed 204k compressed seed catalog, 7-day automatic master catalog TTL, and on-demand manual catalog refresh.
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
 * **Epoch-Aware Rate Limit Parsing**: Handles delta seconds, HTTP-dates, and Unix epoch timestamps (from Cloudflare `X-RateLimit-Reset` and `ratelimit-reset` headers).
@@ -138,7 +138,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (84 test files / 809 unit & integration tests)
+# 3. Run test suite (84 test files / 815 unit & integration tests)
 npm test
 
 # 4. Run TypeScript typecheck
@@ -179,17 +179,19 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 
 Comprehensive architectural, operational, and user documentation is maintained in [`docs/`](file:///D:/github/Pricetool/docs/):
 * [`docs/README.md`](file:///D:/github/Pricetool/docs/README.md) — Master documentation hub and sitemap.
-* [`docs/project-summary.md`](file:///D:/github/Pricetool/docs/project-summary.md) — Master technical specification, engines, and architecture (v2.7.0).
-* [`docs/project-logs.md`](file:///D:/github/Pricetool/docs/project-logs.md) — Complete release history, migrations 001–031, ADR-001–012, and incident post-mortems.
+* [`docs/project-summary.md`](file:///D:/github/Pricetool/docs/project-summary.md) — Master technical specification, engines, and architecture (v2.8.2).
+* [`docs/project-logs.md`](file:///D:/github/Pricetool/docs/project-logs.md) — Complete release history, migrations 001–033, ADR-001–013, and incident post-mortems.
 * [`docs/ideas-and-roadmap.md`](file:///D:/github/Pricetool/docs/ideas-and-roadmap.md) — Comprehensive innovation backlog (ML forecasting, budget cart optimizer, bundles).
 * [`docs/architecture.md`](file:///D:/github/Pricetool/docs/architecture.md) — System architecture, security posture, and runtime components.
-* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (all 16 tables, migrations 001–031), entity relations, and index designs.
+* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (all 16 tables, migrations 001–033), entity relations, and index designs.
 * [`docs/backup-restore.md`](file:///D:/github/Pricetool/docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, and disaster recovery.
 * [`docs/sources.md`](file:///D:/github/Pricetool/docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
 * [`docs/api-data-matrix.md`](file:///D:/github/Pricetool/docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
 * [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, ATL quarantine, and pricing error detection.
 * [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.3 mathematics, purchase journal, multi-currency, and view modes.
 * [`docs/development.md`](file:///D:/github/Pricetool/docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
-* [`docs/audit.md`](file:///D:/github/Pricetool/docs/audit.md) — Technical audit & verification scorecard (84 test suites, 797 tests passing).
-* [`PROJECT_SUMMARY.md`](file:///D:/github/Pricetool/PROJECT_SUMMARY.md) — Quick architectural summary for developers and AI agents.
+* [`docs/audit.md`](file:///D:/github/Pricetool/docs/audit.md) — Technical audit & verification scorecard (84 test suites, 815 tests passing).
+* [`CONTRIBUTING.md`](file:///D:/github/Pricetool/CONTRIBUTING.md) — Developer setup, coding standards, and pull request workflow.
+* [`SECURITY.md`](file:///D:/github/Pricetool/SECURITY.md) — Vulnerability reporting policy and security disclosures.
+* [`PROJECT_SUMMARY.md`](file:///D:/github/Pricetool/PROJECT_SUMMARY.md) — Quick architectural cheatsheet for developers and AI agents.
 * [`CHANGELOG.md`](file:///D:/github/Pricetool/CHANGELOG.md) — Complete release history and changes.

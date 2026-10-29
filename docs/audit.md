@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-A comprehensive technical and domain audit was conducted across the codebase following the release of **v2.8.0** and **v2.8.1**. All core components have been verified with **84 automated test suites (809 tests passing 100%)**, full TypeScript compilation (`tsc --noEmit`), and real-data edge-case validation.
+A comprehensive technical and domain audit was conducted across the codebase following the release of **v2.8.0** and **v2.8.2**. All core components have been verified with **84 automated test suites (815 tests passing 100%)**, full TypeScript compilation (`tsc --noEmit`), and real-data edge-case validation.
 
 ### Area Status Scorecard
 
@@ -30,7 +30,7 @@ A comprehensive technical and domain audit was conducted across the codebase fol
 | **Zero-Downtime Backup & DR** | **PASS** | Non-blocking online SQLite backup via `better-sqlite3` backup API, `PRAGMA wal_checkpoint(PASSIVE)`, `PRAGMA quick_check`, rolling 7-day retention, and UI 1-click snapshot button. |
 | **Purchase Journal & Savings** | **PASS** | "Megvettem" purchase logging, baseline MSRP and typical sale median snapshots, and realized savings dashboard analytics. |
 | **Live Multi-Currency** | **PASS** | On-the-fly currency switching (EUR, USD, GBP, CAD, AUD, HUF) with integer separation for HUF (`3 990 Ft`) and 100% normalized EUR database storage. |
-| **Testing Coverage** | **PASS** | **84 test files / 809 automated unit & integration tests passing (100%) cleanly in 79s**. |
+| **Testing Coverage** | **PASS** | **84 test files / 815 automated unit & integration tests passing (100%) cleanly in 97s**. |
 
 ---
 
@@ -167,5 +167,5 @@ An independent, senior engineering audit and code review of the Pricetool archit
 ### 4.2 Full Verification Matrix
 
 - **TypeScript Compilation (`tsc --noEmit`)**: 0 errors
-- **Automated Test Suite (`vitest run`)**: **84 test suites, 814 tests passing (100%)**
-- **Regression Check**: Zero regressions detected across existing tests (all 809 previous tests retained and passing).
+- **Automated Test Suite (`vitest run`)**: **84 test suites, 815 tests passing (100%)**
+- **Regression Check**: Zero regressions detected across existing tests (all 814 previous tests retained and passing).

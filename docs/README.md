@@ -1,6 +1,6 @@
 # 📚 PriceSteamTool — Documentation Hub & Sitemap
 
-Welcome to the comprehensive documentation directory for **PriceSteamTool** (v2.7.0). This directory serves as the Single Source of Truth for system architecture, data models, source adapters, synchronization mechanics, project logs, release history, and future development roadmaps.
+Welcome to the comprehensive documentation directory for **PriceSteamTool** (v2.8.2). This directory serves as the Single Source of Truth for system architecture, data models, source adapters, synchronization mechanics, project logs, release history, and future development roadmaps.
 
 ---
 
@@ -10,7 +10,7 @@ Welcome to the comprehensive documentation directory for **PriceSteamTool** (v2.
 | Document | Description | Target Audience |
 | :--- | :--- | :--- |
 | [**`project-summary.md`**](file:///D:/github/Pricetool/docs/project-summary.md) | **Master Project Summary & Architecture Reference**: Complete technical specification, core intelligence engines (Deal Score, Pricing Errors, Purchase Advice, Savings Tracker), adapter matrix, 16 SQLite tables, and operational guide. | Developers, Architects, AI Assistants |
-| [**`project-logs.md`**](file:///D:/github/Pricetool/docs/project-logs.md) | **Comprehensive Project Logs & Engineering Ledger**: Complete version release history (v1.0.0 through v2.7.0), full database migration ledger (001–031), Architectural Decision Records (ADR-001 through ADR-012), incident post-mortems, and test suite evolution. | Maintainers, Contributors, Tech Leads |
+| [**`project-logs.md`**](file:///D:/github/Pricetool/docs/project-logs.md) | **Comprehensive Project Logs & Engineering Ledger**: Complete version release history (v1.0.0 through v2.8.2), full database migration ledger (001–033), Architectural Decision Records (ADR-001 through ADR-013), incident post-mortems, and test suite evolution. | Maintainers, Contributors, Tech Leads |
 | [**`ideas-and-roadmap.md`**](file:///D:/github/Pricetool/docs/ideas-and-roadmap.md) | **Ideas, Concepts & Strategic Roadmap**: Categorized innovation ledger covering ML sale forecasting, publisher fake discount tracking, HowLongToBeat value metrics, ProtonDB badges, budget cart optimization, active bundle aggregators, Telegram bot alerts, and offsite backups. | Product Owners, Developers, Visionaries |
 
 ---
@@ -38,7 +38,7 @@ Welcome to the comprehensive documentation directory for **PriceSteamTool** (v2.
 | [**`user-guide.md`**](file:///D:/github/Pricetool/docs/user-guide.md) | **User & Intelligence Guide**: Explains the 2D pricing engine, Deal Score v2.3 formula, the 4 pillars ($S_{\text{atl}}$, $S_{\text{disc}}$, $S_{\text{hist}}$, $S_{\text{mkt}}$), score tiers, purchase verdicts, and price volatility. | End Users, Gamers, Operators |
 | [**`backup-restore.md`**](file:///D:/github/Pricetool/docs/backup-restore.md) | **Database Backup & Disaster Recovery Guide**: Zero-downtime online SQLite backup engine (`better-sqlite3` backup API + `wal_checkpoint`), integrity verification (`quick_check`), rolling 7-day retention, and step-by-step restore instructions. | System Administrators |
 | [**`development.md`**](file:///D:/github/Pricetool/docs/development.md) | **Development & Deployment Guide**: Local environment setup, test runner commands, Docker orchestration, environment variables reference, and GitHub Actions CI/CD pipeline. | Contributors, Maintainers |
-| [**`audit.md`**](file:///D:/github/Pricetool/docs/audit.md) | **Technical Audit & Validation Report**: Verification scorecard across architecture, scoring formulas, self-healing anomalies, backups, multi-currency, and the 82 automated test suites (776 tests passing). | Quality Assurance, Auditors |
+| [**`audit.md`**](file:///D:/github/Pricetool/docs/audit.md) | **Technical Audit & Validation Report**: Verification scorecard across architecture, scoring formulas, self-healing anomalies, backups, multi-currency, and the 84 automated test suites (815 tests passing). | Quality Assurance, Auditors |
 | [**`real-world-validation.md`**](file:///D:/github/Pricetool/docs/real-world-validation.md) | **Real-World Validation**: Historical test results, real catalog edge cases, and performance benchmarks under 2,000+ item workloads. | Testers, Data Scientists |
 
 ---

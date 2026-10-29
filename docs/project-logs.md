@@ -1,14 +1,14 @@
 # 📜 PriceSteamTool — Comprehensive Project Logs & Engineering Ledger
 
 > **Master Engineering Chronicle, Migration History, ADRs & Post-Mortems**  
-> This document records the complete development history, version release logs, database migration ledger, architectural decisions, and critical incident post-mortems for **PriceSteamTool** (v1.0.0 through v2.8.0).
+> This document records the complete development history, version release logs, database migration ledger, architectural decisions, and critical incident post-mortems for **PriceSteamTool** (v1.0.0 through v2.8.2).
 
 ---
 
 ## 📑 Table of Contents
 
-1. [Version Release History & Feature Logs (v1.0.0 – v2.8.0)](#1-version-release-history--feature-logs)
-2. [Complete Database Migration Ledger (001 – 031)](#2-complete-database-migration-ledger)
+1. [Version Release History & Feature Logs (v1.0.0 – v2.8.2)](#1-version-release-history--feature-logs)
+2. [Complete Database Migration Ledger (001 – 033)](#2-complete-database-migration-ledger)
 3. [Architectural Decision Records (ADRs)](#3-architectural-decision-records)
 4. [Incident Post-Mortems & Engineering Breakthroughs](#4-incident-post-mortems--engineering-breakthroughs)
 5. [Test Suite Evolution & Quality Ledger](#5-test-suite-evolution--quality-ledger)
@@ -16,6 +16,32 @@
 ---
 
 ## 1. Version Release History & Feature Logs
+
+### 🚀 v2.8.2 — Engineering Stabilization, Security Hardening & Proxy Routing (2026-10-28)
+* **AllKeyShop Proxy Forwarding & Anti-Bot Shielding**:
+  * Added `ALLKEYSHOP_PROXY_URL` parameter to route FlareSolverr requests through rotating HTTP/SOCKS5 proxies (such as Webshare `p.webshare.io:80`), completely shielding host IPs from Cloudflare WAF bans.
+  * Added `ALLKEYSHOP_CHUNK_SIZE`, `ALLKEYSHOP_CHUNK_PAUSE_MS`, `ALLKEYSHOP_DELAY_MS`, and `ALLKEYSHOP_JITTER_MS` for human-like pacing during large catalog scrapes.
+  * Configurable batch ceilings via `ALLKEYSHOP_MAX_GAMES=50` (default) and `ALLKEYSHOP_MAX_GAMES=0` (unlimited full catalog builds).
+* **Security Hardening (CVE/CWE Mitigations)**:
+  * CWE-1236: CSV Formula Injection protection prepending single quote to formula trigger characters (`=`, `+`, `-`, `@`).
+  * CWE-918: Strict Discord webhook URL allowlisting and validation preventing internal SSRF attempts.
+  * CWE-400/770: In-memory IP rate limiter memory bounds (`MAX_ENTRIES = 5000`) with LRU eviction preventing heap exhaustion.
+* **Engineering Stabilization & Bug Fixes**:
+  * URL encoded `steamId64` parameters preventing path traversal.
+  * Robust unannounced and textual release date handling in `normalizer.ts`.
+  * Clamped Discord 429 retry-after backoffs and added automated retry.
+  * Fixed pagination parameters and `totalPages` calculation on `/api/v1/alerts`.
+  * Expanded international currency normalization (TRY, KRW, PHP, INR, VND, RUB, UAH).
+  * Test suite expanded to **84 test files, 815 tests (100% passing)**.
+
+### 🚀 v2.8.1 — AllKeyShop Auto-TTL, On-Demand Catalog Refresh & Data Safety Backup (2026-10-20)
+* **AllKeyShop 7-Day Auto TTL & On-Demand Catalog Refresh**:
+  * Enforced automatic 7-day catalog expiration via `isCatalogFresh()`.
+  * Added `POST /api/sources/allkeyshop/refresh-catalog` endpoint and interactive UI refresh button.
+* **Point-in-Time Database Backup in Data Safety Tab**:
+  * Added 1-click "Backup DB" manual action button with live status in `AnomaliesView.tsx`.
+* **Database Optimization (Migration 033)**:
+  * Added composite index `idx_offers_game_valid_anomaly` on `offers(game_id, is_valid, is_likely_pricing_error)`.
 
 ### 🚀 v2.8.0 — Multi-Buyer Filters, CheapShark Adaptive Pacing & Craft Polish (2026-10-20)
 * **Multi-Buyer Filters & Game Selection Assistance**:
@@ -241,6 +267,8 @@ The database migrations are managed sequentially in `src/server/db/migrations.ts
 | **029** | `029_anomaly_feedback_loop` | Added `user_feedback` and `feedback_at` to `pricing_errors`; created `idx_pricing_errors_feedback`. | User confirmation/false-positive learning loop. |
 | **030** | `030_purchases_and_savings_tracker` | Created `purchases` table with snapshots for MSRP, typical median, and savings; created indexing. | Realized savings journal. |
 | **031** | `031_perf_indexes_and_best_deal_optimization` | Created high-performance composite indexes for sync runs, pricing error resolution, price history, and best deals. | Zero-lock query optimization. |
+| **032** | `032_restore_uninvalidated_keyshop_offers` | Reconciled and restored valid active keyshop offers inadvertently marked invalid during prior migration sweeps. | Restores legitimate keyshop pricing. |
+| **033** | `033_add_offers_game_valid_anomaly_index` | Added composite index `idx_offers_game_valid_anomaly` on `offers(game_id, is_valid, is_likely_pricing_error)`. | Accelerates candidate selection subqueries. |
 
 ---
 
@@ -352,6 +380,11 @@ The database migrations are managed sequentially in `src/server/db/migrations.ts
 * **Root Cause**: The seeding pipeline inserted price history records with hardcoded `is_pricing_error = 0`.
 * **Resolution**: Routed all historical price points through `evaluatePriceMovement` and `detectPricingError` during seeding, quarantining suspicious drops into `pricing_errors`.
 
+### Incident 7: Residential IP Rate Limit & Cloudflare Ban during Full AllKeyShop Catalog Sync (Fixed in v2.8.2)
+* **Symptom**: Initiating a full sync on a 1,288-game wishlist triggered Cloudflare WAF rate limiting and residential IP bans against `allkeyshop.com`.
+* **Root Cause**: Force full refresh previously queued all 1,288 games in an unbounded run from the host's single home IP without proxy forwarding or inter-chunk pauses.
+* **Resolution**: Added `ALLKEYSHOP_PROXY_URL` to route FlareSolverr requests through rotating proxies (such as Webshare `p.webshare.io:80`), introduced chunked pacing (`ALLKEYSHOP_CHUNK_SIZE=25`, `ALLKEYSHOP_CHUNK_PAUSE_MS=180000`, `ALLKEYSHOP_JITTER_MS=1500`), and set `ALLKEYSHOP_MAX_GAMES=50` default ceiling while supporting `ALLKEYSHOP_MAX_GAMES=0` for safely spaced initial catalog seeding.
+
 ---
 
 ## 5. Test Suite Evolution & Quality Ledger
@@ -362,7 +395,8 @@ The database migrations are managed sequentially in `src/server/db/migrations.ts
 * **v2.0.0**: 45 test files, 410 tests.
 * **v2.3.0**: 68 test files, 624 tests.
 * **v2.5.0**: 74 test files, 680 tests.
-* **v2.7.0 (Current)**: **82 test files, 776 automated tests passing cleanly (100%) in 106s**.
+* **v2.7.0**: 82 test files, 776 automated tests.
+* **v2.8.2 (Current)**: **84 test files, 815 automated tests passing cleanly (100%) in 97s**.
 
 ### Key Test Suites & Regressions Guarded
 1. `tests/unit/dealScore.test.ts` (51 tests): Verifies 4 pillars, diminishing-returns curve, provisional caps, score 100 reservation.

@@ -1,8 +1,8 @@
 # 🎮 PriceSteamTool — Master Project Summary & Architecture Reference
 
 > **Comprehensive Technical Specification & System Overview**  
-> **Version**: 2.8.1  
-> **Status**: Production Ready | 84 Test Suites | 809 Tests Passing (100%)  
+> **Version**: 2.8.2  
+> **Status**: Production Ready | 84 Test Suites | 815 Tests Passing (100%)  
 > **Runtime**: Node.js 22 LTS, Fastify 5, React 19, Vite, Better-SQLite3 (WAL Mode)
 
 ---
@@ -155,7 +155,7 @@ Precision pricing-error detector focused on high-confidence glitches and extreme
 | **IsThereAnyDeal** | Official REST v2 / v3 | 200 items / req | 1000 ms | 200 ms | 40+ official verified storefronts, chunk-isolated failure resilience |
 | **CheapShark** | Public REST API | 25 AppIDs / comma req | 1500 ms | 250 ms | Multi-AppID batching, pagination (up to 3 pages), Metacritic enrichment |
 | **GG.deals** | Developer JSON API | Per-game & Batch | 1500 ms | 300 ms | Hybrid official + marketplace deal aggregator, `SOURCE_FAMILY_CONFLICT` detection |
-| **AllKeyShop** | Internal JSON API | Per-title queue | 2500 ms | 500 ms | Solver-mediated (Byparr / FlareSolverr), adaptive check backoff (24h–168h), fair round-robin |
+| **AllKeyShop** | Internal JSON API | Per-title queue | 2500 ms | 500 ms | Solver-mediated (Byparr / FlareSolverr) with proxy forwarding (`ALLKEYSHOP_PROXY_URL`), configurable chunk pacing (`ALLKEYSHOP_CHUNK_SIZE`, `ALLKEYSHOP_CHUNK_PAUSE_MS`), adaptive check backoff (24h–168h), and optional unlimited full scrape (`ALLKEYSHOP_MAX_GAMES=0`) |
 
 * **Circuit Breakers**: 4-State finite state machine (`NORMAL` → `BACKOFF` → `PAUSED` → `COOLDOWN` → `NORMAL`).
 * **Epoch-Aware Header Parser**: Automatically parses integer seconds, HTTP-dates, and Unix epoch timestamps from Cloudflare rate-limit headers.
@@ -234,10 +234,10 @@ Precision pricing-error detector focused on high-confidence glitches and extreme
 
 ## 🧪 7. Automated Testing & Verification Suite
 
-* **Total Test Suites**: 82 test files.
-* **Total Automated Tests**: 776 tests.
+* **Total Test Suites**: 84 test files.
+* **Total Automated Tests**: 815 tests.
 * **Pass Rate**: **100% (0 failures)**.
-* **Execution Time**: ~106 seconds (sequential single-process execution via Vitest).
+* **Execution Time**: ~97 seconds (sequential single-process execution via Vitest).
 * **Test Architecture**:
   * `tests/unit/`: Domain scoring, pricing error heuristics, normalizers, adapter logic, backup engine.
   * `tests/integration/`: End-to-end REST API validation, CSV exports, family sharing, database migrations.
@@ -252,7 +252,7 @@ Precision pricing-error detector focused on high-confidence glitches and extreme
 # Typecheck TypeScript codebase
 npm.cmd run typecheck       # tsc --noEmit
 
-# Run complete test suite (82 files, 776 tests)
+# Run complete test suite (84 files, 815 tests)
 npm.cmd test                # vitest run --fileParallelism=false
 
 # Run server or client tests separately

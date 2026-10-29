@@ -5,7 +5,7 @@
 
 ---
 
-## 📌 TL;DR Overview (v2.8.1)
+## 📌 TL;DR Overview (v2.8.2)
 
 PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Price Aggregator and Deal Intelligence platform designed to monitor 2,000+ games reliably without aggressive scraping or IP bans:
 
@@ -20,7 +20,7 @@ PriceSteamTool is an open-source, privacy-first, self-hosted Steam Wishlist Pric
   - **IsThereAnyDeal (ITAD v2/v3):** High-batch official store aggregator for 40+ stores with chunk-isolated failure resilience (Pacing: 1000ms, jitter 200ms).
   - **CheapShark:** True multi-AppID comma-separated batching (25 App IDs per request, `pageSize=60`, up to 3 pages pagination, Metacritic review/score enrichment, 429 single re-enqueue backoff, Pacing: 1500ms, jitter 250ms).
   - **GG.deals:** Hybrid official + marketplace deal aggregator with `SOURCE_FAMILY_CONFLICT` detection ($\ge 12.0\times$ or sub-euro $\ge 3.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms, jitter 300ms).
-  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, dual-layer page & API fallback, phantom 0.02 EUR guardrails, solver error propagation, 7-day automatic master catalog TTL, and on-demand refresh (Pacing: 2500ms, jitter 500ms).
+  - **AllKeyShop:** Unofficial internal JSON endpoints via anti-bot solver (Byparr / FlareSolverr) with proxy forwarding support (`ALLKEYSHOP_PROXY_URL` for Webshare rotating proxies), configurable chunk pacing (`ALLKEYSHOP_CHUNK_SIZE`, `ALLKEYSHOP_CHUNK_PAUSE_MS`), adaptive check backoff (24h to 168h), fair round-robin scheduling, exponential jitter, dual-layer page & API fallback, phantom 0.02 EUR guardrails, solver error propagation, 7-day automatic master catalog TTL, and on-demand refresh (Pacing: 2500ms, jitter 500ms).
 - **Canonical Type System:** Single Source of Truth in [`src/shared/types.ts`](file:///D:/github/Pricetool/src/shared/types.ts), defining unified models (`Game`, `Offer`, `PricingErrorEvaluation`, `PricingErrorType`, `PriceEventType`, `DealScoreBreakdown`, `DealVerdict`, `WishlistEntry`, `PurchaseEntry`).
 
 ---
@@ -92,7 +92,7 @@ Precision pricing-error detector focused on high-confidence glitches and extreme
 
 - **Engine:** SQLite 3 via `better-sqlite3` in WAL mode (`PRAGMA journal_mode = WAL`, `PRAGMA busy_timeout = 5000`, `PRAGMA foreign_keys = ON`, `PRAGMA cache_size = -64000`).
 - **Disaster Recovery:** Online non-blocking SQLite backup engine (`better-sqlite3` `db.backup()`) with `PRAGMA wal_checkpoint(PASSIVE)`, automatic `PRAGMA quick_check` integrity verification, and rolling 7-day retention in `/data/backups/`.
-- **Migrations (001–031):** Managed sequentially via `src/server/db/migrations.ts`:
+- **Migrations (001–033):** Managed sequentially via `src/server/db/migrations.ts`:
   - `027_add_family_sharing_exclusions`: Added `family_sharing_exclusions` table and Steam Category 62 checking.
   - `028_composite_indexes_and_fx_audit`: Added composite indexes (`idx_wishlist_profile_active_priority`, `idx_offers_game_valid_error_price`), stored `fx_rate` and `fx_rate_timestamp`, created `sync_runs` table.
   - `029_anomaly_feedback_loop`: Added user feedback columns to `pricing_errors` and index.
@@ -110,7 +110,7 @@ Precision pricing-error detector focused on high-confidence glitches and extreme
 npm run typecheck      # tsc --noEmit
 
 # 2. Automated Test Suite
-npm test               # vitest run --fileParallelism=false (82 test files, 776 tests passing 100%)
+npm test               # vitest run --fileParallelism=false (84 test files, 815 tests passing 100%)
 npm run test:server    # vitest run --project server
 npm run test:client    # vitest run --project client
 npm run test:sources   # Live network adapter diagnostic test

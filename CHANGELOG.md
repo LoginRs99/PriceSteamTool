@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.8.2] - 2026-10-28
 
+### Added
+* **AllKeyShop Proxy Forwarding Support via FlareSolverr**:
+  * Added `ALLKEYSHOP_PROXY_URL` (`ALLKEYSHOP_PROXY`) configuration parameter to forward HTTP/SOCKS5 rotating proxies (e.g., Webshare `http://user:pass@p.webshare.io:80`) directly through FlareSolverr's `/v1` request payload.
+  * Masks host residential IPs during background key enrichment, completely preventing Cloudflare IP bans and WAF challenges.
+* **Configurable Batching & Stealth Full Scrape Support**:
+  * Added `ALLKEYSHOP_CHUNK_SIZE`, `ALLKEYSHOP_CHUNK_PAUSE_MS`, `ALLKEYSHOP_DELAY_MS`, and `ALLKEYSHOP_JITTER_MS` to pace large scrapes with human-like timing.
+  * Added support for `ALLKEYSHOP_MAX_GAMES=0` allowing users to explicitly opt into unlimited catalog scraping for initial full database seeding across 1,000+ games.
+
 ### Security
 * **CWE-1236 CSV Formula Injection Mitigation**:
   * Sanitized CSV exports in `escapeCsvCell` (`src/server/routes/api.ts`) by prepending a single quote (`'`) to values starting with formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`).
