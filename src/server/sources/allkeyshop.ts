@@ -364,6 +364,11 @@ export async function fetchWithAllkeyshopSolver<T = any>(
     returnOnlyCookies: false
   };
 
+  const proxyUrl = config.allkeyshopProxyUrl?.trim();
+  if (proxyUrl) {
+    payload.proxy = { url: proxyUrl };
+  }
+
   if (validCookies.length > 0) {
     payload.cookies = validCookies;
   }

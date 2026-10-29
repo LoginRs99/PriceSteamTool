@@ -12,6 +12,7 @@ import { config } from '../../src/server/config/index.js';
 
 describe('AllKeyShop API Wrapper & Solver Resilience Suite', () => {
   const originalSolverUrl = config.allkeyshopSolverUrl;
+  const originalProxyUrl = config.allkeyshopProxyUrl;
 
   beforeEach(() => {
     config.allkeyshopSolverUrl = 'http://localhost:8191/v1';
@@ -20,6 +21,7 @@ describe('AllKeyShop API Wrapper & Solver Resilience Suite', () => {
 
   afterEach(() => {
     config.allkeyshopSolverUrl = originalSolverUrl;
+    config.allkeyshopProxyUrl = originalProxyUrl;
     vi.restoreAllMocks();
   });
 
@@ -108,6 +110,30 @@ describe('AllKeyShop API Wrapper & Solver Resilience Suite', () => {
 
     const result = await fetchWithAllkeyshopSolver<typeof payload>('https://example.com/test');
     expect(result).toEqual(payload);
+  });
+
+  it('forwards configured proxy URL to Byparr / FlareSolverr payload', async () => {
+    config.allkeyshopProxyUrl = 'http://user:pass@p.webshare.io:80';
+    let capturedBody: any;
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      capturedBody = JSON.parse(options.body as string);
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'ok',
+          solution: {
+            status: 200,
+            response: '{"ok": true}'
+          }
+        })
+      };
+    });
+
+    await fetchWithAllkeyshopSolver('https://example.com/test');
+    expect(capturedBody).toBeDefined();
+    expect(capturedBody.proxy).toEqual({ url: 'http://user:pass@p.webshare.io:80' });
   });
 
   // =========================================================================
