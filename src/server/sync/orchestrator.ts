@@ -703,11 +703,9 @@ export class SyncOrchestrator {
       : games
           .filter(g => isAllkeyshopDue(g))
           .sort((a, b) => computeWishlistScrapePriority(b) - computeWishlistScrapePriority(a));
-    // Safety Guard: NEVER allow unbounded scraping (maxGames = 0) against Cloudflare-protected AllKeyShop.
-    // Scraping 1,000+ games sequentially from a single IP triggers Cloudflare IP bans.
-    // Clamp enrichment to a safe ceiling (default 50-75 games max, prioritizing target prices & top wishlist).
-    const configuredCap = config.allkeyshopMaxGames > 0 ? config.allkeyshopMaxGames : 50;
-    const maxGames = forceRefresh ? Math.min(configuredCap, 75) : configuredCap;
+    // If user configured ALLKEYSHOP_MAX_GAMES (e.g. 0 for full baseline or 1500), respect it.
+    // Default is 50 in config/index.ts.
+    const maxGames = config.allkeyshopMaxGames;
     const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
       ? dueGames.slice(0, maxGames) 
       : dueGames;
