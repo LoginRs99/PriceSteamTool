@@ -12,7 +12,9 @@ This document provides a thorough technical analysis of each game price source, 
 | **IsThereAnyDeal (ITAD)** | **Yes (REST v2 / v3)** | Free API Key | **Yes (up to 200 IDs)** | 1000ms (200ms jitter) | EU / Global / Multi-country | **Yes** (Built-in `historyLow`) | No | **Primary Source (Official Stores)** |
 | **CheapShark** | **Yes (Public REST API)** | None (`User-Agent` req.) | **Yes (25 IDs/req batch)** | 1500ms (250ms jitter) | US / EU / Global | **Yes** (`cheapestPriceEver`) | No | **Official Stores + Metacritic** |
 | **GG.deals** | **Yes (Developer API / JSON)**| Optional / Free Key | **Yes (Batch & per-game)** | 1500ms (300ms jitter) | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Official + Marketplace Keyshops** |
-| **AllKeyShop** | **No (Internal JSON API)** | None (Anti-bot solver) | Per-title queue | 2500ms (500ms jitter) | EU / Global / Key types | **Yes** (Lowest keyshop/official) | Solver Required | **Comprehensive Keyshop Coverage** |
+| **NEXARDA™** | **Yes (REST API v3)** | None (Public) | Per-game direct find & search | 250ms (50ms jitter) | Global / EU / Multi-currency | **Yes** (Historical low & vouchers) | No | **Official + Marketplace Keyshop Aggregator** |
+| **SuperDuperBundle** | **Yes (REST API v1)** | None (Public) | Per-game direct Steam lookup | 500ms (100ms jitter) | Global / Multi-store | **No** (Current store prices) | No | **Fast Secondary Store & Key Aggregator** |
+| *AllKeyShop (Deactivated)* | No (Internal JSON API) | None (Anti-bot solver) | Per-title queue | 2500ms (500ms jitter) | EU / Global / Key types | Yes | Solver Required | *Deactivated in v2.9.0 (backed up to branch)* |
 
 ---
 
@@ -130,6 +132,7 @@ Sync Orchestrator (Parallel Multi-Source Execution)
   │     └── CheapShark Batch (Batch: 25 AppIDs comma-separated, Delay: 1500ms, Jitter: 250ms)
   │
   └── Selective Secondary Pool:
-        ├── GG.deals Worker  (Batch/Per-game, Delay: 1500ms, Jitter: 300ms)
-        └── AllKeyShop Queue (Solver required, Delay: 2500ms, Jitter: 500ms, Adaptive 24h-168h)
+        ├── GG.deals Worker       (Batch/Per-game, Delay: 1500ms, Jitter: 300ms)
+        ├── NEXARDA Worker        (Per-game find/search, Delay: 250ms, Jitter: 50ms)
+        └── SuperDuperBundle      (Per-game lookup, Delay: 500ms, Jitter: 100ms)
 ```

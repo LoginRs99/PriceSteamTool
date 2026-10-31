@@ -5,6 +5,30 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-10-31
+
+### Added
+* **NEXARDA™ API v3 Source Adapter**:
+  * Implemented dedicated adapter querying NEXARDA's public REST API (`/api/v3/find` and `/api/v3/search`) for multi-retailer key and official store prices across 20+ verified stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.).
+  * Automatic coupon/voucher promo code extraction, currency normalization, and polite pacing (`NEXARDA_DELAY_MS=250`).
+* **SuperDuperBundle API v1 Source Adapter**:
+  * Implemented fast secondary keyshop and store aggregator adapter querying `/api/v1/lookup` with direct Steam App ID resolution, store mapping, and circuit breaker backoff protection (`SUPERDUPERBUNDLE_DELAY_MS=500`).
+* **Global Keyboard Shortcuts Cheat Sheet Modal (`KeyboardShortcutsModal.tsx`)**:
+  * Added quick-access modal triggered via `?`, `Shift + /`, or the navigation bar button documenting list navigation (`j`/`k`, `/`, `Esc`), view tabs (`1`–`5`), and actions (`r`).
+* **Real-time Upstream Source Health Indicator**:
+  * Added live status dot in the top navigation bar reflecting upstream adapter states: green pulse when all sources are operating normally, amber alert when any source is in backoff or cooldown.
+* **Voucher Promo Code Badges**:
+  * Displayed active coupon codes (`🎟️ CODE`) directly on `GameCard` and `CompactListView` rows so users can see at a glance when a winning deal requires a promo code.
+* **Market Depth Indicator**:
+  * Added store count indicator (`(+N offers)`) next to the winning merchant tag on game cards and rows.
+
+### Changed
+* **AllKeyShop Integration Deactivated**:
+  * Deactivated AllKeyShop background scraping in the active release branch to eliminate Cloudflare solver timeouts and rate-limiting issues; existing integration logic preserved in dedicated branch `backup/allkeyshop-integration`.
+  * Updated `AllKeyShopMatchSelector.tsx` to clearly indicate deactivation while retaining custom override compatibility.
+* **Modal Aesthetics & Transition Smoothing**:
+  * Smoothed modal borders and replaced bounce transitions with pure deceleration curves (`--transition-smooth`).
+
 ## [2.8.2] - 2026-10-28
 
 ### Added

@@ -3,7 +3,7 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](https://opensource.org/license/mit)
-[![Version](https://img.shields.io/badge/Version-2.8.2-blue.svg)](./package.json)
+[![Version](https://img.shields.io/badge/Version-2.9.0-blue.svg)](./package.json)
 [![Tests](https://img.shields.io/badge/Tests-Vitest%20suite-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
@@ -24,7 +24,9 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **IsThereAnyDeal (ITAD v2/v3)**: Primary batch aggregator covering 40+ official stores (Steam, Humble, Fanatical, GOG, GMG, Gamesplanet, WinGameStore, etc.) with verified historical records (Pacing: 1000ms delay, 200ms jitter, chunk-isolated error resilience).
 * **CheapShark True Multi-AppID Batching**: Public batch API covering 25+ official retailers (Steam, Green Man Gaming, Fanatical, GOG, Epic Games, GameBillet, etc.) without requiring an API key. Bundles **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`), handles pagination up to 3 pages, enriches Metacritic scores and review links, and gracefully re-enqueues on 429 backoff (Pacing: 1500ms delay, 250ms jitter).
 * **GG.deals**: Direct official retail and marketplace cross-verification with intra-source family conflict detection (`SOURCE_FAMILY_CONFLICT`, $\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms delay, 300ms jitter).
-* **AllKeyShop (Internal API via Solver)**: Structured keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.) with real-time voucher and merchant breakdowns. Strictly routed through an anti-bot solver (Byparr / FlareSolverr) with optional proxy forwarding (`ALLKEYSHOP_PROXY_URL` for Webshare rotating proxies), adaptive check backoff (24h to 168h intervals), exponential jitter (Pacing: 2500ms delay, 500ms jitter), pre-indexed 204k compressed seed catalog, 7-day automatic master catalog TTL, and on-demand manual catalog refresh.
+* **NEXARDA™ API v3**: Multi-retailer price aggregator adapter covering 20+ verified official and marketplace stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.) via public REST API (`/api/v3/find` and `/api/v3/search`) with automatic voucher code extraction, currency normalization, and polite pacing (`NEXARDA_DELAY_MS=250`).
+* **SuperDuperBundle API v1**: Lightweight secondary aggregator querying `/api/v1/lookup` with direct Steam App ID resolution, store mapping, voucher codes, and circuit breaker protection (`SUPERDUPERBUNDLE_DELAY_MS=500`).
+* **AllKeyShop (Deactivated / Archived to Backup)**: Previously used for keyshop scraping; deactivated in v2.9.0 to eliminate Cloudflare solver timeouts and rate limits. The complete integration is preserved in branch `backup/allkeyshop-integration`.
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
 * **Epoch-Aware Rate Limit Parsing**: Handles delta seconds, HTTP-dates, and Unix epoch timestamps (from Cloudflare `X-RateLimit-Reset` and `ratelimit-reset` headers).
@@ -82,7 +84,9 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **2 Ergonomic, High-Productivity View Modes**:
   * 📄 **Compact List View**: Streamlined horizontal row layout with cover thumbnail, full title, prices, store badge, deal score, and family status. Perfect for high-density scanning of 2,000+ games.
   * 🔲 **Grid View**: Visual card layout with cover artwork, discount percentage badge, Deal Score tier badge, and direct store jump buttons.
-* **Full Keyboard Accessibility & Zero Layout Shift**: Instant view switching with cached layouts, full keyboard navigation (`Tab`, `Enter`, `Escape`), and accessible high-contrast design.
+* **Full Keyboard Accessibility & Global Cheat Sheet Modal**: Instant view switching, list navigation (`j`/`k`, `/`, `Esc`), tab switching (`1`–`5`), sync dialog (`r`), and dedicated keyboard shortcuts cheat sheet modal triggered via `?` or the navbar help button.
+* **Voucher Promo Code Badges & Market Depth Indicators**: Direct display of active winning voucher codes (`🎟️ CODE`) and merchant offer count depth (`(+N offers)`) on both Grid Game Cards and Compact List Rows.
+* **Live Upstream Source Health Indicator**: Real-time status dot in the navigation bar showing green when all upstream sources are healthy and amber when any adapter enters backoff or cooldown.
 * **High-Capacity Pagination**: Adjustable page limits (24, 50, 100, 200 items per page) and persistent user view preferences via `localStorage`.
 
 ### 7. Anti-Rate-Limit v1 REST API & Batch Pricing

@@ -35,10 +35,10 @@ This document details the synchronization workflow, queue orchestrator, circuit 
                                       │
                                       ▼
                     ┌───────────────────────────────────┐
-                    │   AllKeyShop Queue (Secondary)    │
-                    │   - Solver Required (Byparr)      │
-                    │   - Adaptive Check (24h - 168h)   │
-                    │   - Pacing: 2.5s + Jitter: 500ms  │
+                    │   NEXARDA & SDB (Secondary)       │
+                    │   - Direct API v3/v1 Lookup       │
+                    │   - Voucher code support          │
+                    │   - Pacing: 250ms - 500ms         │
                     └─────────────────┬─────────────────┘
                                       │
                                       ▼
