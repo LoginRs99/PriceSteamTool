@@ -24,8 +24,8 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **IsThereAnyDeal (ITAD v2/v3)**: Primary batch aggregator covering 40+ official stores (Steam, Humble, Fanatical, GOG, GMG, Gamesplanet, WinGameStore, etc.) with verified historical records (Pacing: 1000ms delay, 200ms jitter, chunk-isolated error resilience).
 * **CheapShark True Multi-AppID Batching**: Public batch API covering 25+ official retailers (Steam, Green Man Gaming, Fanatical, GOG, Epic Games, GameBillet, etc.) without requiring an API key. Bundles **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`), handles pagination up to 3 pages, enriches Metacritic scores and review links, and gracefully re-enqueues on 429 backoff (Pacing: 1500ms delay, 250ms jitter).
 * **GG.deals**: Direct official retail and marketplace cross-verification with intra-source family conflict detection (`SOURCE_FAMILY_CONFLICT`, $\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms delay, 300ms jitter).
-* **NEXARDA™ API v3**: Multi-retailer price aggregator adapter covering 20+ verified official and marketplace stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.) via public REST API (`/api/v3/find` and `/api/v3/search`) with automatic voucher code extraction, currency normalization, and polite pacing (`NEXARDA_DELAY_MS=250`).
-* **SuperDuperBundle API v1**: Lightweight secondary aggregator querying `/api/v1/lookup` with direct Steam App ID resolution, store mapping, voucher codes, and circuit breaker protection (`SUPERDUPERBUNDLE_DELAY_MS=500`).
+* **NEXARDA™ API v3**: Multi-retailer price aggregator adapter covering 20+ verified official and marketplace stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.) via public REST API (`/api/v3/find` and `/api/v3/search`) with automatic voucher code extraction, currency normalization, and polite pacing (`NEXARDA_DELAY_MS=500`).
+* **SuperDuperBundle API v1**: High-speed secondary aggregator querying `/api/v1/lookup` in 50-game batches with direct Steam App ID resolution, store mapping, voucher codes, circuit breaker protection, and batch resilience (`SUPERDUPERBUNDLE_DELAY_MS=1000`, `SUPERDUPERBUNDLE_API_KEY`).
 * **AllKeyShop (Deactivated / Archived to Backup)**: Previously used for keyshop scraping; deactivated in v2.9.0 to eliminate Cloudflare solver timeouts and rate limits. The complete integration is preserved in branch `backup/allkeyshop-integration`.
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
@@ -115,8 +115,11 @@ STEAM_DELAY_MS=2000
 ITAD_DELAY_MS=1000
 CHEAPSHARK_DELAY_MS=1500
 GGDEALS_DELAY_MS=1500
-ITAD_API_KEY=               # Optional: Free key from https://isthereanydeal.com/dev/app/
-GGDEALS_API_KEY=            # Optional: Free key from https://gg.deals/api/
+NEXARDA_DELAY_MS=500
+SUPERDUPERBUNDLE_DELAY_MS=1000
+SUPERDUPERBUNDLE_API_KEY=        # Optional: Free key from https://superduperbundle.com/tools/api/#keys (2,500 games/10min)
+ITAD_API_KEY=                    # Optional: Free key from https://isthereanydeal.com/dev/app/
+GGDEALS_API_KEY=                 # Optional: Free key from https://gg.deals/api/
 ```
 
 ### 2. Run Container
