@@ -22,7 +22,9 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({ progress, onCancel }) =>
     itad: 'ITAD',
     ggdeals: 'GG.deals',
     cheapshark: 'CheapShark',
-    allkeyshop: 'AllKeyShop'
+    allkeyshop: 'AllKeyShop',
+    nexarda: 'NEXARDA',
+    superduperbundle: 'SuperDuperBundle'
   };
 
   return (

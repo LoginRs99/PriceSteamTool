@@ -170,7 +170,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
     }
 
     const schema = z.object({
-      sources: z.array(z.enum(['steam', 'itad', 'cheapshark', 'ggdeals', 'allkeyshop'])).optional(),
+      sources: z.array(z.enum(['steam', 'itad', 'cheapshark', 'ggdeals', 'allkeyshop', 'nexarda', 'superduperbundle'])).optional(),
       includeKeyshops: z.boolean().optional()
     }).optional();
 

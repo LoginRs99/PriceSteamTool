@@ -434,6 +434,10 @@ export const gameRepo = {
     prepareStmt(`UPDATE games SET itad_id = ?, updated_at = datetime('now') WHERE steam_app_id = ?`).run(itadId, steamAppId);
   },
 
+  updateNexardaId(steamAppId: number, nexardaId: number): void {
+    prepareStmt(`UPDATE games SET nexarda_id = ?, updated_at = datetime('now') WHERE steam_app_id = ?`).run(nexardaId, steamAppId);
+  },
+
   updateHistoricalLow(
     gameId: string, 
     priceEur: number, 
@@ -1189,6 +1193,7 @@ function mapGameRow(r: any): Game {
     id: r.id,
     steamAppId: Number(r.steam_app_id),
     itadId: r.itad_id || undefined,
+    nexardaId: r.nexarda_id !== null && r.nexarda_id !== undefined ? Number(r.nexarda_id) : undefined,
     title: r.title,
     slug: r.slug,
     headerImage: r.header_image || undefined,

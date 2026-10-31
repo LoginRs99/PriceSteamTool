@@ -917,6 +917,27 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 034] notice:', err?.message);
       }
     }
+  },
+  {
+    name: '035_add_nexarda_and_superduperbundle_sources',
+    up: (db) => {
+      try {
+        db.exec(`
+          INSERT OR IGNORE INTO sources (id, code, name, is_enabled, priority, state, created_at, updated_at) VALUES
+          ('src-nexarda', 'nexarda', 'NEXARDA', 1, 5, 'NORMAL', datetime('now'), datetime('now')),
+          ('src-superduperbundle', 'superduperbundle', 'SuperDuperBundle', 1, 6, 'NORMAL', datetime('now'), datetime('now'));
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 035] sources notice:', err?.message);
+      }
+      try {
+        db.exec("ALTER TABLE games ADD COLUMN nexarda_id INTEGER");
+      } catch (err: any) {
+        if (!err?.message?.includes('duplicate column')) {
+          console.warn('[Migration 035] nexarda_id column notice:', err?.message);
+        }
+      }
+    }
   }
 ];
 

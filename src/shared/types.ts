@@ -1,7 +1,7 @@
 export type ProductType = 'STEAM_KEY' | 'STEAM_GIFT' | 'DIRECT_PURCHASE';
 export type RegionType = 'HU' | 'EU' | 'GLOBAL' | 'RESTRICTED';
 
-export type SourceCode = 'steam' | 'itad' | 'ggdeals' | 'cheapshark' | 'allkeyshop';
+export type SourceCode = 'steam' | 'itad' | 'ggdeals' | 'cheapshark' | 'allkeyshop' | 'nexarda' | 'superduperbundle';
 
 export type CircuitBreakerState = 'NORMAL' | 'BACKOFF' | 'COOLDOWN' | 'PAUSED' | 'DISABLED';
 export type CircuitState = CircuitBreakerState;
@@ -99,6 +99,7 @@ export interface Game {
   id: string;
   steamAppId: number;
   itadId?: string;
+  nexardaId?: number;
   title: string;
   slug: string;
   headerImage?: string;

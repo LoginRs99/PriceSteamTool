@@ -26,6 +26,8 @@ import { itadAdapter } from '../sources/itad.js';
 import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
 import { allkeyshopAdapter } from '../sources/allkeyshop.js';
+import { nexardaAdapter } from '../sources/nexarda.js';
+import { superDuperBundleAdapter } from '../sources/superduperbundle.js';
 import { allkeyshopQueue } from './allkeyshop/index.js';
 import { priceHistoryQueue } from './historyQueue.js';
 import { computeNextInterval, isAllkeyshopDue, computeWishlistScrapePriority } from '../domain/allkeyshopScheduling.js';
@@ -62,7 +64,9 @@ export class SyncOrchestrator {
       itad: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
       ggdeals: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
       cheapshark: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
-      allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
+      allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+      nexarda: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+      superduperbundle: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
     }
   };
 
@@ -225,7 +229,9 @@ export class SyncOrchestrator {
         itad: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         ggdeals: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         cheapshark: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
-        allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
+        allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+        nexarda: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+        superduperbundle: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
       }
     };
     this.broadcast();
@@ -256,6 +262,8 @@ export class SyncOrchestrator {
           case 'cheapshark': return cheapsharkAdapter.isEnabled();
           case 'ggdeals': return ggdealsAdapter.isEnabled();
           case 'allkeyshop': return allkeyshopAdapter.isEnabled();
+          case 'nexarda': return nexardaAdapter.isEnabled();
+          case 'superduperbundle': return superDuperBundleAdapter.isEnabled();
           default: return false;
         }
       };
@@ -265,10 +273,12 @@ export class SyncOrchestrator {
         itad: 'IsThereAnyDeal',
         cheapshark: 'CheapShark',
         ggdeals: 'GG.deals',
-        allkeyshop: 'AllKeyShop'
+        allkeyshop: 'AllKeyShop',
+        nexarda: 'NEXARDA',
+        superduperbundle: 'SuperDuperBundle'
       };
 
-      const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+      const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals', 'superduperbundle', 'nexarda'];
       const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
       const isKeyshopSelected = isSourceEligible('allkeyshop');
       const isKeyshopOnly = isKeyshopSelected && activeCoreSources.length === 0;
@@ -551,6 +561,72 @@ export class SyncOrchestrator {
             } catch (e: any) {
               sourceOutcomes.set('ggdeals', 'FAILED');
               logWarn(`GG.deals batch sync warning: ${e?.message}`);
+            }
+          })());
+        }
+
+        // SuperDuperBundle Batch Sync
+        if (shouldRunSource('superduperbundle') && superDuperBundleAdapter.isEnabled()) {
+          batchTasks.push((async () => {
+            try {
+              this.progress.sourceProgress.superduperbundle.total = gamesToRefresh.length;
+              this.broadcast();
+
+              const sdbBatchResults = await superDuperBundleAdapter.fetchBatchPrices(gamesToRefresh, (processed, total, action) => {
+                this.progress.sourceProgress.superduperbundle.processed = processed;
+                if (action) this.progress.currentAction = action;
+                this.broadcast();
+              });
+
+              for (const [appId, offers] of sdbBatchResults.entries()) {
+                const game = gamesToRefresh.find(w => w.steamAppId === appId);
+                if (!game) continue;
+                for (const offer of offers) {
+                  this.ingestOffer(game.id, 'superduperbundle', offer, undefined, true);
+                  this.progress.sourceProgress.superduperbundle.offersFound++;
+                  totalOffersIngested++;
+                }
+                offerRepo.recomputeBestDealForGame(game.id);
+              }
+              this.progress.sourceProgress.superduperbundle.processed = gamesToRefresh.length;
+              sourceOutcomes.set('superduperbundle', 'SUCCESS');
+              this.broadcast();
+            } catch (e: any) {
+              sourceOutcomes.set('superduperbundle', 'FAILED');
+              logWarn(`SuperDuperBundle batch sync warning: ${e?.message}`);
+            }
+          })());
+        }
+
+        // NEXARDA Batch Sync
+        if (shouldRunSource('nexarda') && nexardaAdapter.isEnabled()) {
+          batchTasks.push((async () => {
+            try {
+              this.progress.sourceProgress.nexarda.total = gamesToRefresh.length;
+              this.broadcast();
+
+              const nexardaBatchResults = await nexardaAdapter.fetchBatchPrices(gamesToRefresh, (processed, total, action) => {
+                this.progress.sourceProgress.nexarda.processed = processed;
+                if (action) this.progress.currentAction = action;
+                this.broadcast();
+              });
+
+              for (const [appId, offers] of nexardaBatchResults.entries()) {
+                const game = gamesToRefresh.find(w => w.steamAppId === appId);
+                if (!game) continue;
+                for (const offer of offers) {
+                  this.ingestOffer(game.id, 'nexarda', offer, undefined, true);
+                  this.progress.sourceProgress.nexarda.offersFound++;
+                  totalOffersIngested++;
+                }
+                offerRepo.recomputeBestDealForGame(game.id);
+              }
+              this.progress.sourceProgress.nexarda.processed = gamesToRefresh.length;
+              sourceOutcomes.set('nexarda', 'SUCCESS');
+              this.broadcast();
+            } catch (e: any) {
+              sourceOutcomes.set('nexarda', 'FAILED');
+              logWarn(`NEXARDA batch sync warning: ${e?.message}`);
             }
           })());
         }
@@ -1009,7 +1085,7 @@ export class SyncOrchestrator {
     };
 
     const requestedSources = options?.sources;
-    const allFastSources: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals'];
+    const allFastSources: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals', 'superduperbundle', 'nexarda'];
     const fastSources = requestedSources
       ? allFastSources.filter(s => requestedSources.includes(s))
       : allFastSources;
@@ -1072,6 +1148,10 @@ export class SyncOrchestrator {
             }
           } else if (sourceCode === 'ggdeals') {
             offers = await ggdealsAdapter.fetchPricesForGame(game.steamAppId, game.title);
+          } else if (sourceCode === 'superduperbundle') {
+            offers = await superDuperBundleAdapter.fetchPricesForGame(game.steamAppId, game.title);
+          } else if (sourceCode === 'nexarda') {
+            offers = await nexardaAdapter.fetchPricesForGame(game.steamAppId, game.title);
           }
 
           for (const offer of offers) {

@@ -28,7 +28,9 @@ export const config = {
     itad: parseInt(process.env.ITAD_DELAY_MS || '1000', 10),
     ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1500', 10),
     cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '1500', 10),
-    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '2500', 10)
+    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '2500', 10),
+    nexarda: parseInt(process.env.NEXARDA_DELAY_MS || '250', 10),
+    superduperbundle: parseInt(process.env.SUPERDUPERBUNDLE_DELAY_MS || '500', 10)
   },
 
   // Stealth & Anti-Ban Batching for Keyshop scrapers (via Byparr / FlareSolverr)
@@ -49,6 +51,11 @@ export const config = {
   allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '',
   allkeyshopProxyUrl: process.env.ALLKEYSHOP_PROXY_URL || process.env.ALLKEYSHOP_PROXY || '',
   allkeyshopSolverTimeoutMs: process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS ? parseInt(process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS, 10) : 0,
+
+  // Modern Keyshop & Aggregator Sources (Phase 2)
+  nexardaEnabled: process.env.NEXARDA_ENABLED !== 'false',
+  superduperbundleEnabled: process.env.SUPERDUPERBUNDLE_ENABLED !== 'false',
+  superduperbundleApiKey: process.env.SUPERDUPERBUNDLE_API_KEY || '',
 
   // Database Backup Settings
   backupEnabled: process.env.BACKUP_ENABLED !== 'false',

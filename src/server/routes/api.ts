@@ -652,7 +652,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     const schema = z.object({
       forceRefresh: z.boolean().optional(),
-      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop'])).optional()
+      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle'])).optional()
     }).optional();
 
     const parsed = schema.safeParse(request.body);
@@ -790,13 +790,13 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return sourceRepo.list();
   });
 
-  const SourceCodeSchema = z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop']);
+  const SourceCodeSchema = z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle']);
 
   fastify.post('/api/sources/:code/toggle', async (request, reply) => {
     const { code } = request.params as { code: SourceCode };
     const codeParsed = SourceCodeSchema.safeParse(code);
     if (!codeParsed.success) {
-      return reply.status(400).send({ error: `Invalid source code "${code}". Must be one of: steam, itad, ggdeals, cheapshark, allkeyshop` });
+      return reply.status(400).send({ error: `Invalid source code "${code}". Must be one of: steam, itad, ggdeals, cheapshark, allkeyshop, nexarda, superduperbundle` });
     }
 
     const schema = z.object({ isEnabled: z.boolean() });
@@ -822,7 +822,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const { code } = request.params as { code: SourceCode };
     const codeParsed = SourceCodeSchema.safeParse(code);
     if (!codeParsed.success) {
-      return reply.status(400).send({ error: `Invalid source code "${code}". Must be one of: steam, itad, ggdeals, cheapshark, allkeyshop` });
+      return reply.status(400).send({ error: `Invalid source code "${code}". Must be one of: steam, itad, ggdeals, cheapshark, allkeyshop, nexarda, superduperbundle` });
     }
 
     const { circuitBreakers } = await import('../sync/circuitBreaker.js');

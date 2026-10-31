@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS games (
   allkeyshop_check_interval_hours INTEGER DEFAULT 24,
   allkeyshop_unchanged_streak INTEGER DEFAULT 0,
   allkeyshop_last_price_eur REAL,
+  nexarda_id INTEGER,
   steam_review_desc TEXT,
   steam_review_percent INTEGER,
   steam_review_total TEXT,
@@ -313,5 +314,7 @@ INSERT OR IGNORE INTO sources (id, code, name, is_enabled, priority, state, crea
 ('src-itad', 'itad', 'IsThereAnyDeal', 1, 2, 'NORMAL', datetime('now'), datetime('now')),
 ('src-ggdeals', 'ggdeals', 'GG.deals', 1, 3, 'NORMAL', datetime('now'), datetime('now')),
 ('src-cheapshark', 'cheapshark', 'CheapShark', 1, 4, 'NORMAL', datetime('now'), datetime('now')),
-('src-allkeyshop', 'allkeyshop', 'AllKeyShop (Deactivated)', 0, 5, 'DISABLED', datetime('now'), datetime('now'));
+('src-nexarda', 'nexarda', 'NEXARDA', 1, 5, 'NORMAL', datetime('now'), datetime('now')),
+('src-superduperbundle', 'superduperbundle', 'SuperDuperBundle', 1, 6, 'NORMAL', datetime('now'), datetime('now')),
+('src-allkeyshop', 'allkeyshop', 'AllKeyShop (Deactivated)', 0, 7, 'DISABLED', datetime('now'), datetime('now'));
 `;

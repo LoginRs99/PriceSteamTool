@@ -206,7 +206,7 @@ export class CircuitBreakerRegistry {
   }
 
   public resetAll(): void {
-    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop'];
+    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle'];
     for (const s of sources) {
       this.reset(s);
     }
@@ -262,7 +262,7 @@ export class CircuitBreakerRegistry {
   public getAllStates(): Record<SourceCode, CircuitState> {
     this.initFromDb();
     const result: Partial<Record<SourceCode, CircuitState>> = {};
-    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop'];
+    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle'];
     for (const s of sources) {
       result[s] = this.getState(s);
     }
