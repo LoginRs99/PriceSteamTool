@@ -214,4 +214,55 @@ describe('SuperDuperBundle Source Adapter', () => {
     await superDuperBundleAdapter.fetchPricesForGame(1091500, 'Cyberpunk 2077');
     expect(apiKeyFound).toBe('sdb_secret_key_123');
   });
+  it('fetchBatchPrices retries transient failures and continues to subsequent chunks', async () => {
+    let callCount = 0;
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      callCount++;
+      if (urlStr.includes('steam_ids=2001') && callCount === 1) {
+        return new Response('Gateway timeout', { status: 504 });
+      }
+      return new Response(JSON.stringify({
+        results: [
+          {
+            id: 'sdb_test',
+            name: 'Test Game',
+            steam_app_id: 2001,
+            offers: [{ store: 'eneba', store_name: 'Eneba', store_type: 'marketplace', price: 15.0, drm: 'Steam', region: 'Global' }]
+          }
+        ]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const games = [{ steamAppId: 2001, title: 'Game 2001' }];
+    const res = await superDuperBundleAdapter.fetchBatchPrices(games);
+    expect(res.size).toBe(1);
+    expect(res.get(2001)?.[0].priceEur).toBeGreaterThan(0);
+    expect(callCount).toBe(2);
+  });
+
+  it('fetchBatchPrices is resilient: chunk failure does not abort remaining chunks', async () => {
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('3001')) {
+        return new Response('Server Error', { status: 500 });
+      }
+      return new Response(JSON.stringify({
+        results: [
+          {
+            id: 'sdb_3051',
+            name: 'Game 3051',
+            steam_app_id: 3051,
+            offers: [{ store: 'eneba', store_name: 'Eneba', store_type: 'marketplace', price: 20.0, drm: 'Steam', region: 'Global' }]
+          }
+        ]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const games = Array.from({ length: 51 }, (_, i) => ({ steamAppId: 3001 + i, title: `Game ${3001 + i}` }));
+    const res = await superDuperBundleAdapter.fetchBatchPrices(games);
+
+    expect(res.has(3051)).toBe(true);
+    expect((res as any).failedChunks).toBe(1);
+  });
 });

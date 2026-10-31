@@ -42,7 +42,7 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'superduperbundle' as const;
   public readonly name = 'SuperDuperBundle';
   public readonly supportsBatch = true;
-  private queue = new PacedSourceQueue('superduperbundle', config.delays.superduperbundle || 500, 200);
+  private queue = new PacedSourceQueue('superduperbundle', config.delays.superduperbundle || 1000, 200);
 
   public clearQueue(): void {
     this.queue.reset();
@@ -148,7 +148,11 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
 
         return offers;
       } catch (err: any) {
-        circuitBreakers.recordFailure('superduperbundle', err.message);
+        if (err?.status === 429 || err?.retryAfterSec) {
+          circuitBreakers.recordRateLimit('superduperbundle', err.retryAfterSec || 30);
+        } else {
+          circuitBreakers.recordFailure('superduperbundle', err.message);
+        }
         logWarn(`[SuperDuperBundle] Lookup failed for "${gameTitle}" (${steamAppId}): ${err.message}`);
         return [];
       }
@@ -156,7 +160,7 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
   }
 
   /**
-   * High-speed batch lookup for up to 50 Steam App IDs per request
+   * High-speed batch lookup for up to 50 Steam App IDs per request with resilient chunk handling
    */
   public async fetchBatchPrices(
     games: { steamAppId: number; title: string; itadId?: string }[],
@@ -177,49 +181,95 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
     }
 
     let processedCount = 0;
+    let failedChunks = 0;
 
     for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
       const chunk = chunks[chunkIdx];
-      const cbCheck = circuitBreakers.canExecute('superduperbundle');
-      if (!cbCheck.allowed) {
-        logWarn(`[SuperDuperBundle] Circuit breaker open; aborting remaining ${chunks.length - chunkIdx} batch chunks.`);
-        break;
+
+      // Periodic breathing pause every 10 chunks (500 games) to respect 600-game / 10-minute rate limit window
+      if (chunkIdx > 0 && chunkIdx % 10 === 0) {
+        const pauseMs = process.env.NODE_ENV === 'test' ? 0 : (config.superduperbundleChunkPauseMs || 2500);
+        if (pauseMs > 0) {
+          await new Promise(r => setTimeout(r, pauseMs));
+        }
       }
 
-      await this.queue.enqueue(async () => {
-        try {
-          const steamIds = chunk.map(g => g.steamAppId).join(',');
-          const url = `https://superduperbundle.com/api/v1/lookup/?steam_ids=${steamIds}&client=pricetool`;
+      // Check circuit breaker status
+      if (circuitBreakers.isCoolingDown('superduperbundle')) {
+        const remainingSec = circuitBreakers.getRemainingCooldownSec('superduperbundle');
+        if (remainingSec <= 30 && process.env.NODE_ENV !== 'test') {
+          logWarn(`[SuperDuperBundle] Cooldown active (${remainingSec}s remaining). Waiting for rate limit reset...`);
+          await new Promise(r => setTimeout(r, (remainingSec + 1) * 1000));
+        } else {
+          logWarn(`[SuperDuperBundle] Skipping chunk ${chunkIdx + 1}/${chunks.length} due to active cooldown (${remainingSec}s remaining).`);
+          failedChunks++;
+          processedCount += chunk.length;
+          if (onProgress) {
+            onProgress(
+              Math.min(processedCount, validGames.length),
+              validGames.length,
+              `SuperDuperBundle: ${Math.min(processedCount, validGames.length)}/${validGames.length} games (cooldown active)...`
+            );
+          }
+          continue;
+        }
+      }
 
-          const res = await safeFetchJson<SdbLookupResponse>(url, {
-            headers: this.getRequestHeaders()
-          }, 15000);
+      let chunkSucceeded = false;
+      const maxAttempts = 2;
 
-          circuitBreakers.recordSuccess('superduperbundle');
+      for (let attempt = 0; attempt < maxAttempts && !chunkSucceeded; attempt++) {
+        await this.queue.enqueue(async () => {
+          try {
+            const steamIds = chunk.map(g => g.steamAppId).join(',');
+            const url = `https://superduperbundle.com/api/v1/lookup/?steam_ids=${steamIds}&client=pricetool`;
 
-          if (res?.results && Array.isArray(res.results)) {
-            for (const item of res.results) {
-              if (!item.steam_app_id || !item.offers) continue;
-              const offers: NormalizedSourceOffer[] = [];
-              const dealPageUrl = item.url || `https://superduperbundle.com/game/${item.id}/`;
+            const res = await safeFetchJson<SdbLookupResponse>(url, {
+              headers: this.getRequestHeaders()
+            }, 15000);
 
-              for (const rawOffer of item.offers) {
-                const norm = this.normalizeOffer(rawOffer, dealPageUrl);
-                if (norm) {
-                  offers.push(norm);
+            circuitBreakers.recordSuccess('superduperbundle');
+            chunkSucceeded = true;
+
+            if (res?.results && Array.isArray(res.results)) {
+              for (const item of res.results) {
+                if (!item.steam_app_id || !item.offers) continue;
+                const offers: NormalizedSourceOffer[] = [];
+                const dealPageUrl = item.url || `https://superduperbundle.com/game/${item.id}/`;
+
+                for (const rawOffer of item.offers) {
+                  const norm = this.normalizeOffer(rawOffer, dealPageUrl);
+                  if (norm) {
+                    offers.push(norm);
+                  }
+                }
+
+                if (offers.length > 0) {
+                  resultMap.set(item.steam_app_id, offers);
                 }
               }
+            }
+          } catch (err: any) {
+            if (err?.status === 429 || err?.retryAfterSec) {
+              const retryAfter = err.retryAfterSec || 30;
+              circuitBreakers.recordRateLimit('superduperbundle', retryAfter, chunk.length);
+              logWarn(`[SuperDuperBundle] Rate limit (429) on chunk ${chunkIdx + 1}/${chunks.length}. Backoff set for ${retryAfter}s.`);
+            } else {
+              circuitBreakers.recordFailure('superduperbundle', err.message);
+              logWarn(`[SuperDuperBundle] Batch chunk ${chunkIdx + 1}/${chunks.length} attempt ${attempt + 1}/${maxAttempts} failed: ${err.message}`);
+            }
 
-              if (offers.length > 0) {
-                resultMap.set(item.steam_app_id, offers);
-              }
+            if (attempt + 1 < maxAttempts) {
+              const backoffMs = process.env.NODE_ENV === 'test' ? 10 : 1500;
+              await new Promise(r => setTimeout(r, backoffMs));
             }
           }
-        } catch (err: any) {
-          circuitBreakers.recordFailure('superduperbundle', err.message);
-          logWarn(`[SuperDuperBundle] Batch chunk ${chunkIdx + 1}/${chunks.length} failed: ${err.message}`);
-        }
-      });
+        });
+      }
+
+      if (!chunkSucceeded) {
+        failedChunks++;
+      }
 
       processedCount += chunk.length;
       if (onProgress) {
@@ -231,6 +281,7 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
       }
     }
 
+    (resultMap as any).failedChunks = failedChunks;
     return resultMap;
   }
 }

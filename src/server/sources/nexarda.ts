@@ -88,7 +88,7 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
   public readonly code = 'nexarda' as const;
   public readonly name = 'NEXARDA';
   public readonly supportsBatch = true;
-  private queue = new PacedSourceQueue('nexarda', config.delays.nexarda || 250, 100);
+  private queue = new PacedSourceQueue('nexarda', config.delays.nexarda || 500, 100);
   private idCache = new Map<number, number>(); // steamAppId -> nexardaId
 
   public clearQueue(): void {
@@ -268,7 +268,11 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
 
         return offers;
       } catch (err: any) {
-        circuitBreakers.recordFailure('nexarda', err.message);
+        if (err?.status === 429 || err?.retryAfterSec) {
+          circuitBreakers.recordRateLimit('nexarda', err.retryAfterSec || 30);
+        } else {
+          circuitBreakers.recordFailure('nexarda', err.message);
+        }
         logWarn(`[NEXARDA] Price lookup failed for "${gameTitle}" (${steamAppId}): ${err.message}`);
         return [];
       }
@@ -289,13 +293,28 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
     }
 
     const validGames = games.filter(g => g.steamAppId && !isNaN(g.steamAppId));
+    let failedGames = 0;
 
     for (let i = 0; i < validGames.length; i++) {
       const g = validGames[i];
-      const cbCheck = circuitBreakers.canExecute('nexarda');
-      if (!cbCheck.allowed) {
-        logWarn(`[NEXARDA] Circuit breaker open; aborting remaining ${validGames.length - i} games in batch.`);
-        break;
+
+      if (circuitBreakers.isCoolingDown('nexarda')) {
+        const remainingSec = circuitBreakers.getRemainingCooldownSec('nexarda');
+        if (remainingSec <= 15 && process.env.NODE_ENV !== 'test') {
+          logWarn(`[NEXARDA] Cooldown active (${remainingSec}s remaining). Waiting for reset...`);
+          await new Promise(r => setTimeout(r, (remainingSec + 1) * 1000));
+        } else {
+          logWarn(`[NEXARDA] Skipping game "${g.title}" (${g.steamAppId}) due to active cooldown (${remainingSec}s remaining).`);
+          failedGames++;
+          if (onProgress && (i % 5 === 0 || i === validGames.length - 1)) {
+            onProgress(
+              i + 1,
+              validGames.length,
+              `NEXARDA: [${i + 1}/${validGames.length}] (cooldown active)...`
+            );
+          }
+          continue;
+        }
       }
 
       const offers = await this.fetchPricesForGame(g.steamAppId, g.title);
@@ -312,6 +331,7 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
       }
     }
 
+    (resultMap as any).failedGames = failedGames;
     return resultMap;
   }
 }

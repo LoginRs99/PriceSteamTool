@@ -29,8 +29,8 @@ export const config = {
     ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1500', 10),
     cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '1500', 10),
     allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '2500', 10),
-    nexarda: parseInt(process.env.NEXARDA_DELAY_MS || '250', 10),
-    superduperbundle: parseInt(process.env.SUPERDUPERBUNDLE_DELAY_MS || '500', 10)
+    nexarda: parseInt(process.env.NEXARDA_DELAY_MS || '500', 10),
+    superduperbundle: parseInt(process.env.SUPERDUPERBUNDLE_DELAY_MS || '1000', 10)
   },
 
   // Stealth & Anti-Ban Batching for Keyshop scrapers (via Byparr / FlareSolverr)
@@ -39,6 +39,7 @@ export const config = {
   allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || '20000', 10),
   ggdealsChunkPauseMs: parseInt(process.env.GGDEALS_CHUNK_PAUSE_MS || '60000', 10),
   cheapsharkChunkPauseMs: parseInt(process.env.CHEAPSHARK_CHUNK_PAUSE_MS || '3000', 10),
+  superduperbundleChunkPauseMs: parseInt(process.env.SUPERDUPERBUNDLE_CHUNK_PAUSE_MS || '2500', 10),
 
   // Cache & Periodic Auto-Sync settings
   cacheTtlHours: parseInt(process.env.CACHE_TTL_HOURS || '6', 10),

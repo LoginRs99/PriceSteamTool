@@ -12,8 +12,8 @@ This document provides a thorough technical analysis of each game price source, 
 | **IsThereAnyDeal (ITAD)** | **Yes (REST v2 / v3)** | Free API Key | **Yes (up to 200 IDs)** | 1000ms (200ms jitter) | EU / Global / Multi-country | **Yes** (Built-in `historyLow`) | No | **Primary Source (Official Stores)** |
 | **CheapShark** | **Yes (Public REST API)** | None (`User-Agent` req.) | **Yes (25 IDs/req batch)** | 1500ms (250ms jitter) | US / EU / Global | **Yes** (`cheapestPriceEver`) | No | **Official Stores + Metacritic** |
 | **GG.deals** | **Yes (Developer API / JSON)**| Optional / Free Key | **Yes (Batch & per-game)** | 1500ms (300ms jitter) | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Official + Marketplace Keyshops** |
-| **NEXARDA™** | **Yes (REST API v3)** | None (Public) | Per-game direct find & search | 250ms (50ms jitter) | Global / EU / Multi-currency | **Yes** (Historical low & vouchers) | No | **Official + Marketplace Keyshop Aggregator** |
-| **SuperDuperBundle** | **Yes (REST API v1)** | None (Public) | Per-game direct Steam lookup | 500ms (100ms jitter) | Global / Multi-store | **No** (Current store prices) | No | **Fast Secondary Store & Key Aggregator** |
+| **NEXARDA™** | **Yes (REST API v3)** | None (Public) | Per-game direct find & search | 500ms (100ms jitter) | Global / EU / Multi-currency | **Yes** (Historical low & vouchers) | No | **Official + Marketplace Keyshop Aggregator** |
+| **SuperDuperBundle** | **Yes (REST API v1)** | Optional (`X-API-Key`) | **Yes (50 IDs/req batch)** | 1000ms (200ms jitter) | Global / EU / Multi-store | **No** (Current store prices) | No | **Fast Secondary Store & Key Aggregator** |
 | *AllKeyShop (Deactivated)* | No (Internal JSON API) | None (Anti-bot solver) | Per-title queue | 2500ms (500ms jitter) | EU / Global / Key types | Yes | Solver Required | *Deactivated in v2.9.0 (backed up to branch)* |
 
 ---
@@ -110,6 +110,36 @@ Following technical audits, several key resilience and accuracy enhancements wer
    * Master title catalog enforces a 7-day TTL (`CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000`) verified via `isCatalogFresh()`. If the file is older than 7 days, the adapter automatically redownloads the latest catalog from upstream.
    * On-demand catalog refresh endpoint: `POST /api/sources/allkeyshop/refresh-catalog` allows users to force a fresh catalog download at any time (e.g. for brand new releases) via the Source Adapters modal.
 
+
+### 2.6 NEXARDA™
+* **Canonical Role**: Modern REST API aggregator comparing over 65 verified digital retailers and secondary keyshops with automated voucher extraction and net price calculations.
+* **API Endpoints**:
+  * Direct Steam ID Resolution: `GET https://www.nexarda.com/api/v3/find?steam={steamAppId}&output=json`
+  * Search Fallback: `GET https://www.nexarda.com/api/v3/search?type=games&q={cleanTitle}`
+  * Prices & Offers: `GET https://www.nexarda.com/api/v3/prices?type=game&id={nexardaId}&currency=EUR`
+* **Rate Limits & Fair Use**:
+  * Public access without API key requirement.
+  * Adaptive pacing: Default `NEXARDA_DELAY_MS=500` (100ms jitter).
+  * Auto-cooldown awareness: If upstream rate limit (429) occurs, respects `Retry-After` and enters circuit backoff.
+* **Batch Resilience**:
+  * During wishlist batch sweeps, individual game timeouts or active cooldowns skip the single game rather than aborting the remaining wishlist.
+
+### 2.7 SuperDuperBundle (SDB)
+* **Canonical Role**: High-speed, OpenAPI-compliant key price aggregator with multi-Steam-ID batching.
+* **API Endpoints & Architecture**:
+  * Single Game Lookup: `GET https://superduperbundle.com/api/v1/lookup/?steam_id={appId}&client=pricetool`
+  * Bulk Batch Lookup: `GET https://superduperbundle.com/api/v1/lookup/?steam_ids={id1,id2,...,id50}&client=pricetool`
+* **Documented Quota Tiers & Rate Limits**:
+  * **No key (Default)**: 600 uncached games per 10 minutes per IP address.
+  * **Registered (Free Key)**: 2,500 games per 10 minutes (configured via `SUPERDUPERBUNDLE_API_KEY` / `X-API-Key` header).
+  * **Partner**: 10,000 games per 10 minutes.
+  * Headers: Evaluates `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` / `Retry-After`.
+* **Batch Resilience & Adaptive Pacing**:
+  * Bundles up to 50 Steam App IDs per batch request.
+  * Pacing: Default `SUPERDUPERBUNDLE_DELAY_MS=1000` (200ms jitter).
+  * Inter-Chunk Breathing Pause: Automatically pauses for `SUPERDUPERBUNDLE_CHUNK_PAUSE_MS=2500` every 10 chunks (500 games) to stay smoothly within the 600 games / 10-minute window.
+  * Automatic Retry & Non-Aborting Fallback: Each chunk retries once on transient 5xx errors. If a chunk fails, it logs a warning, increments `failedChunks`, and continues with subsequent chunks rather than aborting the sync.
+
 ## 3. Rate Limit & Pacing Engine (`src/server/sources/base.ts`)
 
 ### 3.1 Epoch-Aware Header Parsing
@@ -133,6 +163,6 @@ Sync Orchestrator (Parallel Multi-Source Execution)
   │
   └── Selective Secondary Pool:
         ├── GG.deals Worker       (Batch/Per-game, Delay: 1500ms, Jitter: 300ms)
-        ├── NEXARDA Worker        (Per-game find/search, Delay: 250ms, Jitter: 50ms)
-        └── SuperDuperBundle      (Per-game lookup, Delay: 500ms, Jitter: 100ms)
+        ├── NEXARDA Worker        (Per-game find/search, Delay: 500ms, Jitter: 100ms)
+        └── SuperDuperBundle Batch (50 AppIDs/req, Delay: 1000ms, Jitter: 200ms)
 ```

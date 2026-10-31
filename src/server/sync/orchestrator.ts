@@ -590,7 +590,8 @@ export class SyncOrchestrator {
                 offerRepo.recomputeBestDealForGame(game.id);
               }
               this.progress.sourceProgress.superduperbundle.processed = gamesToRefresh.length;
-              sourceOutcomes.set('superduperbundle', 'SUCCESS');
+              const sdbFailedChunks = (sdbBatchResults as any)?.failedChunks ?? 0;
+              sourceOutcomes.set('superduperbundle', sdbFailedChunks > 0 ? 'PARTIAL' : 'SUCCESS');
               this.broadcast();
             } catch (e: any) {
               sourceOutcomes.set('superduperbundle', 'FAILED');
@@ -623,7 +624,8 @@ export class SyncOrchestrator {
                 offerRepo.recomputeBestDealForGame(game.id);
               }
               this.progress.sourceProgress.nexarda.processed = gamesToRefresh.length;
-              sourceOutcomes.set('nexarda', 'SUCCESS');
+              const nexardaFailedGames = (nexardaBatchResults as any)?.failedGames ?? 0;
+              sourceOutcomes.set('nexarda', nexardaFailedGames > 0 ? 'PARTIAL' : 'SUCCESS');
               this.broadcast();
             } catch (e: any) {
               sourceOutcomes.set('nexarda', 'FAILED');
