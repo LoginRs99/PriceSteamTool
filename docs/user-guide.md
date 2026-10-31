@@ -37,9 +37,9 @@ Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts`
 
 ---
 
-## 2. Computed Deal Score v2.3 (0 – 100)
+## 2. Computed Deal Score v2.4 (0 – 100)
 
-The **Deal Score v2.3** provides an objective, monotonic mathematical evaluation of deal attractiveness across 4 pillars:
+The **Deal Score v2.4** provides an objective, monotonic mathematical evaluation of deal attractiveness across 4 pillars:
 
 $$\text{RawScore} = S_{\text{atl}} (0\text{--}40) + S_{\text{disc}} (0\text{--}30) + S_{\text{hist}} (0\text{--}20) + S_{\text{mkt}} (0\text{--}10)$$
 

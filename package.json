@@ -15,7 +15,8 @@
     "test:client": "vitest run --project client",
     "test:server": "vitest run --project server --fileParallelism=false",
     "test:sources": "tsx scripts/test-sources.ts",
-    "start": "node dist/server/index.js"
+    "start": "node dist/server/index.js",
+    "verify": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@fastify/cors": "^10.1.0",
