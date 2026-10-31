@@ -53,7 +53,7 @@
   --glow-exceptional: 0 0 12px rgba(139, 92, 246, 0.2);
   --glow-atl: 0 0 12px rgba(245, 158, 11, 0.2);
 
-  --transition-bounce: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 
   --radius-sm: 4px;
@@ -2896,7 +2896,7 @@ input:checked + .toggle-slider:before {
 }
 
 .quick-action-btn.active-pop {
-  animation: heart-pop 0.35s var(--transition-bounce);
+  animation: heart-pop 0.35s var(--transition-smooth);
   color: #ef4444;
   border-color: #ef4444;
 }

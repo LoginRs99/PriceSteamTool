@@ -61,7 +61,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Top Deal Score Card */}
-          <div style={{ background: 'var(--surface)', padding: '14px 16px', borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${tierColor}`, border: '1px solid var(--line)' }}>
+          <div style={{ background: 'var(--surface)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: `1px solid ${tierColor}44`, boxShadow: `inset 0 0 12px ${tierColor}0d` }}>
             <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)', marginBottom: 4 }}>
               Deal Score (Price Quality)
             </div>
@@ -200,7 +200,7 @@ export const ScoreExplainModal: React.FC<ScoreExplainModalProps> = ({ game, onCl
               <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
                 Action Signal & Sale Forecast
               </h4>
-              <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, borderLeft: `4px solid ${game.actionSignal.badgeColor}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ background: 'var(--bg-secondary)', padding: '14px 16px', borderRadius: 10, border: `1px solid ${game.actionSignal.badgeColor}44`, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span 

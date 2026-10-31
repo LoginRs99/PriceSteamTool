@@ -216,7 +216,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
               <Info size={14} />
-              <span>Safe min 2.0s pacing with jitter active</span>
+              <span>Parallel batch APIs & adaptive polite pacing active</span>
             </div>
 
             <a
