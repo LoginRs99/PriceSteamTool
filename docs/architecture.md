@@ -100,6 +100,10 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 ### 2.6 Dedicated Pricing Error Architecture with Self-Healing
 * **Decision**: Complete isolation of glitched prices into a dedicated `pricing_errors` table and `is_likely_pricing_error` flag on `offers`, backed by independent peer corroboration and automatic self-healing.
 * **Rationale**: Glitches never distort Deal Scores, historical lows, or best deal badges. When prices return to normal or cheaper valid offers appear, errors auto-dismiss without manual operator intervention.
+* **Official Store Exemption & Keyshop Glitch Catching Policy**:
+  * Authorized official storefronts (Steam, Humble Store, GreenManGaming, Fanatical, GOG, WinGameStore) are exempt from `MARKET_OUTLIER` and `FAKE_BASELINE` anomaly flags because publisher-authorized promotions represent authentic transactions, not marketplace glitches.
+  * Keyshop anomalies remain calibrated for sensitivity rather than over-hardened suppression. This allows users to catch and exploit genuine retailer pricing glitches while filtering obvious noise.
+  * Post-sync sweeps (`purgeCorruptedPricingErrors`) automatically resolve false positives on offers that are corroborated or at/above confirmed historical lows.
 
 ### 2.7 Zero-Downtime SQLite Backup & Disaster Recovery Architecture
 * **Decision**: Online non-blocking SQLite backup leveraging `better-sqlite3` native backup API (`db.backup()`) with `PRAGMA wal_checkpoint(PASSIVE)`.

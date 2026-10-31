@@ -16,6 +16,7 @@ import {
   runAnalyze,
   type WishlistSyncGame 
 } from '../db/index.js';
+import { purgeCorruptedPricingErrors } from '../db/cleanData.js';
 import { circuitBreakers } from './circuitBreaker.js';
 import { calculateCoreSyncStatus, type SourceOutcome } from './syncOutcome.js';
 import { normalizeProductType, normalizeRegion } from '../domain/normalizer.js';
@@ -717,6 +718,12 @@ export class SyncOrchestrator {
         const healedCount = gameRepo.reconcileAllHistoricalLows();
         if (healedCount > 0) {
           logInfo(`[Sync] Reconciled ${healedCount} game(s) where valid active offers established new all-time lows.`);
+        }
+
+        // Auto-resolve false positive pricing errors on official stores or corroborated deals
+        const errorClean = purgeCorruptedPricingErrors();
+        if (errorClean.resolvedPricingErrors > 0) {
+          logInfo(`[Data Safety] Auto-resolved ${errorClean.resolvedPricingErrors} false-positive pricing error(s) and restored ${errorClean.unflaggedOffers} offer(s).`);
         }
 
         // Optimize database statistics and query planner
