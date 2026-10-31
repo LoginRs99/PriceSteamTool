@@ -999,6 +999,9 @@ export class AllKeyShopSourceAdapter implements PriceSourceAdapter {
     itadId?: string,
     releaseDate?: string
   ): Promise<NormalizedSourceOffer[]> {
+    if (!this.isEnabled()) {
+      return [];
+    }
     return allkeyshopQueue.enqueue(String(steamAppId), async () => {
       try {
         const catalog = await this.ensureCatalog();

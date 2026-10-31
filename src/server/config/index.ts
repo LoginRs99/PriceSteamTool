@@ -43,13 +43,12 @@ export const config = {
   historyRetentionDays: parseInt(process.env.HISTORY_RETENTION_DAYS || '365', 10),
   autoSyncEnabled: process.env.AUTO_SYNC_ENABLED !== 'false',
   autoSyncIntervalHours: parseInt(process.env.AUTO_SYNC_INTERVAL_HOURS || '6', 10),
-  allkeyshopEnabled: process.env.ALLKEYSHOP_ENABLED !== 'false' && Boolean(
-    process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL
-  ),
-  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '50', 10), // default cap per enrichment run (prevents Cloudflare IP bans)
-  allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '', // Byparr / FlareSolverr anti-bot solver (e.g. http://localhost:8191)
-  allkeyshopProxyUrl: process.env.ALLKEYSHOP_PROXY_URL || process.env.ALLKEYSHOP_PROXY || '', // Optional proxy forwarded to FlareSolverr (e.g. http://user:pass@p.webshare.io:80)
-  allkeyshopSolverTimeoutMs: process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS ? parseInt(process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS, 10) : 0, // Custom timeout override for FlareSolverr (defaults: 65s with proxy, 35s direct)
+  // AllKeyShop is permanently deactivated (backed up to branch backup/allkeyshop-integration)
+  allkeyshopEnabled: false,
+  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '50', 10), // default cap per enrichment run
+  allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '',
+  allkeyshopProxyUrl: process.env.ALLKEYSHOP_PROXY_URL || process.env.ALLKEYSHOP_PROXY || '',
+  allkeyshopSolverTimeoutMs: process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS ? parseInt(process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS, 10) : 0,
 
   // Database Backup Settings
   backupEnabled: process.env.BACKUP_ENABLED !== 'false',

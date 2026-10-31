@@ -247,10 +247,11 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({ onClose }) => {
                         )}
 
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-                          <span style={{ color: 'var(--dim)' }}>{s.isEnabled ? 'Enabled' : 'Disabled'}</span>
+                          <span style={{ color: 'var(--dim)' }}>{s.code === 'allkeyshop' ? 'Deactivated' : (s.isEnabled ? 'Enabled' : 'Disabled')}</span>
                           <input
                             type="checkbox"
                             checked={s.isEnabled}
+                            disabled={s.code === 'allkeyshop'}
                             onChange={e => handleToggle(s.code, e.target.checked)}
                           />
                         </label>

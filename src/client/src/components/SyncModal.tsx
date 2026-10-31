@@ -166,10 +166,13 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {sources.map(s => {
                 const isSelected = Boolean(selectedSources[s.code]);
+                const isDeactivated = s.code === 'allkeyshop' || s.state === 'DISABLED';
                 return (
                   <div
                     key={s.code}
-                    onClick={() => toggleSource(s.code)}
+                    onClick={() => {
+                      if (!isDeactivated) toggleSource(s.code);
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -178,7 +181,8 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
                       borderRadius: 'var(--radius-sm)',
                       background: isSelected ? 'rgba(255, 255, 255, 0.05)' : 'var(--bg-surface-elevated)',
                       border: `1px solid ${isSelected ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-subtle)'}`,
-                      cursor: 'pointer',
+                      cursor: isDeactivated ? 'not-allowed' : 'pointer',
+                      opacity: isDeactivated ? 0.5 : 1,
                       userSelect: 'none'
                     }}
                   >

@@ -903,6 +903,20 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 033] notice:', err?.message);
       }
     }
+  },
+  {
+    name: '034_deactivate_allkeyshop',
+    up: (db) => {
+      try {
+        db.exec(`
+          UPDATE sources 
+          SET is_enabled = 0, state = 'DISABLED', name = 'AllKeyShop (Deactivated)' 
+          WHERE code = 'allkeyshop'
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 034] notice:', err?.message);
+      }
+    }
   }
 ];
 

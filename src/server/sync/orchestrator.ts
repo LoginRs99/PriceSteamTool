@@ -1097,13 +1097,17 @@ export class SyncOrchestrator {
       ? requestedSources.includes('allkeyshop')
       : (options?.includeKeyshops ?? true);
 
-    if (includeKeyshops && isSourceEnabled('allkeyshop')) {
-      const cbCheck = circuitBreakers.canExecute('allkeyshop');
-      if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
-        const remaining = allkeyshopQueue.getCooldownRemainingSec();
-        logInfo(`[Force Refresh] AllKeyShop enrichment skipped for "${game.title}": source is cooling down (${remaining}s remaining).`);
+    if (includeKeyshops) {
+      if (!isSourceEnabled('allkeyshop')) {
+        logInfo(`[Force Refresh] AllKeyShop enrichment skipped for "${game.title}": source is disabled/deactivated.`);
         sourcesSkipped.push('allkeyshop');
       } else {
+        const cbCheck = circuitBreakers.canExecute('allkeyshop');
+        if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
+          const remaining = allkeyshopQueue.getCooldownRemainingSec();
+          logInfo(`[Force Refresh] AllKeyShop enrichment skipped for "${game.title}": source is cooling down (${remaining}s remaining).`);
+          sourcesSkipped.push('allkeyshop');
+        } else {
         (async () => {
           try {
             logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
@@ -1132,6 +1136,7 @@ export class SyncOrchestrator {
         })().catch(() => {});
       }
     }
+  }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
       priceHistoryQueue.seedGame(gameId, { timeoutMs: 5000 }).catch(() => {});
