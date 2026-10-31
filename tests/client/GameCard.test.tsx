@@ -164,4 +164,24 @@ describe('GameCard Component', () => {
 
     expect(screen.getByText('€15.00 below typical (€44.99)')).toBeInTheDocument();
   });
+
+  it('renders voucher promo badge when bestVoucherCode is present', () => {
+    const voucherGame: Game = {
+      ...mockGameBase,
+      bestVoucherCode: 'SAVE20'
+    };
+    render(<GameCard game={voucherGame} onClick={() => {}} />);
+
+    expect(screen.getByText('🎟️ SAVE20')).toBeInTheDocument();
+  });
+
+  it('renders market depth indicator (+N) when offersCount > 1', () => {
+    const multiOfferGame: Game = {
+      ...mockGameBase,
+      offersCount: 4
+    };
+    render(<GameCard game={multiOfferGame} onClick={() => {}} />);
+
+    expect(screen.getByText('(+3)')).toBeInTheDocument();
+  });
 });

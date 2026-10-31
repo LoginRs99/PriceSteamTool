@@ -115,6 +115,7 @@ export const App: React.FC = () => {
   const [showSourcesModal, setShowSourcesModal] = useState(false);
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   const handleCloseDetailModal = useCallback(() => setSelectedGameId(null), []);
   const handleCloseExplainModal = useCallback(() => setExplainGame(null), []);
@@ -192,6 +193,42 @@ export const App: React.FC = () => {
         target.isContentEditable
       );
       if (isInput) return;
+
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        setShowShortcutsModal(prev => !prev);
+        return;
+      }
+
+      if (e.key === 'r') {
+        e.preventDefault();
+        handleOpenSync();
+        return;
+      }
+
+      if (e.key === '1') {
+        e.preventDefault();
+        setMainTab('wishlist');
+        return;
+      } else if (e.key === '2') {
+        e.preventDefault();
+        setMainTab('free');
+        loadFreeGames();
+        return;
+      } else if (e.key === '3') {
+        e.preventDefault();
+        setMainTab('deals');
+        return;
+      } else if (e.key === '4') {
+        e.preventDefault();
+        setMainTab('safety');
+        loadAnomalies();
+        return;
+      } else if (e.key === '5') {
+        e.preventDefault();
+        setMainTab('savings');
+        return;
+      }
 
       if (e.key === 'j' || e.key === 'k') {
         const items = Array.from(document.querySelectorAll<HTMLElement>('.compact-row, .game-card'));

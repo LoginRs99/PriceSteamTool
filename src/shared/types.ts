@@ -143,6 +143,7 @@ export interface Game {
   bestProductType?: ProductType;
   bestRegionType?: RegionType;
   bestDealUrl?: string;
+  bestVoucherCode?: string;
   bestPriceEvent?: PriceEventType;
   bestLastObservedAt?: string;
   bestIsFresh?: boolean;

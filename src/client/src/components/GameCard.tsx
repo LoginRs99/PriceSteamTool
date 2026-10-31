@@ -387,6 +387,28 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
                 Stale
               </span>
             )}
+            {game.bestVoucherCode && (
+              <span 
+                className="voucher-mini-pill" 
+                title={`Includes voucher promo code: ${game.bestVoucherCode}`}
+                style={{ 
+                  fontSize: '0.68rem', 
+                  fontWeight: 700, 
+                  padding: '1px 5px', 
+                  borderRadius: 4, 
+                  background: 'rgba(16, 185, 129, 0.12)', 
+                  color: '#10b981', 
+                  border: '1px dashed rgba(16, 185, 129, 0.45)',
+                  marginLeft: 4,
+                  verticalAlign: 'middle',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3
+                }}
+              >
+                🎟️ {game.bestVoucherCode}
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -417,6 +439,11 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
             >
               {game.bestMerchantIsOfficial && <ShieldCheck size={11} color="#10b981" style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
               {game.bestMerchantName || 'Steam'}
+              {Boolean(game.offersCount && game.offersCount > 1) && (
+                <span style={{ opacity: 0.7, fontSize: '0.65rem', marginLeft: 3 }}>
+                  (+{game.offersCount - 1})
+                </span>
+              )}
             </span>
 
             {onExplain && (

@@ -32,11 +32,11 @@ export const AllKeyShopMatchSelector: React.FC<AllKeyShopMatchSelectorProps> = (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Key size={16} color="#f59e0b" />
           <div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>AllKeyShop Match / Source</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>AllKeyShop Match / Legacy Override</span>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {currentAksOverride 
                 ? `Custom override active: ${currentAksOverride}`
-                : 'Automatic matching active'}
+                : 'AllKeyShop is deactivated — using NEXARDA & SuperDuperBundle'}
             </div>
           </div>
         </div>

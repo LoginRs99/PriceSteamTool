@@ -11,6 +11,7 @@ import { ScoreExplainModal } from '../../src/client/src/components/ScoreExplainM
 import { Navbar } from '../../src/client/src/components/Navbar.js';
 import { SyncBanner } from '../../src/client/src/components/SyncBanner.js';
 import { AnomaliesView } from '../../src/client/src/components/AnomaliesView.js';
+import { KeyboardShortcutsModal } from '../../src/client/src/components/KeyboardShortcutsModal.js';
 import { api } from '../../src/client/src/api.js';
 import type { Profile, Game, SourceStatus, DiscordSettings, PricingError as Anomaly } from '../../src/client/src/types.js';
 
@@ -180,6 +181,7 @@ describe('Modals & Ancillary Components', () => {
   describe('Navbar', () => {
     it('renders navigation brand, active profile, and action buttons', () => {
       const triggerSyncMock = vi.fn();
+      const openShortcutsMock = vi.fn();
 
       render(
         <Navbar
@@ -188,6 +190,7 @@ describe('Modals & Ancillary Components', () => {
           onOpenProfiles={() => {}}
           onOpenSources={() => {}}
           onOpenDiscord={() => {}}
+          onOpenShortcuts={openShortcutsMock}
           onTriggerSync={triggerSyncMock}
         />
       );
@@ -198,6 +201,66 @@ describe('Modals & Ancillary Components', () => {
       const syncBtn = screen.getByRole('button', { name: /Sync Wishlist/i });
       fireEvent.click(syncBtn);
       expect(triggerSyncMock).toHaveBeenCalled();
+
+      const shortcutsBtn = screen.getByRole('button', { name: /Keyboard shortcuts \(\?\)/i });
+      expect(shortcutsBtn).toBeInTheDocument();
+      fireEvent.click(shortcutsBtn);
+      expect(openShortcutsMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders green upstream indicator when all sources healthy and amber when in cooldown', () => {
+      const mockHealthySources: SourceStatus[] = [
+        { code: 'steam', name: 'Steam', isEnabled: true, requestCount: 10, successCount: 10, failureCount: 0, rateLimitCount: 0, state: 'NORMAL' as const }
+      ];
+      const { rerender } = render(
+        <Navbar
+          activeProfile={mockProfile}
+          syncProgress={null}
+          sources={mockHealthySources}
+          onOpenProfiles={() => {}}
+          onOpenSources={() => {}}
+          onOpenDiscord={() => {}}
+          onTriggerSync={() => {}}
+        />
+      );
+
+      expect(screen.getByTitle('All upstream sources healthy')).toBeInTheDocument();
+
+      const mockCoolingSources: SourceStatus[] = [
+        { code: 'steam', name: 'Steam', isEnabled: true, requestCount: 10, successCount: 8, failureCount: 2, rateLimitCount: 1, state: 'BACKOFF' as const }
+      ];
+      rerender(
+        <Navbar
+          activeProfile={mockProfile}
+          syncProgress={null}
+          sources={mockCoolingSources}
+          onOpenProfiles={() => {}}
+          onOpenSources={() => {}}
+          onOpenDiscord={() => {}}
+          onTriggerSync={() => {}}
+        />
+      );
+
+      expect(screen.getByTitle('Some upstream sources in backoff/cooldown')).toBeInTheDocument();
+    });
+  });
+
+  describe('KeyboardShortcutsModal', () => {
+    it('renders cheat sheet titles, keys, and closes via close button or Escape', () => {
+      const closeMock = vi.fn();
+      render(<KeyboardShortcutsModal onClose={closeMock} />);
+
+      expect(screen.getByText('Keyboard Shortcuts')).toBeInTheDocument();
+      expect(screen.getByText('Focus wishlist search bar')).toBeInTheDocument();
+      expect(screen.getByText('Next game in detail modal')).toBeInTheDocument();
+      expect(screen.getByText('Switch tabs (Wishlist, Free, Best Deals, Safety, Savings)')).toBeInTheDocument();
+
+      const closeBtn = screen.getByRole('button', { name: /Close shortcuts modal/i });
+      fireEvent.click(closeBtn);
+      expect(closeMock).toHaveBeenCalledTimes(1);
+
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(closeMock).toHaveBeenCalledTimes(2);
     });
   });
 

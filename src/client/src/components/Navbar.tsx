@@ -1,27 +1,33 @@
 import React from 'react';
-import type { Profile, SyncProgressUpdate } from '../types.js';
-import { RefreshCw, User, Activity, Download, Globe, Bell, Zap } from 'lucide-react';
+import type { Profile, SyncProgressUpdate, SourceStatus } from '../types.js';
+import { RefreshCw, User, Activity, Download, Globe, Bell, Zap, HelpCircle } from 'lucide-react';
 import { useCurrency, CURRENCY_MAP, type SupportedCurrency } from '../context/CurrencyContext.js';
 
 interface NavbarProps {
   activeProfile: Profile | null;
   syncProgress: SyncProgressUpdate | null;
+  sources?: SourceStatus[];
   onOpenProfiles: () => void;
   onOpenSources: () => void;
   onOpenDiscord: () => void;
   onTriggerSync: () => void;
   onLogoClick?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeProfile,
   syncProgress,
+  sources,
   onOpenProfiles,
   onOpenSources,
   onOpenDiscord,
   onTriggerSync,
   onLogoClick,
+  onOpenShortcuts,
 }) => {
+  const hasDegradedSource = (sources && sources.some(s => s.isEnabled && (s.state === 'BACKOFF' || s.state === 'COOLDOWN' || s.state === 'PAUSED' || s.failureCount > 0 || s.rateLimitCount > 0)))
+    || (syncProgress?.sourceProgress ? Object.values(syncProgress.sourceProgress).some(p => p.state === 'BACKOFF' || p.state === 'PAUSED') : false);
   const { currency, setCurrency } = useCurrency();
   const isSyncing = syncProgress?.status === 'RUNNING';
   const percent = syncProgress && syncProgress.totalGames > 0 
@@ -110,10 +116,38 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Source Health & Diagnostics */}
-        <button className="btn btn-outline" onClick={onOpenSources} title="Source Adapter Health">
+        <button 
+          className="btn btn-outline" 
+          onClick={onOpenSources} 
+          title={hasDegradedSource ? 'Some upstream sources in backoff/cooldown' : 'All upstream sources healthy'}
+          style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
           <Activity size={16} />
           <span>Sources</span>
+          <span 
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              backgroundColor: hasDegradedSource ? '#f59e0b' : '#10b981',
+              display: 'inline-block',
+              boxShadow: hasDegradedSource ? '0 0 5px rgba(245, 158, 11, 0.6)' : '0 0 5px rgba(16, 185, 129, 0.6)'
+            }}
+          />
         </button>
+
+        {/* Global Keyboard Shortcuts */}
+        {onOpenShortcuts && (
+          <button 
+            className="btn btn-outline" 
+            onClick={onOpenShortcuts} 
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts (?)"
+            style={{ padding: '6px 8px', display: 'inline-flex', alignItems: 'center' }}
+          >
+            <HelpCircle size={15} />
+          </button>
+        )}
 
         {/* Profile Switcher */}
         <button className="btn btn-secondary" onClick={onOpenProfiles}>

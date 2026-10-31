@@ -204,6 +204,11 @@ const CompactRowComponent: React.FC<CompactRowProps> = ({
             <ShieldCheck size={12} color="var(--down)" style={{ flexShrink: 0 }} />
           )}
           <span>{game.bestMerchantName || 'Steam'}</span>
+          {Boolean(game.offersCount && game.offersCount > 1) && (
+            <span style={{ opacity: 0.7, fontSize: '0.65rem', marginLeft: 3 }}>
+              (+{game.offersCount - 1})
+            </span>
+          )}
           {game.bestIsFresh === false && (
             <span 
               className="stale-badge" 
@@ -235,6 +240,27 @@ const CompactRowComponent: React.FC<CompactRowProps> = ({
                 <span className="compact-price">{formatPrice(game.bestPriceEur)}</span>
                 {game.bestDiscountPercent !== undefined && game.bestDiscountPercent > 0 && (
                   <span className="compact-discount">-{game.bestDiscountPercent}%</span>
+                )}
+                {game.bestVoucherCode && (
+                  <span 
+                    className="voucher-mini-pill" 
+                    title={`Includes voucher promo code: ${game.bestVoucherCode}`}
+                    style={{ 
+                      fontSize: '0.65rem', 
+                      fontWeight: 700, 
+                      padding: '1px 4px', 
+                      borderRadius: 3, 
+                      background: 'rgba(16, 185, 129, 0.12)', 
+                      color: '#10b981', 
+                      border: '1px dashed rgba(16, 185, 129, 0.45)',
+                      marginLeft: 4,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    🎟️ {game.bestVoucherCode}
+                  </span>
                 )}
               </div>
               {Boolean(game.basePriceEur && game.basePriceEur > (game.bestPriceEur || 0)) && (
