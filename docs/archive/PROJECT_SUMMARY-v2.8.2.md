@@ -1,3 +1,5 @@
+> **Historical snapshot.** Preserved from the repository during the Antigravity workflow redesign. This document reflects the state and claims at the time it was written; it is not a current specification or verification result.
+
 # 🎮 PriceSteamTool — Project Summary & Architecture Guide
 
 > **Quick Reference for AI Assistants, Future Sessions & Developers**  

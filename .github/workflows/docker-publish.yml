@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -15,6 +19,7 @@ jobs:
   test:
     name: Run Tests and Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -43,6 +48,7 @@ jobs:
     name: Build & Push Docker Image
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event_name == 'push'
     permissions:
       contents: read

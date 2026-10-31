@@ -1,175 +1,62 @@
-# Development & Deployment Guide
+# Development and Verification
 
-This guide covers local environment setup, testing, Docker orchestration, and the CI/CD pipeline for **Pricetool** (v2.7.1).
+The source tree and `package.json` are authoritative. Do not copy historical test counts or version numbers into this guide.
 
----
+## Prerequisites
+- Node.js 22 or later; npm 10 or later.
+- Git.
+- Docker Engine/Compose only for container testing.
 
-## 1. Project Directory Structure
-
-```text
-Pricetool/
-├── .github/
-│   └── workflows/
-│       └── docker-publish.yml     # GitHub Actions CI/CD to GHCR (multi-arch build)
-├── docs/                          # Architectural & user documentation
-│   ├── README.md                  # Master documentation hub and sitemap
-│   ├── project-summary.md         # Master technical specification (v2.7.1)
-│   ├── project-logs.md            # Release chronicle, migrations 001-031, ADRs, post-mortems
-│   ├── ideas-and-roadmap.md       # Innovation ledger, ML prediction, bundles, features
-│   ├── user-guide.md              # User guide: Deal Score, Purchase Journal, Currencies
-│   ├── architecture.md            # System architecture, security, and components
-│   ├── sources.md                 # Source comparison, batching, and rate limiting
-│   ├── data-model.md              # SQLite schema (16 tables), migrations, and ER diagrams
-│   ├── sync.md                    # Queue orchestration, circuit breakers, and pricing errors
-│   ├── audit.md                   # Audit verification and validation reports (797 tests)
-│   ├── backup-restore.md          # Disaster recovery, zero-downtime backups, restore steps
-│   ├── api-data-matrix.md         # API data matrix and source query capabilities
-│   └── development.md             # This file
-├── src/
-│   ├── server/                    # Fastify backend & sync engine
-│   │   ├── config/                # Environment variables, constants, and delay defaults
-│   │   ├── db/                    # SQLite database & migrations (better-sqlite3)
-│   │   │   ├── migrations.ts      # Migrations 001–031
-│   │   │   ├── schema.ts          # Core SQLite schema (16 tables)
-│   │   │   ├── backup.ts          # Online zero-downtime backup engine
-│   │   │   ├── core.ts            # getDb(), stmtCache, BEST_DEAL_RECOMPUTE_ALL_SQL
-│   │   │   └── repositories/      # game, offer, merchant, profile, pricingError, purchase, source
-│   │   ├── domain/                # Pricing Engine, Deal Score, Price Intelligence, Normalizer
-│   │   │   ├── dealScore/         # 4-Pillar calculator, sigmoid confidence, tiers
-│   │   │   ├── pricingError/      # Pricing error detector, price events, self-healing
-│   │   │   └── priceIntelligence/ # Purchase advice, IQR typical sale, period lows, volatility
-│   │   ├── sources/               # Source adapters (ITAD, GGDeals, CheapShark, Steam, AllKeyShop)
-│   │   ├── sync/                  # Job queue, rate limiters, circuit breakers, orchestrator
-│   │   ├── routes/                # REST API routes (/api/*) & anti-rate-limit v1 (/api/v1/*)
-│   │   └── index.ts               # Server entry point & graceful shutdown
-│   ├── client/                    # Modern React 19 SPA (Vite)
-│   │   ├── src/
-│   │   │   ├── components/        # DealsDashboard, FilterBar, GameCard, CompactListView, GameDetailModal, SavingsView
-│   │   │   ├── context/           # CurrencyContext (EUR, USD, GBP, CAD, AUD, HUF)
-│   │   │   ├── hooks/             # Custom hooks (useWishlist, useSyncProgress, useFilters, useProfiles, useAnomalies)
-│   │   │   ├── types/             # Frontend shared domain types
-│   │   │   ├── App.tsx            # Main application
-│   │   │   └── index.css          # Design system CSS tokens & styles
-│   │   ├── index.html
-│   │   └── vite.config.ts
-│   └── shared/                    # Canonical domain types (src/shared/types.ts)
-├── tests/                         # Automated unit & integration tests (84 suites, 797 tests)
-│   ├── unit/                      # Domain logic, Deal Score, Pricing Errors, Normalizers, Adapters
-│   ├── integration/               # Real-world validation, Family Sharing exclusions, and API tests
-│   └── client/                    # React 19 UI component and hook tests
-├── Dockerfile                     # Multi-stage production container
-├── docker-compose.yml             # Local production compose
-├── CHANGELOG.md                   # Release history
-├── PROJECT_SUMMARY.md             # Project summary for developers and AI agents
-├── package.json
-├── tsconfig.json
-└── README.md
-```
-
----
-
-## 2. Environment Variables
-
-Create a `.env` file in the root directory (or pass via Docker environment):
-
-```env
-# Server Configuration
-PORT=3000
-HOST=0.0.0.0
-NODE_ENV=production
-DATA_DIR=/data
-LOG_LEVEL=info
-
-# API Keys (Optional but recommended for full coverage)
-STEAM_API_KEY=                     # Optional: For private Steam profile resolve
-ITAD_API_KEY=                      # Recommended: Free key from https://isthereanydeal.com/dev/app/
-GGDEALS_API_KEY=                   # Optional: Free key from https://gg.deals/api/
-
-# Safe Pacing & Delay Defaults (Milliseconds)
-STEAM_DELAY_MS=2000                # Steam Storefront pacing (250ms jitter)
-ITAD_DELAY_MS=1000                 # ITAD batch pacing (200ms jitter)
-CHEAPSHARK_DELAY_MS=1500           # CheapShark multi-AppID batch pacing (250ms jitter)
-GGDEALS_DELAY_MS=1500              # GG.deals pacing (300ms jitter)
-ALLKEYSHOP_DELAY_MS=2500           # AllKeyShop pacing (500ms jitter)
-
-# AllKeyShop Solver & Keyshop Pacing
-ALLKEYSHOP_SOLVER_URL=             # Anti-bot solver (Byparr / FlareSolverr)
-BYPARR_URL=                        # Alias for solver URL
-ALLKEYSHOP_MAX_GAMES=30            # Volume cap per run
-
-# Discord Webhook Deal & Glitch Alerts
-DISCORD_WEBHOOK_URL=               # Discord channel webhook
-DISCORD_ENABLED=true               # Enable push alerts
-DISCORD_MIN_DEAL_SCORE=75          # Minimum Deal Score for notification
-DISCORD_NOTIFY_ATL_ONLY=false      # Set true to notify only on confirmed ATL
-DISCORD_NOTIFY_PRICING_ERRORS=true # Glitch Hunter push alerts for pricing errors
-
-# Zero-Downtime SQLite Backup Engine
-BACKUP_ENABLED=true                # Enable automated 24h background backups
-BACKUP_INTERVAL_HOURS=24           # Backup frequency in hours
-BACKUP_RETENTION_DAYS=7            # Rolling retention limit (prunes older archives)
-```
-
----
-
-## 3. Local Development
-
-### 3.1 Install Dependencies
+## Setup
 ```bash
-npm install
+npm ci
+cp .env.example .env
 ```
+PowerShell: `Copy-Item .env.example .env`. Configure only required settings. Keep real secrets in the untracked `.env`.
 
-### 3.2 Run in Development Mode
-Runs both Fastify backend (with hot reload via `tsx watch`) and Vite client concurrently:
+## Development
 ```bash
 npm run dev
 ```
+Check terminal output for actual local URLs and ports.
 
-### 3.3 Run Automated Tests
+## Verification commands
+| Command | Purpose |
+|---|---|
+| `npm run typecheck` | TypeScript check |
+| `npm test` | Complete deterministic Vitest suite |
+| `npm run test:server` | Server test project |
+| `npm run test:client` | Client test project |
+| `npm run build` | Production build |
+| `npm run verify` | Typecheck, full tests, production build |
+| `npm run test:sources` | Live external source diagnostics |
+
+Run `npm run verify` before handing off substantive changes. Use focused suites first during implementation. `test:sources` sends real requests and depends on credentials, network, upstream availability and rate limits; it is not routine deterministic CI.
+
+## Test organization
+- `tests/unit/`: domain logic, utilities, adapters and database behavior.
+- `tests/integration/`: API, persistence and cross-component behavior.
+- `tests/client/`: React components and hooks in jsdom.
+- Shared setup: `tests/setup.ts`, `tests/setupClient.ts`.
+- Runner configuration: `vitest.config.ts`.
+
+Server tests use sequential execution and shared module state. Clean up mocks, global state, timers, servers, database handles and temporary files.
+
+## Build and start
 ```bash
-npm test               # Run all 84 test files (797 tests) with vitest
-npm run test:server    # Run server tests only
-npm run test:client    # Run client tests only
-npm run test:sources   # Run live network adapter connectivity checks
+npm run build
+npm start
 ```
 
-### 3.4 Run Typecheck
-```bash
-npm run typecheck      # tsc --noEmit
-```
-
-### 3.5 Build Production Bundle
-```bash
-npm run build          # Compiles client (Vite) and server (tsc)
-```
-
-### 3.6 Run Production Build Locally
-```bash
-npm start              # node dist/server/index.js
-```
-
----
-
-## 4. Docker Deployment
-
-### 4.1 Running with Docker Compose
+## Docker
 ```bash
 docker compose up -d --build
+docker compose logs -f pricetool
 ```
-Access the application at `http://localhost:3000`.
+Compose persists application data from host `./data` to container `/data`. Never delete or replace it during routine development or verification.
 
-Persistent database, cache files, and automated backups will be stored in `./data` on the host mapped to `/data` in the container.
+## Configuration
+`.env.example` is the canonical variable inventory. Keep it aligned with `src/server/config/index.ts`. Never commit real secrets.
 
----
-
-## 5. GitHub Actions & GHCR Publishing
-
-The workflow `.github/workflows/docker-publish.yml` triggers on `push` to `main` and on version tags (`v*.*.*`).
-
-1. **Lint & Test**: Runs automated unit, integration, and client tests (`npm test`).
-2. **Build**: Compiles frontend and backend TypeScript.
-3. **Container Build**: Uses Docker Buildx with layer caching.
-4. **Publish**: Pushes multi-arch images to GitHub Container Registry:
-   - `ghcr.io/<owner>/pricesteamtool:latest`
-   - `ghcr.io/<owner>/pricesteamtool:<git-sha>`
-   - `ghcr.io/<owner>/pricesteamtool:v2.7.1` (on release tag)
+## CI
+`.github/workflows/docker-publish.yml` runs typecheck, tests and production build for pushes and pull requests targeting `main`. Publishing runs only after successful verification on push. Historical CI does not certify the current revision.

@@ -2,9 +2,9 @@
 
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](https://opensource.org/license/mit)
 [![Version](https://img.shields.io/badge/Version-2.8.2-blue.svg)](./package.json)
-[![Tests](https://img.shields.io/badge/Tests-815%2F815%20Passed-emerald.svg)](./tests)
+[![Tests](https://img.shields.io/badge/Tests-Vitest%20suite-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
 ---
@@ -138,7 +138,7 @@ npm install
 # 2. Run Fastify backend and React 19 frontend concurrently with hot-reload
 npm run dev
 
-# 3. Run test suite (84 test files / 815 unit & integration tests)
+# 3. Run the automated test suite
 npm test
 
 # 4. Run TypeScript typecheck
@@ -177,21 +177,21 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 
 ## 📚 Documentation
 
-Comprehensive architectural, operational, and user documentation is maintained in [`docs/`](file:///D:/github/Pricetool/docs/):
-* [`docs/README.md`](file:///D:/github/Pricetool/docs/README.md) — Master documentation hub and sitemap.
-* [`docs/project-summary.md`](file:///D:/github/Pricetool/docs/project-summary.md) — Master technical specification, engines, and architecture (v2.8.2).
-* [`docs/project-logs.md`](file:///D:/github/Pricetool/docs/project-logs.md) — Complete release history, migrations 001–033, ADR-001–013, and incident post-mortems.
-* [`docs/ideas-and-roadmap.md`](file:///D:/github/Pricetool/docs/ideas-and-roadmap.md) — Comprehensive innovation backlog (ML forecasting, budget cart optimizer, bundles).
-* [`docs/architecture.md`](file:///D:/github/Pricetool/docs/architecture.md) — System architecture, security posture, and runtime components.
-* [`docs/data-model.md`](file:///D:/github/Pricetool/docs/data-model.md) — Database schema (all 16 tables, migrations 001–033), entity relations, and index designs.
-* [`docs/backup-restore.md`](file:///D:/github/Pricetool/docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, and disaster recovery.
-* [`docs/sources.md`](file:///D:/github/Pricetool/docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
-* [`docs/api-data-matrix.md`](file:///D:/github/Pricetool/docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
-* [`docs/sync.md`](file:///D:/github/Pricetool/docs/sync.md) — Queue orchestration, circuit breakers, ATL quarantine, and pricing error detection.
-* [`docs/user-guide.md`](file:///D:/github/Pricetool/docs/user-guide.md) — Deal Score v2.3 mathematics, purchase journal, multi-currency, and view modes.
-* [`docs/development.md`](file:///D:/github/Pricetool/docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
-* [`docs/audit.md`](file:///D:/github/Pricetool/docs/audit.md) — Technical audit & verification scorecard (84 test suites, 815 tests passing).
-* [`CONTRIBUTING.md`](file:///D:/github/Pricetool/CONTRIBUTING.md) — Developer setup, coding standards, and pull request workflow.
-* [`SECURITY.md`](file:///D:/github/Pricetool/SECURITY.md) — Vulnerability reporting policy and security disclosures.
-* [`PROJECT_SUMMARY.md`](file:///D:/github/Pricetool/PROJECT_SUMMARY.md) — Quick architectural cheatsheet for developers and AI agents.
-* [`CHANGELOG.md`](file:///D:/github/Pricetool/CHANGELOG.md) — Complete release history and changes.
+Comprehensive architectural, operational, and user documentation is maintained in [`docs/`](./docs/):
+* [`docs/README.md`](./docs/README.md) — Master documentation hub and sitemap.
+* [`docs/architecture.md`](./docs/architecture.md) — Master technical specification, engines, and architecture (v2.8.2).
+* [`docs/project-logs.md`](./docs/project-logs.md) — Complete release history, migrations 001–033, ADR-001–013, and incident post-mortems.
+* [`docs/ideas-and-roadmap.md`](./docs/ideas-and-roadmap.md) — Comprehensive innovation backlog (ML forecasting, budget cart optimizer, bundles).
+* [`docs/architecture.md`](./docs/architecture.md) — System architecture, security posture, and runtime components.
+* [`docs/data-model.md`](./docs/data-model.md) — Database schema (all 16 tables, migrations 001–033), entity relations, and index designs.
+* [`docs/backup-restore.md`](./docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, and disaster recovery.
+* [`docs/sources.md`](./docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
+* [`docs/api-data-matrix.md`](./docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
+* [`docs/sync.md`](./docs/sync.md) — Queue orchestration, circuit breakers, ATL quarantine, and pricing error detection.
+* [`docs/user-guide.md`](./docs/user-guide.md) — Deal Score mathematics, purchase journal, multi-currency, and view modes.
+* [`docs/development.md`](./docs/development.md) — Environment variables, local setup, testing, and Docker CI/CD.
+* [`CONTRIBUTING.md`](./CONTRIBUTING.md) — Developer setup, coding standards, and pull request workflow.
+* [`SECURITY.md`](./SECURITY.md) — Vulnerability reporting policy and security disclosures.
+* [`GEMINI.md`](./GEMINI.md) — Antigravity agent working agreement.
+* [`docs/architecture.md`](./docs/architecture.md) — Current architecture reference.
+* [`CHANGELOG.md`](./CHANGELOG.md) — Complete release history and changes.

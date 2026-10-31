@@ -52,39 +52,32 @@ Please take a moment to review this guide to ensure a smooth contribution proces
 
 ## 🧪 Testing & Verification Requirements
 
-Every change submitted via a pull request **must pass all quality gates** before being merged:
+Run the standard deterministic verification gate before submitting a substantive change:
 
 ```bash
-# 1. Typecheck the entire TypeScript codebase
-npm run typecheck
-
-# 2. Run the automated test suite (84 test files, 815+ tests)
-npm test
-
-# 3. Test backend or frontend specifically
-npm run test:server
-npm run test:client
-
-# 4. Verify production build succeeds
-npm run build
+npm run verify
 ```
 
-> [!IMPORTANT]
-> - Never skip or disable failing tests. If an existing test fails, either fix the regression or update the test if requirements deliberately changed.
-> - When adding new features or fixing bugs, include corresponding unit tests in `tests/unit/` or client tests in `tests/client/`.
+This runs, in order:
+1. `npm run typecheck`
+2. `npm test` (the complete Vitest suite)
+3. `npm run build` (production build)
 
+During development, use `npm run test:server` and/or `npm run test:client` for focused feedback. The optional `npm run test:sources` command contacts live external services and is not part of routine deterministic verification.
+
+Do not report checks as passing unless they were run on the revision being submitted. Add regression tests for behavior changes and bug fixes.
 ---
 
 ## 📂 Codebase Organization
 
-* [`src/shared/types.ts`](file:///D:/github/Pricetool/src/shared/types.ts): Single Source of Truth for TypeScript domain models, enums, and interfaces.
-* [`src/server/domain/`](file:///D:/github/Pricetool/src/server/domain/): Core intelligence (Deal Score v2.4, Pricing Error detection, Tukey IQR price analysis).
-* [`src/server/sources/`](file:///D:/github/Pricetool/src/server/sources/): Storefront adapters (Steam, ITAD, CheapShark, GG.deals, AllKeyShop).
-* [`src/server/sync/`](file:///D:/github/Pricetool/src/server/sync/): Pacing orchestrator, circuit breakers, rate limit queues.
-* [`src/server/db/`](file:///D:/github/Pricetool/src/server/db/): SQLite schema, migrations (001–033), Better-SQLite3 repositories, and online backup engine.
-* [`src/server/routes/`](file:///D:/github/Pricetool/src/server/routes/): Fastify route definitions (`api.ts`, `v1.ts`) and SSE stream.
-* [`src/client/`](file:///D:/github/Pricetool/src/client/): React 19 SPA, Lucide icons, Tailwind styling, and modal components.
-* [`docs/`](file:///D:/github/Pricetool/docs/): Complete architectural documentation, database schemas, and developer roadmaps.
+* [`src/shared/types.ts`](./src/shared/types.ts): Single Source of Truth for TypeScript domain models, enums, and interfaces.
+* [`src/server/domain/`](./src/server/domain/): Core intelligence (Deal Score v2.4, Pricing Error detection, Tukey IQR price analysis).
+* [`src/server/sources/`](./src/server/sources/): Storefront adapters (Steam, ITAD, CheapShark, GG.deals, AllKeyShop).
+* [`src/server/sync/`](./src/server/sync/): Pacing orchestrator, circuit breakers, rate limit queues.
+* [`src/server/db/`](./src/server/db/): SQLite schema, migrations (001–033), Better-SQLite3 repositories, and online backup engine.
+* [`src/server/routes/`](./src/server/routes/): Fastify route definitions (`api.ts`, `v1.ts`) and SSE stream.
+* [`src/client/`](./src/client/): React 19 SPA, Lucide icons, Tailwind styling, and modal components.
+* [`docs/`](./docs/): Complete architectural documentation, database schemas, and developer roadmaps.
 
 ---
 
