@@ -6,7 +6,6 @@ import { steamAdapter } from '../../src/server/sources/steam.js';
 import { itadAdapter } from '../../src/server/sources/itad.js';
 import { cheapsharkAdapter } from '../../src/server/sources/cheapshark.js';
 import { ggdealsAdapter } from '../../src/server/sources/ggdeals.js';
-import { allkeyshopAdapter } from '../../src/server/sources/allkeyshop.js';
 
 describe('Per-Game Force Refresh — P1 Suite', () => {
   beforeEach(() => {
@@ -81,21 +80,8 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
       }
     ]);
 
-    // Mock AllKeyShop background fetch
-    vi.spyOn(allkeyshopAdapter, 'fetchPricesForGame').mockResolvedValueOnce([
-      {
-        merchantCode: 'kinguin',
-        merchantName: 'Kinguin',
-        isOfficial: false,
-        priceEur: 39.99,
-        originalPriceEur: 59.99,
-        dealUrl: 'https://kinguin.net/bg3',
-        productTypeRaw: 'STEAM_KEY',
-        regionRaw: 'GLOBAL'
-      }
-    ]);
 
-    const result = await syncOrchestrator.refreshGame(game.id);
+    const result = await syncOrchestrator.refreshGame(game.id, { sources: ['steam', 'itad', 'cheapshark', 'ggdeals'] });
 
     expect(result.success).toBe(true);
     expect(result.sourcesChecked).toEqual(expect.arrayContaining(['steam', 'itad', 'cheapshark', 'ggdeals']));
@@ -130,9 +116,8 @@ describe('Per-Game Force Refresh — P1 Suite', () => {
 
     vi.spyOn(cheapsharkAdapter, 'fetchPricesForGame').mockResolvedValueOnce([]);
     vi.spyOn(ggdealsAdapter, 'fetchPricesForGame').mockResolvedValueOnce([]);
-    vi.spyOn(allkeyshopAdapter, 'fetchPricesForGame').mockResolvedValueOnce([]);
 
-    const result = await syncOrchestrator.refreshGame(game.id);
+    const result = await syncOrchestrator.refreshGame(game.id, { sources: ['steam', 'itad', 'cheapshark', 'ggdeals'] });
 
     expect(result.success).toBe(true);
     expect(result.sourcesChecked).toContain('itad');

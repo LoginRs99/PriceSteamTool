@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { circuitBreakers, CircuitBreakerRegistry } from '../../src/server/sync/circuitBreaker.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
-import { AllKeyShopPoliteQueue } from '../../src/server/sync/allkeyshop/queue.js';
 import { safeFetchJson } from '../../src/server/sources/base.js';
 import { cheapsharkAdapter } from '../../src/server/sources/cheapshark.js';
 import { itadAdapter } from '../../src/server/sources/itad.js';
@@ -11,7 +10,7 @@ import { syncRunRepo } from '../../src/server/db/repositories/syncRun.js';
 
 describe('Sync Engine & API Resilience Audit Suite', () => {
   beforeEach(() => {
-    for (const source of ['steam', 'itad', 'cheapshark', 'ggdeals', 'allkeyshop'] as const) {
+    for (const source of ['steam', 'itad', 'cheapshark', 'ggdeals', 'nexarda', 'superduperbundle'] as const) {
       circuitBreakers.reset(source);
       circuitBreakers.clearCooldown(source);
     }
@@ -72,24 +71,6 @@ describe('Sync Engine & API Resilience Audit Suite', () => {
       expect(circuitBreakers.getState('cheapshark')).toBe('NORMAL');
     });
 
-    it('does not penalize AllKeyShop circuit breaker on client cancellation in polite queue', async () => {
-      const queue = new AllKeyShopPoliteQueue();
-      queue.minDelayMs = 5;
-      queue.jitterMaxMs = 0;
-      (queue as any).currentDelayMs = 5;
-
-      const abortError = new Error('The operation was aborted');
-      abortError.name = 'AbortError';
-
-      const taskPromise = queue.enqueue('test-cancel-game', async () => {
-        throw abortError;
-      }, 'Test Cancel Game');
-
-      await expect(taskPromise).rejects.toThrow('The operation was aborted');
-
-      expect(circuitBreakers.getConsecutiveFailures('allkeyshop')).toBe(0);
-      expect(circuitBreakers.getState('allkeyshop')).toBe('NORMAL');
-    });
   });
 
   describe('3. Batch Queue Draining & Cancel Safety', () => {

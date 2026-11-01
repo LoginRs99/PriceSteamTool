@@ -26,12 +26,9 @@ import { steamAdapter } from '../sources/steam.js';
 import { itadAdapter } from '../sources/itad.js';
 import { cheapsharkAdapter } from '../sources/cheapshark.js';
 import { ggdealsAdapter } from '../sources/ggdeals.js';
-import { allkeyshopAdapter } from '../sources/allkeyshop.js';
 import { nexardaAdapter } from '../sources/nexarda.js';
 import { superDuperBundleAdapter } from '../sources/superduperbundle.js';
-import { allkeyshopQueue } from './allkeyshop/index.js';
 import { priceHistoryQueue } from './historyQueue.js';
-import { computeNextInterval, isAllkeyshopDue, computeWishlistScrapePriority } from '../domain/allkeyshopScheduling.js';
 import { exchangeRateService } from '../domain/exchangeRate.js';
 import { logInfo, logWarn, logError, logSummaryReport } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
@@ -65,7 +62,7 @@ export class SyncOrchestrator {
       itad: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
       ggdeals: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
       cheapshark: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
-      allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+      allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'DISABLED' },
       nexarda: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
       superduperbundle: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
     }
@@ -153,7 +150,6 @@ export class SyncOrchestrator {
   public cancelSync(): void {
     this.isCancelled = true;
     priceHistoryQueue.cancel();
-    allkeyshopQueue.clear();
     steamAdapter.clearQueue();
     itadAdapter.clearQueue();
     cheapsharkAdapter.clearQueue();
@@ -230,7 +226,7 @@ export class SyncOrchestrator {
         itad: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         ggdeals: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         cheapshark: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
-        allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+        allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'DISABLED' },
         nexarda: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         superduperbundle: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
       }
@@ -262,7 +258,6 @@ export class SyncOrchestrator {
           case 'itad': return itadAdapter.isEnabled();
           case 'cheapshark': return cheapsharkAdapter.isEnabled();
           case 'ggdeals': return ggdealsAdapter.isEnabled();
-          case 'allkeyshop': return allkeyshopAdapter.isEnabled();
           case 'nexarda': return nexardaAdapter.isEnabled();
           case 'superduperbundle': return superDuperBundleAdapter.isEnabled();
           default: return false;
@@ -281,8 +276,6 @@ export class SyncOrchestrator {
 
       const coreSourceCodes: SourceCode[] = ['steam', 'itad', 'cheapshark', 'ggdeals', 'superduperbundle', 'nexarda'];
       const activeCoreSources = coreSourceCodes.filter(c => isSourceEligible(c));
-      const isKeyshopSelected = isSourceEligible('allkeyshop');
-      const isKeyshopOnly = isKeyshopSelected && activeCoreSources.length === 0;
 
       // Refresh dynamic FX rates if cache expired
       try {
@@ -362,7 +355,7 @@ export class SyncOrchestrator {
       }
 
       // If core sources are selected and all are cached, and keyshop is not selected, finish immediately
-      if (activeCoreSources.length > 0 && gamesToRefresh.length === 0 && !isKeyshopSelected) {
+      if (activeCoreSources.length > 0 && gamesToRefresh.length === 0) {
         const duration = Math.round((Date.now() - this.startTime) / 1000);
         this.progress.status = 'COMPLETED';
         this.progress.completedAt = new Date().toISOString();
@@ -658,8 +651,6 @@ export class SyncOrchestrator {
       } else if (finalStatus === 'COMPLETED_WITH_WARNINGS') {
         const failedNames = failedSources.map(s => SOURCE_DISPLAY_NAMES[s] || s).join(', ');
         completionAction = `Core sync complete with warnings (${failedNames} failed).`;
-      } else if (isKeyshopOnly) {
-        completionAction = `Starting AllKeyShop refresh for ${allWishlistGames.length} wishlist games...`;
       } else {
         const allEnabledCoreCount = coreSourceCodes.filter(c => isSourceEnabled(c)).length;
         const isFullCore = activeCoreSources.length === allEnabledCoreCount;
@@ -692,18 +683,7 @@ export class SyncOrchestrator {
         logWarn(`[Discord] Could not dispatch deal alerts: ${notifyErr.message}`);
       }
 
-      // Step 6: Background Keyshop Enrichment (AllKeyShop)
-      if (isKeyshopSelected && !this.isCancelled) {
-        if (isKeyshopOnly) {
-          await this.startBackgroundEnrichment(profileId, allWishlistGames, isKeyshopOnly, forceRefresh);
-        } else {
-          this.startBackgroundEnrichment(profileId, allWishlistGames, isKeyshopOnly, forceRefresh).catch(e => {
-            logWarn(`[Enrichment] Background keyshop worker warning: ${e.message}`);
-          });
-        }
-      }
-
-      // Step 7: Cleanup Old Price History (Retention Policy) & Invalidate Expired Offers
+      // Step 6: Cleanup Old Price History (Retention Policy) & Invalidate Expired Offers
       try {
         const retentionDays = config.historyRetentionDays || 90;
         const purgeRes = offerRepo.purgeOldPriceHistory(retentionDays);
@@ -763,192 +743,7 @@ export class SyncOrchestrator {
       }
     }
   }
-
-  /**
-   * Non-blocking background worker that enriches games with AllKeyShop keyshop offers
-   */
-  private async startBackgroundEnrichment(
-    profileId: string, 
-    games: WishlistSyncGame[], 
-    isSourceOnly = false,
-    forceRefresh = false
-  ): Promise<void> {
-    if (this.enrichmentStatus.isRunning) {
-      logInfo('[Enrichment] Background enrichment already in progress.');
-      return;
-    }
-
-    if (!allkeyshopAdapter.isEnabled()) {
-      logInfo('[Enrichment] AllKeyShop background enrichment disabled (no solver configured). Skipping.');
-      return;
-    }
-
-    const dueGames = forceRefresh 
-      ? [...games].sort((a, b) => computeWishlistScrapePriority(b) - computeWishlistScrapePriority(a)) 
-      : games
-          .filter(g => isAllkeyshopDue(g))
-          .sort((a, b) => computeWishlistScrapePriority(b) - computeWishlistScrapePriority(a));
-    // If user configured ALLKEYSHOP_MAX_GAMES (e.g. 0 for full baseline or 1500), respect it.
-    // Default is 50 in config/index.ts.
-    const maxGames = config.allkeyshopMaxGames;
-    const prioritizedGames = (maxGames > 0 && maxGames < dueGames.length) 
-      ? dueGames.slice(0, maxGames) 
-      : dueGames;
-
-    if (prioritizedGames.length === 0) {
-      logInfo('[Enrichment] AllKeyShop background worker: no games currently due for refresh.');
-      if (isSourceOnly) {
-        this.progress.currentAction = 'AllKeyShop refresh complete: all games are up to date.';
-        this.broadcast();
-      }
-      return;
-    }
-
-    this.enrichmentStatus = {
-      isRunning: true,
-      total: prioritizedGames.length,
-      processed: 0,
-      offersFound: 0,
-      currentGameTitle: undefined
-    };
-
-    this.progress.sourceProgress.allkeyshop = {
-      processed: 0,
-      total: prioritizedGames.length,
-      offersFound: 0,
-      state: 'NORMAL'
-    };
-    if (isSourceOnly) {
-      this.progress.currentAction = `AllKeyShop refresh in progress for ${prioritizedGames.length} games...`;
-    }
-    this.broadcast();
-
-    logInfo(`[Enrichment] Starting background Keyshop worker for ${prioritizedGames.length} due games (out of ${games.length} total).`);
-    const chunkSize = config.allkeyshopChunkSize;
-    const pauseMs = config.allkeyshopChunkPauseMs;
-    const hasSolver = Boolean(config.allkeyshopSolverUrl?.trim());
-
-    try {
-      for (let i = 0; i < prioritizedGames.length; i++) {
-        if (this.isCancelled) break;
-        if (!circuitBreakers.canExecute('allkeyshop').allowed || allkeyshopQueue.isCoolingDown) {
-          const remainingSec = allkeyshopQueue.getCooldownRemainingSec();
-          logInfo(`[Enrichment] AllKeyShop entered cooldown (${remainingSec}s remaining). Halting enrichment pass.`);
-          break;
-        }
-        const g = prioritizedGames[i];
-        this.enrichmentStatus.processed = i + 1;
-        this.enrichmentStatus.currentGameTitle = g.title;
-        this.progress.sourceProgress.allkeyshop.processed = i + 1;
-
-        let lowestPriceEur: number | null = null;
-        let newOffersCount = 0;
-        const freshAksOfferIds: string[] = [];
-        try {
-          const offers = await allkeyshopAdapter.fetchPricesForGame(g.steamAppId, g.title, g.itadId, g.releaseDate);
-          for (const offer of offers) {
-            const saved = this.ingestOffer(g.id, 'allkeyshop', offer, undefined, true);
-            if (saved?.id) {
-              freshAksOfferIds.push(saved.id);
-              this.enrichmentStatus.offersFound++;
-              newOffersCount++;
-              if (offer.priceEur > 0.05 && (lowestPriceEur === null || offer.priceEur < lowestPriceEur)) {
-                lowestPriceEur = offer.priceEur;
-              }
-            }
-          }
-          if (offers.length > 0) {
-            offerRepo.invalidateStaleForGameSource(g.id, 'allkeyshop', freshAksOfferIds);
-            offerRepo.recomputeBestDealForGame(g.id);
-          }
-          this.progress.sourceProgress.allkeyshop.offersFound += newOffersCount;
-
-          // Adaptive interval recomputation after each check
-          const prevPrice = g.allkeyshopLastPriceEur !== undefined && g.allkeyshopLastPriceEur !== null
-            ? Number(g.allkeyshopLastPriceEur)
-            : null;
-          const streak = g.allkeyshopUnchangedStreak ?? 0;
-          const prevInterval = g.allkeyshopCheckIntervalHours ?? 24;
-          const hasActiveTargetPrice = g.targetPriceEur !== undefined && g.targetPriceEur !== null;
-
-          const nextSchedule = computeNextInterval(
-            prevPrice,
-            lowestPriceEur,
-            streak,
-            prevInterval,
-            hasActiveTargetPrice
-          );
-
-          const nowIso = new Date().toISOString();
-          gameRepo.updateAllkeyshopCheckState(
-            g.id,
-            nowIso,
-            lowestPriceEur,
-            nextSchedule.intervalHours,
-            nextSchedule.streak
-          );
-        } catch {
-          // Ignore individual keyshop scraping errors and do not mark as checked
-        }
-
-        this.progress.currentAction = isSourceOnly
-          ? `AllKeyShop: [${i + 1}/${prioritizedGames.length}] ${g.title}`
-          : `Keyshop enrichment: [${i + 1}/${prioritizedGames.length}] ${g.title}`;
-        this.broadcast();
-
-        // Anti-ban Cooldown Break: every `chunkSize` games with responsive cancellation
-        const isChunkEnd = (i + 1) % chunkSize === 0 && (i + 1) < prioritizedGames.length;
-        if (isChunkEnd && !this.isCancelled) {
-          logInfo(`[Enrichment] Completed chunk of ${chunkSize} games. Cooling down for ${Math.round(pauseMs / 1000)}s.`);
-          let elapsed = 0;
-          while (elapsed < pauseMs && !this.isCancelled) {
-            const step = Math.min(500, pauseMs - elapsed);
-            await new Promise(r => setTimeout(r, step));
-            elapsed += step;
-          }
-        } else if (!hasSolver && (i + 1) < prioritizedGames.length && !this.isCancelled) {
-          // Occasional irregular hesitation break (~5% probability) of 5-15 minutes ONLY for raw scraping without solver
-          if (Math.random() < 0.05) {
-            const hesitationMinutes = 5 + Math.random() * 10;
-            const hesitationMs = Math.round(hesitationMinutes * 60 * 1000);
-            logInfo(`[Enrichment] Natural pacing hesitation: pausing for ${(hesitationMs / 1000 / 60).toFixed(1)} minutes.`);
-            let elapsed = 0;
-            while (elapsed < hesitationMs && !this.isCancelled) {
-              const step = Math.min(500, hesitationMs - elapsed);
-              await new Promise(r => setTimeout(r, step));
-              elapsed += step;
-            }
-          }
-        }
-      }
-
-      this.lastEnrichmentAt = new Date().toISOString();
-      logInfo(`[Enrichment] Keyshop background enrichment completed. Found ${this.enrichmentStatus.offersFound} offers.`);
-
-      const healedCount = gameRepo.reconcileAllHistoricalLows();
-      if (healedCount > 0) {
-        logInfo(`[Enrichment] Reconciled ${healedCount} game(s) with new keyshop-driven all-time lows.`);
-      }
-
-      if (isSourceOnly) {
-        this.progress.currentAction = `AllKeyShop refresh complete for ${prioritizedGames.length} games.`;
-        this.broadcast();
-      }
-
-      // Secondary lightweight deal notification pass for keyshop-driven deals
-      if (this.enrichmentStatus.offersFound > 0) {
-        try {
-          const bestDeals = gameRepo.getBestDeals(profileId, 50);
-          await sendDealNotifications(bestDeals, 'allkeyshop_enrichment');
-        } catch (e: any) {
-          logWarn(`[Discord] Could not dispatch post-enrichment deal alerts: ${e.message}`);
-        }
-      }
-    } finally {
-      this.enrichmentStatus.isRunning = false;
-      this.enrichmentStatus.currentGameTitle = undefined;
-    }
-  }
+
 
   private generateSummary(
     profileName: string, 
@@ -1065,7 +860,7 @@ export class SyncOrchestrator {
 
   /**
    * Refreshes pricing for a single specific game across active fast sources
-   * (Steam, ITAD, CheapShark, GG.deals) with asynchronous background AllKeyShop enrichment.
+   * (Steam, ITAD, CheapShark, GG.deals, NEXARDA, SuperDuperBundle).
    */
   public async refreshGame(
     gameId: string,
@@ -1180,52 +975,6 @@ export class SyncOrchestrator {
 
     // Recompute best deal for this game
     offerRepo.recomputeBestDealForGame(gameId);
-
-    // Non-blocking background AllKeyShop enrichment
-    const includeKeyshops = requestedSources
-      ? requestedSources.includes('allkeyshop')
-      : (options?.includeKeyshops ?? true);
-
-    if (includeKeyshops) {
-      if (!isSourceEnabled('allkeyshop')) {
-        logInfo(`[Force Refresh] AllKeyShop enrichment skipped for "${game.title}": source is disabled/deactivated.`);
-        sourcesSkipped.push('allkeyshop');
-      } else {
-        const cbCheck = circuitBreakers.canExecute('allkeyshop');
-        if (!cbCheck.allowed || allkeyshopQueue.isCoolingDown) {
-          const remaining = allkeyshopQueue.getCooldownRemainingSec();
-          logInfo(`[Force Refresh] AllKeyShop enrichment skipped for "${game.title}": source is cooling down (${remaining}s remaining).`);
-          sourcesSkipped.push('allkeyshop');
-        } else {
-        (async () => {
-          try {
-            logInfo(`[Force Refresh] Starting background AllKeyShop enrichment for "${game.title}"...`);
-            const aksOffers = await allkeyshopAdapter.fetchPricesForGame(game.steamAppId, game.title, game.itadId, game.releaseDate);
-            let lowestAksPrice: number | null = null;
-            const freshAksOfferIds: string[] = [];
-            for (const offer of aksOffers) {
-              const saved = this.ingestOffer(gameId, 'allkeyshop', offer, game.basePriceEur, true);
-              if (saved?.id) {
-                freshAksOfferIds.push(saved.id);
-              }
-              if (offer.priceEur > 0.05 && (lowestAksPrice === null || offer.priceEur < lowestAksPrice)) {
-                lowestAksPrice = offer.priceEur;
-              }
-            }
-            if (aksOffers.length > 0) {
-              offerRepo.invalidateStaleForGameSource(gameId, 'allkeyshop', freshAksOfferIds);
-            }
-            const nowIso = new Date().toISOString();
-            gameRepo.updateAllkeyshopCheckState(gameId, nowIso, lowestAksPrice, 24, 0);
-            offerRepo.recomputeBestDealForGame(gameId);
-            logInfo(`[Force Refresh] Background AllKeyShop enrichment complete for "${game.title}" (${aksOffers.length} offers).`);
-          } catch (aksErr: any) {
-            logWarn(`[Force Refresh] Background AllKeyShop enrichment failed for "${game.title}": ${aksErr.message}`);
-          }
-        })().catch(() => {});
-      }
-    }
-  }
 
     if (!game.priceHistorySeededAt && config.itadApiKey) {
       priceHistoryQueue.seedGame(gameId, { timeoutMs: 5000 }).catch(() => {});

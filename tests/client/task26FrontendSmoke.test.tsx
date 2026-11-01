@@ -51,7 +51,7 @@ describe('Task 26 Frontend Smoke Verification Suite', () => {
         itad: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         ggdeals: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         cheapshark: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
-        allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
+        allkeyshop: { processed: 0, total: 0, offersFound: 0, state: 'DISABLED' },
         nexarda: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' },
         superduperbundle: { processed: 0, total: 0, offersFound: 0, state: 'NORMAL' }
       }

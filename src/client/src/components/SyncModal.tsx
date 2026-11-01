@@ -17,11 +17,11 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
 
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [selectedSources, setSelectedSources] = useState<Record<SourceCode, boolean>>({
+    allkeyshop: false,
     steam: true,
     itad: true,
     ggdeals: true,
     cheapshark: true,
-    allkeyshop: false,
     nexarda: true,
     superduperbundle: true
   });
@@ -166,9 +166,9 @@ export const SyncModal: React.FC<SyncModalProps> = ({ onClose, onStartSync, isSy
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {sources.map(s => {
+              {sources.filter(s => s.code !== 'allkeyshop').map(s => {
                 const isSelected = Boolean(selectedSources[s.code]);
-                const isDeactivated = s.code === 'allkeyshop' || s.state === 'DISABLED';
+                const isDeactivated = s.state === 'DISABLED';
                 return (
                   <div
                     key={s.code}

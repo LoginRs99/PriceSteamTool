@@ -193,52 +193,6 @@ export const api = {
     return apiFetch<PriceIntelligenceResponse>(`${API_BASE}/games/${id}/intelligence`);
   },
 
-  async getAllkeyshopCandidates(id: string): Promise<{
-    gameId: string;
-    title: string;
-    steamAppId: number;
-    currentOverride: string | number | null;
-    candidates: { id: number; name: string; slug?: string }[];
-  }> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    try {
-      return await apiFetch<{
-        gameId: string;
-        title: string;
-        steamAppId: number;
-        currentOverride: string | number | null;
-        candidates: { id: number; name: string; slug?: string }[];
-      }>(`${API_BASE}/games/${id}/allkeyshop-candidates`, {
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  },
-
-  async setAllkeyshopOverride(id: string, override: string | number | null): Promise<{
-    success: boolean;
-    gameId: string;
-    override: string | number | null;
-    offersUpdated?: number;
-    queued?: boolean;
-    staleOffersRemoved?: number;
-  }> {
-    return apiFetch<{
-      success: boolean;
-      gameId: string;
-      override: string | number | null;
-      offersUpdated?: number;
-      queued?: boolean;
-      staleOffersRemoved?: number;
-    }>(`${API_BASE}/games/${id}/allkeyshop-override`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ override })
-    });
-  },
-
   async refreshGame(id: string): Promise<RefreshGameResult> {
     return apiFetch<RefreshGameResult>(`${API_BASE}/games/${id}/refresh`, {
       method: 'POST',
@@ -274,12 +228,6 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isEnabled })
-    });
-  },
-
-  async refreshAllkeyshopCatalog(): Promise<{ success: boolean; count: number }> {
-    return apiFetch<{ success: boolean; count: number }>(`${API_BASE}/sources/allkeyshop/refresh-catalog`, {
-      method: 'POST'
     });
   },
 

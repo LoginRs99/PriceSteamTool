@@ -5,7 +5,6 @@ import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } 
 import { parseRetryAfterHeader, safeFetchJson } from '../../src/server/sources/base.js';
 import { normalizeRegion } from '../../src/server/domain/normalizer.js';
 import { steamAdapter } from '../../src/server/sources/steam.js';
-import { allkeyshopAdapter, fetchWithAllkeyshopSolver } from '../../src/server/sources/allkeyshop.js';
 import { CircuitBreakerRegistry, circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
 import { config } from '../../src/server/config/index.js';
@@ -239,58 +238,6 @@ describe('10 Approved Implementation Fixes Verification Suite', () => {
     });
   });
 
-  // 7. Item 7: AllKeyShop Solver Error Propagation
-  describe('Item 7: AllKeyShop Solver Error Propagation', () => {
-    let savedSolverUrl: string | undefined;
-
-    beforeEach(() => {
-      savedSolverUrl = config.allkeyshopSolverUrl;
-      config.allkeyshopSolverUrl = 'http://localhost:8191/v1';
-    });
-
-    afterEach(() => {
-      config.allkeyshopSolverUrl = savedSolverUrl || '';
-    });
-
-    it('rejects on HTTP 500 from solver', async () => {
-      const originalFetch = global.fetch;
-      global.fetch = vi.fn().mockImplementation(() =>
-        Promise.resolve({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-      );
-
-      try {
-        await expect(fetchWithAllkeyshopSolver('https://example.com')).rejects.toThrow(
-          /Byparr \/ FlareSolverr returned HTTP 500/
-        );
-      } finally {
-        global.fetch = originalFetch;
-      }
-    });
-
-    it('rejects on challenge status error', async () => {
-      const originalFetch = global.fetch;
-      global.fetch = vi.fn().mockImplementation(() =>
-        Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ status: 'error', message: 'Challenge failed' }),
-          text: () => Promise.resolve(JSON.stringify({ status: 'error', message: 'Challenge failed' }))
-        })
-      );
-
-      try {
-        await expect(fetchWithAllkeyshopSolver('https://example.com')).rejects.toThrow(
-          /Byparr challenge failed/
-        );
-      } finally {
-        global.fetch = originalFetch;
-      }
-    });
-  });
 
   // 10. Item 10: Unknown Region Normalization
   describe('Item 10: Region Normalization Safety', () => {

@@ -101,10 +101,9 @@ Every adapter executes inside an isolated `PacedSourceQueue` with token-bucket i
 4. **GG.deals Worker (Batch / Selective API)**:
    * `GGDEALS_DELAY_MS=1500` (jitter: 300ms). Refreshes batch catalog in parallel.
 
-5. **AllKeyShop Worker (Adaptive Keyshop Enrichment)**:
-   * Strictly routed through an anti-bot solver (Byparr / FlareSolverr).
-   * `ALLKEYSHOP_DELAY_MS=2500` (jitter: 500ms) with exponential-tailed jitter.
-   * Adaptive intervals (24h to 168h ceiling) based on price stability streak.
+5. **NEXARDA & SuperDuperBundle Workers (Keyshop & Aggregator Integration)**:
+   * **NEXARDA**: Queries verified official stores and keyshops with net pricing and voucher codes (`NEXARDA_DELAY_MS=500`).
+   * **SuperDuperBundle**: Batched multi-game lookup in 50-game chunks with resilient error recovery (`SUPERDUPERBUNDLE_DELAY_MS=1000`).
 
 ---
 

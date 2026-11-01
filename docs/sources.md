@@ -64,52 +64,10 @@ This document provides a thorough technical analysis of each game price source, 
   * Direct game details: Parses structured metadata, current lowest official deal, current lowest keyshop deal, merchant name, activation type, and historical low.
 * **Pacing & Queue**: `GGDEALS_DELAY_MS=1500` (jitter: 300ms). Trips to `PAUSED` on repeated 429s or Cloudflare verification challenges.
 
-### 2.5 AllKeyShop
-* **Canonical Role**: Comprehensive grey-market keyshop coverage (Eneba, Kinguin, G2A, CDKeys, Instant Gaming, Gamivo, etc.).
-* **API Endpoints & Architecture**:
-  * Queries AllKeyShop's unofficial internal JSON endpoints (`vaks.php` and `price_history_api.php`) for product listings, merchant offers, voucher discounts, and historical pricing.
-  * **Solver Requirement & Proxy Forwarding**: Strictly requires an external anti-bot solver (Byparr or FlareSolverr via `ALLKEYSHOP_SOLVER_URL` / `BYPARR_URL`). Zero direct scraping fallbacks exist to protect the user's home IP address. Optional HTTP/SOCKS5 rotating proxies (e.g., Webshare `p.webshare.io:80`) can be forwarded to FlareSolverr via `ALLKEYSHOP_PROXY_URL` to completely isolate host IPs from Cloudflare rate limits.
-  * **Chunked Pacing & Stealth Seeding**: Requests are chunked (`ALLKEYSHOP_CHUNK_SIZE=25` or `50`) with configurable cool-off pauses (`ALLKEYSHOP_CHUNK_PAUSE_MS=30000` to `180000`) and human-like jitter (`ALLKEYSHOP_JITTER_MS=1500`). For initial full database building across 1,000+ games, `ALLKEYSHOP_MAX_GAMES=0` enables unlimited batch execution while maintaining stealth pacing.
-  * **Dual-Stage Page & API Fallback**: When FlareSolverr experiences browser timeouts or HTTP 500 errors on heavy live comparison HTML pages, the adapter gracefully falls back to the lightweight JSON endpoint (`price_history_api.php`) rather than tripping source-wide failures.
-  * **Fair Round-Robin Scheduling**: Due games are sorted by `allkeyshop_last_checked_at ASC` to prevent catalog starvation.
-  * **Adaptive Intervals**: Implements exponential backoff per title (24h to 168h ceiling) based on price stability streak (`allkeyshop_unchanged_streak`). Active target price overrides fast-track check intervals.
-  * **Pacing & Jitter**: `ALLKEYSHOP_DELAY_MS=2500` (jitter: 500ms) with exponential-tailed jitter and occasional hesitation breaks.
-  * **Circuit Breaker**: If the solver challenge fails or returns 403/429/502, activates backoff/pause. Can be immediately unpaused via the UI or `POST /api/sources/allkeyshop/reset`.
-
-### 2.5.1 Evaluation of Third-Party `allkeyshop-api` (v3.0.0)
-A deep technical evaluation was performed on the latest upstream release of [`sergioalmela/allkeyshop-api`](https://github.com/sergioalmela/allkeyshop-api) (v3.0.0, published October 2026):
-
-* **Package Size Analysis**:
-  * Compressed tarball: **2.1 MB** | Unpacked install size: **11.0 MB** (`11,021,458 bytes`).
-  * **99.1% dead weight**: The package bundles an uncompressed 10.9 MB JSON snapshot (`dist/public/vaks.json`). Crucially, the library's runtime code (`fetch.js`) checks `os.tmpdir()` and never actually reads `dist/public/vaks.json`, making the 10.9 MB file completely unused bloat.
-* **Unsolved Bugs & Critical Gaps in `allkeyshop-api@3.0.0`**:
-  1. **Instant Cloudflare 403 Blocks**: Uses standard `fetch()` without a User-Agent, cookie jar, proxy, or anti-bot solver (Byparr/FlareSolverr). When executed in containerized or server environments, `allkeyshop.com` immediately blocks requests with HTTP 403.
-  2. **Flawed `store: 'steam'` Filter**: Uses `fuzzy-search` to search the **merchant name** for the string `"steam"`. This discards all keyshops (Kinguin, CDKeys, Eneba) that sell Steam keys, only returning the official Steam storefront. Conversely, if no filter is supplied, it leaks non-Steam DRM (GOG, Epic, Xbox, PS5, Steam Accounts).
-  3. **Greedy First-Match Resolution**: `search()` blindly takes `games[0]` from an unweighted fuzzy search without release year verification, causing severe false matches on DLCs and sequels.
-  4. **Missing Payment Fees**: Ignores `priceCard` and `pricePaypal` fields, under-reporting user prices by 10%–15%.
-  5. **Lack of Rate-Limiting**: Lacks token-bucket pacing, jitter, and circuit breakers, causing rapid 429 rate limits.
-* **Architectural Verdict**:
-  * **Do NOT adopt `allkeyshop-api` as a dependency**. PriceSteamTool's native implementation in [`src/server/sources/allkeyshop.ts`](file:///D:/github/Pricetool/src/server/sources/allkeyshop.ts) is vastly superior: zero package bloat (0 MB vs 11 MB), full Byparr/FlareSolverr solver integration, 4-state circuit breakers, dual-layer page & API fallback, exact year/edition matching, and 100% Steam DRM key filtering.
-
-### 2.5.2 Native Hardening & TDD Enhancements (2026-10)
-Following technical audits, several key resilience and accuracy enhancements were integrated directly into the native AllKeyShop adapter using Test-Driven Development (TDD):
-
-1. **Pre-Indexed Compressed Seed Catalog (`src/server/sources/seed/allkeyshop_catalog.seed.json.gz`)**:
-   * Bundles a 1.93 MB gzipped seed file containing **204,453 verified games and IDs**.
-   * On cold boot, if `data/allkeyshop_catalog.json` is missing or incomplete, the catalog is unpacked in <50ms without waiting for a Cloudflare solver network connection.
-2. **Franchise & Article Prefix Stripping**:
-   * Uses `stripPublisherPrefixes()` to strip franchise prefixes (`Tom Clancy's`, `Sid Meier's`, `Warhammer 40,000`, `EA Sports`, `Marvel's`, `Disney's`, `The`, `A`, `An`) during candidate indexing and search.
-   * Enables seamless matching for games whose titles differ between Steam and AllKeyShop (e.g. *Tom Clancy's Rainbow Six Siege* $\rightarrow$ *Rainbow Six Siege*, *Sid Meier's Civilization VI* $\rightarrow$ *Civilization 6*).
-3. **Numeric ID Fast-Path Resolution**:
-   * Refactored `fetchPricesForGame()` to make `price_history_api.php?normalised_name=${matched.id}` the primary fast path. Avoids brittle WordPress blog slug guessing and eliminates 404 delays.
-4. **Security & Rate-Limit Hardening**:
-   * Implemented `buildAksApiUrl()` with strict host allowlisting (`www.allkeyshop.com`) to prevent SSRF vulnerabilities.
-   * Upgraded `parseRetryAfterHeader()` to parse both numeric seconds and RFC 7231 HTTP dates.
-   * Isolated test runners from production cache paths so unit tests never overwrite `data/allkeyshop_catalog.json`.
-5. **Automatic 7-Day Catalog TTL & On-Demand Manual Refresh**:
-   * Master title catalog enforces a 7-day TTL (`CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000`) verified via `isCatalogFresh()`. If the file is older than 7 days, the adapter automatically redownloads the latest catalog from upstream.
-   * On-demand catalog refresh endpoint: `POST /api/sources/allkeyshop/refresh-catalog` allows users to force a fresh catalog download at any time (e.g. for brand new releases) via the Source Adapters modal.
-
+### 2.5 AllKeyShop (Retired / Preserved in Backup Branch)
+* **Status**: Retired from the active production build as of v2.10.1 in favor of modern, high-speed official REST API aggregators (NEXARDA™ and SuperDuperBundle).
+* **Backup Branch**: The complete working unofficial scraper, FlareSolverr/Byparr anti-bot integration, compressed seed catalog (204k+ games), and candidate matching engine are fully preserved in git branch `backup/allkeyshop-full-scraper` for future reference or if an official developer API becomes available.
+* **Database Compatibility**: Existing historical prices and offers recorded with `sourceCode: 'allkeyshop'` remain preserved in the SQLite database and continue to inform historical lows and analytics without errors.
 
 ### 2.6 NEXARDA™
 * **Canonical Role**: Modern REST API aggregator comparing over 65 verified digital retailers and secondary keyshops with automated voucher extraction and net price calculations.

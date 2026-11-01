@@ -18,7 +18,6 @@ import {
 } from '../../src/server/domain/priceIntelligence.js';
 import { evaluatePriceMovement } from '../../src/server/domain/pricingEngine.js';
 import { normalizeRegion, EU_MEMBER_STATES, EEA_COUNTRIES, UK_COUNTRY_CODES, SWISS_COUNTRY_CODES } from '../../src/server/domain/normalizer.js';
-import { AllKeyShopCatalogIndex, findCandidateGamesInCatalog, loadCustomMappings, saveCustomMapping } from '../../src/server/sources/allkeyshop.js';
 import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 import { syncOrchestrator } from '../../src/server/sync/orchestrator.js';
 import { steamAdapter } from '../../src/server/sources/steam.js';
@@ -307,38 +306,6 @@ describe('Master Implementation Verification Suite — Fresh Pass Audit & Fixes'
     });
   });
 
-  // ----------------------------------------------------
-  // 5. P1 — AllKeyShop Indexed Catalog & Cached Custom Mappings
-  // ----------------------------------------------------
-  describe('P1: AllKeyShop Catalog Indexing & Memory Cache', () => {
-    it('indexes catalog and matches titles in O(1) prefix/clean name lookups', () => {
-      const mockCatalog = [
-        { id: 101, name: 'Cyberpunk 2077', slug: 'cyberpunk-2077' },
-        { id: 102, name: 'Cyberpunk 2077: Phantom Liberty', slug: 'cyberpunk-2077-phantom-liberty' },
-        { id: 201, name: 'Elden Ring', slug: 'elden-ring' },
-        { id: 202, name: 'Elden Ring Shadow of the Erdtree', slug: 'elden-ring-shadow-of-the-erdtree' }
-      ];
-
-      const index = new AllKeyShopCatalogIndex(mockCatalog);
-      expect(index.getById(101)?.name).toBe('Cyberpunk 2077');
-      expect(index.getBySlug('elden-ring')?.id).toBe(201);
-
-      const candidates = findCandidateGamesInCatalog(index, 'Cyberpunk 2077', 1091500);
-      expect(candidates.length).toBeGreaterThan(0);
-      expect(candidates[0].id).toBe(101);
-    });
-
-    it('caches custom mapping overrides and respects save/load operations', () => {
-      saveCustomMapping(999999, 101);
-      const mappings = loadCustomMappings();
-      expect(mappings['999999']).toBe(101);
-
-      // Cleanup override
-      saveCustomMapping(999999, null);
-      const updated = loadCustomMappings();
-      expect(updated['999999']).toBeUndefined();
-    });
-  });
 
   // ----------------------------------------------------
   // 6. P1 — Circuit Breaker Persistence Across Restarts

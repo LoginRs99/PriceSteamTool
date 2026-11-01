@@ -7,7 +7,6 @@ import {
 } from '../../src/server/sources/itad.js';
 import { safeFetchJson } from '../../src/server/sources/base.js';
 import { CheapSharkSourceAdapter } from '../../src/server/sources/cheapshark.js';
-import { fetchWithAllkeyshopSolver, AllKeyShopUnavailableError } from '../../src/server/sources/allkeyshop.js';
 import { config } from '../../src/server/config/index.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
 import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
@@ -198,51 +197,6 @@ describe('API Reliability & Edge Cases Suite', () => {
     });
   });
 
-  describe('AllKeyShop Solver Resilience & Cookie Invalidation', () => {
-    const originalFetch = global.fetch;
-
-    beforeEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    afterEach(() => {
-      global.fetch = originalFetch;
-    });
-
-    it('returns null gracefully when allkeyshopSolverUrl is not configured', async () => {
-      const originalSolver = config.allkeyshopSolverUrl;
-      try {
-        (config as any).allkeyshopSolverUrl = '';
-        const res = await fetchWithAllkeyshopSolver('https://example.com');
-        expect(res).toBeNull();
-      } finally {
-        (config as any).allkeyshopSolverUrl = originalSolver;
-      }
-    });
-
-    it('throws AllKeyShopUnavailableError with status 408 on solver timeout message', async () => {
-      const originalSolver = config.allkeyshopSolverUrl;
-      try {
-        (config as any).allkeyshopSolverUrl = 'http://solver.local:8191';
-
-        const mockResponse = new Response(JSON.stringify({
-          status: 'error',
-          message: 'Error: Error solving the challenge. Timeout after 30.00 seconds.',
-          solution: { status: 408 }
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        global.fetch = vi.fn().mockResolvedValue(mockResponse);
-
-        await expect(fetchWithAllkeyshopSolver('https://allkeyshop.com/test', 2000))
-          .rejects.toThrowError(AllKeyShopUnavailableError);
-      } finally {
-        (config as any).allkeyshopSolverUrl = originalSolver;
-      }
-    });
-  });
 
   describe('PacedSourceQueue Concurrency & Clear Lifecycle', () => {
     it('cancels pending items cleanly on clear without breaking future enqueued items', async () => {

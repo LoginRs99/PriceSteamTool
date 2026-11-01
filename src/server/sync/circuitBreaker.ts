@@ -1,5 +1,4 @@
 import { sourceRepo } from '../db/index.js';
-import { computeFailureCooldown } from './allkeyshop/backoff.js';
 import type { SourceCode, CircuitState } from '../../shared/types.js';
 
 interface CircuitStateInfo {
@@ -119,19 +118,6 @@ export class CircuitBreakerRegistry {
     info.consecutiveRateLimits++;
     info.lastFailureTime = now;
 
-    if (source === 'allkeyshop') {
-      const cooldownMs = computeFailureCooldown(info.consecutiveRateLimits, retryAfterSec);
-      info.cooldownUntil = Date.now() + cooldownMs;
-      if (info.consecutiveRateLimits >= 3 || info.state === 'COOLDOWN') {
-        info.state = 'PAUSED';
-      } else {
-        info.state = 'BACKOFF';
-      }
-      const cooldownIso = new Date(info.cooldownUntil).toISOString();
-      sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
-      sourceRepo.incrementCounters(source, 'ratelimit', `Rate limit 429 hit. Pausing for ${Math.round(cooldownMs / 1000)}s`, requestCount);
-      return;
-    }
 
     const minCooldownMs = process.env.NODE_ENV === 'test' ? 100 : 30000;
     const cooldownMs = Math.min(Math.max(retryAfterSec * 1000, minCooldownMs), 300000);
@@ -163,19 +149,6 @@ export class CircuitBreakerRegistry {
     info.lastFailureTime = now;
     const errMsg = typeof error === 'string' ? error : (error?.message || String(error));
 
-    if (source === 'allkeyshop') {
-      const cooldownMs = computeFailureCooldown(info.consecutiveFailures);
-      info.cooldownUntil = Date.now() + cooldownMs;
-      if (info.consecutiveFailures >= 4 || info.state === 'COOLDOWN') {
-        info.state = 'PAUSED';
-      } else {
-        info.state = 'BACKOFF';
-      }
-      const cooldownIso = new Date(info.cooldownUntil).toISOString();
-      sourceRepo.updateCircuitState(source, info.state, cooldownIso, info.consecutiveFailures, info.consecutiveRateLimits);
-      sourceRepo.incrementCounters(source, 'failure', errMsg, requestCount);
-      return;
-    }
 
     // If probe failed during COOLDOWN, immediately return to PAUSED with doubled penalty
     if (info.state === 'COOLDOWN') {
@@ -206,7 +179,7 @@ export class CircuitBreakerRegistry {
   }
 
   public resetAll(): void {
-    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle'];
+    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'nexarda', 'superduperbundle'];
     for (const s of sources) {
       this.reset(s);
     }
@@ -262,7 +235,7 @@ export class CircuitBreakerRegistry {
   public getAllStates(): Record<SourceCode, CircuitState> {
     this.initFromDb();
     const result: Partial<Record<SourceCode, CircuitState>> = {};
-    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle'];
+    const sources: SourceCode[] = ['steam', 'itad', 'ggdeals', 'cheapshark', 'nexarda', 'superduperbundle'];
     for (const s of sources) {
       result[s] = this.getState(s);
     }

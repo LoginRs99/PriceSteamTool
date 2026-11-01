@@ -75,7 +75,7 @@ const mockOffers: Offer[] = [
     isLikelyPricingError: false,
     dealScore: 78,
     dealTier: 'Good',
-    sources: ['allkeyshop'],
+    sources: ['nexarda'],
     fetchedAt: '2026-01-01T00:00:00Z',
     lastObservedAt: '2026-01-01T00:00:00Z',
     createdAt: '2026-01-01T00:00:00Z',
@@ -218,48 +218,6 @@ describe('GameDetailModal Component (Monolith & Decomposed Regression Tests)', (
     expect(writeTextMock).toHaveBeenCalledWith('RING10');
   });
 
-  it('interacts with AllKeyShop candidate selector and applies override', async () => {
-    vi.spyOn(api, 'getAllkeyshopCandidates').mockResolvedValue({
-      gameId: 'game-101',
-      title: 'Elden Ring',
-      steamAppId: 1245620,
-      candidates: [
-        { id: 4567, name: 'Elden Ring Standard Edition PC', slug: 'buy-elden-ring-cd-key-compare-prices' }
-      ],
-      currentOverride: null
-    });
-    const setOverrideSpy = vi.spyOn(api, 'setAllkeyshopOverride').mockResolvedValue({ success: true } as any);
-
-    render(<GameDetailModal gameId="game-101" onClose={() => {}} />);
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Elden Ring' })).toBeInTheDocument();
-    });
-
-    // Switch to Offers tab
-    const offersTabBtn = screen.getByRole('button', { name: /Store Offers/i });
-    await act(async () => {
-      fireEvent.click(offersTabBtn);
-    });
-
-    // Open candidate selector
-    const openAksBtn = screen.getByRole('button', { name: /View Candidates/i });
-    await act(async () => {
-      fireEvent.click(openAksBtn);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Elden Ring Standard Edition PC')).toBeInTheDocument();
-    });
-
-    // Select candidate
-    const selectCandBtn = screen.getByRole('button', { name: 'Select' });
-    await act(async () => {
-      fireEvent.click(selectCandBtn);
-    });
-
-    expect(setOverrideSpy).toHaveBeenCalledWith('game-101', 'buy-elden-ring-cd-key-compare-prices');
-  });
 
   it('triggers onClose when close button or Escape key is pressed', async () => {
     const handleClose = vi.fn();

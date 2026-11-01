@@ -23,14 +23,6 @@ export function useGameIntelligence(
   const [savingTarget, setSavingTarget] = useState(false);
   const [targetSavedSuccess, setTargetSavedSuccess] = useState(false);
 
-  // AllKeyShop Candidate Selector State
-  const [aksCandidates, setAksCandidates] = useState<{ id: number; name: string; slug?: string }[]>([]);
-  const [currentAksOverride, setCurrentAksOverride] = useState<string | number | null>(null);
-  const [showAksSelector, setShowAksSelector] = useState(false);
-  const [customAksInput, setCustomAksInput] = useState('');
-  const [loadingAksCandidates, setLoadingAksCandidates] = useState(false);
-  const [savingAksOverride, setSavingAksOverride] = useState(false);
-  const [aksOverrideSuccess, setAksOverrideSuccess] = useState(false);
   const [refreshingGame, setRefreshingGame] = useState(false);
   const mountedRef = useRef(true);
   const delayedRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,84 +95,6 @@ export function useGameIntelligence(
     } finally {
       if (mountedRef.current) {
         setRefreshingGame(false);
-      }
-    }
-  };
-
-  const handleOpenAksSelector = async () => {
-    if (!data?.game) return;
-    setShowAksSelector(prev => !prev);
-    if (!showAksSelector && aksCandidates.length === 0) {
-      setLoadingAksCandidates(true);
-      try {
-        const res = await api.getAllkeyshopCandidates(data.game.id);
-        setAksCandidates(res.candidates || []);
-        setCurrentAksOverride(res.currentOverride);
-        if (typeof res.currentOverride === 'string') {
-          setCustomAksInput(res.currentOverride);
-        } else if (typeof res.currentOverride === 'number') {
-          setCustomAksInput(String(res.currentOverride));
-        }
-      } catch (err) {
-        console.error('Failed to load AllKeyShop candidates', err);
-      } finally {
-        setLoadingAksCandidates(false);
-      }
-    }
-  };
-
-  const handleApplyAksOverride = async (overrideValue: string | number | null) => {
-    if (!data?.game) return;
-    setSavingAksOverride(true);
-    try {
-      await api.setAllkeyshopOverride(data.game.id, overrideValue);
-      setCurrentAksOverride(overrideValue);
-      setAksOverrideSuccess(true);
-      setTimeout(() => {
-        if (mountedRef.current) setAksOverrideSuccess(false);
-      }, 2500);
-
-      // Refresh details immediately so override state is reflected
-      const [updatedDetails, updatedIntel] = await Promise.all([
-        api.getGameDetails(gameId),
-        api.getPriceIntelligence(gameId).catch(() => null)
-      ]);
-      if (mountedRef.current) {
-        setData({
-          ...updatedDetails,
-          intelligence: updatedIntel || undefined
-        });
-        if (onGameUpdated) {
-          onGameUpdated(gameId);
-        }
-      }
-
-      // Schedule follow-up refresh to pick up freshly scraped prices from background task
-      if (overrideValue !== null) {
-        setTimeout(async () => {
-          if (!mountedRef.current) return;
-          try {
-            const [bgDetails, bgIntel] = await Promise.all([
-              api.getGameDetails(gameId),
-              api.getPriceIntelligence(gameId).catch(() => null)
-            ]);
-            if (mountedRef.current) {
-              setData({
-                ...bgDetails,
-                intelligence: bgIntel || undefined
-              });
-              if (onGameUpdated) {
-                onGameUpdated(gameId);
-              }
-            }
-          } catch {}
-        }, 5000);
-      }
-    } catch (err) {
-      console.error('Failed to apply AllKeyShop override', err);
-    } finally {
-      if (mountedRef.current) {
-        setSavingAksOverride(false);
       }
     }
   };
@@ -267,13 +181,8 @@ export function useGameIntelligence(
     let isMounted = true;
     setLoading(true);
     setData(null);
-    setAksCandidates([]);
-    setCurrentAksOverride(null);
-    setShowAksSelector(false);
-    setCustomAksInput('');
     setTargetPriceInput('');
     setTargetSavedSuccess(false);
-    setAksOverrideSuccess(false);
 
     Promise.all([
       api.getGameDetails(gameId),
@@ -417,16 +326,6 @@ export function useGameIntelligence(
     setTargetPriceInput,
     savingTarget,
     targetSavedSuccess,
-    aksCandidates,
-    currentAksOverride,
-    showAksSelector,
-    customAksInput,
-    setCustomAksInput,
-    loadingAksCandidates,
-    savingAksOverride,
-    aksOverrideSuccess,
-    handleOpenAksSelector,
-    handleApplyAksOverride,
     handleCopySteamUrl,
     handleCopyVoucher,
     handleSaveTargetPrice,
