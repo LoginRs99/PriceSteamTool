@@ -60,6 +60,7 @@ Canonical metadata, MSRP anchor, historical lows, Deal Score statistics, review 
 | `id` | TEXT | PRIMARY KEY | Internal game UUID |
 | `steam_app_id` | INTEGER | UNIQUE NOT NULL | Canonical Steam Application ID |
 | `itad_id` | TEXT | NULLABLE | IsThereAnyDeal internal UUID |
+| `nexarda_id` | INTEGER | NULLABLE | NEXARDA internal product numeric ID |
 | `title` | TEXT | NOT NULL | Game title |
 | `slug` | TEXT | NOT NULL | URL-safe slug |
 | `header_image` | TEXT | NULLABLE | Store banner image URL |

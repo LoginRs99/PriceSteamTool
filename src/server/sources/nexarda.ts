@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { normalizeRegion } from '../domain/normalizer.js';
+import { isKeyshopSourceStr } from '../domain/priceIntelligence/types.js';
 import { gameRepo } from '../db/index.js';
 import { logInfo, logWarn } from '../utils/logger.js';
 
@@ -202,10 +203,13 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
       ? item.coupon.price_without
       : undefined;
 
+    const isKnownKeyshop = isKeyshopSourceStr(item.store.name) || isKeyshopSourceStr(merchantCode);
+    const isOfficial = !isKnownKeyshop && Boolean(item.store.official);
+
     return {
       merchantCode: merchantCode || 'nexarda-store',
       merchantName: item.store.name,
-      isOfficial: Boolean(item.store.official),
+      isOfficial,
       priceEur,
       originalPriceEur: rawOriginalPrice,
       rawPrice: item.price,

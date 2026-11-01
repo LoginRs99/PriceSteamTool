@@ -96,9 +96,25 @@ export const OffersTable: React.FC<OffersTableProps> = ({
           <td>
             <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
               {offer.merchantName}
-              {offer.isOfficial && (
-                <span title="Official Authorized Retailer" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              {offer.isOfficial ? (
+                <span title="Official Authorized Retailer — guaranteed final price, VAT & fees included" style={{ display: 'inline-flex', alignItems: 'center' }}>
                   <ShieldCheck size={14} color="var(--down)" />
+                </span>
+              ) : (
+                <span 
+                  title="Keyshop marketplace listing price (Excludes payment processing fees, service fees, or checkout VAT)" 
+                  style={{ 
+                    fontSize: 10, 
+                    fontWeight: 700, 
+                    padding: '1px 5px', 
+                    borderRadius: 3, 
+                    background: 'rgba(234, 179, 8, 0.12)', 
+                    color: '#eab308', 
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    letterSpacing: '0.02em'
+                  }}
+                >
+                  Keyshop
                 </span>
               )}
             </div>
@@ -187,6 +203,19 @@ export const OffersTable: React.FC<OffersTableProps> = ({
                     <td>
                       <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="ticker-num">{formatPrice(offer.priceEur)}</span>
+                        {!offer.isOfficial && (
+                          <span 
+                            title="Base marketplace listing price. Final total at checkout may include payment processing fees or platform service fees."
+                            style={{ 
+                              fontSize: 10, 
+                              color: 'var(--dim-2)', 
+                              fontWeight: 500, 
+                              cursor: 'help' 
+                            }}
+                          >
+                            +fees
+                          </span>
+                        )}
                         {offer.isFresh === false && (
                           <span 
                             className="stale-badge"

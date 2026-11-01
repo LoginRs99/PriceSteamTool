@@ -3,7 +3,7 @@ import { getDb, prepareStmt, BEST_DEAL_RECOMPUTE_ALL_SQL } from '../core.js';
 import { gameRepo } from './game.js';
 import { merchantRepo } from './merchant.js';
 import { pricingErrorRepo } from './pricingError.js';
-import { evaluatePriceMovement, detectPricingError, type PriceEvaluationInput } from '../../domain/pricingError.js';
+import { evaluatePriceMovement, detectPricingError, detectPriceEvent, type PriceEvaluationInput } from '../../domain/pricingError.js';
 import { calculateDealScore } from '../../domain/dealScore.js';
 import { calculateTypicalSalePrice, calculatePeriodLows } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource } from '../../domain/priceIntelligence/types.js';
@@ -427,7 +427,13 @@ export const offerRepo = {
       } else {
         pricingErrorRepo.resolveForOffer(offerId);
         isLikelyPricingError = false;
+
       }
+
+      // If the offer is unflagged / non-anomalous, ensure price_event does not stay stuck as PRICING_ERROR
+      const resolvedPriceEvent = (!isLikelyPricingError && pricingEval.event === 'PRICING_ERROR')
+        ? detectPriceEvent(evalInput, false)
+        : pricingEval.event;
 
       // 4. Update the canonical offers table with winning active observation
       prepareStmt(`
@@ -461,7 +467,7 @@ export const offerRepo = {
         active.voucherCode || null,
         active.dealUrl,
         active.isValid ? 1 : 0,
-        pricingEval.event,
+        resolvedPriceEvent,
         isLikelyPricingError ? 1 : 0,
         isLikelyPricingError ? pricingEval.riskScore : 0,
         isLikelyPricingError ? ((pricingEval.pricingErrorType || pricingEval.riskFlags?.[0]) || null) : null,

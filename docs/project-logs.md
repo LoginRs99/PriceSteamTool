@@ -7,8 +7,8 @@
 
 ## 📑 Table of Contents
 
-1. [Version Release History & Feature Logs (v1.0.0 – v2.8.2)](#1-version-release-history--feature-logs)
-2. [Complete Database Migration Ledger (001 – 033)](#2-complete-database-migration-ledger)
+1. [Version Release History & Feature Logs (v1.0.0 – v2.9.0)](#1-version-release-history--feature-logs)
+2. [Complete Database Migration Ledger (001 – 036)](#2-complete-database-migration-ledger)
 3. [Architectural Decision Records (ADRs)](#3-architectural-decision-records)
 4. [Incident Post-Mortems & Engineering Breakthroughs](#4-incident-post-mortems--engineering-breakthroughs)
 5. [Test Suite Evolution & Quality Ledger](#5-test-suite-evolution--quality-ledger)
@@ -16,6 +16,24 @@
 ---
 
 ## 1. Version Release History & Feature Logs
+
+### 🚀 v2.9.0 — Clean Multi-Source Expansion, Pricing Event Self-Healing & Keyshop Fee Transparency (2026-10-31)
+* **NEXARDA™ API v3 & SuperDuperBundle Adapters**:
+  * Seamlessly integrated NEXARDA and SuperDuperBundle source adapters with adaptive token-bucket rate limiting, jitter, non-aborting batch resilience, and API key support.
+  * Direct Steam App ID resolution, automated coupon voucher badge extraction (`🎟️ CODE`), and market depth indicators (`(+N offers)`).
+* **Self-Healing Pricing Events & Glitch Reconciliation**:
+  * Implemented automatic healing (`healOrphanedPricingErrorEvents`) for zombie `price_event = 'PRICING_ERROR'` when offers are unflagged, dismissed, or re-evaluated.
+  * Guarded `upsertOffer` to prevent non-anomaly offers from ever storing orphaned `PRICING_ERROR` events.
+  * Reinstated legitimate offers into Top Best Deals while protecting anomaly detection sensitivity.
+* **Keyshop Classification Hardening & Fee Transparency**:
+  * Hardened source normalization with comprehensive keyshop pattern matching across 27 known marketplaces (Eneba, Kinguin, Gamivo, GameSeal, HRK, Loaded, etc.), overriding upstream misclassifications.
+  * Surfaced visual indicators in UI: clear distinction between Official Authorized Retailers (guaranteed final price with ShieldCheck) and Keyshops (`Keyshop` pill badge, `+fees` badge, and fee tooltips).
+* **Database Evolution (Migrations 034, 035, 036)**:
+  * Migration 034: Deactivated legacy AllKeyShop scraping in favor of structured public APIs.
+  * Migration 035: Registered NEXARDA and SuperDuperBundle in `sources` table; added `nexarda_id` to `games`.
+  * Migration 036: Reclassified merchants, healed orphaned `PRICING_ERROR` price events catalog-wide, and recomputed best deals.
+* **UI Polish & Quality**:
+  * Global Keyboard Shortcuts Modal (`?`), real-time upstream source health pulse indicator, deceleration transitions.
 
 ### 🚀 v2.8.2 — Engineering Stabilization, Security Hardening & Proxy Routing (2026-10-28)
 * **AllKeyShop Proxy Forwarding & Anti-Bot Shielding**:
@@ -269,6 +287,9 @@ The database migrations are managed sequentially in `src/server/db/migrations.ts
 | **031** | `031_perf_indexes_and_best_deal_optimization` | Created high-performance composite indexes for sync runs, pricing error resolution, price history, and best deals. | Zero-lock query optimization. |
 | **032** | `032_restore_uninvalidated_keyshop_offers` | Reconciled and restored valid active keyshop offers inadvertently marked invalid during prior migration sweeps. | Restores legitimate keyshop pricing. |
 | **033** | `033_add_offers_game_valid_anomaly_index` | Added composite index `idx_offers_game_valid_anomaly` on `offers(game_id, is_valid, is_likely_pricing_error)`. | Accelerates candidate selection subqueries. |
+| **034** | `034_deactivate_allkeyshop` | Deactivated legacy AllKeyShop adapter (`is_enabled = 0`, `state = 'DISABLED'`). | Transitions key pricing intelligence to clean public APIs. |
+| **035** | `035_add_nexarda_and_superduperbundle_sources` | Registered `nexarda` and `superduperbundle` in `sources` table; added `nexarda_id` column to `games`. | Expands aggregator ecosystem with official & keyshop coverage. |
+| **036** | `036_heal_zombie_pricing_error_events_and_reclassify_keyshops` | Reclassifies known keyshop marketplaces mistakenly marked as official; heals orphaned `PRICING_ERROR` price events on non-anomaly offers; triggers catalog-wide best deal recompute. | Prevents zombie GLITCH labels and restores legitimate offers to Best Deals. |
 
 ---
 

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { BEST_DEAL_RECOMPUTE_ALL_SQL } from './core.js';
 import { calculateSteamDbRating } from '../domain/rating.js';
+import { detectPriceEvent } from '../domain/pricingError/priceEvents.js';
 
 export interface Migration {
   name: string;
@@ -936,6 +937,70 @@ export const MIGRATIONS: Migration[] = [
         if (!err?.message?.includes('duplicate column')) {
           console.warn('[Migration 035] nexarda_id column notice:', err?.message);
         }
+      }
+    }
+  }
+,
+  {
+    name: '036_heal_zombie_pricing_error_events_and_reclassify_keyshops',
+    up: (db) => {
+      // 1. Reclassify keyshops mistakenly marked as official
+      try {
+        db.exec(`
+          UPDATE merchants SET is_official = 0 WHERE lower(code) IN (
+            'gameseal', 'hrk', 'hrkgame', 'loaded', 'electronicfirst', 'difmark', 'driffle',
+            'k4g', 'kinguin', 'eneba', 'gamivo', 'g2a', 'instantgaming', 'gamerthor',
+            'gamersoutlet', 'gamingdragons', 'igroshop', 'keydra', 'lootbar', 'mmoga',
+            'premiumcdkeys', 'yuplay', 'zapagames', 'playerland', 'erysta', 'ggpick', 'gameboost'
+          );
+          UPDATE merchants SET is_official = 1 WHERE lower(code) IN (
+            'gog', 'steam', 'epicgamestore', 'humblestore', 'fanatical', 'greenmangaming',
+            'gamesplanet', 'gamesplanetde', 'gamesplanetfr', 'gamesplanetuk', 'gamesplanetus',
+            'gamebillet', 'dlgamer', 'wingamestore', 'macgamestore', 'indiegala', 'indiegalastore',
+            '2game', 'dreamgame', 'joybuggy', 'etailmarket', 'gamersgate', 'itch'
+          );
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 036] merchant reclassification notice:', err?.message);
+      }
+
+      // 2. Heal offers where price_event is stuck as 'PRICING_ERROR' but offer is not an active pricing error
+      try {
+        const rows = db.prepare(`
+          SELECT o.id, o.price_eur, o.original_price_eur, o.discount_percent,
+                 g.base_price_eur, g.historical_low_eur, m.is_official,
+                 (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = o.id) as source_count
+          FROM offers o
+          JOIN games g ON o.game_id = g.id
+          JOIN merchants m ON o.merchant_id = m.id
+          WHERE o.price_event = 'PRICING_ERROR' AND (o.is_likely_pricing_error = 0 OR o.is_likely_pricing_error IS NULL)
+        `).all() as any[];
+
+        if (rows.length > 0) {
+          const updateStmt = db.prepare(`UPDATE offers SET price_event = ? WHERE id = ?`);
+          for (const r of rows) {
+            const pEur = Number(r.price_eur);
+            if (isNaN(pEur) || pEur <= 0) continue;
+            const healedEvent = detectPriceEvent({
+              currentPriceEur: pEur,
+              originalPriceEur: r.original_price_eur ? Number(r.original_price_eur) : undefined,
+              basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
+              historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+              isOfficialMerchant: Boolean(r.is_official),
+              sourceAgreementCount: Number(r.source_count || 1)
+            }, false);
+            updateStmt.run(healedEvent, r.id);
+          }
+        }
+      } catch (err: any) {
+        console.warn('[Migration 036] price_event healing notice:', err?.message);
+      }
+
+      // 3. Recompute best deals
+      try {
+        db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
+      } catch (err: any) {
+        console.warn('[Migration 036] best deal recompute notice:', err?.message);
       }
     }
   }
