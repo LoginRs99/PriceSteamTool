@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Updated `AllKeyShopMatchSelector.tsx` to clearly indicate deactivation while retaining custom override compatibility.
 * **Modal Aesthetics & Transition Smoothing**:
   * Smoothed modal borders and replaced bounce transitions with pure deceleration curves (`--transition-smooth`).
+* **Keyshop Marketplace & Fee Transparency**:
+  * Added distinct visual badging (`Keyshop`, `+fees`, and informative tooltips) on offers table and game cards to clarify that keyshop marketplace listings exclude payment processing, gateway, and checkout fees, whereas official authorized retailers display verified final prices.
+
+### Fixed
+* **Orphaned Pricing Error Events & False Glitch Labels**:
+  * Fixed an issue where dismissed or unflagged offers remained stamped with `price_event = 'PRICING_ERROR'`, causing legitimate deals (e.g. *New Tales from the Borderlands*, *Gal*Gun 2*) to display "GLITCH" badges and be excluded from Top Best Deals.
+  * Added automated healing (`healOrphanedPricingErrorEvents`) on offer update, dismissal, and startup migration (Migration 036).
+* **Keyshop Classification in Upstream Aggregators**:
+  * Corrected merchant classification in SuperDuperBundle and NEXARDA adapters where marketplaces (such as GameSeal, HRK Game, Loaded) were marked as official retailers. Hardened `isKeyshopSourceStr` with sanitized fuzzy matching across 27 known keyshop storefronts.
 
 ## [2.8.2] - 2026-10-28
 

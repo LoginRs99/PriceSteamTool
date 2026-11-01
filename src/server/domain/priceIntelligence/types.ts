@@ -26,7 +26,7 @@ export function isTrustedHistoryEntry(entry: PriceHistoryEntry): boolean {
 
 export function isKeyshopSourceStr(source?: string): boolean {
   if (!source) return false;
-  const s = source.toLowerCase();
+  const s = source.toLowerCase().replace(/[^a-z0-9]/g, '');
   return (
     s.includes('allkeyshop') ||
     s.includes('kinguin') ||
@@ -38,7 +38,26 @@ export function isKeyshopSourceStr(source?: string): boolean {
     s.includes('marketplace') ||
     s.includes('k4g') ||
     s.includes('driffle') ||
-    s.includes('instant-gaming')
+    s.includes('instantgaming') ||
+    s.includes('gameseal') ||
+    s.includes('hrk') ||
+    s.includes('loaded') ||
+    s.includes('electronicfirst') ||
+    s.includes('difmark') ||
+    s.includes('gamerthor') ||
+    s.includes('gamersoutlet') ||
+    s.includes('gamingdragons') ||
+    s.includes('igroshop') ||
+    s.includes('keydra') ||
+    s.includes('lootbar') ||
+    s.includes('mmoga') ||
+    s.includes('premiumcdkeys') ||
+    s.includes('yuplay') ||
+    s.includes('zapagames') ||
+    s.includes('playerland') ||
+    s.includes('erysta') ||
+    s.includes('ggpick') ||
+    s.includes('gameboost')
   );
 }
 

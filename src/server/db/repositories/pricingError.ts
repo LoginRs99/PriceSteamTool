@@ -3,6 +3,7 @@ import { prepareStmt } from '../core.js';
 import type { PricingError } from '../../../shared/types.js';
 import { EPSILON_EUR } from '../../../shared/types.js';
 import { logWarn } from '../../utils/logger.js';
+import { healOrphanedPricingErrorEvents } from '../cleanData.js';
 
 export const PRICING_ERROR_RETRIGGER_AFTER_DAYS = 30;
 
@@ -85,6 +86,7 @@ export const pricingErrorRepo = {
       if (isSameType && !isPriceDrop && !isExpiredDismissal) {
         // Materially unchanged event within 30 days -> respect dismissal and do NOT create new active row
         prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(offerId);
+    healOrphanedPricingErrorEvents(offerId);
         return false;
       }
     }
@@ -122,6 +124,7 @@ export const pricingErrorRepo = {
       WHERE offer_id = ? AND is_dismissed = 0
     `).run(offerId);
     prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(offerId);
+    healOrphanedPricingErrorEvents(offerId);
   },
 
   list(onlyActive: boolean = true): PricingError[] {
@@ -195,6 +198,8 @@ export const pricingErrorRepo = {
       if (feedback === 'FALSE_POSITIVE' || feedback === 'DISMISSED') {
         // False positive: unflag the offer so it is restored to active valid status and eligible for best deal
         prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(errorRow.offer_id);
+      healOrphanedPricingErrorEvents(errorRow.offer_id);
+        healOrphanedPricingErrorEvents(errorRow.offer_id);
       } else if (feedback === 'CONFIRMED_ERROR') {
         // Confirmed real glitch: ensure offer stays quarantined (is_likely_pricing_error = 1)
         prepareStmt(`UPDATE offers SET is_likely_pricing_error = 1 WHERE id = ?`).run(errorRow.offer_id);
@@ -284,6 +289,7 @@ export const pricingErrorRepo = {
     prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1, user_feedback = COALESCE(user_feedback, 'DISMISSED'), feedback_at = COALESCE(feedback_at, ?) WHERE id = ?`).run(now, id);
     if (errorRow?.offer_id) {
       prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE id = ?`).run(errorRow.offer_id);
+      healOrphanedPricingErrorEvents(errorRow.offer_id);
     }
     return errorRow?.game_id;
   },
@@ -295,6 +301,7 @@ export const pricingErrorRepo = {
     const now = new Date().toISOString();
     prepareStmt(`UPDATE pricing_errors SET is_dismissed = 1, user_feedback = COALESCE(user_feedback, 'DISMISSED'), feedback_at = COALESCE(feedback_at, ?) WHERE is_dismissed = 0`).run(now);
     prepareStmt(`UPDATE offers SET is_likely_pricing_error = 0 WHERE is_likely_pricing_error = 1`).run();
+    healOrphanedPricingErrorEvents();
     return affected.map(a => a.game_id);
   }
 };

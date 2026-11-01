@@ -1,4 +1,5 @@
 import { getDb, prepareStmt, BEST_DEAL_RECOMPUTE_ALL_SQL } from './core.js';
+import { detectPriceEvent } from '../domain/pricingError/priceEvents.js';
 import { logInfo } from '../utils/logger.js';
 
 export interface CleanupResult {
@@ -137,7 +138,61 @@ export function purgeCorruptedPricingErrors(): { resolvedPricingErrors: number; 
     logInfo(`[Data Safety Cleanup] Resolved ${resolvedPricingErrors} false-positive pricing errors, unflagged ${unflaggedOffers} offers.`);
   }
 
+  // Heal any orphaned price_event = 'PRICING_ERROR' remaining on unflagged offers
+  healOrphanedPricingErrorEvents();
+
   return { resolvedPricingErrors, unflaggedOffers };
+}
+
+export function healOrphanedPricingErrorEvents(targetOfferId?: string): number {
+  const db = getDb();
+  const whereClause = targetOfferId
+    ? `o.id = ? AND o.price_event = 'PRICING_ERROR' AND (o.is_likely_pricing_error = 0 OR o.is_likely_pricing_error IS NULL)`
+    : `o.price_event = 'PRICING_ERROR' AND (o.is_likely_pricing_error = 0 OR o.is_likely_pricing_error IS NULL)`;
+
+  const params = targetOfferId ? [targetOfferId] : [];
+  const rows = prepareStmt(`
+    SELECT o.id, o.price_eur, o.original_price_eur, o.discount_percent,
+           g.base_price_eur, g.historical_low_eur, m.is_official,
+           (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = o.id) as source_count
+    FROM offers o
+    JOIN games g ON o.game_id = g.id
+    JOIN merchants m ON o.merchant_id = m.id
+    WHERE ${whereClause}
+  `).all(...params) as any[];
+
+  if (rows.length === 0) return 0;
+
+  let healedCount = 0;
+  const updateStmt = prepareStmt(`UPDATE offers SET price_event = ? WHERE id = ?`);
+
+  db.transaction(() => {
+    for (const r of rows) {
+      const pEur = Number(r.price_eur);
+      if (isNaN(pEur) || pEur <= 0) continue;
+      const healedEvent = detectPriceEvent({
+        currentPriceEur: pEur,
+        originalPriceEur: r.original_price_eur ? Number(r.original_price_eur) : undefined,
+        basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
+        historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+        isOfficialMerchant: Boolean(r.is_official),
+        sourceAgreementCount: Number(r.source_count || 1)
+      }, false);
+
+      updateStmt.run(healedEvent, r.id);
+      healedCount++;
+    }
+
+    if (healedCount > 0) {
+      db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
+    }
+  })();
+
+  if (healedCount > 0) {
+    logInfo(`[Data Safety Cleanup] Healed ${healedCount} offers with orphaned PRICING_ERROR price_event.`);
+  }
+
+  return healedCount;
 }
 
 export function purgeCorruptedPrices(): CleanupResult {

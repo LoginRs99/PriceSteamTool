@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { convertToEur, normalizeRegion, normalizeProductType } from '../domain/normalizer.js';
+import { isKeyshopSourceStr } from '../domain/priceIntelligence/types.js';
 import { logInfo, logWarn } from '../utils/logger.js';
 
 interface SdbApiOffer {
@@ -76,7 +77,9 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
       return null;
     }
 
-    const isOfficial = offer.store_type === 'official' || offer.store_type === 'retailer';
+    const storeIdentifier = (offer.store_name || offer.store || '').toLowerCase();
+    const isKnownKeyshop = isKeyshopSourceStr(storeIdentifier) || offer.store_type === 'marketplace';
+    const isOfficial = !isKnownKeyshop && (offer.store_type === 'official' || offer.store_type === 'retailer');
     const merchantCode = (offer.store || offer.store_name)
       .toLowerCase()
       .replace(/[^a-z0-9_-]/g, '');

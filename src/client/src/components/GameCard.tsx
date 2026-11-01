@@ -365,7 +365,10 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
                 {formatPrice(game.basePriceEur)}
               </span>
             )}
-            <span className={`best-price ticker-num ${(game.bestDiscountPercent || 0) > 0 ? 'on-sale' : ''}`}>
+            <span 
+              className={`best-price ticker-num ${(game.bestDiscountPercent || 0) > 0 ? 'on-sale' : ''}`}
+              title={!game.bestMerchantIsOfficial && hasBestDeal && !isFree ? 'Keyshop listing price (checkout payment fees may apply)' : undefined}
+            >
               {isFree ? 'FREE' : hasBestDeal ? formatPrice(game.bestPriceEur) : '—'}
             </span>
             {hasBestDeal && game.bestIsFresh === false && (
@@ -435,7 +438,7 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
 
             <span 
               className={`merchant-tag ${game.bestMerchantIsOfficial ? 'official' : 'keyshop'}`} 
-              title={`${game.bestMerchantIsOfficial ? 'Official Store' : 'Keyshop'}: ${game.bestMerchantName || 'Steam Store'}`}
+              title={`${game.bestMerchantIsOfficial ? 'Official Retailer (Guaranteed final price)' : 'Keyshop marketplace (Listing price; checkout payment fees may apply)'}: ${game.bestMerchantName || 'Steam Store'}`}
             >
               {game.bestMerchantIsOfficial && <ShieldCheck size={11} color="#10b981" style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
               {game.bestMerchantName || 'Steam'}
