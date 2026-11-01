@@ -1,3 +1,5 @@
+import { analyzeDiscountCycle } from '../domain/actionSignal/saleCycle.js';
+import { getGameSubscriptions } from '../domain/subscriptions.js';
 import type Database from 'better-sqlite3';
 import { BEST_DEAL_RECOMPUTE_ALL_SQL } from './core.js';
 import { calculateSteamDbRating } from '../domain/rating.js';
@@ -1001,6 +1003,134 @@ export const MIGRATIONS: Migration[] = [
         db.exec(BEST_DEAL_RECOMPUTE_ALL_SQL);
       } catch (err: any) {
         console.warn('[Migration 036] best deal recompute notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '037_add_official_store_historical_low',
+    up: (db) => {
+      try {
+        db.exec("ALTER TABLE games ADD COLUMN official_historical_low_eur REAL;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE games ADD COLUMN official_historical_low_date TEXT;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE games ADD COLUMN official_historical_low_source TEXT;");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      try {
+        db.exec(`
+          UPDATE games SET
+            official_historical_low_eur = (
+              SELECT MIN(ph.price_eur)
+              FROM price_history ph
+              JOIN merchants m ON ph.merchant_id = m.id
+              WHERE ph.game_id = games.id 
+                AND m.is_official = 1 
+                AND ph.is_pricing_error = 0 
+                AND ph.price_eur > 0.05
+            ),
+            official_historical_low_date = (
+              SELECT ph.recorded_at
+              FROM price_history ph
+              JOIN merchants m ON ph.merchant_id = m.id
+              WHERE ph.game_id = games.id 
+                AND m.is_official = 1 
+                AND ph.is_pricing_error = 0 
+                AND ph.price_eur > 0.05
+              ORDER BY ph.price_eur ASC, ph.recorded_at ASC
+              LIMIT 1
+            ),
+            official_historical_low_source = (
+              SELECT m.name
+              FROM price_history ph
+              JOIN merchants m ON ph.merchant_id = m.id
+              WHERE ph.game_id = games.id 
+                AND m.is_official = 1 
+                AND ph.is_pricing_error = 0 
+                AND ph.price_eur > 0.05
+              ORDER BY ph.price_eur ASC, ph.recorded_at ASC
+              LIMIT 1
+            )
+          WHERE EXISTS (
+            SELECT 1 FROM price_history ph
+            JOIN merchants m ON ph.merchant_id = m.id
+            WHERE ph.game_id = games.id AND m.is_official = 1 AND ph.is_pricing_error = 0 AND ph.price_eur > 0.05
+          );
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 037] notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '038_add_sale_cadence_and_subscriptions',
+    up: (db) => {
+      try { db.exec("ALTER TABLE games ADD COLUMN sale_cadence TEXT DEFAULT 'STANDARD_CADENCE';"); } catch (e) {}
+      try { db.exec("ALTER TABLE games ADD COLUMN avg_days_between_sales INTEGER;"); } catch (e) {}
+      try { db.exec("ALTER TABLE games ADD COLUMN days_since_last_sale INTEGER;"); } catch (e) {}
+      try { db.exec("ALTER TABLE games ADD COLUMN subscription_services TEXT;"); } catch (e) {}
+
+      // Backfill subscriptions
+      try {
+        const games = db.prepare("SELECT id, steam_app_id, title FROM games WHERE steam_app_id IS NOT NULL").all() as any[];
+        const updateSubStmt = db.prepare("UPDATE games SET subscription_services = ? WHERE id = ?");
+        for (const g of games) {
+          const subs = getGameSubscriptions(g.steam_app_id, g.title);
+          if (subs && subs.length > 0) {
+            updateSubStmt.run(subs.join(','), g.id);
+          }
+        }
+      } catch (err: any) {
+        console.warn('[Migration 038] subscription backfill notice:', err?.message);
+      }
+
+      // Backfill sale cadence
+      try {
+        const games = db.prepare("SELECT id, base_price_eur, typical_sale_median_eur FROM games").all() as any[];
+        const getHistoryStmt = db.prepare("SELECT price_eur, is_pricing_error, recorded_at FROM price_history WHERE game_id = ? ORDER BY recorded_at ASC");
+        const updateCadenceStmt = db.prepare("UPDATE games SET sale_cadence = ?, avg_days_between_sales = ?, days_since_last_sale = ? WHERE id = ?");
+
+        for (const g of games) {
+          const rawHistory = getHistoryStmt.all(g.id) as any[];
+          if (!rawHistory || rawHistory.length < 2) continue;
+
+          const history = rawHistory.map(h => ({
+            id: '',
+            gameId: g.id,
+            merchantId: '',
+            merchantName: '',
+            merchantCode: '',
+            isOfficial: true,
+            sourceCode: 'steam' as const,
+            priceEur: Number(h.price_eur),
+            discountPercent: 0,
+            priceEvent: 'NONE' as const,
+            isPricingError: Boolean(h.is_pricing_error),
+            recordedAt: h.recorded_at
+          }));
+
+          const cycle = analyzeDiscountCycle(
+            history, 
+            g.base_price_eur ? Number(g.base_price_eur) : undefined,
+            g.typical_sale_median_eur ? Number(g.typical_sale_median_eur) : undefined
+          );
+
+          let cadence = 'STANDARD_CADENCE';
+          if (cycle.saleFrequencyCategory === 'Rare') cadence = 'RARE_SALE';
+          else if (cycle.saleFrequencyCategory === 'Frequent') cadence = 'ROUTINE_SALE';
+
+          updateCadenceStmt.run(cadence, cycle.avgDaysBetweenSales ?? null, cycle.daysSinceLastSale ?? null, g.id);
+        }
+      } catch (err: any) {
+        console.warn('[Migration 038] cadence backfill notice:', err?.message);
       }
     }
   }

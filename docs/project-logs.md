@@ -17,6 +17,22 @@
 
 ## 1. Version Release History & Feature Logs
 
+### 🚀 v2.10.0 — Deal Intelligence Suite: Dual ATLs, Fresh Drops, Sale Cadence & Subscription Radar (2026-11-01)
+* **Fresh Drops Timeframe Filter (1–7 Days)**:
+  * Solved keyshop price plateau where games sit permanently discounted, hiding new price cut events.
+  * Added flexible timeframe filtering (`freshDropsDays` = 1, 2, 3, 5, 7 days) and quick-cycle pill button (`<24h` → `<3d` → `<7d` → Off).
+  * Surfaced `⚡ Dropped <time ago>` indicator badge on game cards and compact rows, with sorting prioritizing most recent drop timestamp.
+* **Dual All-Time Lows (Official Store ATL vs. All-Store ATL)**:
+  * Separated official authorized retailer records from marketplace keyshop lows.
+  * Added dedicated `official_historical_low_eur`, `official_historical_low_date`, `official_historical_low_source` to `games` schema (Migration 037).
+  * Surfaced `Official ATL` in `PeriodLowsBar`, `🛡️ Official Low` badge on cards, and `Official Store Record Lows Only` filter toggle.
+* **Sale Cadence & Rarity Intelligence ("Rare Sale" vs. "Routine Sale")**:
+  * Analyzed discount cycles to differentiate games on perpetual bi-weekly rotation from rare discounts (>90-day intervals).
+  * Surfaced `🔥 RARE SALE` badge on qualifying deals (discounts ≥15% on rare cadence) and added `Rare Sales Only` filter.
+* **Subscription & Freebie Radar (Xbox PC Game Pass & EA Play)**:
+  * Curated and tested Steam App ID catalog for active PC Game Pass and EA Play libraries (Migration 038).
+  * Added `🎮 Game Pass` and `⚡ EA Play` badges in grid and compact views, an informative subscription banner in `GameDetailModal`, and a filter toggle to locate included titles without purchasing.
+
 ### 🚀 v2.9.0 — Clean Multi-Source Expansion, Pricing Event Self-Healing & Keyshop Fee Transparency (2026-10-31)
 * **NEXARDA™ API v3 & SuperDuperBundle Adapters**:
   * Seamlessly integrated NEXARDA and SuperDuperBundle source adapters with adaptive token-bucket rate limiting, jitter, non-aborting batch resilience, and API key support.

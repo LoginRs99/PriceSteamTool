@@ -73,6 +73,9 @@ Canonical metadata, MSRP anchor, historical lows, Deal Score statistics, review 
 | `historical_low_eur` | REAL | NULLABLE | Lowest recorded valid price in EUR (auto-reconciled) |
 | `historical_low_date` | TEXT | NULLABLE | Timestamp when historical low was established |
 | `historical_low_source` | TEXT | NULLABLE | Store/source establishing historical low |
+| `official_historical_low_eur` | REAL | NULLABLE | Lowest recorded price in EUR exclusively from official authorized storefronts (Migration 037) |
+| `official_historical_low_date` | TEXT | NULLABLE | Timestamp when official store historical low was established |
+| `official_historical_low_source` | TEXT | NULLABLE | Official retailer name establishing the low |
 | `typical_sale_median_eur` | REAL | NULLABLE | Tukey IQR typical sale median price in EUR |
 | `typical_sale_q1_eur` | REAL | NULLABLE | Tukey IQR 25th percentile price in EUR |
 | `typical_sale_q3_eur` | REAL | NULLABLE | Tukey IQR 75th percentile price in EUR |
@@ -90,6 +93,10 @@ Canonical metadata, MSRP anchor, historical lows, Deal Score statistics, review 
 | `allkeyshop_check_interval_hours` | INTEGER | DEFAULT 24 | Adaptive check interval (24h to 168h ceiling) |
 | `allkeyshop_unchanged_streak` | INTEGER | DEFAULT 0 | Consecutive runs with unchanged keyshop price |
 | `allkeyshop_last_price_eur` | REAL | NULLABLE | Previous keyshop price for stability tracking |
+| `sale_cadence` | TEXT | DEFAULT 'STANDARD_CADENCE' | Discount frequency classification (`RARE_SALE`, `ROUTINE_SALE`, `STANDARD_CADENCE`) (Migration 038) |
+| `avg_days_between_sales` | INTEGER | NULLABLE | Median days elapsed between promotional discount periods |
+| `days_since_last_sale` | INTEGER | NULLABLE | Days elapsed since the last promotional discount concluded |
+| `subscription_services` | TEXT | NULLABLE | Comma-separated list of active subscription services carrying the title (`GAME_PASS`, `EA_PLAY`) |
 | `steam_review_desc` | TEXT | NULLABLE | Steam review sentiment text (e.g. "Very Positive") |
 | `steam_review_percent` | INTEGER | NULLABLE | Steam positive review percentage (0–100) |
 | `steam_review_total` | TEXT | NULLABLE | Formatted total review count |

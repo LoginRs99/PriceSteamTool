@@ -164,6 +164,35 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
         </select>
       </div>
 
+      {/* Fresh Drops Timeframe */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label htmlFor="filter-fresh-drops" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            Fresh Price Drops
+          </label>
+          {filters.freshDropsDays && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '1px 6px', borderRadius: 3 }}>
+              ≤ {filters.freshDropsDays} {filters.freshDropsDays === 1 ? 'day' : 'days'}
+            </span>
+          )}
+        </div>
+        <select
+          id="filter-fresh-drops"
+          className="select-input"
+          aria-label="Filter by fresh price drops timeframe"
+          style={{ padding: '7px 12px', fontSize: 13 }}
+          value={filters.freshDropsDays ?? ''}
+          onChange={(e) => onFilterChange({ freshDropsDays: e.target.value ? parseInt(e.target.value, 10) : undefined, page: 1 })}
+        >
+          <option value="">Any Time (All prices)</option>
+          <option value="1">Last 24 Hours (Fresh Today)</option>
+          <option value="2">Last 2 Days (48 Hours)</option>
+          <option value="3">Last 3 Days</option>
+          <option value="5">Last 5 Days</option>
+          <option value="7">Last 7 Days (Past Week)</option>
+        </select>
+      </div>
+
       {/* Store Type Selection */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -183,6 +212,15 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
 
       {/* Clean Toggles */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input 
+            type="checkbox"
+            checked={Boolean(filters.officialHistoricalLowOnly)}
+            onChange={(e) => onFilterChange({ officialHistoricalLowOnly: e.target.checked, page: 1 })}
+          />
+          <span style={{ color: '#10b981', fontWeight: 600 }}>🛡️ Official Store Record Lows Only</span>
+        </label>
+
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
           <input 
             type="checkbox"

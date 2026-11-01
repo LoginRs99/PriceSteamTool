@@ -8,6 +8,9 @@ export const QUICK_PILL_BASE: Partial<WishlistFilterOptions> = {
   saleOnly: false,
   majorDealsOnly: false,
   allTimeLowOnly: false,
+  officialHistoricalLowOnly: false,
+      rareSalesOnly: false,
+      subscriptionOnly: false,
   underPrice: undefined,
   minPrice: undefined,
   maxPrice: undefined,
@@ -18,6 +21,7 @@ export const QUICK_PILL_BASE: Partial<WishlistFilterOptions> = {
   belowTypicalSaleOnly: false,
   merchantType: 'all',
   hasPricingErrors: false,
+  freshDropsDays: undefined,
   activePill: 'all',
   page: 1
 };
@@ -61,6 +65,7 @@ export function useFilterState(
   if (filters.saleOnly) activeFilterCount++;
   if (filters.minDiscount && filters.minDiscount > 0) activeFilterCount++;
   if (filters.allTimeLowOnly) activeFilterCount++;
+  if (filters.officialHistoricalLowOnly) activeFilterCount++;
   if (filters.majorDealsOnly) activeFilterCount++;
   if (filters.minDealScore && filters.minDealScore > 0) activeFilterCount++;
   if (filters.minMetacritic && filters.minMetacritic > 0) activeFilterCount++;
@@ -76,6 +81,9 @@ export function useFilterState(
   if (filters.hideDlcs) activeFilterCount++;
   if (filters.includeFreeGames) activeFilterCount++;
   if (filters.hideFamilyShared) activeFilterCount++;
+  if (filters.freshDropsDays && filters.freshDropsDays > 0) activeFilterCount++;
+  if (filters.rareSalesOnly) activeFilterCount++;
+  if (filters.subscriptionOnly) activeFilterCount++;
 
   const isFiltered = Boolean(activeFilterCount > 0 || (filters.sort && filters.sort !== 'best_value'));
 
@@ -86,6 +94,7 @@ export function useFilterState(
       saleOnly: false,
       majorDealsOnly: false,
       allTimeLowOnly: false,
+  officialHistoricalLowOnly: false,
       targetReachedOnly: false,
       underPrice: undefined,
       minPrice: undefined,
@@ -104,7 +113,8 @@ export function useFilterState(
       buyOnly: false,
       merchantType: 'all',
       hasPricingErrors: false,
-      activePill: 'all',
+      freshDropsDays: undefined,
+  activePill: 'all',
       page: 1
     });
   };
@@ -116,7 +126,8 @@ export function useFilterState(
     if (pill === currentActive && pill !== 'all') {
       onFilterChange({
         ...QUICK_PILL_BASE,
-        activePill: 'all',
+        freshDropsDays: undefined,
+  activePill: 'all',
         sort: 'best_value'
       });
       return;
@@ -126,7 +137,8 @@ export function useFilterState(
       case 'all':
         onFilterChange({
           ...QUICK_PILL_BASE,
-          activePill: 'all',
+          freshDropsDays: undefined,
+  activePill: 'all',
           sort: 'best_value'
         });
         break;
@@ -145,6 +157,31 @@ export function useFilterState(
           activePill: 'target_reached',
           targetReachedOnly: true,
           sort: 'best_value'
+        });
+        break;
+      case 'fresh_drops':
+      case 'fresh_drops_7d':
+        onFilterChange({
+          ...QUICK_PILL_BASE,
+          activePill: 'fresh_drops',
+          freshDropsDays: 7,
+          sort: 'price_drops'
+        });
+        break;
+      case 'fresh_drops_1d':
+        onFilterChange({
+          ...QUICK_PILL_BASE,
+          activePill: 'fresh_drops_1d',
+          freshDropsDays: 1,
+          sort: 'price_drops'
+        });
+        break;
+      case 'fresh_drops_3d':
+        onFilterChange({
+          ...QUICK_PILL_BASE,
+          activePill: 'fresh_drops_3d',
+          freshDropsDays: 3,
+          sort: 'price_drops'
         });
         break;
       case 'best_deals':

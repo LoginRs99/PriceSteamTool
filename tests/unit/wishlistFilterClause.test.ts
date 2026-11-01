@@ -111,4 +111,41 @@ describe('buildWishlistFilterClause Unit Tests', () => {
     expect(whereSql).toContain('g.steam_app_id = ?');
     expect(params).toEqual(['profile-steam', 1091500]);
   });
+
+  it('handles officialHistoricalLowOnly filter correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-off-atl', {
+      officialHistoricalLowOnly: true
+    });
+
+    expect(whereSql).toContain('m.is_official = 1');
+    expect(whereSql).toContain('g.official_historical_low_eur IS NOT NULL');
+    expect(whereSql).toContain('bo.price_eur <= g.official_historical_low_eur * 1.02');
+    expect(params).toEqual(['profile-off-atl']);
+  });
+
+  it('handles freshDropsDays filter correctly', () => {
+    const { whereSql, params } = buildWishlistFilterClause('profile-fresh', {
+      freshDropsDays: 3
+    });
+
+    expect(whereSql).toContain('EXISTS');
+    expect(whereSql).toContain('price_history ph');
+    expect(whereSql).toContain('ph.is_pricing_error = 0');
+    expect(whereSql).toContain("datetime(ph.recorded_at) >= datetime('now', '-' || ? || ' days')");
+    expect(params).toEqual(['profile-fresh', 3]);
+  });
+
+  it('handles rareSalesOnly and subscriptionOnly filters correctly', () => {
+    const { whereSql: sqlRare, params: pRare } = buildWishlistFilterClause('p-1', {
+      rareSalesOnly: true
+    });
+    expect(sqlRare).toContain("g.sale_cadence = 'RARE_SALE'");
+    expect(pRare).toEqual(['p-1']);
+
+    const { whereSql: sqlSub, params: pSub } = buildWishlistFilterClause('p-1', {
+      subscriptionOnly: true
+    });
+    expect(sqlSub).toContain("g.subscription_services IS NOT NULL AND g.subscription_services != ''");
+    expect(pSub).toEqual(['p-1']);
+  });
 });

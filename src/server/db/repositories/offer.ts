@@ -1,3 +1,4 @@
+import { analyzeDiscountCycle } from '../../domain/actionSignal/saleCycle.js';
 import { randomUUID } from 'crypto';
 import { getDb, prepareStmt, BEST_DEAL_RECOMPUTE_ALL_SQL } from '../core.js';
 import { gameRepo } from './game.js';
@@ -515,6 +516,10 @@ export const offerRepo = {
       });
 
       const hasPriceChanged = !isSameAsLatestMerchant && !isSameAsLatestSource;
+
+      if (hasPriceChanged && Boolean(merchantInfo?.is_official) && !pricingEval.isAnomaly && active.priceEur > 0.05) {
+        gameRepo.updateOfficialHistoricalLow(data.gameId, active.priceEur, now, merchantInfo?.name || active.sourceCode);
+      }
 
       // Update historical low only on genuine confirmed price drop
       if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW')) {
@@ -1209,8 +1214,20 @@ export const offerRepo = {
         ? history[history.length - 1].recordedAt 
         : now;
 
+      const cycle = analyzeDiscountCycle(
+        history,
+        basePrice,
+        typicalSale.medianPriceEur ?? undefined
+      );
+      let cadence = 'STANDARD_CADENCE';
+      if (cycle.saleFrequencyCategory === 'Rare') cadence = 'RARE_SALE';
+      else if (cycle.saleFrequencyCategory === 'Frequent') cadence = 'ROUTINE_SALE';
+
       prepareStmt(`
         UPDATE games SET
+          sale_cadence = ?,
+          avg_days_between_sales = ?,
+          days_since_last_sale = ?,
           typical_sale_median_eur = ?,
           typical_sale_q1_eur = ?,
           typical_sale_q3_eur = ?,
@@ -1229,6 +1246,9 @@ export const offerRepo = {
           updated_at = ?
         WHERE id = ?
       `).run(
+        cadence,
+        cycle.avgDaysBetweenSales ?? null,
+        cycle.daysSinceLastSale ?? null,
         typicalSale.medianPriceEur,
         typicalSale.q1PriceEur,
         typicalSale.q3PriceEur,

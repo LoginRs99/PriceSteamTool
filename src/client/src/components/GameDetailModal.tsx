@@ -275,6 +275,32 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
           </div>
         </div>
 
+        {/* Subscription Radar Banner */}
+        {game.subscriptionServices && game.subscriptionServices.length > 0 && (
+          <div 
+            style={{
+              margin: '12px 20px 0 20px',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12
+            }}
+          >
+            <span style={{ fontSize: 18 }}>🎮</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>
+                Subscription Available: {game.subscriptionServices.map(s => s === 'GAME_PASS' ? 'Xbox PC Game Pass' : 'EA Play').join(' & ')}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                You can play this title with an active subscription without purchasing an individual key.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Family Sharing Exclusion Banner / Controls */}
         {(game.isFamilyShared || game.isFamilyExcluded) && (
           <div 
@@ -449,7 +475,11 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
             />
 
             {/* 2. Rolling Period Lows Bar */}
-            <PeriodLowsBar periodLows={intelligence?.periodLows} />
+            <PeriodLowsBar 
+              periodLows={intelligence?.periodLows} 
+              officialLowEur={game.officialHistoricalLowEur}
+              officialLowSource={game.officialHistoricalLowSource}
+            />
 
             {/* 3. Interactive Price History Chart */}
             {intelligence?.chartData && (

@@ -23,6 +23,9 @@ interface QuickFilterPillsProps {
 
 export const getActivePill = (filters: WishlistFilterOptions): string => {
   if (filters.activePill) return filters.activePill;
+  if (filters.freshDropsDays === 1) return 'fresh_drops_1d';
+  if (filters.freshDropsDays === 3) return 'fresh_drops_3d';
+  if (filters.freshDropsDays && filters.freshDropsDays > 0) return 'fresh_drops';
   if (filters.hasPricingErrors) return 'anomaly';
   if (filters.targetReachedOnly) return 'target_reached';
   if (filters.buyOnly) return 'buy_recommendations';
@@ -76,6 +79,23 @@ export const QuickFilterPills: React.FC<QuickFilterPillsProps> = ({
       >
         <Target size={13} />
         <span>Target Reached</span>
+      </button>
+
+      <button
+        className={`pill-btn ${currentPill.startsWith('fresh_drops') ? 'active' : ''}`}
+        onClick={() => {
+          if (currentPill === 'fresh_drops_1d') onPillSelect('fresh_drops_3d');
+          else if (currentPill === 'fresh_drops_3d') onPillSelect('fresh_drops_7d');
+          else if (currentPill === 'fresh_drops' || currentPill === 'fresh_drops_7d') onPillSelect('all');
+          else onPillSelect('fresh_drops_1d');
+        }}
+        title="Cycle recent price cuts: <24h → <3d → <7d → Off"
+        style={currentPill.startsWith('fresh_drops') ? { borderColor: '#f59e0b', color: '#f59e0b' } : undefined}
+      >
+        <TrendingDown size={13} color={currentPill.startsWith('fresh_drops') ? '#f59e0b' : undefined} />
+        <span>
+          {currentPill === 'fresh_drops_1d' ? 'Fresh Drops (<24h)' : currentPill === 'fresh_drops_3d' ? 'Fresh Drops (<3d)' : currentPill.startsWith('fresh_drops') ? 'Fresh Drops (<7d)' : 'Fresh Drops'}
+        </span>
       </button>
 
       <button
