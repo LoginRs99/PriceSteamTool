@@ -4,6 +4,7 @@ import { Sparkline } from './Sparkline.js';
 import { TickerFlag } from './TickerFlag.js';
 import { GameImage } from './GameImage.js';
 import { ShieldCheck, ChevronRight, RefreshCw } from 'lucide-react';
+import { formatDropTimeAgo } from './GameCard.js';
 import { getSteamReviewSentiment } from '../utils/steamMeta.js';
 import { useCurrency } from '../context/CurrencyContext.js';
 
@@ -96,6 +97,57 @@ const CompactRowComponent: React.FC<CompactRowProps> = ({
                 title="Owned by a member of your Steam Family Library"
               >
                 👨‍👩‍👧 Family
+              </span>
+            )}
+            {game.subscriptionServices?.includes('GAME_PASS') && (
+              <span 
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#34d399',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Available on Xbox PC Game Pass"
+              >
+                🎮 Game Pass
+              </span>
+            )}
+            {game.subscriptionServices?.includes('EA_PLAY') && (
+              <span 
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Included in EA Play"
+              >
+                ⚡ EA Play
+              </span>
+            )}
+            {game.saleCadence === 'RARE_SALE' && (game.bestDiscountPercent ?? 0) >= 15 && (
+              <span 
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(245, 158, 11, 0.18)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Rare Sale: Long gap between discount events"
+              >
+                🔥 Rare
               </span>
             )}
             {game.steamReviewPercent !== undefined && (
@@ -260,6 +312,27 @@ const CompactRowComponent: React.FC<CompactRowProps> = ({
                     }}
                   >
                     🎟️ {game.bestVoucherCode}
+                  </span>
+                )}
+                {formatDropTimeAgo(game.latestPriceDropAt) && (
+                  <span 
+                    className="fresh-drop-badge" 
+                    title={`Price cut detected on ${new Date(game.latestPriceDropAt!).toLocaleString()}`}
+                    style={{ 
+                      fontSize: '0.62rem', 
+                      fontWeight: 700, 
+                      padding: '1px 4px', 
+                      borderRadius: 3, 
+                      background: 'rgba(245, 158, 11, 0.12)', 
+                      color: '#f59e0b', 
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      marginLeft: 4,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    ⚡ {formatDropTimeAgo(game.latestPriceDropAt)}
                   </span>
                 )}
               </div>

@@ -5,6 +5,30 @@ All notable changes to the **Pricetool** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] - 2026-11-01
+
+### Added
+* **Fresh Drops Timeframe Filter (1–7 Days)**:
+  * Filter wishlist games by recent price drops within 1, 2, 3, 5, or 7 days (`freshDropsDays` query parameter).
+  * Quick-cycle pill button in filter bar: cycling `<24h` → `<3d` → `<7d` → Off.
+  * Relative timestamp drop badges (`⚡ Dropped just now`, `⚡ Dropped 4h ago`, `⚡ Dropped yesterday`, `⚡ Dropped 3d ago`) in both card grid and compact list views.
+  * Price drops sorting mode prioritizing games with the most recent price drop timestamp.
+* **Dual All-Time Lows (Official Store ATL vs. All-Store ATL)**:
+  * Distinction between authorized official retailers (Steam, GOG, Epic, Fanatical, etc.) and grey-market keyshops.
+  * Added `official_historical_low_eur`, `official_historical_low_date`, and `official_historical_low_source` to `games` table (Migration 037).
+  * `PeriodLowsBar` displays side-by-side comparison of Official ATL vs. All-Store ATL.
+  * `🛡️ Official Low` badge on cards matching official record lows.
+  * `Official Store Record Lows Only` checkbox toggle in Advanced Filters drawer.
+* **Sale Cadence & Rarity Intelligence**:
+  * Tracks historical discount intervals and classifies games into `RARE_SALE` (>90 days between sales) and `ROUTINE_SALE` (≤35 days between sales) (Migration 038).
+  * Prominent `🔥 RARE SALE` badge for genuine discount events on seldom-discounted games.
+  * `🔥 Rare Sales Only` checkbox toggle in Advanced Filters drawer.
+* **Subscription Radar (PC Game Pass & EA Play)**:
+  * Curated and tested Steam App ID registry mapping games included in Xbox PC Game Pass and EA Play.
+  * `🎮 Game Pass` and `⚡ EA Play` indicator badges on cards and list rows.
+  * Notice banner in `GameDetailModal` informing users when a wishlist item is playable via active subscription.
+  * `🎮 Included in Game Pass / EA Play` filter toggle in Advanced Filters drawer.
+
 ## [2.9.0] - 2026-10-31
 
 ### Added

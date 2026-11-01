@@ -8,6 +8,7 @@ import { isKeyshopSourceStr, isOfficialStoreSource, isAggregatorSource } from '.
 import { FRESHNESS_WINDOW_MS } from '../../domain/constants.js';
 import { calculateSteamDbRating } from '../../domain/rating.js';
 import { repairMojibake, isGameUnreleased, isGameDelisted } from '../../domain/normalizer.js';
+import { getGameSubscriptions } from '../../domain/subscriptions.js';
 import type { 
   Game, 
   WishlistFilterOptions, 
@@ -70,6 +71,29 @@ export function buildWishlistFilterClause(
 
   if (options.majorDealsOnly) {
     whereClauses.push(`(bo.price_event IN ('MAJOR_DROP', 'EXTREME_DROP') OR bo.discount_percent >= 50 OR (g.base_price_eur IS NOT NULL AND g.base_price_eur > 0 AND bo.price_eur <= g.base_price_eur * 0.5))`);
+  }
+
+  if (options.rareSalesOnly) {
+    whereClauses.push(`g.sale_cadence = 'RARE_SALE'`);
+  }
+
+  if (options.subscriptionOnly) {
+    whereClauses.push(`(g.subscription_services IS NOT NULL AND g.subscription_services != '')`);
+  }
+
+  if (options.officialHistoricalLowOnly) {
+    whereClauses.push(`(m.is_official = 1 AND g.official_historical_low_eur IS NOT NULL AND g.official_historical_low_eur > 0 AND bo.price_eur <= g.official_historical_low_eur * 1.02)`);
+  }
+
+  if (options.freshDropsDays !== undefined && options.freshDropsDays > 0) {
+    whereClauses.push(`EXISTS (
+      SELECT 1 FROM price_history ph 
+      WHERE ph.game_id = g.id 
+        AND ph.is_pricing_error = 0 
+        AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR')
+        AND datetime(ph.recorded_at) >= datetime('now', '-' || ? || ' days')
+    )`);
+    params.push(options.freshDropsDays);
   }
 
   if (options.allTimeLowOnly || options.historicalLowOnly) {
@@ -351,6 +375,7 @@ export const gameRepo = {
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
+        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR')) as latest_price_drop_at,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded,
         (SELECT sa.asset_url FROM steam_assets sa WHERE sa.steam_app_id = g.steam_app_id AND sa.asset_type = 'icon') as icon_url
       FROM games g
@@ -476,6 +501,28 @@ export const gameRepo = {
       isConfirmed ? 1 : 0,
       priceEur
     );
+  },
+
+  updateOfficialHistoricalLow(
+    gameId: string, 
+    priceEur: number, 
+    date: string, 
+    source: string
+  ): void {
+    if (typeof priceEur !== 'number' || isNaN(priceEur) || priceEur <= 0) {
+      return;
+    }
+    prepareStmt(`
+      UPDATE games 
+      SET official_historical_low_eur = ?, 
+          official_historical_low_date = ?, 
+          official_historical_low_source = ?,
+          updated_at = datetime('now')
+      WHERE id = ? AND (
+        official_historical_low_eur IS NULL 
+        OR ? < official_historical_low_eur
+      )
+    `).run(priceEur, date, source, gameId, priceEur);
   },
 
   reconcileAllHistoricalLows(): number {
@@ -612,6 +659,7 @@ export const gameRepo = {
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
+        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR')) as latest_price_drop_at,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
@@ -670,6 +718,7 @@ export const gameRepo = {
       (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
       (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
+        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR')) as latest_price_drop_at,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
     `;
 
@@ -727,7 +776,14 @@ export const gameRepo = {
         const savA = a.bestSavingVsMedianEur ?? 0;
         const savB = b.bestSavingVsMedianEur ?? 0;
         if (savB !== savA) return savB - savA;
-      } else if (options.sort === 'price_drops' || options.sort === 'discount_desc') {
+      } else if (options.sort === 'price_drops') {
+        const dropA = a.latestPriceDropAt ? new Date(a.latestPriceDropAt).getTime() : 0;
+        const dropB = b.latestPriceDropAt ? new Date(b.latestPriceDropAt).getTime() : 0;
+        if (dropB !== dropA) return dropB - dropA;
+        const discA = a.bestDiscountPercent ?? 0;
+        const discB = b.bestDiscountPercent ?? 0;
+        if (discB !== discA) return discB - discA;
+      } else if (options.sort === 'discount_desc') {
         const discA = a.bestDiscountPercent ?? 0;
         const discB = b.bestDiscountPercent ?? 0;
         if (discB !== discA) return discB - discA;
@@ -1211,6 +1267,16 @@ function mapGameRow(r: any): Game {
     historicalLowEur: rawHistLow,
     historicalLowDate: r.historical_low_date || undefined,
     historicalLowSource: r.historical_low_source || undefined,
+    officialHistoricalLowEur: r.official_historical_low_eur !== null && r.official_historical_low_eur !== undefined ? Number(r.official_historical_low_eur) : undefined,
+    officialHistoricalLowDate: r.official_historical_low_date || undefined,
+    officialHistoricalLowSource: r.official_historical_low_source || undefined,
+    saleCadence: r.sale_cadence || undefined,
+    avgDaysBetweenSales: r.avg_days_between_sales !== null && r.avg_days_between_sales !== undefined ? Number(r.avg_days_between_sales) : undefined,
+    daysSinceLastSale: r.days_since_last_sale !== null && r.days_since_last_sale !== undefined ? Number(r.days_since_last_sale) : undefined,
+    subscriptionServices: r.subscription_services 
+      ? r.subscription_services.split(',').filter(Boolean)
+      : ((!r.subscription_services && r.steam_app_id) ? (getGameSubscriptions(Number(r.steam_app_id), r.title).length > 0 ? getGameSubscriptions(Number(r.steam_app_id), r.title) : undefined) : undefined),
+    latestPriceDropAt: r.latest_price_drop_at || undefined,
     steamReviewDesc: r.steam_review_desc || undefined,
     steamReviewPercent: r.steam_review_percent !== null && r.steam_review_percent !== undefined ? Number(r.steam_review_percent) : undefined,
     steamReviewTotal: r.steam_review_total || undefined,

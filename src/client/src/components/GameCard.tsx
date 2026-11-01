@@ -15,6 +15,21 @@ export interface GameCardProps {
   onExplain?: (game: Game) => void;
 }
 
+export function formatDropTimeAgo(dateStr?: string): string | null {
+  if (!dateStr) return null;
+  const time = new Date(dateStr).getTime();
+  if (isNaN(time)) return null;
+  const diffMs = Date.now() - time;
+  if (diffMs < 0) return null;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  if (diffHours < 1) return 'Dropped just now';
+  if (diffHours < 24) return `Dropped ${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Dropped yesterday';
+  if (diffDays <= 7) return `Dropped ${diffDays}d ago`;
+  return null;
+}
+
 const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, onExplain }) => {
   const { formatPrice } = useCurrency();
   const [copiedSteam, setCopiedSteam] = useState(false);
@@ -340,6 +355,65 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
                 ✨ GREAT DEAL
               </span>
             )}
+            {game.saleCadence === 'RARE_SALE' && (game.bestDiscountPercent ?? 0) >= 15 && (
+              <span 
+                className="deal-tier-tag" 
+                style={{
+                  background: 'rgba(245, 158, 11, 0.18)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(245, 158, 11, 0.45)',
+                  borderRadius: 4,
+                  padding: '1px 6px',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.03em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3
+                }}
+                title={`Rare Sale: Average ${game.avgDaysBetweenSales ? `${game.avgDaysBetweenSales} days` : '3+ months'} between discounts`}
+              >
+                🔥 RARE SALE
+              </span>
+            )}
+            {game.subscriptionServices?.includes('GAME_PASS') && (
+              <span 
+                style={{
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#34d399',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  borderRadius: 4,
+                  padding: '1px 5px',
+                  fontSize: '0.66rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}
+                title="Available on Xbox PC Game Pass"
+              >
+                🎮 Game Pass
+              </span>
+            )}
+            {game.subscriptionServices?.includes('EA_PLAY') && (
+              <span 
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  borderRadius: 4,
+                  padding: '1px 5px',
+                  fontSize: '0.66rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}
+                title="Included in EA Play"
+              >
+                ⚡ EA Play
+              </span>
+            )}
 
             {savingVsMedian && savingVsMedian > 0 && typicalMedian ? (
               <span style={{ color: 'var(--down)', fontWeight: 600 }}>
@@ -388,6 +462,50 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
                 title="Stale fallback price (last observed >72h ago)"
               >
                 Stale
+              </span>
+            )}
+            {formatDropTimeAgo(game.latestPriceDropAt) && (
+              <span 
+                className="fresh-drop-badge" 
+                style={{ 
+                  fontSize: '0.66rem', 
+                  fontWeight: 700, 
+                  padding: '1px 5px', 
+                  borderRadius: 4, 
+                  background: 'rgba(245, 158, 11, 0.12)', 
+                  color: '#f59e0b', 
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  marginLeft: 4,
+                  verticalAlign: 'middle',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}
+                title={`Price cut detected on ${new Date(game.latestPriceDropAt!).toLocaleString()}`}
+              >
+                ⚡ {formatDropTimeAgo(game.latestPriceDropAt)}
+              </span>
+            )}
+            {Boolean(game.bestMerchantIsOfficial && game.officialHistoricalLowEur && game.bestPriceEur && game.bestPriceEur <= game.officialHistoricalLowEur * 1.01) && (
+              <span 
+                className="official-atl-pill"
+                title={`At or beating Official Store Record Low of ${formatPrice(game.officialHistoricalLowEur)} (${game.officialHistoricalLowSource || 'Official Store'})`}
+                style={{ 
+                  fontSize: '0.66rem', 
+                  fontWeight: 700, 
+                  padding: '1px 5px', 
+                  borderRadius: 4, 
+                  background: 'rgba(16, 185, 129, 0.12)', 
+                  color: '#10b981', 
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  marginLeft: 4,
+                  verticalAlign: 'middle',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}
+              >
+                <ShieldCheck size={10} color="#10b981" /> Official Low
               </span>
             )}
             {game.bestVoucherCode && (

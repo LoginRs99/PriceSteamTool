@@ -7,7 +7,8 @@ import {
   Trophy, 
   TrendingDown, 
   Users, 
-  ThumbsUp 
+  ThumbsUp,
+  ShieldCheck 
 } from 'lucide-react';
 import { useCurrency } from '../../context/CurrencyContext.js';
 
@@ -54,6 +55,22 @@ export const ActiveFilterBadges: React.FC<ActiveFilterBadgesProps> = ({
           <Target size={11} style={{ marginRight: 4 }} />
           Target Reached
           <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ targetReachedOnly: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.officialHistoricalLowOnly && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(16, 185, 129, 0.4)', color: '#10b981' }}>
+          <ShieldCheck size={11} style={{ marginRight: 4 }} />
+          Official Store Record Lows
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ officialHistoricalLowOnly: false, page: 1 })} />
+        </span>
+      )}
+
+      {filters.freshDropsDays && filters.freshDropsDays > 0 && (
+        <span className="filter-active-tag" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#f59e0b' }}>
+          <TrendingDown size={11} style={{ marginRight: 4 }} />
+          Fresh Drops (≤ {filters.freshDropsDays} {filters.freshDropsDays === 1 ? 'day' : 'days'})
+          <X size={12} className="tag-remove-icon" onClick={() => onFilterChange({ freshDropsDays: undefined, activePill: 'all', page: 1 })} />
         </span>
       )}
 

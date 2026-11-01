@@ -114,6 +114,13 @@ export interface Game {
   historicalLowEur?: number;
   historicalLowDate?: string;
   historicalLowSource?: string;
+  officialHistoricalLowEur?: number;
+  officialHistoricalLowDate?: string;
+  officialHistoricalLowSource?: string;
+  saleCadence?: 'RARE_SALE' | 'ROUTINE_SALE' | 'STANDARD_CADENCE';
+  avgDaysBetweenSales?: number;
+  daysSinceLastSale?: number;
+  subscriptionServices?: string[];
   
   // Steam Review Sentiment & Ratings
   steamReviewDesc?: string;
@@ -178,6 +185,7 @@ export interface Game {
   hasPricingError: boolean;
   pricingErrorCount?: number;
   offersCount: number;
+  latestPriceDropAt?: string;
   
   createdAt: string;
   updatedAt: string;
@@ -362,6 +370,9 @@ export interface WishlistFilterOptions {
   majorDealsOnly?: boolean;
   allTimeLowOnly?: boolean;
   historicalLowOnly?: boolean;
+  officialHistoricalLowOnly?: boolean;
+  rareSalesOnly?: boolean;
+  subscriptionOnly?: boolean;
   isFreeOnly?: boolean;
   underPrice?: number;
   minPrice?: number;
@@ -383,6 +394,7 @@ export interface WishlistFilterOptions {
   hideDlcs?: boolean;
   includeFreeGames?: boolean;
   hideFamilyShared?: boolean;
+  freshDropsDays?: number;
   activePill?: string;
   steamAppId?: number;
   priceEvent?: PriceEventType;
