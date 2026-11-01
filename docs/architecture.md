@@ -48,7 +48,7 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │  │  ┌───────────────┐ ┌───────────────┐ ┌─────────────────┐ ┌──────────────────────┐ │ │
 │  │  │ Steam Store   │ │ ITAD Batch    │ │ CheapShark      │ │ GG.deals & Keyshops  │ │ │
 │  │  │ (2000ms pace) │ │ (1000ms pace) │ │ Multi-AppID 25x │ │ (1500ms pace)        │ │ │
-│  │  │ (MSRP/Review) │ │ (200 IDs/req) │ │ (1500ms pace)   │ │ AllKeyShop (2500ms)  │ │ │
+│  │  │ (MSRP/Review) │ │ (200 IDs/req) │ │ (1500ms pace)   │ │ NEXARDA & SDB       │ │ │
 │  │  └───────┬───────┘ └───────┬───────┘ └────────┬────────┘ └──────────┬───────────┘ │ │
 │  │          │                 │                  │                     │             │ │
 │  │          │ Paced Token-Bucket Queues with Exponential Jitter        │             │ │
@@ -83,7 +83,8 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
   - ITAD: 1000 ms delay, 200 ms jitter.
   - CheapShark: 1500 ms delay, 250 ms jitter.
   - GG.deals: 1500 ms delay, 300 ms jitter.
-  - AllKeyShop: 2500 ms delay, 500 ms jitter (with adaptive intervals 24h–168h).
+  - NEXARDA: 500 ms delay, 100 ms jitter.
+  - SuperDuperBundle: 1000 ms delay, 200 ms jitter (50 games/chunk).
 * **Rationale**: Guarantees total failure isolation. If an unauthenticated source encounters a Cloudflare challenge or 429, it enters `BACKOFF` or `PAUSED` without blocking ITAD or CheapShark throughput.
 
 ### 2.4 CheapShark Multi-AppID Batching Architecture

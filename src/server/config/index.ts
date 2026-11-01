@@ -28,15 +28,11 @@ export const config = {
     itad: parseInt(process.env.ITAD_DELAY_MS || '1000', 10),
     ggdeals: parseInt(process.env.GGDEALS_DELAY_MS || '1500', 10),
     cheapshark: parseInt(process.env.CHEAPSHARK_DELAY_MS || '1500', 10),
-    allkeyshop: parseInt(process.env.ALLKEYSHOP_DELAY_MS || '2500', 10),
     nexarda: parseInt(process.env.NEXARDA_DELAY_MS || '500', 10),
     superduperbundle: parseInt(process.env.SUPERDUPERBUNDLE_DELAY_MS || '1000', 10)
   },
 
-  // Stealth & Anti-Ban Batching for Keyshop scrapers (via Byparr / FlareSolverr)
-  allkeyshopJitterMs: parseInt(process.env.ALLKEYSHOP_JITTER_MS || '1500', 10),
-  allkeyshopChunkSize: parseInt(process.env.ALLKEYSHOP_CHUNK_SIZE || '50', 10),
-  allkeyshopChunkPauseMs: parseInt(process.env.ALLKEYSHOP_CHUNK_PAUSE_MS || '20000', 10),
+  // Stealth & Anti-Ban Batching for Chunked Aggregator Sources
   ggdealsChunkPauseMs: parseInt(process.env.GGDEALS_CHUNK_PAUSE_MS || '60000', 10),
   cheapsharkChunkPauseMs: parseInt(process.env.CHEAPSHARK_CHUNK_PAUSE_MS || '3000', 10),
   superduperbundleChunkPauseMs: parseInt(process.env.SUPERDUPERBUNDLE_CHUNK_PAUSE_MS || '2500', 10),
@@ -46,12 +42,6 @@ export const config = {
   historyRetentionDays: parseInt(process.env.HISTORY_RETENTION_DAYS || '365', 10),
   autoSyncEnabled: process.env.AUTO_SYNC_ENABLED !== 'false',
   autoSyncIntervalHours: parseInt(process.env.AUTO_SYNC_INTERVAL_HOURS || '6', 10),
-  // AllKeyShop is permanently deactivated (backed up to branch backup/allkeyshop-integration)
-  allkeyshopEnabled: false,
-  allkeyshopMaxGames: parseInt(process.env.ALLKEYSHOP_MAX_GAMES || '50', 10), // default cap per enrichment run
-  allkeyshopSolverUrl: process.env.ALLKEYSHOP_SOLVER_URL || process.env.BYPARR_URL || process.env.FLARESOLVERR_URL || '',
-  allkeyshopProxyUrl: process.env.ALLKEYSHOP_PROXY_URL || process.env.ALLKEYSHOP_PROXY || '',
-  allkeyshopSolverTimeoutMs: process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS ? parseInt(process.env.ALLKEYSHOP_SOLVER_TIMEOUT_MS, 10) : 0,
 
   // Modern Keyshop & Aggregator Sources (Phase 2)
   nexardaEnabled: process.env.NEXARDA_ENABLED !== 'false',

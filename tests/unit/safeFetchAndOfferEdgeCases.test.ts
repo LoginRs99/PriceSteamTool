@@ -4,7 +4,6 @@ import { offerRepo } from '../../src/server/db/repositories/offer.js';
 import { gameRepo } from '../../src/server/db/repositories/game.js';
 import { merchantRepo } from '../../src/server/db/repositories/merchant.js';
 import { getDb, prepareStmt } from '../../src/server/db/core.js';
-import { AllKeyShopPoliteQueue } from '../../src/server/sync/allkeyshop/queue.js';
 import { PacedSourceQueue } from '../../src/server/sync/rateLimiter.js';
 import { circuitBreakers } from '../../src/server/sync/circuitBreaker.js';
 
@@ -125,27 +124,6 @@ describe('SafeFetch & Offer Repository Edge Cases Suite', () => {
   });
 
   describe('Queue Cancellation & Graceful Interrupt during Cooldown', () => {
-    it('AllKeyShopPoliteQueue clears and rejects pending tasks without hanging', async () => {
-      const queue = new AllKeyShopPoliteQueue();
-      queue.minDelayMs = 50;
-      queue.jitterMaxMs = 0;
-
-      // Force circuit breaker to PAUSED with cooldown
-      circuitBreakers.recordFailure('allkeyshop', 'err 1');
-      circuitBreakers.recordFailure('allkeyshop', 'err 2');
-      circuitBreakers.recordFailure('allkeyshop', 'err 3');
-      circuitBreakers.recordFailure('allkeyshop', 'err 4');
-      expect(circuitBreakers.canExecute('allkeyshop').allowed).toBe(false);
-
-      const taskPromise = queue.enqueue('test-task', async () => 'done', 'Test Game');
-      expect(queue.pendingCount).toBe(1);
-
-      // Clear the queue
-      queue.clear();
-      expect(queue.pendingCount).toBe(0);
-
-      await expect(taskPromise).rejects.toThrow('Queue for allkeyshop was cleared/cancelled');
-    });
 
     it('PacedSourceQueue clears and rejects pending tasks without hanging', async () => {
       const queue = new PacedSourceQueue('steam', 50, 0);

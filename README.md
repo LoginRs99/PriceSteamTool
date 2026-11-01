@@ -26,7 +26,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **GG.deals**: Direct official retail and marketplace cross-verification with intra-source family conflict detection (`SOURCE_FAMILY_CONFLICT`, $\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms delay, 300ms jitter).
 * **NEXARDA™ API v3**: Multi-retailer price aggregator adapter covering 20+ verified official and marketplace stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.) via public REST API (`/api/v3/find` and `/api/v3/search`) with automatic voucher code extraction, currency normalization, and polite pacing (`NEXARDA_DELAY_MS=500`).
 * **SuperDuperBundle API v1**: High-speed secondary aggregator querying `/api/v1/lookup` in 50-game batches with direct Steam App ID resolution, store mapping, voucher codes, circuit breaker protection, and batch resilience (`SUPERDUPERBUNDLE_DELAY_MS=1000`, `SUPERDUPERBUNDLE_API_KEY`).
-* **AllKeyShop (Deactivated / Archived to Backup)**: Previously used for keyshop scraping; deactivated in v2.9.0 to eliminate Cloudflare solver timeouts and rate limits. The complete integration is preserved in branch `backup/allkeyshop-integration`.
+* **AllKeyShop (Retired from Main / Preserved in Backup Branch)**: The unofficial AllKeyShop scraper and solver requirement were retired from the main build in v2.10.1 in favor of high-performance native APIs (NEXARDA and SuperDuperBundle). The full scraper, FlareSolverr integration, and catalog indexing implementation are preserved in branch `backup/allkeyshop-full-scraper`.
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
 * **Dynamic Currency Handling**: Preserves raw source currencies (`USD`, `GBP`, `HUF`, `EUR`) alongside normalized EUR prices using daily ECB exchange rates.
 * **Epoch-Aware Rate Limit Parsing**: Handles delta seconds, HTTP-dates, and Unix epoch timestamps (from Cloudflare `X-RateLimit-Reset` and `ratelimit-reset` headers).
@@ -75,7 +75,6 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
   * Real-time monitoring of all source queues, token-buckets, and circuit breakers.
   * **Automatic Note Dismissal**: Error notes disappear automatically once the next request succeeds or the circuit returns to `NORMAL`.
   * **Interactive Reset / Unpause**: 1-click button to reset degraded or paused circuit breakers and re-enable sources immediately.
-  * **On-Demand AllKeyShop Catalog Refresh**: 1-click "Update Catalog" button to re-download the latest AllKeyShop master title catalog.
 * **Dedicated Free-to-Play Section**: Free games (`is_free = 1`) are separated into their own navigation tab with direct Steam launcher (`steam://run/<id>`) and store links, keeping the paid deal catalog clean.
 * **Steam Family Sharing Exclusions & Auto-Detection**:
   * Automatically detects games owned by family accounts that are excluded by Steam from Family Sharing (e.g. EA App, Ubisoft Connect, Rockstar Games Launcher, lack of Storefront Category 62).

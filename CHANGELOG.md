@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.1] - 2026-11-01
+
+### Retired / Deprecated
+* **AllKeyShop Scraper & Solver Retirement from Main**:
+  * Fully retired and removed the unofficial AllKeyShop web scraper, Cloudflare solver requirements (FlareSolverr / Byparr), heavy seed catalog (`allkeyshop_catalog.seed.json.gz`), and dead UI components from the main release build.
+  * Preserved the complete working scraper, queue pacing, catalog indexing, and solver integration on dedicated remote branch `backup/allkeyshop-full-scraper` for future restoration if an official API is released.
+  * Retained full backwards compatibility for historical database records (`pricetool.db`) and source typing so existing historical lows and price history remain completely intact.
+  * Modern keyshop pricing and voucher codes are natively and cleanly handled via high-speed aggregators (NEXARDA™ API v3 and SuperDuperBundle API v1).
+
 All notable changes to the **Pricetool** project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

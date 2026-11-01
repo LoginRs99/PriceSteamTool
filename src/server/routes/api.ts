@@ -620,11 +620,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return intelligence;
   });
 
-  // Per-game force refresh (Fast parallel sync + async AllKeyShop enrichment or specific sources)
+  // Per-game force refresh (Fast parallel sync across active sources)
   fastify.post('/api/games/:id/refresh', async (request, reply) => {
     const { id } = request.params as { id: string };
     const schema = z.object({
-      sources: z.array(z.enum(['steam', 'itad', 'cheapshark', 'ggdeals', 'allkeyshop'])).optional(),
+      sources: z.array(z.enum(['steam', 'itad', 'cheapshark', 'ggdeals', 'nexarda', 'superduperbundle'])).optional(),
       includeKeyshops: z.boolean().optional()
     }).optional();
 
@@ -656,7 +656,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     const schema = z.object({
       forceRefresh: z.boolean().optional(),
-      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'allkeyshop', 'nexarda', 'superduperbundle'])).optional()
+      sources: z.array(z.enum(['steam', 'itad', 'ggdeals', 'cheapshark', 'nexarda', 'superduperbundle'])).optional()
     }).optional();
 
     const parsed = schema.safeParse(request.body);
@@ -814,10 +814,6 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       const { circuitBreakers } = await import('../sync/circuitBreaker.js');
       circuitBreakers.reset(code);
       sourceRepo.resetCircuit(code);
-      if (code === 'allkeyshop') {
-        const { allkeyshopQueue } = await import('../sync/allkeyshop/index.js');
-        allkeyshopQueue.reset();
-      }
     }
     return { success: true, code, isEnabled: parsed.data.isEnabled };
   });
@@ -832,22 +828,9 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     const { circuitBreakers } = await import('../sync/circuitBreaker.js');
     circuitBreakers.reset(code);
     sourceRepo.resetCircuit(code);
-    if (code === 'allkeyshop') {
-      const { allkeyshopQueue } = await import('../sync/allkeyshop/index.js');
-      allkeyshopQueue.reset();
-    }
     return { success: true, code, state: 'NORMAL' };
   });
 
-  fastify.post('/api/sources/allkeyshop/refresh-catalog', async (request, reply) => {
-    try {
-      const { allkeyshopAdapter } = await import('../sources/allkeyshop.js');
-      const catalog = await allkeyshopAdapter.ensureCatalogQueued(true);
-      return { success: true, count: catalog.length };
-    } catch (err: any) {
-      return reply.status(502).send({ error: `Catalog refresh failed: ${err.message}` });
-    }
-  });
 
   // Diagnostics & Debug Logs Export
   fastify.get('/api/diagnostics/logs', async (request, reply) => {
@@ -1221,153 +1204,4 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     return { success: true, message: 'Test message sent to Discord successfully!' };
   });
 
-  // ----------------------------------------------------
-  // AllKeyShop Candidate Discovery & Custom Match Override
-  // ----------------------------------------------------
-  fastify.get('/api/games/:id/allkeyshop-candidates', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const game = gameRepo.getById(id);
-    if (!game) {
-      return reply.status(404).send({ error: 'Game not found' });
-    }
-
-    const { allkeyshopAdapter, findCandidateGamesInCatalog, loadCustomMappings } = await import('../sources/allkeyshop.js');
-    const mappings = loadCustomMappings();
-    const currentOverride = mappings[String(game.steamAppId)] || mappings[game.title] || null;
-
-    let candidates: any[] = [];
-    try {
-      const catalog = await allkeyshopAdapter.getCatalogForCandidateSearch();
-      if (catalog && catalog.length > 0) {
-        const catalogIndex = allkeyshopAdapter.getCatalogIndex();
-        candidates = findCandidateGamesInCatalog(catalogIndex || catalog, game.title, game.steamAppId, game.releaseDate);
-      }
-    } catch (err: any) {
-      logWarn(`[AllKeyShop] Candidate catalog discovery unavailable for "${game.title}": ${err?.message}`);
-    }
-
-    return {
-      gameId: game.id,
-      title: game.title,
-      steamAppId: game.steamAppId,
-      currentOverride,
-      candidates
-    };
-  });
-
-  fastify.post('/api/games/:id/allkeyshop-override', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const game = gameRepo.getById(id);
-    if (!game) {
-      return reply.status(404).send({ error: 'Game not found' });
-    }
-
-    const schema = z.object({
-      override: z.union([z.string(), z.number(), z.null()]).optional()
-    });
-
-    const parsed = schema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.message });
-    }
-
-    const { saveCustomMapping, allkeyshopAdapter } = await import('../sources/allkeyshop.js');
-    const { normalizeProductType, normalizeRegion } = await import('../domain/normalizer.js');
-    const { merchantRepo, offerRepo } = await import('../db/index.js');
-
-    saveCustomMapping(game.steamAppId, parsed.data.override ?? null);
-
-    let staleOffersRemoved = 0;
-    if (parsed.data.override !== null && allkeyshopAdapter.isEnabled()) {
-      // Background async dispatch: refresh prices without blocking the HTTP response
-      setImmediate(async () => {
-        try {
-          const freshOffers = await allkeyshopAdapter.fetchPricesForGame(
-            game.steamAppId, 
-            game.title, 
-            game.itadId, 
-            game.releaseDate
-          );
-          const freshOfferIds: string[] = [];
-          for (const rawOffer of freshOffers) {
-            const productNorm = normalizeProductType(rawOffer.productTypeRaw, rawOffer.merchantName);
-            if (!productNorm.isValid) continue;
-            const regionNorm = normalizeRegion(rawOffer.regionRaw);
-            if (!regionNorm.isValid) continue;
-
-            if (!(rawOffer.priceEur > 0) || isNaN(rawOffer.priceEur)) {
-              logWarn('Rejected offer with invalid EUR price', {
-                gameId: game.id,
-                sourceCode: 'allkeyshop',
-                rawPrice: rawOffer.rawPrice,
-                currency: rawOffer.rawCurrency
-              });
-              continue;
-            }
-            const merchant = merchantRepo.getOrCreate(rawOffer.merchantCode, rawOffer.merchantName, rawOffer.isOfficial, rawOffer.dealUrl);
-            const savedOffer = offerRepo.upsertOffer({
-              gameId: game.id,
-              merchantId: merchant.id,
-              productType: productNorm.productType,
-              regionType: regionNorm.regionType,
-              regionCode: regionNorm.regionCode,
-              regionConfidence: regionNorm.regionConfidence,
-              priceEur: rawOffer.priceEur,
-              originalPriceEur: rawOffer.originalPriceEur,
-              rawPrice: rawOffer.rawPrice,
-              rawCurrency: rawOffer.rawCurrency,
-              rawOriginalPrice: rawOffer.rawOriginalPrice,
-              voucherCode: rawOffer.voucherCode,
-              dealUrl: rawOffer.dealUrl,
-              isValid: true,
-              sourceCode: 'allkeyshop',
-              editionName: rawOffer.editionName
-            });
-            freshOfferIds.push(savedOffer.id);
-          }
-
-          // Drop orphaned AllKeyShop offers from previous (incorrect) match ONLY if fresh offers were retrieved
-          if (freshOfferIds.length > 0) {
-            const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', freshOfferIds);
-            if (staleRes.invalidatedCount > 0 || freshOfferIds.length > 0) {
-              offerRepo.recomputeBestDealForGame(game.id);
-            }
-          }
-        } catch (err: any) {
-          console.warn('Failed to refresh AllKeyShop prices in background after override:', err.message);
-        }
-      });
-
-      return reply.status(200).send({
-        success: true,
-        gameId: game.id,
-        override: parsed.data.override,
-        queued: true,
-        offersUpdated: 0,
-        staleOffersRemoved: 0
-      });
-    } else if (parsed.data.override === null) {
-      // If override was cleared, invalidate prior AllKeyShop offers for this game
-      const staleRes = offerRepo.invalidateStaleForGameSource(game.id, 'allkeyshop', []);
-      staleOffersRemoved = staleRes.invalidatedCount;
-      if (staleOffersRemoved > 0) {
-        offerRepo.recomputeBestDealForGame(game.id);
-      }
-      return reply.status(200).send({
-        success: true,
-        gameId: game.id,
-        override: null,
-        offersUpdated: 0,
-        staleOffersRemoved
-      });
-    }
-
-    return reply.status(200).send({
-      success: true,
-      gameId: game.id,
-      override: parsed.data.override ?? null,
-      offersUpdated: 0,
-      staleOffersRemoved: 0
-    });
-  });
 };

@@ -18,7 +18,6 @@ import { TargetPriceEditor } from './detail/TargetPriceEditor.js';
 import { PeriodLowsBar } from './detail/PeriodLowsBar.js';
 import { IntelMetricsGrid } from './detail/IntelMetricsGrid.js';
 import { OffersTable } from './detail/OffersTable.js';
-import { AllKeyShopMatchSelector } from './detail/AllKeyShopMatchSelector.js';
 import { PriceHistoryTable } from './detail/PriceHistoryTable.js';
 import { GameDetailSkeleton } from './skeletons/GameDetailSkeleton.js';
 import { getSteamReviewSentiment } from '../utils/steamMeta.js';
@@ -52,16 +51,6 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
     setTargetPriceInput,
     savingTarget,
     targetSavedSuccess,
-    aksCandidates,
-    currentAksOverride,
-    showAksSelector,
-    customAksInput,
-    setCustomAksInput,
-    loadingAksCandidates,
-    savingAksOverride,
-    aksOverrideSuccess,
-    handleOpenAksSelector,
-    handleApplyAksOverride,
     handleCopySteamUrl,
     handleCopyVoucher,
     handleSaveTargetPrice,
@@ -501,19 +490,6 @@ export const GameDetailModal: React.FC<GameDetailModalProps> = ({
               recordedOfferId={recordedOfferId}
             />
 
-            {/* 5.5. AllKeyShop Candidate Discovery & Custom Match Selector */}
-            <AllKeyShopMatchSelector
-              showAksSelector={showAksSelector}
-              loadingAksCandidates={loadingAksCandidates}
-              savingAksOverride={savingAksOverride}
-              aksOverrideSuccess={aksOverrideSuccess}
-              aksCandidates={aksCandidates}
-              currentAksOverride={currentAksOverride}
-              customAksInput={customAksInput}
-              onToggleSelector={handleOpenAksSelector}
-              onApplyOverride={handleApplyAksOverride}
-              onCustomInputChange={setCustomAksInput}
-            />
           </div>
 
           {/* TAB 3: HISTORICAL OBSERVATIONS LOG */}
