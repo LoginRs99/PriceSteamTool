@@ -111,6 +111,82 @@ describe('SuperDuperBundle Source Adapter', () => {
     expect(kinguinOffer?.isOfficial).toBe(false);
   });
 
+  it('fetchPricesForGame respects dynamic currency from API result (e.g. EUR)', async () => {
+    const mockResponse = {
+      api: 'superduperbundle',
+      count: 1,
+      results: [
+        {
+          id: 'sdb_witcher_3',
+          name: 'The Witcher 3',
+          steam_app_id: 292030,
+          url: 'https://superduperbundle.com/game/sdb_witcher_3/',
+          currency: 'EUR',
+          offers: [
+            {
+              store: 'steam',
+              store_name: 'Steam Store',
+              store_type: 'official',
+              price: 19.99,
+              drm: 'Steam',
+              region: 'Global'
+            }
+          ]
+        }
+      ]
+    };
+
+    global.fetch = async () => {
+      return new Response(JSON.stringify(mockResponse), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    };
+
+    const offers = await superDuperBundleAdapter.fetchPricesForGame(292030, 'The Witcher 3');
+    expect(offers.length).toBe(1);
+    expect(offers[0].priceEur).toBe(19.99); // 1:1 EUR conversion
+    expect(offers[0].rawCurrency).toBe('EUR');
+  });
+
+  it('fetchPricesForGame falls back to lowest_steam_key when offers array is empty', async () => {
+    const mockResponse = {
+      api: 'superduperbundle',
+      count: 1,
+      results: [
+        {
+          id: 'sdb_hades',
+          name: 'Hades',
+          steam_app_id: 1145360,
+          url: 'https://superduperbundle.com/game/sdb_hades/',
+          currency: 'USD',
+          offers: [], // empty offers list
+          lowest_steam_key: {
+            store: 'kinguin',
+            store_name: 'Kinguin',
+            store_type: 'marketplace',
+            price: 11.99,
+            drm: 'Steam',
+            region: 'Global'
+          }
+        }
+      ]
+    };
+
+    global.fetch = async () => {
+      return new Response(JSON.stringify(mockResponse), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    };
+
+    const offers = await superDuperBundleAdapter.fetchPricesForGame(1145360, 'Hades');
+    expect(offers.length).toBe(1);
+    expect(offers[0].merchantName).toBe('Kinguin');
+    expect(offers[0].rawPrice).toBe(11.99);
+    expect(offers[0].rawCurrency).toBe('USD');
+  });
+
   it('fetchPricesForGame returns empty array when circuit breaker is cooling down', async () => {
     circuitBreakers.setCooldown('superduperbundle', 60000, 'Test cooldown');
 

@@ -6,6 +6,7 @@ import { normalizeRegion } from '../domain/normalizer.js';
 import { isKeyshopSourceStr } from '../domain/priceIntelligence/types.js';
 import { gameRepo } from '../db/index.js';
 import { logInfo, logWarn } from '../utils/logger.js';
+import { generateSearchQueryCandidates, scoreCandidate } from './titleMatcher.js';
 
 interface NexardaFindResponse {
   success: boolean;
@@ -115,10 +116,14 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
    * Resolves a Steam App ID to a NEXARDA numeric product ID.
    * 1. Checks in-memory cache.
    * 2. Checks database games.nexarda_id.
-   * 3. Queries /api/v3/find?steam=...
-   * 4. Fallback search /api/v3/search?type=games&q=...
+   * 3. Queries /api/v3/find?steam=... (verified with candidate scoring)
+   * 4. Multi-tier candidate search /api/v3/search?type=games&q=... with anti-collision scoring
    */
-  public async resolveNexardaId(steamAppId: number, gameTitle?: string): Promise<number | null> {
+  public async resolveNexardaId(
+    steamAppId: number,
+    gameTitle?: string,
+    releaseYear?: number | null
+  ): Promise<number | null> {
     if (this.idCache.has(steamAppId)) {
       return this.idCache.get(steamAppId)!;
     }
@@ -129,6 +134,8 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
       return existingGame.nexardaId;
     }
 
+    const targetYear = releaseYear ?? (existingGame?.releaseDate ? new Date(existingGame.releaseDate).getFullYear() : null);
+
     // Attempt direct Steam ID resolution
     try {
       const findUrl = `https://www.nexarda.com/api/v3/find?steam=${steamAppId}&output=json`;
@@ -138,32 +145,70 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
 
       if (findRes?.success && findRes.game?.id) {
         const nid = Number(findRes.game.id);
-        this.idCache.set(steamAppId, nid);
-        gameRepo.updateNexardaId(steamAppId, nid);
-        return nid;
+        // Verify title match if gameTitle is provided
+        if (gameTitle && findRes.game.name) {
+          const check = scoreCandidate(gameTitle, findRes.game.name, targetYear);
+          if (!check.match) {
+            logWarn(`[NEXARDA] Direct Steam find returned mismatched title "${findRes.game.name}" for "${gameTitle}" (${steamAppId}). Falling back to search.`);
+          } else {
+            this.idCache.set(steamAppId, nid);
+            gameRepo.updateNexardaId(steamAppId, nid);
+            return nid;
+          }
+        } else {
+          this.idCache.set(steamAppId, nid);
+          gameRepo.updateNexardaId(steamAppId, nid);
+          return nid;
+        }
       }
     } catch (err: any) {
       logWarn(`[NEXARDA] Direct Steam find failed for ${steamAppId}: ${err.message}`);
     }
 
-    // Fallback: title search if gameTitle provided
+    // Fallback: intelligent multi-query candidate search if gameTitle provided
     if (gameTitle?.trim()) {
       try {
-        const cleanTitle = gameTitle.replace(/[\u2122\u00ae]/g, '').trim();
-        const searchUrl = `https://www.nexarda.com/api/v3/search?type=games&q=${encodeURIComponent(cleanTitle)}`;
-        const searchRes = await safeFetchJson<NexardaSearchResponse>(searchUrl, {
-          headers: this.getRequestHeaders()
-        }, 8000);
+        const queries = generateSearchQueryCandidates(gameTitle);
+        let bestCandidate: { id: number; name: string; score: number } | null = null;
 
-        const items = searchRes?.results?.items;
-        if (Array.isArray(items) && items.length > 0) {
-          const first = items[0];
-          if (first?.game_info?.id) {
-            const nid = Number(first.game_info.id);
-            this.idCache.set(steamAppId, nid);
-            gameRepo.updateNexardaId(steamAppId, nid);
-            return nid;
+        for (const q of queries) {
+          const searchUrl = `https://www.nexarda.com/api/v3/search?type=games&q=${encodeURIComponent(q)}`;
+          const searchRes = await safeFetchJson<NexardaSearchResponse>(searchUrl, {
+            headers: this.getRequestHeaders()
+          }, 8000);
+
+          const items = searchRes?.results?.items;
+          if (Array.isArray(items) && items.length > 0) {
+            for (const item of items) {
+              if (!item?.game_info?.id) continue;
+              const cName = item.game_info.name || item.title;
+              const cYear = item.game_info.release_date
+                ? new Date(item.game_info.release_date * 1000).getFullYear()
+                : null;
+
+              const scoreResult = scoreCandidate(gameTitle, cName, targetYear, cYear);
+              if (scoreResult.match && (!bestCandidate || scoreResult.score > bestCandidate.score)) {
+                bestCandidate = {
+                  id: Number(item.game_info.id),
+                  name: cName,
+                  score: scoreResult.score
+                };
+              }
+            }
           }
+
+          // Exact or near-perfect match found - stop querying further variants
+          if (bestCandidate && bestCandidate.score >= 0.95) {
+            break;
+          }
+        }
+
+        if (bestCandidate && bestCandidate.score >= 0.85) {
+          const nid = bestCandidate.id;
+          this.idCache.set(steamAppId, nid);
+          gameRepo.updateNexardaId(steamAppId, nid);
+          logInfo(`[NEXARDA] Resolved "${gameTitle}" (${steamAppId}) -> Nexarda ID ${nid} ("${bestCandidate.name}", score: ${bestCandidate.score.toFixed(2)})`);
+          return nid;
         }
       } catch (err: any) {
         logWarn(`[NEXARDA] Search fallback failed for "${gameTitle}": ${err.message}`);
@@ -229,7 +274,8 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
    */
   public async fetchPricesForGame(
     steamAppId: number,
-    gameTitle: string
+    gameTitle: string,
+    releaseDate?: string
   ): Promise<NormalizedSourceOffer[]> {
     if (!this.isEnabled()) {
       return [];
@@ -243,7 +289,8 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
 
     return this.queue.enqueue(async () => {
       try {
-        const nexardaId = await this.resolveNexardaId(steamAppId, gameTitle);
+        const targetYear = releaseDate ? new Date(releaseDate).getFullYear() : null;
+        const nexardaId = await this.resolveNexardaId(steamAppId, gameTitle, targetYear);
         if (!nexardaId) {
           return [];
         }
@@ -254,6 +301,17 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
         }, 10000);
 
         circuitBreakers.recordSuccess('nexarda');
+
+        // Anti-poisoning check: verify that returned product name actually matches gameTitle
+        if (res?.info?.name && gameTitle) {
+          const check = scoreCandidate(gameTitle, res.info.name, targetYear);
+          if (!check.match) {
+            logWarn(`[NEXARDA] Stored ID ${nexardaId} returned mismatched game "${res.info.name}" for "${gameTitle}" (${steamAppId}). Clearing poisoned ID.`);
+            this.idCache.delete(steamAppId);
+            gameRepo.updateNexardaId(steamAppId, null as any);
+            return [];
+          }
+        }
 
         const offersList = res?.prices?.list;
         if (!Array.isArray(offersList) || offersList.length === 0) {
@@ -287,7 +345,7 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
    * Batch lookup: iterates games with paced queue and reports progress
    */
   public async fetchBatchPrices(
-    games: { steamAppId: number; title: string; itadId?: string }[],
+    games: { steamAppId: number; title: string; itadId?: string; releaseDate?: string }[],
     onProgress?: (processed: number, total: number, action?: string) => void
   ): Promise<Map<number, NormalizedSourceOffer[]>> {
     const resultMap = new Map<number, NormalizedSourceOffer[]>();
@@ -321,7 +379,7 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
         }
       }
 
-      const offers = await this.fetchPricesForGame(g.steamAppId, g.title);
+      const offers = await this.fetchPricesForGame(g.steamAppId, g.title, g.releaseDate);
       if (offers.length > 0) {
         resultMap.set(g.steamAppId, offers);
       }
