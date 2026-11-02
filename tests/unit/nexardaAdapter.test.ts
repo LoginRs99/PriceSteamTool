@@ -130,6 +130,76 @@ describe('NEXARDA Source Adapter', () => {
       expect(updateSpy).toHaveBeenCalledWith(1245620, 99901);
     });
 
+    it('selects correct candidate by score and avoids sequel collision (items[0] trap)', async () => {
+      vi.spyOn(gameRepo, 'getBySteamAppId').mockReturnValue(null as any);
+      const updateSpy = vi.spyOn(gameRepo, 'updateNexardaId').mockImplementation(() => {});
+
+      global.fetch = async (url: any) => {
+        const u = String(url);
+        if (u.includes('/find')) {
+          return new Response(JSON.stringify({ success: false, code: 'game_not_found' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (u.includes('/search')) {
+          return new Response(JSON.stringify({
+            success: true,
+            code: 'search_results',
+            results: {
+              items: [
+                // items[0] is Max Payne 3 (sequel collision)
+                { type: 'game', title: 'Max Payne 3 (2012)', game_info: { id: 648, name: 'Max Payne 3' } },
+                // items[1] is Max Payne 2
+                { type: 'game', title: 'Max Payne 2: The Fall of Max Payne', game_info: { id: 651, name: 'Max Payne 2: The Fall of Max Payne' } },
+                // items[2] is the true match!
+                { type: 'game', title: 'Max Payne (2001)', game_info: { id: 652, name: 'Max Payne' } }
+              ]
+            }
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response('Not found', { status: 404 });
+      };
+
+      // Searching for Max Payne (12140) must choose ID 652 (Max Payne 1), NOT 648 (Max Payne 3)!
+      const id = await nexardaAdapter.resolveNexardaId(12140, 'Max Payne');
+      expect(id).toBe(652);
+      expect(updateSpy).toHaveBeenCalledWith(12140, 652);
+    });
+
+    it('detects and heals poisoned stored nexardaId when prices API returns mismatched game', async () => {
+      (nexardaAdapter as any).idCache.set(12140, 648); // 648 is Max Payne 3
+      const updateSpy = vi.spyOn(gameRepo, 'updateNexardaId').mockImplementation(() => {});
+
+      global.fetch = async () => {
+        return new Response(JSON.stringify({
+          success: true,
+          code: 'game_prices_found',
+          info: {
+            id: 648,
+            name: 'Max Payne 3', // mismatch for target "Max Payne"
+            slug: 'max-payne-3'
+          },
+          prices: {
+            currency: 'EUR',
+            list: [
+              {
+                url: 'https://store.steampowered.com/app/204100',
+                store: { name: 'Steam', official: true },
+                edition: 'Standard',
+                region: 'Global',
+                platform: 'Steam',
+                available: true,
+                price: 19.99
+              }
+            ]
+          }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      };
+
+      const offers = await nexardaAdapter.fetchPricesForGame(12140, 'Max Payne');
+      expect(offers).toEqual([]); // Mismatch rejected
+      expect((nexardaAdapter as any).idCache.has(12140)).toBe(false); // Cache cleared
+      expect(updateSpy).toHaveBeenCalledWith(12140, null); // DB cleared
+    });
+
     it('returns null when both find and search fail', async () => {
       vi.spyOn(gameRepo, 'getBySteamAppId').mockReturnValue(null as any);
       global.fetch = async () => {

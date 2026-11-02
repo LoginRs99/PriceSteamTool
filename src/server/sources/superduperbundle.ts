@@ -67,12 +67,12 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
   /**
    * Normalize an SDB offer into PriceSteamTool's canonical representation
    */
-  private normalizeOffer(offer: SdbApiOffer, fallbackUrl: string): NormalizedSourceOffer | null {
+  private normalizeOffer(offer: SdbApiOffer, fallbackUrl: string, currency: string = 'USD'): NormalizedSourceOffer | null {
     if (typeof offer.price !== 'number' || isNaN(offer.price) || offer.price <= 0) {
       return null;
     }
 
-    const priceEur = convertToEur(offer.price, 'USD');
+    const priceEur = convertToEur(offer.price, currency);
     if (isNaN(priceEur) || priceEur <= 0.05) {
       return null;
     }
@@ -100,7 +100,7 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
       isOfficial,
       priceEur,
       rawPrice: offer.price,
-      rawCurrency: 'USD',
+      rawCurrency: currency,
       dealUrl: fallbackUrl,
       productTypeRaw: normProduct.productType,
       regionRaw: normRegion.regionCode,
@@ -135,15 +135,32 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
         circuitBreakers.recordSuccess('superduperbundle');
 
         const gameResult = res?.results?.[0];
-        if (!gameResult || !gameResult.offers || gameResult.offers.length === 0) {
+        if (!gameResult) {
+          return [];
+        }
+
+        const rawOffers: SdbApiOffer[] = Array.isArray(gameResult.offers) ? [...gameResult.offers] : [];
+
+        // Fallback to lowest_steam_key if not already in offers
+        if (gameResult.lowest_steam_key && !rawOffers.some(o => (o.store === gameResult.lowest_steam_key?.store || o.store_name === gameResult.lowest_steam_key?.store_name) && o.price === gameResult.lowest_steam_key?.price)) {
+          rawOffers.push(gameResult.lowest_steam_key);
+        }
+
+        // Fallback to lowest offer if Steam compatible and not already in offers
+        if (gameResult.lowest && (!gameResult.lowest.drm || gameResult.lowest.drm.toLowerCase().includes('steam')) && !rawOffers.some(o => (o.store === gameResult.lowest?.store || o.store_name === gameResult.lowest?.store_name) && o.price === gameResult.lowest?.price)) {
+          rawOffers.push(gameResult.lowest);
+        }
+
+        if (rawOffers.length === 0) {
           return [];
         }
 
         const offers: NormalizedSourceOffer[] = [];
         const dealPageUrl = gameResult.url || `https://superduperbundle.com/game/${gameResult.id}/`;
+        const currency = gameResult.currency || 'USD';
 
-        for (const rawOffer of gameResult.offers) {
-          const norm = this.normalizeOffer(rawOffer, dealPageUrl);
+        for (const rawOffer of rawOffers) {
+          const norm = this.normalizeOffer(rawOffer, dealPageUrl, currency);
           if (norm) {
             offers.push(norm);
           }
@@ -236,12 +253,25 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
 
             if (res?.results && Array.isArray(res.results)) {
               for (const item of res.results) {
-                if (!item.steam_app_id || !item.offers) continue;
+                if (!item.steam_app_id) continue;
+                const rawOffers: SdbApiOffer[] = Array.isArray(item.offers) ? [...item.offers] : [];
+
+                if (item.lowest_steam_key && !rawOffers.some(o => (o.store === item.lowest_steam_key?.store || o.store_name === item.lowest_steam_key?.store_name) && o.price === item.lowest_steam_key?.price)) {
+                  rawOffers.push(item.lowest_steam_key);
+                }
+
+                if (item.lowest && (!item.lowest.drm || item.lowest.drm.toLowerCase().includes('steam')) && !rawOffers.some(o => (o.store === item.lowest?.store || o.store_name === item.lowest?.store_name) && o.price === item.lowest?.price)) {
+                  rawOffers.push(item.lowest);
+                }
+
+                if (rawOffers.length === 0) continue;
+
                 const offers: NormalizedSourceOffer[] = [];
                 const dealPageUrl = item.url || `https://superduperbundle.com/game/${item.id}/`;
+                const currency = item.currency || 'USD';
 
-                for (const rawOffer of item.offers) {
-                  const norm = this.normalizeOffer(rawOffer, dealPageUrl);
+                for (const rawOffer of rawOffers) {
+                  const norm = this.normalizeOffer(rawOffer, dealPageUrl, currency);
                   if (norm) {
                     offers.push(norm);
                   }

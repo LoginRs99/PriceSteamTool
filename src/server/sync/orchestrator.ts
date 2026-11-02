@@ -955,7 +955,7 @@ export class SyncOrchestrator {
           } else if (sourceCode === 'superduperbundle') {
             offers = await superDuperBundleAdapter.fetchPricesForGame(game.steamAppId, game.title);
           } else if (sourceCode === 'nexarda') {
-            offers = await nexardaAdapter.fetchPricesForGame(game.steamAppId, game.title);
+            offers = await nexardaAdapter.fetchPricesForGame(game.steamAppId, game.title, game.releaseDate);
           }
 
           for (const offer of offers) {

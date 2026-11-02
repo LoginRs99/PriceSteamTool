@@ -73,8 +73,13 @@ This document provides a thorough technical analysis of each game price source, 
 * **Canonical Role**: Modern REST API aggregator comparing over 65 verified digital retailers and secondary keyshops with automated voucher extraction and net price calculations.
 * **API Endpoints**:
   * Direct Steam ID Resolution: `GET https://www.nexarda.com/api/v3/find?steam={steamAppId}&output=json`
-  * Search Fallback: `GET https://www.nexarda.com/api/v3/search?type=games&q={cleanTitle}`
+  * Multi-Tier Search Fallback: `GET https://www.nexarda.com/api/v3/search?type=games&q={candidateQuery}`
   * Prices & Offers: `GET https://www.nexarda.com/api/v3/prices?type=game&id={nexardaId}&currency=EUR`
+* **Intelligent Title Matching & Candidate Scoring (`src/server/sources/titleMatcher.ts`)**:
+  * **Precision-First Matching ($\ge 95\%$ Accuracy Target)**: Combines Sørensen–Dice bigram character similarity with Jaccard word token overlap, release year verification, and anti-collision checks.
+  * **Anti-Collision Sequel Protection**: Strict digit/Roman numeral cross-verification prevents cross-game false positives (e.g. *Max Payne* never matches *Max Payne 3*; *Dawn of War II* never matches *Dawn of War III*; *Trine* never matches *Trine 2*).
+  * **Multi-Tier Query Variants**: Automatically generates canon search variants handling ampersand variations (`&` $\leftrightarrow$ `and`), Roman numerals (`VIII` $\leftrightarrow$ `8`), author prefixes (*Tom Clancy's*, *Sid Meier's*), edition suffixes (*Complete Edition*, *Anniversary Edition*, *Seekers Edition*, *Developer's Cut*), and multilingual slashes (*Valiant Hearts*).
+  * **Self-Healing Anti-Poisoning**: If an existing stored `nexarda_id` returns a mismatched game title from the prices API (e.g. from an old naive scraper run), the adapter immediately clears the poisoned ID from both memory and the database and returns a safe fallback.
 * **Rate Limits & Fair Use**:
   * Public access without API key requirement.
   * Adaptive pacing: Default `NEXARDA_DELAY_MS=500` (100ms jitter).
@@ -87,6 +92,9 @@ This document provides a thorough technical analysis of each game price source, 
 * **API Endpoints & Architecture**:
   * Single Game Lookup: `GET https://superduperbundle.com/api/v1/lookup/?steam_id={appId}&client=pricetool`
   * Bulk Batch Lookup: `GET https://superduperbundle.com/api/v1/lookup/?steam_ids={id1,id2,...,id50}&client=pricetool`
+* **Currency & Offer Extraction Enhancements**:
+  * **Dynamic Currency Support**: Normalizes and converts prices according to the payload's native `currency` field (e.g. `EUR`, `USD`, `GBP`) using live exchange rates, avoiding unintended currency distortions.
+  * **Lowest Key Offer Fallback**: If a game's full `offers` array is empty or lacks alternative store coverage, the adapter automatically extracts and includes `lowest_steam_key` and Steam-compatible `lowest` offers.
 * **Documented Quota Tiers & Rate Limits**:
   * **No key (Default)**: 600 uncached games per 10 minutes per IP address.
   * **Registered (Free Key)**: 2,500 games per 10 minutes (configured via `SUPERDUPERBUNDLE_API_KEY` / `X-API-Key` header).
