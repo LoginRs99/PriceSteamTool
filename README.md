@@ -3,7 +3,7 @@
 > **Personal self-hosted, cache-first game deal tracker and price intelligence engine designed to track 2,000+ Steam Wishlist games reliably without aggressive scraping or IP bans.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](https://opensource.org/license/mit)
-[![Version](https://img.shields.io/badge/Version-2.9.0-blue.svg)](./package.json)
+[![Version](https://img.shields.io/badge/Version-2.10.2-blue.svg)](./package.json)
 [![Tests](https://img.shields.io/badge/Tests-Vitest%20suite-emerald.svg)](./tests)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86--64-slate.svg)]()
 
@@ -24,7 +24,7 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **IsThereAnyDeal (ITAD v2/v3)**: Primary batch aggregator covering 40+ official stores (Steam, Humble, Fanatical, GOG, GMG, Gamesplanet, WinGameStore, etc.) with verified historical records (Pacing: 1000ms delay, 200ms jitter, chunk-isolated error resilience).
 * **CheapShark True Multi-AppID Batching**: Public batch API covering 25+ official retailers (Steam, Green Man Gaming, Fanatical, GOG, Epic Games, GameBillet, etc.) without requiring an API key. Bundles **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`), handles pagination up to 3 pages, enriches Metacritic scores and review links, and gracefully re-enqueues on 429 backoff (Pacing: 1500ms delay, 250ms jitter).
 * **GG.deals**: Direct official retail and marketplace cross-verification with intra-source family conflict detection (`SOURCE_FAMILY_CONFLICT`, $\ge 2.0\times$) and `OVER_MSRP` detection (Pacing: 1500ms delay, 300ms jitter).
-* **NEXARDA™ API v3**: Multi-retailer price aggregator adapter covering 20+ verified official and marketplace stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.) via public REST API (`/api/v3/find` and `/api/v3/search`) with automatic voucher code extraction, currency normalization, and polite pacing (`NEXARDA_DELAY_MS=500`).
+* **NEXARDA™ API v3**: Multi-retailer price aggregator adapter covering 20+ verified official and marketplace stores (CDKeys, Instant Gaming, Eneba, Kinguin, Gamivo, Steam, Green Man Gaming, Fanatical, etc.) via public REST API (`/api/v3/find` and `/api/v3/search`) with automatic voucher code extraction, currency normalization, polite pacing (`NEXARDA_DELAY_MS=500`), strict Retry-After compliance honoring 300s, 600s, and 1200s+ rate limit cooldowns, and automatic 404 missing-game invalidation to avoid repeat query spam.
 * **SuperDuperBundle API v1**: High-speed secondary aggregator querying `/api/v1/lookup` in 50-game batches with direct Steam App ID resolution, store mapping, voucher codes, circuit breaker protection, and batch resilience (`SUPERDUPERBUNDLE_DELAY_MS=1000`, `SUPERDUPERBUNDLE_API_KEY`).
 * **AllKeyShop (Retired from Main / Preserved in Backup Branch)**: The unofficial AllKeyShop scraper and solver requirement were retired from the main build in v2.10.1 in favor of high-performance native APIs (NEXARDA and SuperDuperBundle). The full scraper, FlareSolverr integration, and catalog indexing implementation are preserved in branch `backup/allkeyshop-full-scraper`.
 * **Canonical Deduplication**: Multiple adapters observing the same store (e.g. Fanatical reported by both ITAD and CheapShark) collapse into a single canonical offer backed by multi-source observations (`source_observations`).
@@ -53,10 +53,15 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **Wishlist Statistics**: Live overview of total games, active discounts, confirmed all-time lows, active pricing errors, and average savings.
 * **Smart Filter Bar & Quick Filters**: Multi-buyer filters including Metacritic Score slider, Steam User Review sentiment threshold (70%+, 80%+, 90%+), Below Typical Sale (IQR median discount), Buy Recommendation (`BUY`/`STRONG BUY`), Target Reached, Major Deals, Confirmed ATL, Trusted Stores Only, Active Anomalies, Maximum Price, and Family Shared exclusions.
 
-### 4. Best Deal Selection & ATL Auto-Reconciliation
-* **Canonical Freshness Hierarchy**: Best deal selection strictly prioritizes:
+### 4. Best Deal Selection, Dual ATLs & Fresh Drops Intelligence
+* **Canonical Freshness Hierarchy & Official Tie-Breaker**: Best deal selection strictly prioritizes:
   $$\text{Fresh Safe Offers } (\le 72\text{h}) > \text{Stale Safe Offers} > \text{Glitched Offers (Excluded)}$$
-* **Instant ATL Auto-Reconciliation**: Whenever a safe valid offer undercuts the recorded `historical_low_eur`, the system automatically updates the game's historical low price, date, and source without manual intervention.
+  When an authorized official storefront (Steam, Humble, GOG, Fanatical, etc.) and a keyshop offer the exact same lowest price, the official store is preferentially crowned as the winning Best Deal (`m.is_official DESC`).
+* **Dual All-Time Lows (Official Store ATL vs All-Store ATL)**: Tracks both `official_historical_low_eur` (publisher-authorized storefront low) and `historical_low_eur` (overall market low), enabling users to see record prices for both store types at a glance (`🛡️ Official Low`).
+* **Instant ATL Auto-Reconciliation**: Whenever a safe valid offer undercuts the recorded historical low, the system automatically updates the game's historical low price, date, and source without manual intervention.
+* **Fresh Drops Timeframe (1–7 Days) & Noise Filtering**: Instant visual radar for games that dropped in price recently (`⚡ Dropped 4h ago`). Implements smart micro-drop suppression: fluctuations $\le 1\%$ or $\le 0.02\text{ €}$ (e.g. €0.01 FX drift) are filtered out, ensuring alerts only trigger on genuine, meaningful price cuts below previous valid observations. Offers merely sitting near ATL without an active drop are strictly distinguished from true fresh sale events.
+* **Sale Cadence & Rarity Intelligence**: Identifies annual promotion cadences to tag rare buying opportunities (`🔥 RARE SALE` for games discounted $\le 2\times/\text{year}$) versus standard predictable discount routines (`ROUTINE_SALE`).
+* **Subscription Radar (Game Pass & EA Play)**: Live catalog tagging indicating when a wishlist game is currently playable at no additional cost on PC Game Pass (`🎮 Game Pass`) or EA Play (`⚡ EA Play`).
 
 ### 5. Price Intelligence & Decision Advisor
 * **BUY / FAIR / WAIT Advice**: Deterministic recommendation engine explaining *why* a deal is worth buying now (`INSTANT_BUY`, `GREAT_DEAL`, `FAIR_DEAL`, `WAIT`, `OVERPRICED`).
@@ -95,6 +100,8 @@ It solves the challenge of monitoring large wishlists (2,000+ games) with a **re
 * **`POST /api/sources/:code/reset`**: Programmatic reset of source adapter circuit breakers and consecutive failure counters.
 * **ETag & IETF Rate Limit Headers**: RFC-compliant caching (`304 Not Modified`) and standard `X-RateLimit-*` headers.
 * **CSV Export (`GET /api/export/offers.csv`)**: 14-column spreadsheet export of all active offers and error evaluations.
+* **Centralized Secret Sanitization**: System-wide protection via `sanitizeSecrets` redacting API keys, tokens, Discord webhooks, and sensitive parameters across all server logs, errors, and JSON telemetry.
+* **Historical Repair Tooling**: Dedicated maintenance script (`scripts/repair-historical-price-events.cjs`) providing dry-run evaluation, transactional application, and safe non-destructive rollback for price event classifications.
 
 ---
 
@@ -185,12 +192,11 @@ Pricetool does not require, store, or automate Steam account credentials, sessio
 
 Comprehensive architectural, operational, and user documentation is maintained in [`docs/`](./docs/):
 * [`docs/README.md`](./docs/README.md) — Master documentation hub and sitemap.
-* [`docs/architecture.md`](./docs/architecture.md) — Master technical specification, engines, and architecture (v2.8.2).
-* [`docs/project-logs.md`](./docs/project-logs.md) — Complete release history, migrations 001–033, ADR-001–013, and incident post-mortems.
+* [`docs/architecture.md`](./docs/architecture.md) — Master technical specification, engines, and architecture (v2.10.2).
+* [`docs/project-logs.md`](./docs/project-logs.md) — Complete release history, migrations 001–038, ADR-001–013, and incident post-mortems.
 * [`docs/ideas-and-roadmap.md`](./docs/ideas-and-roadmap.md) — Comprehensive innovation backlog (ML forecasting, budget cart optimizer, bundles).
-* [`docs/architecture.md`](./docs/architecture.md) — System architecture, security posture, and runtime components.
-* [`docs/data-model.md`](./docs/data-model.md) — Database schema (all 16 tables, migrations 001–033), entity relations, and index designs.
-* [`docs/backup-restore.md`](./docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, and disaster recovery.
+* [`docs/data-model.md`](./docs/data-model.md) — Database schema (all 16 tables, migrations 001–038), entity relations, and index designs.
+* [`docs/backup-restore.md`](./docs/backup-restore.md) — Online zero-downtime backup, integrity verification, retention rotation, disaster recovery, and historical repair tooling.
 * [`docs/sources.md`](./docs/sources.md) — Detailed adapter profiles, batching mechanisms, and rate limits.
 * [`docs/api-data-matrix.md`](./docs/api-data-matrix.md) — Exhaustive matrix of data fields, API filters, query parameters, and endpoints for all sources.
 * [`docs/sync.md`](./docs/sync.md) — Queue orchestration, circuit breakers, ATL quarantine, and pricing error detection.
@@ -199,5 +205,4 @@ Comprehensive architectural, operational, and user documentation is maintained i
 * [`CONTRIBUTING.md`](./CONTRIBUTING.md) — Developer setup, coding standards, and pull request workflow.
 * [`SECURITY.md`](./SECURITY.md) — Vulnerability reporting policy and security disclosures.
 * [`GEMINI.md`](./GEMINI.md) — Antigravity agent working agreement.
-* [`docs/architecture.md`](./docs/architecture.md) — Current architecture reference.
 * [`CHANGELOG.md`](./CHANGELOG.md) — Complete release history and changes.

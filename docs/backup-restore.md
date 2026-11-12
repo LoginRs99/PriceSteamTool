@@ -119,3 +119,62 @@ curl http://localhost:3000/api/health
 curl http://localhost:3000/api/wishlist
 ```
 Ha a `/api/health` `{"status":"ok","database":"ok"}` választ ad, a visszaállítás sikeresen befejeződött.
+
+---
+
+## 5. Történeti árrekordok és esemény-újrabesorolás helyreállítása (Historical Repair Tooling)
+
+A korábbi scraper és áresés-besorolási algoritmusok a történeti adatbázisban bizonyos esetekben tévesen rögzítettek `RECORD_DROP` vagy `EXTREME_DROP` eseményeket (pl. mikrozaj, devizaváltási kerekítés miatti 0,01 €-s ingadozások, vagy olyan ajánlatok, amelyek pusztán közel voltak az ATL-hez, de nem képviseltek új áresést).
+
+A v2.10.2 verzió tartalmazza a dedikált, tranzakcionálisan biztonságos és visszafordítható karbantartó eszközt: `scripts/repair-historical-price-events.cjs`.
+
+### 5.1 Karbantartási és biztonsági protokoll (SOP)
+
+Mielőtt bármilyen javítást élesítenél az adatbázison, kövesd ezt a standard üzemeltetési eljárást:
+
+1. **WAL kiürítése és zárolásmentes mentés:**
+   Állítsd le az alkalmazást, vagy futtass egy WAL ellenőrzőpontot:
+   ```bash
+   # Konténerben vagy lokális SQLite paranccsal:
+   sqlite3 ./data/pricetool.db "PRAGMA wal_checkpoint(TRUNCATE);"
+   ```
+2. **Fizikai biztonsági másolat készítése:**
+   ```bash
+   cp ./data/pricetool.db ./data/pricetool.db.pre_repair_bak
+   # Windows PowerShell alatt:
+   Copy-Item ./data/pricetool.db ./data/pricetool.db.pre_repair_bak
+   ```
+
+### 5.2 Száraz futás (Dry Run) — nulla adatbázis-írás
+A javító script első lépésként mindig száraz módban futtatható. Ez végigelemzi az összes történeti megfigyelést időrendben, összeveti a tárolt besorolást a szigorított új szabályrendszerrel, és kimutatást készít az érintett rekordokról és egyedi játékokról:
+```bash
+node scripts/repair-historical-price-events.cjs --dry-run
+# vagy egyedi adatbázis elérési úttal:
+node scripts/repair-historical-price-events.cjs --db ./data/pricetool.db --dry-run
+```
+Kimenet: Részletes táblázat a javítandó eseménytípusokról (pl. `RECORD_DROP` $\rightarrow$ `FIRST_OBSERVED_AT_ATL`, `MODERATE_DROP` $\rightarrow$ `NO_CHANGE_STABLE`), érintett játékok számáról, miközben az adatbázis teljesen érintetlen marad (`dryRun: true`, 0 módosítás).
+
+### 5.3 Javítás alkalmazása (Apply)
+A `--apply` kapcsolóval indított futtatás tranzakcióban hajtja végre a javítást:
+```bash
+node scripts/repair-historical-price-events.cjs --apply
+# vagy egyedi adatbázis elérési úttal:
+node scripts/repair-historical-price-events.cjs --db ./data/pricetool.db --apply
+```
+- **Automatikus belső biztonsági tábla:** Létrehozza a `_repair_backup_price_events` táblát a módosítás előtt, lementve a rekordok eredeti `price_event`, `price_drop_eur` és `price_drop_percent` értékeit.
+- **Tranzakciós végrehajtás:** Az összes módosítás egyetlen SQLite tranzakcióban fut le; hiba esetén automatikus a `ROLLBACK`.
+
+### 5.4 Visszavonás (Rollback)
+Ha a javítás után bármilyen okból vissza szeretnéd állítani az eredeti esemény-besorolásokat:
+```bash
+node scripts/repair-historical-price-events.cjs --rollback
+```
+- **Szelektív visszaállítás:** Kizárólag a `_repair_backup_price_events` táblában rögzített mezőket állítja vissza eredeti állapotukra.
+- **Utólagos adatok megőrzése:** Nem írja felül a javítás óta beérkezett újabb ármegfigyeléseket, így nem okoz adatvesztést még akkor sem, ha a rendszer időközben már futott és új adatokat rögzített.
+
+### 5.5 Utólagos ellenőrzés
+A futtatást követően ellenőrizd az adatbázis integritását:
+```bash
+sqlite3 ./data/pricetool.db "PRAGMA quick_check;"
+```
+Ha az eredmény `ok`, a karbantartás sikeresen és sérülésmentesen lezárult.

@@ -7,19 +7,19 @@
 
 ## 1. Quick Capabilities Matrix
 
-| Feature / Dimension | Steam Storefront & Web API | IsThereAnyDeal (ITAD v2/v3) | GG.deals API | CheapShark REST API | AllKeyShop (Internal API) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Official Public API** | Undocumented Web API + Partner API | ✅ Yes (REST v2/v3) | ✅ Yes (REST v1) | ✅ Yes (REST v1.0) | ❌ No (Internal JSON) |
-| **API Key Required** | Optional (`STEAM_API_KEY`) | ✅ Yes (`ITAD_API_KEY`) | ✅ Yes (`GGDEALS_API_KEY`) | ❌ None required | ❌ None (Requires Solver) |
-| **Batch Query Support** | Wishlist: 200 items/page | 150–200 games / request | 100 AppIDs / request | 25 AppIDs / request | Per-game adaptive queue |
-| **Rate Limit / Pacing** | 2,000 ms (250 ms jitter) | 1,000 ms (200 ms jitter) | 100 req/min (1,500 ms) | 1,500 ms (250 ms jitter) | 2,500 ms (500 ms jitter) |
-| **Bot Protection / WAF** | IP Rate Limits | Cloudflare / Token | Cloudflare / API Key | Standard HTTP User-Agent | Cloudflare / Turnstile (FlareSolverr/Byparr) |
-| **Store Type Coverage** | Steam Direct Store only | 40+ Official Stores | Official + Marketplace | 25+ Official Stores | 30+ Keyshop Marketplaces |
-| **Historical Lows** | ❌ No (Current price only) | ✅ Yes (`historyLow`) | ✅ Yes (`historicalRetail` / `historicalKeyshops`) | ✅ Yes (`cheapestPriceEver`) | ✅ Yes (`min_price`, history graph) |
-| **MSRP / Base Price** | ✅ Yes (Canonical) | ✅ Yes (`regular`) | ❌ No | ✅ Yes (`retailPrice`) | ✅ Yes (`originalPrice`) |
-| **Review Scores** | ✅ Yes (SteamDB + Steam) | ❌ No | ❌ No | ✅ Yes (Metacritic score/url) | ❌ No |
-| **Voucher / Promo Codes** | ❌ No | ❌ No | ❌ No | ❌ No | ✅ Yes (`voucher_code`) |
-| **Buyer Fees (Card/PayPal)** | ❌ None | ❌ None | ❌ None | ❌ None | ✅ Yes (`priceCard`, `pricePaypal`) |
+| Feature / Dimension | Steam Storefront | IsThereAnyDeal (ITAD) | CheapShark | GG.deals | NEXARDA™ | SuperDuperBundle | *AllKeyShop (Retired)* |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Official Public API** | Undocumented Web API | ✅ Yes (REST v2/v3) | ✅ Yes (REST v1.0) | ✅ Yes (REST v1) | ✅ Yes (REST v3) | ✅ Yes (REST v1) | ❌ No (Internal JSON) |
+| **API Key Required** | Optional (`STEAM_API_KEY`) | ✅ Yes (`ITAD_API_KEY`) | ❌ None required | ✅ Yes (`GGDEALS_API_KEY`) | ❌ None required | Optional (`X-API-Key`) | ❌ None (Requires Solver) |
+| **Batch Query Support** | Wishlist: 200 items/page | 150–200 games / request | 25 AppIDs / request | 100 AppIDs / request | Per-game find & search | 50 AppIDs / request | Per-game queue |
+| **Rate Limit / Pacing** | 2,000 ms (250 ms jitter) | 1,000 ms (200 ms jitter) | 1,500 ms (250 ms jitter) | 100 req/min (1,500 ms) | 500 ms (100 ms jitter) | 1,000 ms (200 ms jitter) | 2,500 ms (500 ms jitter) |
+| **Bot Protection / WAF** | IP Rate Limits | Cloudflare / Token | Standard User-Agent | Cloudflare / API Key | Standard / Retry-After | Quota headers | FlareSolverr/Byparr |
+| **Store Type Coverage** | Steam Direct Store | 40+ Official Stores | 25+ Official Stores | Official + Marketplace | 20+ Official & Keyshops | Keyshop & Bundle Stores | 30+ Keyshops |
+| **Historical Lows** | ❌ No | ✅ Yes (`historyLow`) | ✅ Yes (`cheapestPriceEver`) | ✅ Yes (Retail & Keyshop) | ✅ Yes (`lowest_price`) | ❌ No (Current prices) | ✅ Yes (History graph) |
+| **MSRP / Base Price** | ✅ Yes (Canonical) | ✅ Yes (`regular`) | ✅ Yes (`retailPrice`) | ❌ No | ✅ Yes | ❌ No | ✅ Yes (`originalPrice`) |
+| **Review Scores** | ✅ Yes (SteamDB + Steam) | ❌ No | ✅ Yes (Metacritic) | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Voucher / Promo Codes**| ❌ No | ❌ No | ❌ No | ❌ No | ✅ Yes (Voucher codes) | ✅ Yes (Vouchers) | ✅ Yes (`voucher_code`) |
+| **Status in Main** | Active Core | Active Core | Active Core | Active Core | Active Core | Active Core | *Retired in v2.10.1 (backup branch)* |
 
 ---
 
@@ -127,27 +127,58 @@ Fast, keyless official store batch verification and Metacritic metadata provider
 
 ---
 
-### 2.5 AllKeyShop (Internal API via Solver)
-Comprehensive marketplace keyshop intelligence (Eneba, Kinguin, CDKeys, Instant Gaming, Gamivo, etc.).
+### 2.5 NEXARDA™ API v3
+Comprehensive multi-retailer price aggregator covering 20+ verified official and marketplace digital stores.
 
-* **Primary Endpoints (Routed through Byparr / FlareSolverr)**:
+* **Primary Endpoints**:
+  - Direct Steam ID lookup: `GET https://www.nexarda.com/api/v3/find?steam={steamAppId}&output=json`
+  - Text search fallback: `GET https://www.nexarda.com/api/v3/search?type=games&q={candidateQuery}`
+  - Price & merchant breakdown: `GET https://www.nexarda.com/api/v3/prices?type=game&id={nexardaId}&currency=EUR`
+* **Query Parameters & Filters**:
+  - `steam` (Steam Application ID)
+  - `type` (`game` / `games`)
+  - `currency` (`EUR`)
+* **What Data is Extracted**:
+  - `nexardaId` (NEXARDA canonical product ID)
+  - `merchantName`, `merchantCode` (Steam, Fanatical, Instant Gaming, CDKeys, Eneba, Kinguin, Gamivo, etc.)
+  - `priceEur`, `rawPrice` (Listing price normalized to EUR)
+  - `voucherCode` (Active coupon voucher code)
+  - `dealUrl` (Affiliate / direct offer URL)
+  - `lowestPrice` (Recorded low price on NEXARDA)
+
+---
+
+### 2.6 SuperDuperBundle (SDB API v1)
+High-speed batch aggregator querying multiple Steam AppIDs per request.
+
+* **Primary Endpoints**:
+  - Single game lookup: `GET https://superduperbundle.com/api/v1/lookup/?steam_id={appId}&client=pricetool`
+  - Bulk batch lookup: `GET https://superduperbundle.com/api/v1/lookup/?steam_ids={id1,id2,...,id50}&client=pricetool`
+* **Headers**:
+  - `X-API-Key` (Optional registered key for higher quota tiers)
+* **What Data is Extracted**:
+  - `merchantName`, `merchantCode`
+  - `priceEur` (Dynamic currency conversion from native payload currency)
+  - `lowestSteamKey` (Lowest steam-compatible key offer fallback)
+  - `dealUrl` (Direct store deal link)
+  - `voucherCode` (Active promotional codes)
+
+---
+
+### 2.7 AllKeyShop (Retired — Preserved on Backup Branch)
+Unofficial JSON scraper and solver-based crawler retired in v2.10.1 in favor of native REST APIs. Preserved in git branch `backup/allkeyshop-full-scraper`.
+
+* **Historical Endpoints (Routed through Byparr / FlareSolverr)**:
   - Game details & live offers: `https://www.allkeyshop.com/api/v2/vaks.php?action=gamePageTrans&id={aksGameId}&currency=eur`
   - Historical prices: `https://www.allkeyshop.com/api/v2/price_history_api.php?id={aksGameId}&currency=eur`
   - Catalog index: `https://www.allkeyshop.com/api/v2/vaks.php?action=gameNames&v=2&currency=eur&locales=en_GB`
-* **Query Parameters & Filters**:
-  - `id` (AllKeyShop internal game ID)
-  - `currency` (`eur`)
-  - `locales` (`en_GB`)
-* **What Data is Extracted**:
+* **What Data was Extracted**:
   - `merchantName`, `merchantCode` (Kinguin, Eneba, G2A, CDKeys, Gamivo, Instant Gaming, Driffle, etc.)
   - `isOfficial` (`false` for marketplace keyshops, `true` for official stores listed)
   - `price` (Raw bare catalog price before fees)
-  - `priceCard` (Real user-facing price **including credit card / payment gateway fees** — used in Pricetool)
+  - `priceCard` (Real user-facing price including payment gateway fees)
   - `pricePaypal` (Price including PayPal surcharges)
   - `voucherCode` (Discount code offering extra 3–15% off)
-  - `editionName` (Standard, Deluxe, Gold, etc.)
-  - `regionName` (`GLOBAL`, `EU`, `ROW`)
-  - `activationPlatform` (Filtered strictly to `Steam`)
 
 ---
 

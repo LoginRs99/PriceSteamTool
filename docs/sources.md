@@ -1,6 +1,6 @@
 # Source Comparison & Integration Analysis
 
-This document provides a thorough technical analysis of each game price source, detailing its API capabilities, authentication, rate limits, batching mechanisms, regional support, historical low tracking, and integration strategy for **Pricetool** (v2.7.0).
+This document provides a thorough technical analysis of each game price source, detailing its API capabilities, authentication, rate limits, batching mechanisms, regional support, historical low tracking, and integration strategy for **Pricetool** (v2.10.2).
 
 ---
 
@@ -14,7 +14,7 @@ This document provides a thorough technical analysis of each game price source, 
 | **GG.deals** | **Yes (Developer API / JSON)**| Optional / Free Key | **Yes (Batch & per-game)** | 1500ms (300ms jitter) | EU / Global / Retailer tags | **Yes** (Deal score & history) | No | **Official + Marketplace Keyshops** |
 | **NEXARDA™** | **Yes (REST API v3)** | None (Public) | Per-game direct find & search | 500ms (100ms jitter) | Global / EU / Multi-currency | **Yes** (Historical low & vouchers) | No | **Official + Marketplace Keyshop Aggregator** |
 | **SuperDuperBundle** | **Yes (REST API v1)** | Optional (`X-API-Key`) | **Yes (50 IDs/req batch)** | 1000ms (200ms jitter) | Global / EU / Multi-store | **No** (Current store prices) | No | **Fast Secondary Store & Key Aggregator** |
-| *AllKeyShop (Deactivated)* | No (Internal JSON API) | None (Anti-bot solver) | Per-title queue | 2500ms (500ms jitter) | EU / Global / Key types | Yes | Solver Required | *Deactivated in v2.9.0 (backed up to branch)* |
+| *AllKeyShop (Retired)* | No (Internal JSON API) | None (Anti-bot solver) | Per-title queue | 2500ms (500ms jitter) | EU / Global / Key types | Yes | Solver Required | *Retired in v2.10.1 (backed up to branch)* |
 
 ---
 
@@ -83,7 +83,9 @@ This document provides a thorough technical analysis of each game price source, 
 * **Rate Limits & Fair Use**:
   * Public access without API key requirement.
   * Adaptive pacing: Default `NEXARDA_DELAY_MS=500` (100ms jitter).
-  * Auto-cooldown awareness: If upstream rate limit (429) occurs, respects `Retry-After` and enters circuit backoff.
+  * **Strict Upstream Retry-After Compliance**: If upstream returns HTTP 429, the system parses the `Retry-After` header and enforces the full requested cooldown (including 300s, 600s, 1200s, and larger intervals) without artificial truncation or premature reset. Subsequent failures preserve the existing larger cooldown (`Math.max(cooldownMs, 15 * 60 * 1000)`).
+* **Missing Game Invalidation**:
+  * When NEXARDA returns 404 or `success: false` for a Steam AppID, the game is marked as invalid/nonexistent on NEXARDA, preventing repeated queries and wasted bandwidth on future sync sweeps.
 * **Batch Resilience**:
   * During wishlist batch sweeps, individual game timeouts or active cooldowns skip the single game rather than aborting the remaining wishlist.
 

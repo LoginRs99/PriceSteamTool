@@ -1,6 +1,6 @@
 # System Architecture
 
-This document describes the design, component interactions, security posture, and technical choices for **Pricetool** (v2.7.0).
+This document describes the design, component interactions, security posture, and technical choices for **Pricetool** (v2.10.2).
 
 ---
 
@@ -36,8 +36,10 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │  │  - Normalizer & Region Filter (EU/HU/Global verification, DRM key check)          │ │
 │  │  - Offer Deduplicator & Multi-Source Observation Tracker (source_observations)    │ │
 │  │  - Pricing Error Engine (8 Error Types, Peer Corroboration, Self-Healing)         │ │
-│  │  - Deal Score v2.3 Engine (4 Pillars, Diminishing-Returns Curve, Sigmoid Ramps)   │ │
-│  │  - ATL Quarantine & Auto-Reconciliation (Single-source keyshop low protection)   │ │
+│  │  - Deal Score v2.4 Engine (4 Pillars, Diminishing-Returns Curve, Sigmoid Ramps)   │ │
+│  │  - Dual ATLs & Auto-Reconciliation (Official Store vs All-Store low tracking)    │ │
+│  │  - Fresh Drops Radar (1–7 Days, micro-drop noise filtering, relative badges)      │ │
+│  │  - Sale Cadence & Subscription Radar (RARE_SALE detection, Game Pass & EA Play)   │ │
 │  │  - Price Intelligence Advisor (Period Lows, IQR Typical Sale, Volatility CV)      │ │
 │  │  - Realized Savings Calculator (Snapshots vs MSRP & typical median)               │ │
 │  │  - Automated Zero-Downtime Backup Engine (Online snapshot, quick_check, 7d prune) │ │
@@ -59,7 +61,7 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 │  ┌────────────────────────────────────────▼──────────────────────────────────────────┐ │
 │  │                         Persistent Store (SQLite 3 in WAL Mode)                   │ │
 │  │  /data/pricetool.db (WAL Journal, Busy Timeout 5000ms, Foreign Keys, Stmt Cache)   │ │
-│  │  16 Tables, Migrations 001–031, Automated Backups (/data/backups/)                 │ │
+│  │  16 Tables, Migrations 001–038, Automated Backups (/data/backups/)                 │ │
 │  └───────────────────────────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -91,10 +93,12 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 * **Decision**: Bundle **25 Steam App IDs per comma-separated request** (`/api/1.0/deals?steamAppID=id1,id2,...&pageSize=60`) with pagination up to 3 pages, Metacritic review/score enrichment, and 429 re-enqueue handling.
 * **Rationale**: Replaced legacy per-game requests with true multi-ID batching supported by CheapShark's public API. Reduced HTTP traffic by >90% (from 150 requests down to 6 requests for 150 games), completely preventing Cloudflare 429 rate-limit tripping while enriching games with Metacritic metadata.
 
-### 2.5 Best Deal Selection, ATL Quarantine & Instant Auto-Reconciliation
+### 2.5 Best Deal Selection, Dual ATLs & Official Store Priority
 * **Decision**: Canonical ranking hierarchy enforced across SQLite queries:
   $$\text{Fresh Safe Offers } (\le 72\text{h}) > \text{Stale Safe Offers} > \text{Pricing Errors (Excluded)}$$
-  Within each freshness tier, offers sort strictly by `price_eur ASC`, then `last_observed_at DESC`.
+  Within each freshness tier, offers sort by `price_eur ASC`, followed by **official store priority** (`m.is_official DESC`), and finally recency (`last_observed_at DESC`).
+* **Official Store Tie-Breaker**: When an authorized official storefront and a marketplace keyshop offer the exact same lowest price, the official store is preferentially crowned as the winning Best Deal.
+* **Dual All-Time Lows (Official Store ATL vs All-Store ATL)**: Tracks `official_historical_low_eur` (publisher-authorized storefront record low) alongside `historical_low_eur` (market-wide low) to serve users who prefer verified store purchases.
 * **ATL Quarantine**: Single-source unconfirmed new ATL offers from non-official sources are quarantined from immediately overwriting `games.historical_low_eur` and corrupting typical sale medians until corroborated or confirmed by official stores.
 * **Auto-Reconciliation**: When `recomputeBestDealForGame` or `BEST_DEAL_RECOMPUTE_ALL_SQL` evaluates a safe valid offer whose price is strictly lower than `game.historical_low_eur`, it immediately reconciles `historical_low_eur`, `historical_low_date`, and `historical_low_source`. Startup database sweeps automatically heal any catalog-wide discrepancies.
 
@@ -125,3 +129,4 @@ The system is a self-hosted, cache-first game price tracking and aggregation ser
 4. **XSS Protection**: Zero use of `dangerouslySetInnerHTML` in React 19 SPA. All user and game strings are escaped natively by JSX.
 5. **Anti-Rate-Limit v1 API**: High-volume third-party integrations use `/api/v1/offers/batch` with ETag caching (`304 Not Modified`) and IETF rate-limit headers to prevent local server exhaustion.
 6. **Graceful Shutdown**: Traps `SIGTERM` and `SIGINT` to gracefully drain active queues, finalize ongoing SQLite transactions, execute WAL checkpointing, and terminate Fastify listener.
+7. **Centralized Secret Sanitization**: Redacts sensitive API tokens, passwords, session secrets, and Discord webhook URLs across all logging pipelines, error handlers, and SSE telemetry via `sanitizeSecrets()`, preventing credential leakage.

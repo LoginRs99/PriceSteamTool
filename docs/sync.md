@@ -1,6 +1,6 @@
 # Synchronization & Rate Limiting Engine
 
-This document details the synchronization workflow, queue orchestrator, circuit breaker state machine, data normalization pipeline, sync runs tracking, and pricing error detection engine for **Pricetool** (v2.7.0).
+This document details the synchronization workflow, queue orchestrator, circuit breaker state machine, data normalization pipeline, sync runs tracking, and pricing error detection engine for **Pricetool** (v2.10.2).
 
 ---
 
@@ -222,11 +222,15 @@ ORDER BY
     ELSE 1
   END ASC,
   o.price_eur ASC,
+  m.is_official DESC,
   COALESCE(o.last_observed_at, o.fetched_at) DESC
 ```
 1. **Fresh Safe Offers ($\le 72\text{h}$):** Priority 0.
 2. **Stale Safe Offers ($> 72\text{h}$):** Priority 1.
-3. **Excluded:** Any offer where `is_valid = 0` or `is_likely_pricing_error = 1`.
+3. **Lowest Normalized Price:** `o.price_eur ASC`.
+4. **Official Store Tie-Breaker Priority:** `m.is_official DESC` (if an authorized official retailer and a keyshop match the exact same price, the official store is preferentially crowned as the winning Best Deal).
+5. **Observation Recency:** `COALESCE(o.last_observed_at, o.fetched_at) DESC`.
+6. **Excluded:** Any offer where `is_valid = 0` or `is_likely_pricing_error = 1`.
 
 ### 6.2 Instant ATL Auto-Reconciliation
 When the winning best safe deal has `price_eur < game.historical_low_eur`:

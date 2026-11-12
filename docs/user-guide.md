@@ -1,6 +1,6 @@
 # Pricetool User & Intelligence Guide
 
-This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, generates actionable purchase advice, tracks realized savings, and handles multi-currency conversion (v2.7.0).
+This guide explains how **Pricetool** evaluates game discounts, calculates deal quality, detects pricing errors, generates actionable purchase advice, tracks realized savings, and handles multi-currency conversion (v2.10.2).
 
 ---
 
@@ -8,7 +8,7 @@ This guide explains how **Pricetool** evaluates game discounts, calculates deal 
 
 Pricetool separates **price magnitude** from **data reliability and error risk**. A massive discount from an unverified store is evaluated differently from an official publisher sale.
 
-### 1.1 Price Events
+### 1.1 Price Events & Fresh Drops Radar
 Identifies the market significance of a price change relative to Steam MSRP and historical records:
 * **`NEW_HISTORICAL_LOW` / `RECORD_DROP`**: The price has dropped below the confirmed All-Time Low, corroborated by verified stores or multi-source agreement.
 * **`AT_HISTORICAL_LOW`**: The price matches the confirmed All-Time Low ($\pm 2\%$).
@@ -18,7 +18,28 @@ Identifies the market significance of a price change relative to Steam MSRP and 
 * **`SIGNIFICANT_DROP`**: $\ge 30\%$ discount or $\ge 10\text{ €}$ absolute savings.
 * **`MODERATE_DROP`**: Standard sale ($\ge 10\%$ discount).
 * **`PRICE_INCREASE`**: Price is higher than the previous observation.
+* **`FIRST_OBSERVED_AT_ATL`**: Newly cataloged game whose very first observation is already at or near historical low (distinguished from an active price reduction event).
+* **`NO_CHANGE_STABLE`**: Price remains unchanged or fluctuations are within the micro-drop noise threshold ($\le 1\%$ or $\le 0.02\text{ €}$).
 * **`PRICING_ERROR`**: Flagged as a pricing glitch or typo.
+
+#### Fresh Drops Timeframe (1–7 Days)
+The **Fresh Drops** filter and quick-cycle button isolate deals that dropped in price recently:
+* **Relative Drop Badges**: Games that experienced a genuine drop show humanized relative timestamps: `⚡ Dropped 4h ago`, `⚡ Dropped 2d ago`.
+* **Micro-Drop Noise Suppression**: Subtle fluctuations $\le 1\%$ or $\le 0.02\text{ €}$ (e.g. currency conversion drift of €0.01) are classified as noise and do not trigger false Fresh Drop alerts.
+* **ATL Proximity Distinction**: Offers sitting near ATL without an active discount reduction are recognized as good prices for the Best Deals carousel, but are strictly excluded from the Fresh Drops feed to ensure alerts reflect real, recently started sales.
+
+#### Dual All-Time Lows (Official Store vs All-Store)
+* **`🛡️ Official Low`**: Highlights the all-time lowest price recorded strictly on publisher-authorized digital retailers (Steam, Humble, GOG, Fanatical, Green Man Gaming, etc.).
+* **All-Store Low**: The overall market-wide record low including marketplace keyshops.
+* Users who prefer buying only from authorized storefronts can immediately verify if a deal beats the official historical record.
+
+#### Sale Cadence & Rarity Badges
+* **`🔥 RARE SALE`**: Tagged on titles that discount very infrequently ($\le 2$ promotions per year), alerting users that passing on the current deal may mean waiting 6–12 months for another sale.
+* **`ROUTINE_SALE`**: Predictable promotional cadences (frequent or regular discounts).
+
+#### Subscription Radar
+* **`🎮 Game Pass`**: Indicates that the game is actively available on PC Game Pass.
+* **`⚡ EA Play`**: Indicates that the game is actively available via EA Play.
 
 ### 1.2 Pricing Error Engine & Data Safety
 Suspected glitches are evaluated by `src/server/domain/pricingError/detector.ts` and isolated into `pricing_errors`:
@@ -200,7 +221,8 @@ Clicking any game row opens a slide-in intelligence panel from the right while k
 * **Keyboard Navigation**: Press `j` / `↓` for next game, `k` / `↑` for previous game, `Enter` to open/jump, and `Escape` to close the panel.
 * **Mobile-Responsive**: Automatically transforms into a swipeable bottom sheet on mobile screens (<768px).
 * **Target Price Alerts**: Set personal threshold alerts directly inside the game panel with smart preset buttons.
-* **Candidate Match Selector**: Fast AllKeyShop match verification with instant non-blocking save and asynchronous background scraping.
+* **Offer Provenance & Multi-Source Breakdown**: Inspect all active retailer offers, verified voucher promo codes, official vs marketplace designations, and observation timestamps across ITAD, CheapShark, GG.deals, NEXARDA, and SuperDuperBundle.
+* **Official Store Tie-Breaker**: When an official store matches a marketplace keyshop at the identical price, the official retailer is crowned as the Best Deal.
 
 ### 8.3 Ergonomic View Modes
 * 📄 **Compact List View**: Single-line dense horizontal cards showing Priority, Title, Steam MSRP, Best Deal, Discount %, Store badge, and deal links.

@@ -1,6 +1,6 @@
 # Domain Data Model
 
-This document outlines the database schema, entity relationships, normalization strategies, and data lifecycle for **Pricetool** (v2.7.0).
+This document outlines the database schema, entity relationships, normalization strategies, and data lifecycle for **Pricetool** (v2.10.2).
 
 ---
 
