@@ -340,6 +340,52 @@ describe('NEXARDA Source Adapter', () => {
       expect(recordSpy).toHaveBeenCalledWith('nexarda', expect.any(String));
       recordSpy.mockRestore();
     });
+
+    it('clears cached and database ID on HTTP 400 or 404 when game does not exist, without tripping circuit breaker', async () => {
+      (nexardaAdapter as any).idCache.set(1091500, 99999);
+      const recordSpy = vi.spyOn(circuitBreakers, 'recordFailure');
+      const updateNexardaIdSpy = vi.spyOn(gameRepo, 'updateNexardaId');
+
+      global.fetch = async () => {
+        const err: any = new Error('HTTP 400 Bad Request for https://www.nexarda.com/api/v3/prices?type=game&id=99999&currency=EUR - Given game does not exist.');
+        err.status = 400;
+        throw err;
+      };
+
+      const offers = await nexardaAdapter.fetchPricesForGame(1091500, 'Cyberpunk 2077');
+      expect(offers).toEqual([]);
+      // Must NOT record circuit breaker failure
+      expect(recordSpy).not.toHaveBeenCalled();
+      // Must clear cache and DB
+      expect((nexardaAdapter as any).idCache.has(1091500)).toBe(false);
+      expect(updateNexardaIdSpy).toHaveBeenCalledWith(1091500, null);
+
+      recordSpy.mockRestore();
+      updateNexardaIdSpy.mockRestore();
+    });
+
+    it('records circuit breaker failure and preserves cached ID on generic 400 without does-not-exist notice', async () => {
+      (nexardaAdapter as any).idCache.set(1091500, 99999);
+      const recordSpy = vi.spyOn(circuitBreakers, 'recordFailure');
+      const updateNexardaIdSpy = vi.spyOn(gameRepo, 'updateNexardaId');
+
+      global.fetch = async () => {
+        const err: any = new Error('HTTP 400 Bad Request for https://www.nexarda.com/api/v3/prices?type=game&id=99999&currency=EUR - Invalid query parameter');
+        err.status = 400;
+        throw err;
+      };
+
+      const offers = await nexardaAdapter.fetchPricesForGame(1091500, 'Cyberpunk 2077');
+      expect(offers).toEqual([]);
+      // Must record circuit breaker failure for generic 400
+      expect(recordSpy).toHaveBeenCalledWith('nexarda', expect.any(String));
+      // Must NOT clear cache or DB
+      expect((nexardaAdapter as any).idCache.has(1091500)).toBe(true);
+      expect(updateNexardaIdSpy).not.toHaveBeenCalled();
+
+      recordSpy.mockRestore();
+      updateNexardaIdSpy.mockRestore();
+    });
   });
 
   describe('fetchBatchPrices', () => {
@@ -394,6 +440,52 @@ describe('NEXARDA Source Adapter', () => {
       expect(res.has(1002)).toBe(true);
       expect(res.get(1001)?.[0].priceEur).toBe(12.99);
       expect(progressCount).toBeGreaterThan(0);
+    });
+
+    it('honors 300s, 600s, and larger requested upstream Retry-After headers without early retry', async () => {
+      circuitBreakers.reset('nexarda');
+      (nexardaAdapter as any).idCache.set(1001, 10);
+
+      // 1. Simulate 429 with Retry-After: 300
+      global.fetch = async () => new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '300' }
+      });
+
+      const res300 = await nexardaAdapter.fetchPricesForGame(1001, 'Cyberpunk 2077');
+      expect(res300).toEqual([]);
+      expect(circuitBreakers.canExecute('nexarda').allowed).toBe(false);
+      let remaining = circuitBreakers.getRemainingCooldownSec('nexarda');
+      expect(remaining).toBeGreaterThanOrEqual(295);
+      expect(remaining).toBeLessThanOrEqual(300);
+
+      // 2. Simulate 429 with Retry-After: 600 (must NOT be capped to 300s)
+      circuitBreakers.reset('nexarda');
+      global.fetch = async () => new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '600' }
+      });
+
+      const res600 = await nexardaAdapter.fetchPricesForGame(1001, 'Cyberpunk 2077');
+      expect(res600).toEqual([]);
+      expect(circuitBreakers.canExecute('nexarda').allowed).toBe(false);
+      remaining = circuitBreakers.getRemainingCooldownSec('nexarda');
+      expect(remaining).toBeGreaterThanOrEqual(595);
+      expect(remaining).toBeLessThanOrEqual(600);
+
+      // 3. Simulate 429 with Retry-After: 1200
+      circuitBreakers.reset('nexarda');
+      global.fetch = async () => new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '1200' }
+      });
+
+      const res1200 = await nexardaAdapter.fetchPricesForGame(1001, 'Cyberpunk 2077');
+      expect(res1200).toEqual([]);
+      expect(circuitBreakers.canExecute('nexarda').allowed).toBe(false);
+      remaining = circuitBreakers.getRemainingCooldownSec('nexarda');
+      expect(remaining).toBeGreaterThanOrEqual(1195);
+      expect(remaining).toBeLessThanOrEqual(1200);
     });
   });
 });

@@ -117,4 +117,36 @@ describe('Circuit Breaker State Machine — State Transitions', () => {
     expect(src?.consecutiveFailures).toBe(0);
     expect(src?.lastError).toBeUndefined();
   });
+
+  it('respects 300, 600, and larger requested cooldowns without early retry', () => {
+    const cb = new CircuitBreakerRegistry();
+
+    // 1. 300 seconds requested cooldown
+    cb.recordRateLimit('nexarda', 300);
+    expect(cb.getState('nexarda')).toBe('BACKOFF');
+    let remaining = cb.getRemainingCooldownSec('nexarda');
+    expect(remaining).toBeGreaterThanOrEqual(295);
+    expect(remaining).toBeLessThanOrEqual(300);
+    expect(cb.canExecute('nexarda').allowed).toBe(false);
+
+    // 2. 600 seconds requested cooldown (never retried prematurely at 300s)
+    cb.recordRateLimit('nexarda', 600);
+    remaining = cb.getRemainingCooldownSec('nexarda');
+    expect(remaining).toBeGreaterThanOrEqual(595);
+    expect(remaining).toBeLessThanOrEqual(600);
+    expect(cb.canExecute('nexarda').allowed).toBe(false);
+
+    // 3. 1200 seconds requested cooldown
+    cb.recordRateLimit('nexarda', 1200);
+    remaining = cb.getRemainingCooldownSec('nexarda');
+    expect(remaining).toBeGreaterThanOrEqual(1195);
+    expect(remaining).toBeLessThanOrEqual(1200);
+    expect(cb.canExecute('nexarda').allowed).toBe(false);
+
+    // 4. Sanity upper ceiling prevents integer overflow on absurd upstream headers
+    cb.recordRateLimit('nexarda', 200000);
+    remaining = cb.getRemainingCooldownSec('nexarda');
+    expect(remaining).toBeLessThanOrEqual(86400); // 24 hours
+    expect(remaining).toBeGreaterThanOrEqual(86300);
+  });
 });

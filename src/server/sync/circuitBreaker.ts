@@ -120,12 +120,18 @@ export class CircuitBreakerRegistry {
 
 
     const minCooldownMs = process.env.NODE_ENV === 'test' ? 100 : 30000;
-    const cooldownMs = Math.min(Math.max(retryAfterSec * 1000, minCooldownMs), 300000);
+    // Bounded resource usage: never retry earlier than a valid upstream instruction,
+    // with a sanity ceiling of 24h (86,400s) to prevent integer overflow.
+    const MAX_COOLDOWN_SEC = 86400; // 24 hours
+    const requestedMs = Math.max(retryAfterSec * 1000, minCooldownMs);
+    const cooldownMs = Math.min(requestedMs, MAX_COOLDOWN_SEC * 1000);
     info.cooldownUntil = Date.now() + cooldownMs;
 
     if (info.consecutiveRateLimits >= 3 || info.state === 'COOLDOWN') {
       info.state = 'PAUSED';
-      info.cooldownUntil = Date.now() + (15 * 60 * 1000); // 15 minutes
+      // When PAUSED, ensure cooldown is at least 15 minutes OR the upstream requested cooldown, whichever is greater
+      const pausedCooldownMs = Math.max(cooldownMs, 15 * 60 * 1000);
+      info.cooldownUntil = Date.now() + pausedCooldownMs;
     } else {
       info.state = 'BACKOFF';
     }

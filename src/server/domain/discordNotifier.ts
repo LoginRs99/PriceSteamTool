@@ -1,5 +1,5 @@
 import { settingsRepo, notificationsRepo, offerRepo, prepareStmt } from '../db/index.js';
-import { logInfo, logWarn, logError } from '../utils/logger.js';
+import { logInfo, logWarn, logError, sanitizeSecrets } from '../utils/logger.js';
 import { exchangeRateService } from './exchangeRate.js';
 import type { Game } from '../../shared/types.js';
 
@@ -195,12 +195,12 @@ export async function sendTestNotification(webhookUrlOverride?: string): Promise
 
     if (!res.ok) {
       const errText = await res.text();
-      return { success: false, error: `Discord API returned status ${res.status}: ${errText}` };
+      return { success: false, error: sanitizeSecrets(`Discord API returned status ${res.status}: ${errText}`) };
     }
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: `Failed to connect to Discord webhook: ${err.message}` };
+    return { success: false, error: sanitizeSecrets(`Failed to connect to Discord webhook: ${err.message}`) };
   }
 }
 

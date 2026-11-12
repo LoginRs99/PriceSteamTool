@@ -330,6 +330,24 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
 
         return offers;
       } catch (err: any) {
+        const isGameNotFound = err?.status === 404 || 
+          (err?.status === 400 && (
+            err?.message?.toLowerCase().includes('does not exist') || 
+            err?.body?.toLowerCase().includes('does not exist') ||
+            err?.message?.toLowerCase().includes('not found') ||
+            err?.body?.toLowerCase().includes('not found')
+          ));
+
+        if (isGameNotFound) {
+          // Specific per-game mapping error: NEXARDA confirms this specific ID does not exist.
+          // Invalidate cache and database entry to prevent recurring failure loops.
+          // Do NOT trip circuit breaker for invalid individual game IDs.
+          this.idCache.delete(steamAppId);
+          gameRepo.updateNexardaId(steamAppId, null as any);
+          logWarn(`[NEXARDA] Stale/invalid game ID for "${gameTitle}" (${steamAppId}) returned HTTP ${err.status} (${err.message}). Cleared cached ID.`);
+          return [];
+        }
+
         if (err?.status === 429 || err?.retryAfterSec) {
           circuitBreakers.recordRateLimit('nexarda', err.retryAfterSec || 30);
         } else {

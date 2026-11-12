@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import Database from 'better-sqlite3';
 import { createApp } from '../../src/server/index.js';
 import { config } from '../../src/server/config/index.js';
@@ -28,7 +29,7 @@ describe('VERIFICATION (Definition of Done)', () => {
   });
 
   it('Item 2: Boot test on a FRESH database: server starts, migration 024 applies, /api/health returns ok, anomalies view exists, both new indexes exist', async () => {
-    const testDbPath = path.resolve(process.cwd(), 'data', 'fresh_verification_test.db');
+    const testDbPath = path.resolve(os.tmpdir(), 'fresh_verification_test.db');
     if (fs.existsSync(testDbPath)) {
       fs.rmSync(testDbPath, { force: true });
     }
@@ -79,7 +80,7 @@ describe('VERIFICATION (Definition of Done)', () => {
   });
 
   it('Item 3: Boot test on a LEGACY simulation (anomalies table & pre-022 columns): boots cleanly, converts table to view, second boot is clean no-op', async () => {
-    const legacyDbPath = path.resolve(process.cwd(), 'data', 'legacy_sim_test.db');
+    const legacyDbPath = path.resolve(os.tmpdir(), 'legacy_sim_test.db');
     if (fs.existsSync(legacyDbPath)) {
       fs.rmSync(legacyDbPath, { force: true });
     }
@@ -212,7 +213,7 @@ describe('VERIFICATION (Definition of Done)', () => {
   });
 
   it('Item 4: Discord Glitch alert references flagged offer (€0.49 & flagged URL), not safe best deal', async () => {
-    const testDbPath = path.resolve(process.cwd(), 'data', 'discord_verification_test.db');
+    const testDbPath = path.resolve(os.tmpdir(), 'discord_verification_test.db');
     if (fs.existsSync(testDbPath)) {
       fs.rmSync(testDbPath, { force: true });
     }
@@ -334,7 +335,7 @@ describe('VERIFICATION (Definition of Done)', () => {
   });
 
   it('Item 5: ITAD history seeding sets is_official=0 for newly created keyshops (Kinguin, G2A...)', () => {
-    const testDbPath = path.resolve(process.cwd(), 'data', 'seeding_verification_test.db');
+    const testDbPath = path.resolve(os.tmpdir(), 'seeding_verification_test.db');
     if (fs.existsSync(testDbPath)) {
       fs.rmSync(testDbPath, { force: true });
     }

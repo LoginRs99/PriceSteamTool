@@ -4,10 +4,59 @@ import { config } from '../config/index.js';
 
 const logFilePath = path.join(config.dataDir, 'sync_diagnostics.log');
 
+/**
+ * Redacts sensitive credentials (API keys, tokens, webhooks, passwords)
+ * from URLs, error messages, and log lines.
+ */
+export function sanitizeSecrets(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+
+  let sanitized = text;
+
+  // 1. Redact URL query parameters (e.g. ?key=..., &api_key=..., &token=...)
+  sanitized = sanitized.replace(
+    /([?&](?:key|api_key|apiKey|token|password|secret|auth)=)([^&\s"'>]+)/gi,
+    '$1[REDACTED]'
+  );
+
+  // 1b. Redact key-value pairs in text and JSON bodies (e.g. key=..., "token": "...")
+  sanitized = sanitized.replace(
+    /(["']?(?:(?<![a-zA-Z0-9_])key|api[_-]?key|apiKey|api[_-]?token|token|password|secret|auth)["']?\s*[:=]\s*["']?)([^"'\s,;&]+)(["']?)/gi,
+    '$1[REDACTED]$3'
+  );
+
+  // 2. Redact Authorization Bearer tokens
+  sanitized = sanitized.replace(
+    /(Bearer\s+)[A-Za-z0-9\-._~+/]+=*/gi,
+    '$1[REDACTED]'
+  );
+
+  // 3. Redact Discord webhook URLs (contains webhook token in path)
+  sanitized = sanitized.replace(
+    /(https?:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/)([A-Za-z0-9_-]+)/gi,
+    '$1[REDACTED]'
+  );
+
+  // 4. Redact known runtime secrets from config if present
+  try {
+    if (config?.itadApiKey && config.itadApiKey.length >= 6) {
+      sanitized = sanitized.split(config.itadApiKey).join('[REDACTED]');
+    }
+    if (config?.steamApiKey && config.steamApiKey.length >= 6) {
+      sanitized = sanitized.split(config.steamApiKey).join('[REDACTED]');
+    }
+    if (config?.apiToken && config.apiToken.length >= 6) {
+      sanitized = sanitized.split(config.apiToken).join('[REDACTED]');
+    }
+  } catch {}
+
+  return sanitized;
+}
+
 export function logInfo(message: string, context?: Record<string, any>): void {
   const timestamp = new Date().toISOString();
   const contextStr = context ? ` | ${JSON.stringify(context)}` : '';
-  const logLine = `[${timestamp}] [INFO] ${message}${contextStr}`;
+  const logLine = sanitizeSecrets(`[${timestamp}] [INFO] ${message}${contextStr}`);
   
   console.log(logLine);
   appendToFile(logLine);
@@ -16,7 +65,7 @@ export function logInfo(message: string, context?: Record<string, any>): void {
 export function logWarn(message: string, context?: Record<string, any>): void {
   const timestamp = new Date().toISOString();
   const contextStr = context ? ` | ${JSON.stringify(context)}` : '';
-  const logLine = `[${timestamp}] [WARN] ⚠️ ${message}${contextStr}`;
+  const logLine = sanitizeSecrets(`[${timestamp}] [WARN] ⚠️ ${message}${contextStr}`);
   
   console.warn(logLine);
   appendToFile(logLine);
@@ -25,7 +74,7 @@ export function logWarn(message: string, context?: Record<string, any>): void {
 export function logError(message: string, error?: any): void {
   const timestamp = new Date().toISOString();
   const errStr = error ? (error.stack || error.message || JSON.stringify(error)) : '';
-  const logLine = `[${timestamp}] [ERROR] ❌ ${message} ${errStr}`;
+  const logLine = sanitizeSecrets(`[${timestamp}] [ERROR] ❌ ${message} ${errStr}`);
   
   console.error(logLine);
   appendToFile(logLine);
@@ -85,7 +134,8 @@ export function getRecentDiagnosticsLogs(linesCount: number = 200): string {
       return 'No diagnostics log file created yet.';
     }
     const content = fs.readFileSync(logFilePath, 'utf-8');
-    const lines = content.split('\n');
+    const sanitized = sanitizeSecrets(content);
+    const lines = sanitized.split('\n');
     return lines.slice(-linesCount).join('\n');
   } catch (err: any) {
     return `Error reading log file: ${err.message}`;

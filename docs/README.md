@@ -34,6 +34,7 @@ Source code, tests, migrations and configuration are authoritative when docs dis
 
 ## Historical snapshots
 These are point-in-time context, not current specifications or proof of current verification:
+- [Production audit, 2026-11-12](archive/production-audit-2026-11-12.md)
 - [Project summary v2.8.2](archive/project-summary-v2.8.2.md)
 - [Root AI summary v2.8.2](archive/PROJECT_SUMMARY-v2.8.2.md)
 - [Technical audit, 2026-10-28](archive/audit-2026-10-28.md)

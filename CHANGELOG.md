@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.10.2] - 2026-11-12
+
+### Fixed & Improved
+* **Fresh Drops Precision & Micro-Drop Noise Filtering**:
+  * Eliminated false positive `MAJOR_DROP` and `EXTREME_DROP` classifications triggered by €0.01 price fluctuations on already-discounted titles.
+  * Added noise filter suppressing micro-decreases (<= €0.015, or < €0.05 with < 5% relative movement).
+  * Strict historical low verification: `RECORD_DROP` is strictly reserved for prices strictly lower than known ATL (`currentPriceEur < historicalLowEur * 0.98`).
+  * Decoupled deal attractiveness (evaluated by Deal Score v2.4) from Fresh Drops event occurrence. Stagnant offers near ATL no longer trigger Fresh Drops false alarms.
+* **Best Deal Official Store Priority**:
+  * Enforced `m.is_official DESC` tie-breaker priority across single-game recomputation, bulk SQL, and startup recomputation. When prices are tied between an official store and a keyshop, the official store consistently wins regardless of observation recency.
+* **NEXARDA Error Handling & Upstream Rate Limit Compliance**:
+  * Corrected failure classification: missing games (HTTP 404 / 400 "does not exist") evict cached ID and clear database entry without tripping circuit breakers or degrading healthy source status.
+  * Enhanced rate limit compliance: removed hardcoded 300s ceiling in circuit breaker and queue to fully honor upstream `Retry-After` headers (300s, 600s, 1200s, and larger requested cooldowns) without early retries.
+* **Secret Redaction End-to-End**:
+  * Centralized `sanitizeSecrets` in logger, outbound fetch handlers, and Discord notifier.
+  * Redacts API keys, tokens, Authorization Bearer headers, error response bodies, Discord webhook URLs, and diagnostics log exports.
+* **Reversible Historical Price Event Repair Tooling**:
+  * Added `scripts/repair-historical-price-events.cjs` supporting zero-write `--dry-run`, atomic `--apply` with `price_history_event_backup`, and surgical `--rollback`.
+
 ## [2.10.1] - 2026-11-01
 
 ### Retired / Deprecated

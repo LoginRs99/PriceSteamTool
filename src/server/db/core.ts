@@ -23,18 +23,20 @@ export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
   -- Reset and reassign is_best_deal for all games using canonical freshness and priority (fresh safe lowest > stale > pricing error excluded)
   UPDATE offers SET is_best_deal = 0 WHERE is_best_deal = 1;
   WITH ranked AS (
-    SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY game_id
+    SELECT o.id, ROW_NUMBER() OVER (
+      PARTITION BY o.game_id
       ORDER BY
         CASE
-          WHEN (julianday('now') - julianday(COALESCE(last_observed_at, fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
+          WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
-        price_eur ASC,
-        COALESCE(last_observed_at, fetched_at) DESC
+        o.price_eur ASC,
+        m.is_official DESC,
+        COALESCE(o.last_observed_at, o.fetched_at) DESC
     ) as rn
-    FROM offers
-    WHERE is_valid = 1 AND is_likely_pricing_error = 0
+    FROM offers o
+    JOIN merchants m ON o.merchant_id = m.id
+    WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0
   )
   UPDATE offers SET is_best_deal = 1 WHERE id IN (SELECT id FROM ranked WHERE rn = 1);
 `;

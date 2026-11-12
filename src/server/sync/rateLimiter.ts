@@ -86,7 +86,9 @@ export class PacedSourceQueue {
         try {
           const result = await task.fn();
           const requestCount = Math.max(1, Number((result as any)?.requestCount ?? (result as any)?.pageCount ?? 1));
-          circuitBreakers.recordSuccess(this.sourceCode, requestCount);
+          if (!circuitBreakers.isCoolingDown(this.sourceCode)) {
+            circuitBreakers.recordSuccess(this.sourceCode, requestCount);
+          }
           task.resolve(result);
         } catch (err: any) {
           const isAbort = err?.name === 'AbortError' || 
@@ -96,7 +98,7 @@ export class PacedSourceQueue {
           if (!isAbort) {
             const requestCount = Math.max(1, Number(err?.requestCount ?? err?.pageCount ?? 1));
             if (err?.status === 429 || err?.message?.includes('429') || err?.response?.status === 429) {
-              const retryAfter = Math.min(err?.retryAfterSec ?? 30, 300);
+              const retryAfter = err?.retryAfterSec ?? 30;
               circuitBreakers.recordRateLimit(this.sourceCode, retryAfter, requestCount);
             } else {
               circuitBreakers.recordFailure(this.sourceCode, err?.message || 'Unknown network failure', requestCount);

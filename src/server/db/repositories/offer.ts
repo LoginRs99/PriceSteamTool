@@ -387,7 +387,9 @@ export const offerRepo = {
         originalPriceEur: active.originalPriceEur,
         basePriceEur: gameInfo?.base_price_eur ? Number(gameInfo.base_price_eur) : undefined,
         historicalLowEur: gameInfo?.historical_low_eur ? Number(gameInfo.historical_low_eur) : undefined,
-        previousPriceEur: lastHistory?.price_eur ? Number(lastHistory.price_eur) : undefined,
+        previousPriceEur: (lastHistory?.price_eur !== null && lastHistory?.price_eur !== undefined)
+          ? Number(lastHistory.price_eur)
+          : ((existing?.price_eur !== null && existing?.price_eur !== undefined) ? Number(existing.price_eur) : undefined),
         marketPricesEur: marketPrices,
         sourceHistoryEur: sourceHistory,
         sourceAgreementCount: Math.max(1, distinctSourceCount),
@@ -987,6 +989,7 @@ export const offerRepo = {
           ELSE 1
         END ASC,
         o.price_eur ASC,
+        m.is_official DESC,
         COALESCE(o.last_observed_at, o.fetched_at) DESC
       LIMIT 1
     `).get(gameId) as any;

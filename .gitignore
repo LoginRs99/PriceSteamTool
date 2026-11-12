@@ -7,6 +7,7 @@ dist/
 # Runtime data & SQLite databases
 data/
 Current Linux Server Setup/
+Linux server current/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

@@ -1,4 +1,5 @@
 import type { SourceCode } from '../../shared/types.js';
+import { sanitizeSecrets } from '../utils/logger.js';
 
 export interface NormalizedSourceOffer {
   merchantCode: string;
@@ -119,7 +120,7 @@ export async function safeFetchJson<T>(
       });
 
       if (!response) {
-        throw new Error(`No response received for ${url}`);
+        throw new Error(`No response received for ${sanitizeSecrets(url)}`);
       }
 
       if (!response.ok) {
@@ -142,9 +143,11 @@ export async function safeFetchJson<T>(
           }
         }
 
-        const error: any = new Error(`HTTP ${response.status} ${response.statusText} for ${url}${detailMsg}`);
+        const sanitizedUrl = sanitizeSecrets(url);
+        const sanitizedDetail = sanitizeSecrets(detailMsg);
+        const error: any = new Error(`HTTP ${response.status} ${response.statusText} for ${sanitizedUrl}${sanitizedDetail}`);
         error.status = response.status;
-        error.body = responseBodyText;
+        error.body = sanitizeSecrets(responseBodyText);
         const headersDict = Object.fromEntries(response.headers.entries());
         error.headers = headersDict;
 
@@ -176,7 +179,7 @@ export async function safeFetchJson<T>(
             const contentType = response.headers?.get?.('content-type') || 'unknown';
             const preview = rawText.slice(0, 160).replace(/\s+/g, ' ').trim();
             const parseError: any = new Error(
-              `Failed to parse JSON response from ${url} (status: ${response.status}, content-type: ${contentType}): ${preview}`
+              `Failed to parse JSON response from ${sanitizeSecrets(url)} (status: ${response.status}, content-type: ${contentType}): ${preview}`
             );
             parseError.status = response.status;
             parseError.rawText = rawText;
