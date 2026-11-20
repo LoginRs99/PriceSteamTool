@@ -130,6 +130,9 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 rawCurrency: curr,
                 dealUrl: data.url || `https://gg.deals/game/${appId}/`,
                 historicalLowEur: histRetailEur,
+                editionName: 'Standard Edition',
+                editionKey: 'standard',
+                identityConfidence: 'CONFIDENT',
                 rawPayload: data
               });
             }
@@ -152,6 +155,9 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 rawCurrency: curr,
                 dealUrl: data.url || `https://gg.deals/game/${appId}/`,
                 historicalLowEur: histKeyshopEur,
+                editionName: 'Standard Edition',
+                editionKey: 'standard',
+                identityConfidence: 'CONFIDENT',
                 rawPayload: data
               });
             }

@@ -228,6 +228,9 @@ export interface Offer {
   isProvisional?: boolean;
   
   isBestDeal: boolean;
+  editionKey?: string;
+  editionName?: string;
+  identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
   isFresh?: boolean;
   sources: SourceCode[];
   sourceAgreementCount?: number;
@@ -263,6 +266,9 @@ export interface PriceHistoryEntry {
   dealScore?: number;
   isOfficial?: boolean;
   isPricingError?: boolean;
+  editionKey?: string;
+  editionName?: string;
+  identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
   recordedAt: string;
 }
 

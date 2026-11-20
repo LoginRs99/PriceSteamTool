@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { detectPriceEvent } from '../../src/server/domain/pricingError/priceEvents';
-import { DEFAULT_PRICE_DROP_THRESHOLDS } from '../../src/server/domain/constants';
+import { detectPriceEvent } from '../../src/server/domain/pricingError/priceEvents.js';
+import { DEFAULT_PRICE_DROP_THRESHOLDS } from '../../src/server/domain/constants.js';
 
 describe('Price Drop Threshold Boundaries & Precedence Verification', () => {
   describe('1. Micro-fluctuation & Noise Suppression', () => {

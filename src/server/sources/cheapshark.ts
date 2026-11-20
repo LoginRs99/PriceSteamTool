@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { convertToEur } from '../domain/normalizer.js';
+import { normalizeEdition } from '../domain/edition.js';
 import { gameRepo } from '../db/index.js';
 import { logWarn } from '../utils/logger.js';
 
@@ -76,6 +77,8 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       metacriticUrl = link.startsWith('http') ? link : `https://www.metacritic.com${link.startsWith('/') ? '' : '/'}${link}`;
     }
 
+    const editionNorm = normalizeEdition(undefined, d.title, 'cheapshark');
+
     return {
       merchantCode,
       merchantName: storeName,
@@ -88,6 +91,9 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       rawCurrency: 'USD',
       rawOriginalPrice: retailPriceUsd > 0 ? retailPriceUsd : undefined,
       dealUrl: `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(d.dealID || '')}`,
+      editionName: editionNorm.editionName,
+      editionKey: editionNorm.editionKey,
+      identityConfidence: editionNorm.identityConfidence,
       rawPayload: d,
       metacriticScore,
       metacriticUrl

@@ -398,6 +398,9 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
             voucherCode: item.current.voucher || undefined,
             dealUrl: item.current.url || `https://isthereanydeal.com/game/${itadId}/info/`,
             historicalLowEur: lowObj?.price?.amount ? convertToEur(Number(lowObj.price.amount), itemCurrency) : undefined,
+            editionName: 'Standard Edition',
+            editionKey: 'standard',
+            identityConfidence: 'CONFIDENT',
             rawPayload: item
           });
         }

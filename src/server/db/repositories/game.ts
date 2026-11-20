@@ -90,6 +90,7 @@ export function buildWishlistFilterClause(
       SELECT 1 FROM price_history ph 
       WHERE ph.game_id = g.id 
         AND ph.is_pricing_error = 0 
+        AND COALESCE(ph.identity_confidence, 'CONFIDENT') != 'AMBIGUOUS'
         AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')
         AND datetime(ph.recorded_at) >= datetime('now', '-' || ? || ' days')
     )`);
@@ -375,7 +376,7 @@ export const gameRepo = {
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
-        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')) as latest_price_drop_at,
+        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND COALESCE(ph.identity_confidence, 'CONFIDENT') != 'AMBIGUOUS' AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')) as latest_price_drop_at,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded,
         (SELECT sa.asset_url FROM steam_assets sa WHERE sa.steam_app_id = g.steam_app_id AND sa.asset_type = 'icon') as icon_url
       FROM games g
@@ -697,7 +698,7 @@ export const gameRepo = {
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
         (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
-        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')) as latest_price_drop_at,
+        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND COALESCE(ph.identity_confidence, 'CONFIDENT') != 'AMBIGUOUS' AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')) as latest_price_drop_at,
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
@@ -756,7 +757,7 @@ export const gameRepo = {
       (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
       (SELECT MAX(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_max_eur,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_shared,
-        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')) as latest_price_drop_at,
+        (SELECT MAX(ph.recorded_at) FROM price_history ph WHERE ph.game_id = g.id AND ph.is_pricing_error = 0 AND COALESCE(ph.identity_confidence, 'CONFIDENT') != 'AMBIGUOUS' AND ph.price_event NOT IN ('NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER')) as latest_price_drop_at,
       (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
     `;
 

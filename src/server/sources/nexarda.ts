@@ -3,6 +3,7 @@ import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } fr
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
 import { circuitBreakers } from '../sync/circuitBreaker.js';
 import { normalizeRegion } from '../domain/normalizer.js';
+import { normalizeEdition } from '../domain/edition.js';
 import { isKeyshopSourceStr } from '../domain/priceIntelligence/types.js';
 import { gameRepo } from '../db/index.js';
 import { logInfo, logWarn } from '../utils/logger.js';
@@ -251,6 +252,8 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
     const isKnownKeyshop = isKeyshopSourceStr(item.store.name) || isKeyshopSourceStr(merchantCode);
     const isOfficial = !isKnownKeyshop && Boolean(item.store.official);
 
+    const editionNorm = normalizeEdition(item.edition || item.edition_full, undefined, 'nexarda');
+
     return {
       merchantCode: merchantCode || 'nexarda-store',
       merchantName: item.store.name,
@@ -264,7 +267,9 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
       dealUrl: item.url || fallbackUrl,
       productTypeRaw: 'STEAM_KEY',
       regionRaw: normRegion.regionCode,
-      editionName: item.edition || undefined,
+      editionName: editionNorm.editionName,
+      editionKey: editionNorm.editionKey,
+      identityConfidence: editionNorm.identityConfidence,
       rawPayload: item
     };
   }

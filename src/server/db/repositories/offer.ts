@@ -128,6 +128,8 @@ export const offerRepo = {
     sourceCode?: SourceCode;
     rawObservationJson?: string;
     editionName?: string;
+    editionKey?: string;
+    identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
     /** v2.4.0 ADR-1 — pre-computed by the source adapter, see base.ts */
     sourceFamilyConflict?: { ratio: number; details: string };
   }, options?: { deferRecompute?: boolean }): Offer {
@@ -138,6 +140,9 @@ export const offerRepo = {
     const db = getDb();
     const now = new Date().toISOString();
     const dealUrl = ensureAbsoluteUrl(data.dealUrl);
+    const editionKey = data.editionKey || 'standard';
+    const editionName = data.editionName || (editionKey === 'standard' ? 'Standard Edition' : editionKey);
+    const identityConfidence = data.identityConfidence || 'CONFIDENT';
     const discount = (data as any).discountPercent !== undefined ? (data as any).discountPercent : 
       (data.originalPriceEur && data.originalPriceEur > data.priceEur 
         ? Math.round(((data.originalPriceEur - data.priceEur) / data.originalPriceEur) * 100) 
@@ -147,8 +152,8 @@ export const offerRepo = {
       let offerId: string;
       const existing = prepareStmt(`
         SELECT id, price_eur FROM offers 
-        WHERE game_id = ? AND merchant_id = ? AND product_type = ? AND region_type = ?
-      `).get(data.gameId, data.merchantId, data.productType, data.regionType) as any;
+        WHERE game_id = ? AND merchant_id = ? AND product_type = ? AND region_type = ? AND edition_key = ?
+      `).get(data.gameId, data.merchantId, data.productType, data.regionType, editionKey) as any;
       if (existing) {
         offerId = existing.id;
       } else {
@@ -160,8 +165,9 @@ export const offerRepo = {
             discount_percent, voucher_code, deal_url,
             is_best_deal, is_valid, price_event,
             is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            edition_key, edition_name, identity_confidence,
             fetched_at, last_observed_at, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'NONE', 0, 0.0, NULL, NULL, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'NONE', 0, 0.0, NULL, NULL, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           offerId,
           data.gameId,
@@ -179,6 +185,9 @@ export const offerRepo = {
           data.voucherCode || null,
           dealUrl,
           data.isValid !== false ? 1 : 0,
+          editionKey,
+          editionName,
+          identityConfidence,
           now,
           now,
           now,
@@ -196,7 +205,9 @@ export const offerRepo = {
         rawOriginalPrice: data.rawOriginalPrice !== undefined ? data.rawOriginalPrice : null,
         discountPercent: discount,
         isValid: data.isValid !== false,
-        editionName: data.editionName || null
+        editionName: editionName,
+        editionKey: editionKey,
+        identityConfidence: identityConfidence
       };
 
       const obsId = randomUUID();
@@ -248,6 +259,8 @@ export const offerRepo = {
         isValid: boolean;
         observedAt: string;
         editionName?: string;
+        editionKey?: string;
+        identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
       }
 
       const candidates: CandidateObs[] = allObservations.map(obs => {
@@ -265,7 +278,9 @@ export const offerRepo = {
           dealUrl: ensureAbsoluteUrl(meta.dealUrl || dealUrl),
           isValid: meta.isValid !== false && !isNaN(Number(obs.observed_price_eur)) && Number(obs.observed_price_eur) >= 0,
           observedAt: obs.observed_at,
-          editionName: meta.editionName || undefined
+          editionName: meta.editionName || undefined,
+          editionKey: meta.editionKey || undefined,
+          identityConfidence: meta.identityConfidence || undefined
         };
       }).filter(c => c.isValid);
 
@@ -308,7 +323,9 @@ export const offerRepo = {
         dealUrl: dealUrl,
         isValid: data.isValid !== false,
         observedAt: now,
-        editionName: data.editionName
+        editionName: editionName,
+        editionKey: editionKey,
+        identityConfidence: identityConfidence
       };
 
       // 3. Gather context for pricing evaluation using winning active offer values
@@ -351,22 +368,22 @@ export const offerRepo = {
 
       const sourceHistoryRows = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND is_pricing_error = 0
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND edition_key = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
         ORDER BY recorded_at ASC
-      `).all(data.gameId, data.merchantId, active.sourceCode) as any[];
+      `).all(data.gameId, data.merchantId, active.sourceCode, editionKey) as any[];
       const sourceHistory = sourceHistoryRows.map(r => Number(r.price_eur));
 
       const lastMerchantHistory = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND is_pricing_error = 0
+        WHERE game_id = ? AND merchant_id = ? AND edition_key = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
         ORDER BY recorded_at DESC LIMIT 1
-      `).get(data.gameId, data.merchantId) as any;
+      `).get(data.gameId, data.merchantId, editionKey) as any;
 
       const lastHistory = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND is_pricing_error = 0
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND edition_key = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
         ORDER BY recorded_at DESC LIMIT 1
-      `).get(data.gameId, data.merchantId, active.sourceCode) as any;
+      `).get(data.gameId, data.merchantId, active.sourceCode, editionKey) as any;
 
       const PREMIUM_EDITION_RE = /(deluxe|ultimate|gold|premium|collector|goty|complete)/i;
       let suspectedEditionInversion = false;
@@ -435,9 +452,13 @@ export const offerRepo = {
       }
 
       // If the offer is unflagged / non-anomalous, ensure price_event does not stay stuck as PRICING_ERROR
-      const resolvedPriceEvent = (!isLikelyPricingError && pricingEval.event === 'PRICING_ERROR')
+      let resolvedPriceEvent = (!isLikelyPricingError && pricingEval.event === 'PRICING_ERROR')
         ? detectPriceEvent(evalInput, false)
         : pricingEval.event;
+
+      if (identityConfidence === 'AMBIGUOUS') {
+        resolvedPriceEvent = 'NONE';
+      }
 
       // 4. Update the canonical offers table with winning active observation
       prepareStmt(`
@@ -456,6 +477,9 @@ export const offerRepo = {
             pricing_error_confidence = ?,
             pricing_error_type = ?,
             pricing_error_reason = ?,
+            edition_key = ?,
+            edition_name = ?,
+            identity_confidence = ?,
             region_confidence = ?,
             last_observed_at = ?,
             fetched_at = ?,
@@ -476,6 +500,9 @@ export const offerRepo = {
         isLikelyPricingError ? pricingEval.riskScore : 0,
         isLikelyPricingError ? ((pricingEval.pricingErrorType || pricingEval.riskFlags?.[0]) || null) : null,
         isLikelyPricingError ? (pricingEval.summary || null) : null,
+        editionKey,
+        editionName,
+        identityConfidence,
         data.regionConfidence !== undefined ? data.regionConfidence : 1.0,
         active.observedAt,
         now,
@@ -520,12 +547,13 @@ export const offerRepo = {
 
       const hasPriceChanged = !isSameAsLatestMerchant && !isSameAsLatestSource;
 
-      if (hasPriceChanged && Boolean(merchantInfo?.is_official) && !pricingEval.isAnomaly && active.priceEur > 0.05) {
+      const isStandardEdition = editionKey === 'standard';
+      if (hasPriceChanged && Boolean(merchantInfo?.is_official) && !pricingEval.isAnomaly && active.priceEur > 0.05 && isStandardEdition) {
         gameRepo.updateOfficialHistoricalLow(data.gameId, active.priceEur, now, merchantInfo?.name || active.sourceCode);
       }
 
-      // Update historical low only on genuine confirmed price drop
-      if (hasPriceChanged && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW')) {
+      // Update historical low only on genuine confirmed price drop for standard edition
+      if (hasPriceChanged && isStandardEdition && (pricingEval.event === 'RECORD_DROP' || pricingEval.event === 'NEW_HISTORICAL_LOW')) {
         gameRepo.updateHistoricalLow(data.gameId, active.priceEur, now, active.sourceCode);
       }
 
@@ -703,8 +731,12 @@ export const offerRepo = {
           : 1.0;
 
         prepareStmt(`
-          INSERT INTO price_history (id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, discount_percent, price_event, deal_score, is_pricing_error, recorded_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO price_history (
+            id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, 
+            discount_percent, price_event, deal_score, is_pricing_error, 
+            edition_key, edition_name, identity_confidence, recorded_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           randomUUID(), 
           data.gameId, 
@@ -715,9 +747,12 @@ export const offerRepo = {
           active.rawCurrency || 'EUR', 
           fxRate, 
           active.discountPercent, 
-          pricingEval.event, 
+          resolvedPriceEvent, 
           dealCalc.score, 
           isLikelyPricingError ? 1 : 0, 
+          editionKey,
+          editionName,
+          identityConfidence,
           now
         );
       }
@@ -836,6 +871,9 @@ export const offerRepo = {
       isProvisional: dealCalc.isProvisional,
       sources: sources.map(s => s.source_code as SourceCode),
       sourceAgreementCount: sources.length,
+      editionKey: r.edition_key || 'standard',
+      editionName: r.edition_name || 'Standard Edition',
+      identityConfidence: r.identity_confidence || 'CONFIDENT',
       fetchedAt: r.fetched_at,
       lastObservedAt: r.last_observed_at || r.fetched_at,
       createdAt: r.created_at,
@@ -969,6 +1007,9 @@ export const offerRepo = {
         isProvisional: dealCalc.isProvisional,
         sources,
         sourceAgreementCount: sources.length,
+        editionKey: r.edition_key || 'standard',
+        editionName: r.edition_name || 'Standard Edition',
+        identityConfidence: r.identity_confidence || 'CONFIDENT',
         fetchedAt: r.fetched_at,
         lastObservedAt: r.last_observed_at || r.fetched_at,
         createdAt: r.created_at,
@@ -980,7 +1021,7 @@ export const offerRepo = {
   recomputeBestDealForGame(gameId: string): void {
     const best = prepareStmt(`
       SELECT o.id, o.price_eur, o.merchant_id, o.last_observed_at, o.fetched_at,
-             m.is_official, m.name as merchant_name
+             m.is_official, m.name as merchant_name, o.edition_key
       FROM offers o
       JOIN merchants m ON o.merchant_id = m.id
       WHERE o.game_id = ? AND o.is_valid = 1 AND o.is_likely_pricing_error = 0
@@ -989,6 +1030,7 @@ export const offerRepo = {
           WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
+        CASE WHEN o.edition_key = 'standard' THEN 0 ELSE 1 END ASC,
         o.price_eur ASC,
         m.is_official DESC,
         COALESCE(o.last_observed_at, o.fetched_at) DESC
@@ -1052,6 +1094,9 @@ export const offerRepo = {
       priceEvent: r.price_event || undefined,
       dealScore: r.deal_score !== null && r.deal_score !== undefined ? Number(r.deal_score) : undefined,
       isPricingError: Boolean(r.is_pricing_error),
+      editionKey: r.edition_key || 'standard',
+      editionName: r.edition_name || 'Standard Edition',
+      identityConfidence: r.identity_confidence || 'CONFIDENT',
       recordedAt: r.recorded_at
     }));
   },
@@ -1093,8 +1138,8 @@ export const offerRepo = {
       const insertHistStmt = prepareStmt(`
         INSERT INTO price_history (
           id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency,
-          fx_rate, discount_percent, price_event, is_pricing_error, recorded_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?, ?, ?)
+          fx_rate, discount_percent, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, recorded_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?, ?, 'standard', 'Standard Edition', 'CONFIDENT', ?)
       `);
 
       if (Array.isArray(historyPoints) && historyPoints.length > 0) {

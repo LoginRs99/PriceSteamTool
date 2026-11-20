@@ -192,13 +192,28 @@ function executeRollback(db) {
   const backupCount = db.prepare(`SELECT COUNT(*) as c FROM price_history_event_backup`).get().c;
   console.log(`[Rollback] Found ${backupCount} backed-up records.`);
 
+  const backupCols = db.prepare(`PRAGMA table_info(price_history_event_backup)`).all().map(c => c.name);
+  const hasEditionBackup = backupCols.includes('original_identity_confidence');
+
   const tx = db.transaction(() => {
     // Restore price_history
-    const updateStmt = db.prepare(`
-      UPDATE price_history 
-      SET price_event = (SELECT original_price_event FROM price_history_event_backup WHERE price_history_event_backup.id = price_history.id)
-      WHERE id IN (SELECT id FROM price_history_event_backup)
-    `);
+    let updateStmt;
+    if (hasEditionBackup) {
+      updateStmt = db.prepare(`
+        UPDATE price_history 
+        SET price_event = (SELECT original_price_event FROM price_history_event_backup WHERE price_history_event_backup.id = price_history.id),
+            edition_key = (SELECT original_edition_key FROM price_history_event_backup WHERE price_history_event_backup.id = price_history.id),
+            edition_name = (SELECT original_edition_name FROM price_history_event_backup WHERE price_history_event_backup.id = price_history.id),
+            identity_confidence = (SELECT original_identity_confidence FROM price_history_event_backup WHERE price_history_event_backup.id = price_history.id)
+        WHERE id IN (SELECT id FROM price_history_event_backup)
+      `);
+    } else {
+      updateStmt = db.prepare(`
+        UPDATE price_history 
+        SET price_event = (SELECT original_price_event FROM price_history_event_backup WHERE price_history_event_backup.id = price_history.id)
+        WHERE id IN (SELECT id FROM price_history_event_backup)
+      `);
+    }
     const histResult = updateStmt.run();
     console.log(`[Rollback] Restored ${histResult.changes} records in price_history.`);
 
@@ -249,6 +264,21 @@ function executeVerify(db) {
     console.log(`  ${(row.price_event || 'NULL').padEnd(25)}: ${row.count}`);
   }
 
+  // Check identity confidence distribution if column exists
+  const phCols = db.prepare(`PRAGMA table_info(price_history)`).all().map(c => c.name);
+  if (phCols.includes('identity_confidence')) {
+    const confCounts = db.prepare(`
+      SELECT identity_confidence, COUNT(*) as count
+      FROM price_history
+      GROUP BY identity_confidence
+      ORDER BY count DESC
+    `).all();
+    console.log(`\n[Verify] Identity Confidence distribution:`);
+    for (const row of confCounts) {
+      console.log(`  ${(row.identity_confidence || 'NULL').padEnd(25)}: ${row.count}`);
+    }
+  }
+
   // Check Dual ATL invariant
   const atlViolations = db.prepare(`
     SELECT id, steam_app_id, title, official_historical_low_eur, historical_low_eur 
@@ -273,6 +303,24 @@ function executeReplay(db, applyChanges, dbPath) {
   const timeRange = db.prepare(`SELECT MIN(recorded_at) as earliest, MAX(recorded_at) as latest, COUNT(*) as total FROM price_history`).get();
   console.log(`Dataset size: ${timeRange.total} records (from ${timeRange.earliest} to ${timeRange.latest})`);
 
+  // Ensure price_history has edition and confidence columns if modifying
+  const phCols = db.prepare(`PRAGMA table_info(price_history)`).all().map(c => c.name);
+  const hasEditionCols = phCols.includes('edition_key') && phCols.includes('identity_confidence');
+
+  if (!hasEditionCols && applyChanges) {
+    try { db.exec("ALTER TABLE price_history ADD COLUMN edition_key TEXT DEFAULT 'standard';"); } catch {}
+    try { db.exec("ALTER TABLE price_history ADD COLUMN edition_name TEXT DEFAULT 'Standard Edition';"); } catch {}
+    try { db.exec("ALTER TABLE price_history ADD COLUMN identity_confidence TEXT DEFAULT 'CONFIDENT';"); } catch {}
+    try {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_price_history_edition_stream 
+        ON price_history(game_id, merchant_id, source_code, edition_key, recorded_at);
+        CREATE INDEX IF NOT EXISTS idx_price_history_confidence 
+        ON price_history(identity_confidence);
+      `);
+    } catch {}
+  }
+
   // Load games map
   const gamesMap = new Map();
   for (const g of db.prepare(`SELECT id, title, base_price_eur, historical_low_eur, official_historical_low_eur FROM games`).all()) {
@@ -288,11 +336,30 @@ function executeReplay(db, applyChanges, dbPath) {
   console.log(`Loaded ${gamesMap.size} games and ${merchantsMap.size} merchants.`);
   console.log(`Streaming price history in chronological order per stream...`);
 
+  const selectCols = hasEditionCols 
+    ? 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, recorded_at'
+    : 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, recorded_at';
+
   const allHistory = db.prepare(`
-    SELECT id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, recorded_at
+    SELECT ${selectCols}
     FROM price_history
     ORDER BY game_id, merchant_id, source_code, recorded_at ASC, id ASC
   `).all();
+
+  // Step 1: Identify contaminated streams that contain concurrent observations (<= 60s apart with different prices)
+  const contaminatedStreams = new Set();
+  for (let i = 0; i < allHistory.length - 1; i++) {
+    const cur = allHistory[i];
+    const next = allHistory[i + 1];
+    if (cur.game_id === next.game_id && cur.merchant_id === next.merchant_id && cur.source_code === next.source_code) {
+      const tCur = new Date(cur.recorded_at).getTime();
+      const tNext = new Date(next.recorded_at).getTime();
+      if (Math.abs(tNext - tCur) <= 60000 && Math.abs(cur.price_eur - next.price_eur) > 0.01) {
+        contaminatedStreams.add(`${cur.game_id}_${cur.merchant_id}_${cur.source_code}`);
+      }
+    }
+  }
+  console.log(`Identified ${contaminatedStreams.size} contaminated streams exhibiting multi-edition ping-pong.`);
 
   const streamPrevious = new Map();
   const transitionMatrix = {};
@@ -312,26 +379,50 @@ function executeReplay(db, applyChanges, dbPath) {
   let correctedDrops3d = new Set();
   let correctedDrops7d = new Set();
 
+  let ambiguousEventsCount = 0;
+
   for (const row of allHistory) {
-    const streamKey = `${row.game_id}_${row.merchant_id}_${row.source_code}`;
-    const previousPriceEur = streamPrevious.get(streamKey);
-    streamPrevious.set(streamKey, row.price_eur);
-
-    const game = gamesMap.get(row.game_id);
-    const isOfficial = merchantsMap.get(row.merchant_id) || false;
-
-    const correctedEvent = detectPriceEvent({
-      currentPriceEur: row.price_eur,
-      previousPriceEur,
-      basePriceEur: game?.base_price_eur,
-      historicalLowEur: game?.historical_low_eur,
-      isOfficialMerchant: isOfficial
-    }, Boolean(row.is_pricing_error));
+    const rawStreamKey = `${row.game_id}_${row.merchant_id}_${row.source_code}`;
+    const isContaminated = contaminatedStreams.has(rawStreamKey);
 
     const storedEvent = row.price_event || 'NONE';
+    const storedEditionKey = row.edition_key || 'standard';
+    const storedEditionName = row.edition_name || 'Standard Edition';
+    const storedConfidence = row.identity_confidence || 'CONFIDENT';
+
+    let correctedEvent = 'NONE';
+    let correctedEditionKey = storedEditionKey;
+    let correctedEditionName = storedEditionName;
+    let correctedConfidence = storedConfidence;
+
+    if (isContaminated) {
+      // Ambiguous multi-edition stream where edition was never recorded
+      ambiguousEventsCount++;
+      correctedConfidence = 'AMBIGUOUS';
+      correctedEvent = 'NONE';
+    } else {
+      // Clean uncontaminated stream
+      correctedConfidence = 'CONFIDENT';
+      correctedEditionKey = 'standard';
+      correctedEditionName = 'Standard Edition';
+
+      const previousPriceEur = streamPrevious.get(rawStreamKey);
+      streamPrevious.set(rawStreamKey, row.price_eur);
+
+      const game = gamesMap.get(row.game_id);
+      const isOfficial = merchantsMap.get(row.merchant_id) || false;
+
+      correctedEvent = detectPriceEvent({
+        currentPriceEur: row.price_eur,
+        previousPriceEur,
+        basePriceEur: game?.base_price_eur,
+        historicalLowEur: game?.historical_low_eur,
+        isOfficialMerchant: isOfficial
+      }, Boolean(row.is_pricing_error));
+    }
 
     const isStoredDrop = !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER'].includes(storedEvent);
-    const isCorrectedDrop = !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER'].includes(correctedEvent);
+    const isCorrectedDrop = correctedConfidence === 'CONFIDENT' && !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER'].includes(correctedEvent);
 
     if (isStoredDrop) {
       if (row.recorded_at >= oneDayAgo) storedDrops1d.add(row.game_id);
@@ -345,15 +436,25 @@ function executeReplay(db, applyChanges, dbPath) {
       if (row.recorded_at >= sevenDaysAgo) correctedDrops7d.add(row.game_id);
     }
 
-    if (storedEvent !== correctedEvent) {
+    const hasEventChanged = storedEvent !== correctedEvent;
+    const hasConfidenceChanged = storedConfidence !== correctedConfidence;
+    const hasEditionChanged = storedEditionKey !== correctedEditionKey;
+
+    if (hasEventChanged || hasConfidenceChanged || hasEditionChanged) {
       affectedGames.add(row.game_id);
-      const key = `${storedEvent} -> ${correctedEvent}`;
+      const key = `${storedEvent} -> ${correctedEvent}${correctedConfidence === 'AMBIGUOUS' ? ' [AMBIGUOUS]' : ''}`;
       transitionMatrix[key] = (transitionMatrix[key] || 0) + 1;
       changes.push({
         id: row.id,
         gameId: row.game_id,
         storedEvent,
-        correctedEvent
+        correctedEvent,
+        storedEditionKey,
+        correctedEditionKey,
+        storedEditionName,
+        correctedEditionName,
+        storedConfidence,
+        correctedConfidence
       });
     }
   }
@@ -370,7 +471,8 @@ function executeReplay(db, applyChanges, dbPath) {
 
   console.log(`\n--- RECLASSIFICATION AUDIT METRICS ---`);
   console.log(`Total records evaluated:              ${allHistory.length}`);
-  console.log(`Total records to reclassify:          ${changes.length} (${((changes.length / allHistory.length) * 100).toFixed(2)}%)`);
+  console.log(`Total records to update:              ${changes.length} (${((changes.length / allHistory.length) * 100).toFixed(2)}%)`);
+  console.log(`Ambiguous records flagged:            ${ambiguousEventsCount}`);
   console.log(`Unique games affected:                ${affectedGames.size} (${((affectedGames.size / gamesMap.size) * 100).toFixed(1)}% of all games)`);
 
   console.log(`\n--- DUAL ALL-TIME LOW INVARIANT AUDIT ---`);
@@ -382,7 +484,7 @@ function executeReplay(db, applyChanges, dbPath) {
   console.log(`\n--- TOP TRANSITIONS (Stored -> Corrected) ---`);
   const sortedTransitions = Object.entries(transitionMatrix).sort((a, b) => b[1] - a[1]);
   for (const [trans, count] of sortedTransitions.slice(0, 15)) {
-    console.log(`  ${trans.padEnd(35)} : ${count}`);
+    console.log(`  ${trans.padEnd(45)} : ${count}`);
   }
 
   console.log(`\n--- FRESH DROPS IMPACT (Stored Feed vs Corrected Feed) ---`);
@@ -407,22 +509,44 @@ function executeReplay(db, applyChanges, dbPath) {
         id TEXT PRIMARY KEY,
         original_price_event TEXT NOT NULL,
         reclassified_price_event TEXT NOT NULL,
+        original_edition_key TEXT,
+        reclassified_edition_key TEXT,
+        original_edition_name TEXT,
+        reclassified_edition_name TEXT,
+        original_identity_confidence TEXT,
+        reclassified_identity_confidence TEXT,
         updated_at TEXT NOT NULL
       )
     `).run();
 
     // 2. Insert backups and update price_history in batches
     const insertBackupStmt = db.prepare(`
-      INSERT OR REPLACE INTO price_history_event_backup (id, original_price_event, reclassified_price_event, updated_at)
-      VALUES (?, ?, ?, ?)
+      INSERT OR REPLACE INTO price_history_event_backup (
+        id, original_price_event, reclassified_price_event,
+        original_edition_key, reclassified_edition_key,
+        original_edition_name, reclassified_edition_name,
+        original_identity_confidence, reclassified_identity_confidence,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const updateEventStmt = db.prepare(`
-      UPDATE price_history SET price_event = ? WHERE id = ?
+      UPDATE price_history 
+      SET price_event = ?, edition_key = ?, edition_name = ?, identity_confidence = ? 
+      WHERE id = ?
     `);
 
     for (const change of changes) {
-      insertBackupStmt.run(change.id, change.storedEvent, change.correctedEvent, nowIso);
-      updateEventStmt.run(change.correctedEvent, change.id);
+      insertBackupStmt.run(
+        change.id, change.storedEvent, change.correctedEvent,
+        change.storedEditionKey, change.correctedEditionKey,
+        change.storedEditionName, change.correctedEditionName,
+        change.storedConfidence, change.correctedConfidence,
+        nowIso
+      );
+      updateEventStmt.run(
+        change.correctedEvent, change.correctedEditionKey, change.correctedEditionName, change.correctedConfidence, 
+        change.id
+      );
     }
     console.log(`[APPLY] Updated ${changes.length} records in price_history and stored in backup table.`);
 
@@ -470,8 +594,6 @@ function executeReplay(db, applyChanges, dbPath) {
 
   applyTx();
   console.log(`\n[APPLY SUCCESS] Transaction committed. All changes are backed up and fully reversible.`);
-  console.log(`Notice: 'latest_price_drop_at' is a dynamic subquery on 'price_history' in Pricetool queries,`);
-  console.log(`so all game drop timestamps, badges, and filters update automatically with zero schema changes.`);
   console.log(`To rollback at any time, run:`);
   console.log(`  node scripts/repair-historical-price-events.cjs "${dbPath}" --rollback\n`);
 }

@@ -18,6 +18,8 @@ export interface NormalizedSourceOffer {
   historicalLowDate?: string;
   rawPayload?: any;
   editionName?: string;
+  editionKey?: string;
+  identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
   metacriticScore?: number;
   metacriticUrl?: string;
   /**

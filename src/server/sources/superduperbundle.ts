@@ -104,6 +104,9 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
       dealUrl: fallbackUrl,
       productTypeRaw: normProduct.productType,
       regionRaw: normRegion.regionCode,
+      editionName: 'Standard Edition',
+      editionKey: 'standard',
+      identityConfidence: 'CONFIDENT',
       rawPayload: offer
     };
   }

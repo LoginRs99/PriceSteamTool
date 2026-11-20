@@ -1133,6 +1133,129 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 038] cadence backfill notice:', err?.message);
       }
     }
+  },
+  {
+    name: '039_merchant_platform_storefront_classification',
+    up: (db) => {
+      try {
+        db.exec(`
+          UPDATE merchants 
+          SET is_official = 1 
+          WHERE LOWER(code) IN ('blizzard', 'microsoftstore', 'ubisoftstore', 'battlenet', 'uplay', 'ubisoft')
+             OR LOWER(name) LIKE '%blizzard%'
+             OR LOWER(name) LIKE '%microsoft store%'
+             OR LOWER(name) LIKE '%ubisoft%';
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 039] notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '040_edition_aware_price_history_and_offers',
+    up: (db) => {
+      // 1. Add edition and confidence columns to price_history
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN edition_key TEXT DEFAULT 'standard';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN edition_name TEXT DEFAULT 'Standard Edition';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN identity_confidence TEXT DEFAULT 'CONFIDENT';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      // Create price_history indexes
+      try {
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_price_history_edition_stream 
+          ON price_history(game_id, merchant_id, source_code, edition_key, recorded_at);
+          CREATE INDEX IF NOT EXISTS idx_price_history_confidence 
+          ON price_history(identity_confidence);
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 040] price_history index notice:', err?.message);
+      }
+
+      // 2. Recreate offers table to include edition_key in UNIQUE constraint
+      const tableInfo = db.prepare("PRAGMA table_info(offers)").all() as any[];
+      const hasEditionKey = tableInfo.some(col => col.name === 'edition_key');
+
+      if (!hasEditionKey) {
+        db.exec(`
+          CREATE TABLE offers_new (
+            id TEXT PRIMARY KEY,
+            game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+            product_type TEXT NOT NULL,
+            region_type TEXT NOT NULL,
+            region_code TEXT,
+            region_confidence REAL NOT NULL DEFAULT 1.0,
+            price_eur REAL NOT NULL,
+            original_price_eur REAL,
+            raw_price REAL,
+            raw_currency TEXT DEFAULT 'EUR',
+            raw_original_price REAL,
+            discount_percent INTEGER NOT NULL DEFAULT 0,
+            voucher_code TEXT,
+            deal_url TEXT NOT NULL,
+            is_best_deal INTEGER NOT NULL DEFAULT 0,
+            is_valid INTEGER NOT NULL DEFAULT 1,
+            price_event TEXT NOT NULL DEFAULT 'NONE',
+            is_likely_pricing_error INTEGER NOT NULL DEFAULT 0,
+            pricing_error_confidence REAL NOT NULL DEFAULT 0.0,
+            pricing_error_type TEXT,
+            pricing_error_reason TEXT,
+            edition_key TEXT NOT NULL DEFAULT 'standard',
+            edition_name TEXT DEFAULT 'Standard Edition',
+            identity_confidence TEXT NOT NULL DEFAULT 'CONFIDENT',
+            fetched_at TEXT NOT NULL,
+            last_observed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(game_id, merchant_id, product_type, region_type, edition_key)
+          );
+
+          INSERT INTO offers_new (
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            edition_key, edition_name, identity_confidence,
+            fetched_at, last_observed_at, created_at, updated_at
+          )
+          SELECT
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            'standard' AS edition_key,
+            'Standard Edition' AS edition_name,
+            'CONFIDENT' AS identity_confidence,
+            fetched_at, last_observed_at, created_at, updated_at
+          FROM offers;
+
+          DROP TABLE offers;
+          ALTER TABLE offers_new RENAME TO offers;
+
+          CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
+          CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error);
+          CREATE INDEX IF NOT EXISTS idx_offers_edition ON offers(game_id, edition_key);
+        `);
+      }
+    }
   }
 ];
 
@@ -1150,19 +1273,25 @@ export function runMigrations(db: Database.Database): void {
 
   const insertStmt = db.prepare(`INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)`);
 
-  for (const migration of MIGRATIONS) {
-    if (appliedSet.has(migration.name)) continue;
+  // Temporarily disable foreign keys during migrations to allow table schema restructuring
+  db.pragma('foreign_keys = OFF');
+  try {
+    for (const migration of MIGRATIONS) {
+      if (appliedSet.has(migration.name)) continue;
 
-    const tx = db.transaction(() => {
-      migration.up(db);
-      insertStmt.run(migration.name, new Date().toISOString());
-    });
+      const tx = db.transaction(() => {
+        migration.up(db);
+        insertStmt.run(migration.name, new Date().toISOString());
+      });
 
-    try {
-      tx();
-    } catch (err: any) {
-      console.error(`[Database Migration Error] Failed to execute migration "${migration.name}":`, err.message);
-      throw err;
+      try {
+        tx();
+      } catch (err: any) {
+        console.error(`[Database Migration Error] Failed to execute migration "${migration.name}":`, err.message);
+        throw err;
+      }
     }
+  } finally {
+    db.pragma('foreign_keys = ON');
   }
 }
