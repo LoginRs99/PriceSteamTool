@@ -136,11 +136,12 @@ CREATE TABLE IF NOT EXISTS offers (
   edition_key TEXT NOT NULL DEFAULT 'standard',
   edition_name TEXT DEFAULT 'Standard Edition',
   identity_confidence TEXT NOT NULL DEFAULT 'CONFIDENT',
+  activation_platform TEXT NOT NULL DEFAULT 'steam',
   fetched_at TEXT NOT NULL,
   last_observed_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  UNIQUE(game_id, merchant_id, product_type, region_type, edition_key)
+  UNIQUE(game_id, merchant_id, product_type, region_type, edition_key, activation_platform)
 );
 
 CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
@@ -151,6 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
 CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
 CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);
 CREATE INDEX IF NOT EXISTS idx_offers_edition ON offers(game_id, edition_key);
+CREATE INDEX IF NOT EXISTS idx_offers_platform ON offers(game_id, activation_platform);
 
 -- 6. Source Observations Table
 CREATE TABLE IF NOT EXISTS source_observations (
@@ -187,13 +189,14 @@ CREATE TABLE IF NOT EXISTS price_history (
   edition_key TEXT DEFAULT 'standard',
   edition_name TEXT DEFAULT 'Standard Edition',
   identity_confidence TEXT DEFAULT 'CONFIDENT',
+  activation_platform TEXT DEFAULT 'steam',
   recorded_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_price_history_recorded_at ON price_history(recorded_at);
-CREATE INDEX IF NOT EXISTS idx_price_history_edition_stream ON price_history(game_id, merchant_id, source_code, edition_key, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_price_history_stream ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_price_history_confidence ON price_history(identity_confidence);
 
 

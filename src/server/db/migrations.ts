@@ -1256,6 +1256,97 @@ export const MIGRATIONS: Migration[] = [
         `);
       }
     }
+  },
+  {
+    name: '041_activation_platform_identity',
+    up: (db) => {
+      // 1. Add activation_platform to price_history
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN activation_platform TEXT DEFAULT 'steam';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      try {
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_price_history_stream 
+          ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, recorded_at);
+        `);
+      } catch (e: any) {}
+
+      // 2. Rebuild offers table with activation_platform and updated composite unique constraint
+      const offersCols = db.prepare(`PRAGMA table_info(offers)`).all() as { name: string }[];
+      const colNames = offersCols.map(c => c.name);
+
+      if (!colNames.includes('activation_platform')) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS offers_new (
+            id TEXT PRIMARY KEY,
+            game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+            product_type TEXT NOT NULL,
+            region_type TEXT NOT NULL,
+            region_code TEXT,
+            region_confidence REAL NOT NULL DEFAULT 1.0,
+            price_eur REAL NOT NULL,
+            original_price_eur REAL,
+            raw_price REAL,
+            raw_currency TEXT DEFAULT 'EUR',
+            raw_original_price REAL,
+            discount_percent INTEGER NOT NULL DEFAULT 0,
+            voucher_code TEXT,
+            deal_url TEXT NOT NULL,
+            is_best_deal INTEGER NOT NULL DEFAULT 0,
+            is_valid INTEGER NOT NULL DEFAULT 1,
+            price_event TEXT NOT NULL DEFAULT 'NONE',
+            is_likely_pricing_error INTEGER NOT NULL DEFAULT 0,
+            pricing_error_confidence REAL NOT NULL DEFAULT 0.0,
+            pricing_error_type TEXT,
+            pricing_error_reason TEXT,
+            edition_key TEXT NOT NULL DEFAULT 'standard',
+            edition_name TEXT DEFAULT 'Standard Edition',
+            identity_confidence TEXT NOT NULL DEFAULT 'CONFIDENT',
+            activation_platform TEXT NOT NULL DEFAULT 'steam',
+            fetched_at TEXT NOT NULL,
+            last_observed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(game_id, merchant_id, product_type, region_type, edition_key, activation_platform)
+          );
+
+          INSERT INTO offers_new (
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            edition_key, edition_name, identity_confidence, activation_platform,
+            fetched_at, last_observed_at, created_at, updated_at
+          )
+          SELECT
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            edition_key, edition_name, identity_confidence, 'steam' AS activation_platform,
+            fetched_at, last_observed_at, created_at, updated_at
+          FROM offers;
+
+          DROP TABLE offers;
+          ALTER TABLE offers_new RENAME TO offers;
+
+          CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
+          CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error);
+          CREATE INDEX IF NOT EXISTS idx_offers_edition ON offers(game_id, edition_key);
+          CREATE INDEX IF NOT EXISTS idx_offers_platform ON offers(game_id, activation_platform);
+        `);
+      }
+    }
   }
 ];
 

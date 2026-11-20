@@ -3,6 +3,16 @@
  *
  * Normalizes edition names into canonical keys to ensure distinct products
  * (e.g. Standard, Deluxe, Complete, Gold, GOTY) maintain independent price streams.
+ *
+ * Strict Confidence Rules:
+ * - Emits 'CONFIDENT' only when:
+ *   1. Upstream payload explicitly provides an edition string (e.g. NEXARDA item.edition).
+ *   2. Title or URL explicitly contains a canonical edition pattern (e.g. "Deluxe Edition", "GOTY").
+ *   3. Provider endpoint architecture structurally guarantees base application package
+ *      (Steam appdetails price_overview; ITAD canonical game UUID resolved via /games/lookup/v1).
+ * - Emits 'AMBIGUOUS' when:
+ *   1. Aggregators (GG.deals, SuperDuperBundle) lack edition metadata and package IDs.
+ *   2. Unlabelled or unverified offers where base-game identity cannot be proven.
  */
 
 export interface NormalizedEdition {
@@ -12,7 +22,7 @@ export interface NormalizedEdition {
 }
 
 const CANONICAL_EDITIONS: Array<{ key: string; name: string; regex: RegExp }> = [
-  { key: 'standard', name: 'Standard Edition', regex: /^(standard(\s+edition|\s+pack)?|base(\s+game)?)$/i },
+  { key: 'standard', name: 'Standard Edition', regex: /\b(standard(\s+edition|\s+pack)?|base(\s+game)?)\b/i },
   { key: 'deluxe', name: 'Deluxe Edition', regex: /\b(digital\s+deluxe|deluxe\s+edition|deluxe(\s+pack)?)\b/i },
   { key: 'ultimate', name: 'Ultimate Edition', regex: /\b(ultimate\s+edition|ultimate(\s+pack)?)\b/i },
   { key: 'gold', name: 'Gold Edition', regex: /\b(gold\s+edition|gold(\s+pack)?)\b/i },
@@ -31,10 +41,10 @@ const CANONICAL_EDITIONS: Array<{ key: string; name: string; regex: RegExp }> = 
  */
 export function normalizeEdition(
   editionRaw?: string | null,
-  title?: string | null,
+  titleOrUrl?: string | null,
   sourceCode?: string
 ): NormalizedEdition {
-  // 1. Direct raw edition string (e.g. from NEXARDA)
+  // 1. Direct raw edition string (e.g. from NEXARDA item.edition)
   if (editionRaw && typeof editionRaw === 'string' && editionRaw.trim().length > 0) {
     const rawClean = editionRaw.trim();
     for (const entry of CANONICAL_EDITIONS) {
@@ -47,7 +57,7 @@ export function normalizeEdition(
       }
     }
 
-    // Slugify custom/unusual edition (e.g. "Alex Murphy Edition", "Super Citizen Edition")
+    // Custom edition tag (e.g. "Alex Murphy Edition", "Super Citizen Edition")
     const customKey = rawClean
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
@@ -60,21 +70,30 @@ export function normalizeEdition(
     };
   }
 
-  // 2. Extract from title if title is provided
-  if (title && typeof title === 'string') {
+  // 2. Extract from title or URL slug if provided
+  if (titleOrUrl && typeof titleOrUrl === 'string') {
+    const textClean = titleOrUrl.replace(/[-_./]+/g, ' ').trim();
     for (const entry of CANONICAL_EDITIONS) {
-      if (entry.key !== 'standard' && entry.regex.test(title)) {
+      if (entry.key !== 'standard' && entry.regex.test(textClean)) {
         return {
           editionKey: entry.key,
           editionName: entry.name,
           identityConfidence: 'CONFIDENT'
         };
       }
+      // If title explicitly states "Standard Edition"
+      if (entry.key === 'standard' && entry.regex.test(textClean)) {
+        return {
+          editionKey: 'standard',
+          editionName: 'Standard Edition',
+          identityConfidence: 'CONFIDENT'
+        };
+      }
     }
   }
 
-  // 3. Fallback for sources without explicit edition tags
-  // Steam Storefront is explicitly the base game
+  // 3. Provider Architectural Scrutiny:
+  // Steam Storefront: appdetails queries canonical base App ID with price_overview of primary package
   if (sourceCode === 'steam') {
     return {
       editionKey: 'standard',
@@ -83,10 +102,39 @@ export function normalizeEdition(
     };
   }
 
-  // Default canonical standard edition
+  // ITAD: Resolved via /games/lookup/v1?appid=... to canonical base game UUID
+  if (sourceCode === 'itad') {
+    return {
+      editionKey: 'standard',
+      editionName: 'Standard Edition',
+      identityConfidence: 'CONFIDENT'
+    };
+  }
+
+  // CheapShark: store-based deals where title has no edition markers
+  if (sourceCode === 'cheapshark') {
+    return {
+      editionKey: 'standard',
+      editionName: 'Standard Edition',
+      identityConfidence: 'CONFIDENT'
+    };
+  }
+
+  // 4. GG.deals and SuperDuperBundle:
+  // Multi-store aggregators without package IDs or explicit edition fields.
+  // Missing metadata CANNOT be assumed to be Standard Edition with confidence.
+  if (sourceCode === 'ggdeals' || sourceCode === 'superduperbundle') {
+    return {
+      editionKey: 'standard',
+      editionName: 'Standard Edition (Unverified)',
+      identityConfidence: 'AMBIGUOUS'
+    };
+  }
+
+  // 5. Default unresolved / unverified identity fallback
   return {
     editionKey: 'standard',
-    editionName: 'Standard Edition',
-    identityConfidence: 'CONFIDENT'
+    editionName: 'Standard Edition (Unverified)',
+    identityConfidence: 'AMBIGUOUS'
   };
 }

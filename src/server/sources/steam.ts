@@ -496,6 +496,7 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       editionName: 'Standard Edition',
       editionKey: 'standard',
       identityConfidence: 'CONFIDENT',
+      activationPlatform: 'steam',
       rawPayload: details
     }];
   }

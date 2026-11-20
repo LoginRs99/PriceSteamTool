@@ -1,5 +1,6 @@
 export type ProductType = 'STEAM_KEY' | 'STEAM_GIFT' | 'DIRECT_PURCHASE';
 export type RegionType = 'HU' | 'EU' | 'GLOBAL' | 'RESTRICTED';
+export type ActivationPlatform = 'steam' | 'epic' | 'gog' | 'ubisoft' | 'ea' | 'rockstar' | 'battlenet' | 'microsoft' | 'drm_free' | 'unknown';
 
 export type SourceCode = 'steam' | 'itad' | 'ggdeals' | 'cheapshark' | 'allkeyshop' | 'nexarda' | 'superduperbundle';
 
@@ -231,6 +232,7 @@ export interface Offer {
   editionKey?: string;
   editionName?: string;
   identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
+  activationPlatform?: ActivationPlatform;
   isFresh?: boolean;
   sources: SourceCode[];
   sourceAgreementCount?: number;

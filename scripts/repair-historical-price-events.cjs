@@ -306,6 +306,7 @@ function executeReplay(db, applyChanges, dbPath) {
   // Ensure price_history has edition and confidence columns if modifying
   const phCols = db.prepare(`PRAGMA table_info(price_history)`).all().map(c => c.name);
   const hasEditionCols = phCols.includes('edition_key') && phCols.includes('identity_confidence');
+  const hasPlatformCol = phCols.includes('activation_platform');
 
   if (!hasEditionCols && applyChanges) {
     try { db.exec("ALTER TABLE price_history ADD COLUMN edition_key TEXT DEFAULT 'standard';"); } catch {}
@@ -336,9 +337,12 @@ function executeReplay(db, applyChanges, dbPath) {
   console.log(`Loaded ${gamesMap.size} games and ${merchantsMap.size} merchants.`);
   console.log(`Streaming price history in chronological order per stream...`);
 
-  const selectCols = hasEditionCols 
-    ? 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, recorded_at'
-    : 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, recorded_at';
+  let selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, recorded_at';
+  if (hasEditionCols && hasPlatformCol) {
+    selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, activation_platform, recorded_at';
+  } else if (hasEditionCols) {
+    selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, recorded_at';
+  }
 
   const allHistory = db.prepare(`
     SELECT ${selectCols}

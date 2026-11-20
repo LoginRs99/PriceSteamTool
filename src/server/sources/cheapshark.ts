@@ -1,3 +1,4 @@
+import { normalizeActivationPlatform } from '../domain/platform.js';
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
@@ -78,6 +79,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
     }
 
     const editionNorm = normalizeEdition(undefined, d.title, 'cheapshark');
+    const platformNorm = normalizeActivationPlatform(undefined, undefined, storeName, 'cheapshark');
 
     return {
       merchantCode,
@@ -94,6 +96,7 @@ export class CheapSharkSourceAdapter implements PriceSourceAdapter {
       editionName: editionNorm.editionName,
       editionKey: editionNorm.editionKey,
       identityConfidence: editionNorm.identityConfidence,
+      activationPlatform: platformNorm.platform,
       rawPayload: d,
       metacriticScore,
       metacriticUrl

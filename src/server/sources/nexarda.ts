@@ -1,3 +1,4 @@
+import { normalizeActivationPlatform } from '../domain/platform.js';
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
@@ -253,6 +254,7 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
     const isOfficial = !isKnownKeyshop && Boolean(item.store.official);
 
     const editionNorm = normalizeEdition(item.edition || item.edition_full, undefined, 'nexarda');
+    const platformNorm = normalizeActivationPlatform(undefined, item.platform, item.store.name, 'nexarda');
 
     return {
       merchantCode: merchantCode || 'nexarda-store',
@@ -270,6 +272,7 @@ export class NexardaSourceAdapter implements PriceSourceAdapter {
       editionName: editionNorm.editionName,
       editionKey: editionNorm.editionKey,
       identityConfidence: editionNorm.identityConfidence,
+      activationPlatform: platformNorm.platform,
       rawPayload: item
     };
   }
