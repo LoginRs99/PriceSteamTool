@@ -1,5 +1,5 @@
 export type ProductType = 'STEAM_KEY' | 'STEAM_GIFT' | 'DIRECT_PURCHASE';
-export type RegionType = 'HU' | 'EU' | 'GLOBAL' | 'RESTRICTED';
+export type RegionType = 'HU' | 'EU' | 'GLOBAL' | 'RESTRICTED' | 'unknown';
 export type ActivationPlatform = 'steam' | 'epic' | 'gog' | 'ubisoft' | 'ea' | 'rockstar' | 'battlenet' | 'microsoft' | 'drm_free' | 'unknown';
 
 export type SourceCode = 'steam' | 'itad' | 'ggdeals' | 'cheapshark' | 'allkeyshop' | 'nexarda' | 'superduperbundle';
@@ -271,6 +271,8 @@ export interface PriceHistoryEntry {
   editionKey?: string;
   editionName?: string;
   identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
+  activationPlatform?: ActivationPlatform;
+  regionType?: RegionType;
   recordedAt: string;
 }
 

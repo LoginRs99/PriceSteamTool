@@ -53,4 +53,6 @@ repomix*.txt
 # Local tool caches & configs
 .impeccable/
 .codex/
+scripts/temp_inspect*
+scripts/test_migration*
 

@@ -166,14 +166,14 @@ describe('Fresh Drops & Price Event Classification Regression Suite', () => {
       expect(event).toBe('EXTREME_DROP');
     });
 
-    it('classifies 50% price slash on already-discounted offer as EXTREME_DROP', () => {
+    it('classifies 50% price slash on already-discounted offer as MAJOR_DROP', () => {
       const event = detectPriceEvent({
         currentPriceEur: 9.99,
-        previousPriceEur: 19.99, // already discounted from 59.99 MSRP
+        previousPriceEur: 19.99, // already discounted from 59.99 MSRP (10.00€ drop, 50% -> MAJOR_DROP)
         basePriceEur: 59.99,
         isOfficialMerchant: true
       });
-      expect(event).toBe('EXTREME_DROP');
+      expect(event).toBe('MAJOR_DROP');
     });
 
     it('classifies 25% price drop on already-discounted offer as MAJOR_DROP', () => {

@@ -27,9 +27,10 @@ const DEFAULT_PRICE_DROP_THRESHOLDS = {
   LOW_PRICE_THRESHOLD_EUR: 5.00,
   LOW_PRICE_NOISE_EUR: 0.10,
 
-  EXTREME_DROP_PERCENT: 50.0,
+  EXTREME_DROP_PERCENT: 75.0,
   EXTREME_DROP_MIN_EUR: 2.00,
-  EXTREME_DROP_ABSOLUTE_EUR: 10.00,
+  EXTREME_DROP_ABSOLUTE_EUR: 15.00,
+  EXTREME_DROP_ABSOLUTE_MIN_PERCENT: 35.0,
 
   MAJOR_DROP_PERCENT: 25.0,
   MAJOR_DROP_MIN_EUR: 1.00,
@@ -100,7 +101,7 @@ function detectPriceEvent(input, isPricingError = false, customThresholds = {}) 
   // Drop magnitudes evaluated against actual delta from previousPriceEur
   if (
     (relativeDropPercent >= thresholds.EXTREME_DROP_PERCENT && priceDeltaEur >= thresholds.EXTREME_DROP_MIN_EUR) ||
-    priceDeltaEur >= thresholds.EXTREME_DROP_ABSOLUTE_EUR
+    (priceDeltaEur >= thresholds.EXTREME_DROP_ABSOLUTE_EUR && relativeDropPercent >= (thresholds.EXTREME_DROP_ABSOLUTE_MIN_PERCENT || 35.0))
   ) {
     return 'EXTREME_DROP';
   }
@@ -307,6 +308,7 @@ function executeReplay(db, applyChanges, dbPath) {
   const phCols = db.prepare(`PRAGMA table_info(price_history)`).all().map(c => c.name);
   const hasEditionCols = phCols.includes('edition_key') && phCols.includes('identity_confidence');
   const hasPlatformCol = phCols.includes('activation_platform');
+  const hasRegionCol = phCols.includes('region_type');
 
   if (!hasEditionCols && applyChanges) {
     try { db.exec("ALTER TABLE price_history ADD COLUMN edition_key TEXT DEFAULT 'standard';"); } catch {}
@@ -338,7 +340,9 @@ function executeReplay(db, applyChanges, dbPath) {
   console.log(`Streaming price history in chronological order per stream...`);
 
   let selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, recorded_at';
-  if (hasEditionCols && hasPlatformCol) {
+  if (hasEditionCols && hasPlatformCol && hasRegionCol) {
+    selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, activation_platform, region_type, recorded_at';
+  } else if (hasEditionCols && hasPlatformCol) {
     selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, activation_platform, recorded_at';
   } else if (hasEditionCols) {
     selectCols = 'id, game_id, merchant_id, source_code, price_eur, price_event, is_pricing_error, edition_key, edition_name, identity_confidence, recorded_at';

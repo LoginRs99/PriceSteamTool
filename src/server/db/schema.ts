@@ -190,13 +190,14 @@ CREATE TABLE IF NOT EXISTS price_history (
   edition_name TEXT DEFAULT 'Standard Edition',
   identity_confidence TEXT DEFAULT 'CONFIDENT',
   activation_platform TEXT DEFAULT 'steam',
+  region_type TEXT NOT NULL DEFAULT 'GLOBAL',
   recorded_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_price_history_game ON price_history(game_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_price_history_merchant ON price_history(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_price_history_recorded_at ON price_history(recorded_at);
-CREATE INDEX IF NOT EXISTS idx_price_history_stream ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_price_history_stream ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, region_type, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_price_history_confidence ON price_history(identity_confidence);
 
 

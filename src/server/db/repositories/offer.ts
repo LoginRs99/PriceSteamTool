@@ -17,7 +17,8 @@ import type {
   SourceCode, 
   PriceHistoryEntry,
   PriceEventType,
-  ActivationPlatform
+  ActivationPlatform,
+  RegionType
 } from '../../../shared/types.js';
 
 const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000));
@@ -146,6 +147,7 @@ export const offerRepo = {
     const editionName = data.editionName || (editionKey === 'standard' ? 'Standard Edition' : editionKey);
     const identityConfidence = data.identityConfidence || 'CONFIDENT';
     const activationPlatform: ActivationPlatform = data.activationPlatform || 'steam';
+    const regionType: RegionType = (data.regionType || 'GLOBAL') as RegionType;
     const discount = (data as any).discountPercent !== undefined ? (data as any).discountPercent : 
       (data.originalPriceEur && data.originalPriceEur > data.priceEur 
         ? Math.round(((data.originalPriceEur - data.priceEur) / data.originalPriceEur) * 100) 
@@ -377,22 +379,22 @@ export const offerRepo = {
 
       const sourceHistoryRows = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND edition_key = ? AND activation_platform = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND edition_key = ? AND activation_platform = ? AND region_type = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
         ORDER BY recorded_at ASC
-      `).all(data.gameId, data.merchantId, active.sourceCode, editionKey, activationPlatform) as any[];
+      `).all(data.gameId, data.merchantId, active.sourceCode, editionKey, activationPlatform, regionType) as any[];
       const sourceHistory = sourceHistoryRows.map(r => Number(r.price_eur));
 
       const lastMerchantHistory = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND edition_key = ? AND activation_platform = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
+        WHERE game_id = ? AND merchant_id = ? AND edition_key = ? AND activation_platform = ? AND region_type = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
         ORDER BY recorded_at DESC LIMIT 1
-      `).get(data.gameId, data.merchantId, editionKey, activationPlatform) as any;
+      `).get(data.gameId, data.merchantId, editionKey, activationPlatform, regionType) as any;
 
       const lastHistory = prepareStmt(`
         SELECT price_eur, raw_price, raw_currency, discount_percent FROM price_history 
-        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND edition_key = ? AND activation_platform = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
+        WHERE game_id = ? AND merchant_id = ? AND source_code = ? AND edition_key = ? AND activation_platform = ? AND region_type = ? AND is_pricing_error = 0 AND identity_confidence = 'CONFIDENT'
         ORDER BY recorded_at DESC LIMIT 1
-      `).get(data.gameId, data.merchantId, active.sourceCode, editionKey, activationPlatform) as any;
+      `).get(data.gameId, data.merchantId, active.sourceCode, editionKey, activationPlatform, regionType) as any;
 
       const PREMIUM_EDITION_RE = /(deluxe|ultimate|gold|premium|collector|goty|complete)/i;
       let suspectedEditionInversion = false;
@@ -745,9 +747,9 @@ export const offerRepo = {
           INSERT INTO price_history (
             id, game_id, merchant_id, source_code, price_eur, raw_price, raw_currency, fx_rate, 
             discount_percent, price_event, deal_score, is_pricing_error, 
-            edition_key, edition_name, identity_confidence, activation_platform, recorded_at
+            edition_key, edition_name, identity_confidence, activation_platform, region_type, recorded_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           randomUUID(), 
           data.gameId, 
@@ -765,6 +767,7 @@ export const offerRepo = {
           editionName,
           identityConfidence,
           activationPlatform,
+          regionType,
           now
         );
       }
@@ -1113,6 +1116,7 @@ export const offerRepo = {
       editionName: r.edition_name || 'Standard Edition',
       identityConfidence: r.identity_confidence || 'CONFIDENT',
       activationPlatform: r.activation_platform || 'unknown',
+      regionType: (r.region_type || 'GLOBAL') as RegionType,
       recordedAt: r.recorded_at
     }));
   },

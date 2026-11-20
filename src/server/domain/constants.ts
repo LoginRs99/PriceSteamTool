@@ -30,10 +30,11 @@ export interface PriceDropThresholds {
   readonly LOW_PRICE_THRESHOLD_EUR: number;
   readonly LOW_PRICE_NOISE_EUR: number;
 
-  /** EXTREME_DROP: (dropPercent >= 50% AND dropEur >= 2.00€) OR dropEur >= 10.00€ */
+  /** EXTREME_DROP: (dropPercent >= 75% AND dropEur >= 2.00€) OR (dropEur >= 15.00€ AND dropPercent >= 35%) */
   readonly EXTREME_DROP_PERCENT: number;
   readonly EXTREME_DROP_MIN_EUR: number;
   readonly EXTREME_DROP_ABSOLUTE_EUR: number;
+  readonly EXTREME_DROP_ABSOLUTE_MIN_PERCENT: number;
 
   /** MAJOR_DROP: (dropPercent >= 25% AND dropEur >= 1.00€) OR dropEur >= 5.00€ */
   readonly MAJOR_DROP_PERCENT: number;
@@ -58,9 +59,10 @@ export const DEFAULT_PRICE_DROP_THRESHOLDS: PriceDropThresholds = {
   LOW_PRICE_THRESHOLD_EUR: 5.00,
   LOW_PRICE_NOISE_EUR: 0.10,
 
-  EXTREME_DROP_PERCENT: 50.0,
+  EXTREME_DROP_PERCENT: 75.0,
   EXTREME_DROP_MIN_EUR: 2.00,
-  EXTREME_DROP_ABSOLUTE_EUR: 10.00,
+  EXTREME_DROP_ABSOLUTE_EUR: 15.00,
+  EXTREME_DROP_ABSOLUTE_MIN_PERCENT: 35.0,
 
   MAJOR_DROP_PERCENT: 25.0,
   MAJOR_DROP_MIN_EUR: 1.00,

@@ -122,23 +122,69 @@ describe('Price Drop Threshold Boundaries & Precedence Verification', () => {
     });
   });
 
-  describe('6. Extreme Drop Classification (>= 50% & >= 2.00 EUR OR >= 10.00 EUR)', () => {
-    it('classifies drops meeting extreme percentage criteria', () => {
-      // 50% drop on 20 EUR (10.00 EUR drop >= 2.00 EUR)
+  describe('6. Extreme Drop Classification ((>= 75% & >= 2.00 EUR) OR (>= 15.00 EUR & >= 35%))', () => {
+    it('classifies drops meeting extreme percentage criteria (>= 75% & >= 2.00€)', () => {
+      // €20 -> €5 (75% drop, 15.00€ savings >= 2.00€) -> EXTREME_DROP
       expect(detectPriceEvent({
-        currentPriceEur: 10.00,
+        currentPriceEur: 5.00,
         previousPriceEur: 20.00,
-        historicalLowEur: 8.00,
+        historicalLowEur: 4.00,
       })).toBe('EXTREME_DROP');
     });
 
-    it('classifies drops meeting absolute 10.00 EUR drop criteria', () => {
-      // 12.00 EUR drop on 60 EUR (20% drop, but >= 10.00 EUR absolute)
+    it('classifies drops meeting absolute >= 15.00 EUR savings with percentage guard (>= 35%)', () => {
+      // €70 -> €42 (40% drop, 28.00€ savings >= 15.00€ and 40% >= 35%) -> EXTREME_DROP
       expect(detectPriceEvent({
-        currentPriceEur: 48.00,
-        previousPriceEur: 60.00,
+        currentPriceEur: 42.00,
+        previousPriceEur: 70.00,
         historicalLowEur: 35.00,
       })).toBe('EXTREME_DROP');
+    });
+
+    it('verifies explicit price-band benchmark scenarios', () => {
+      // Scenario 1: €20 → €5 (75%, extreme)
+      expect(detectPriceEvent({
+        currentPriceEur: 5.00,
+        previousPriceEur: 20.00,
+        historicalLowEur: 4.00,
+      })).toBe('EXTREME_DROP');
+
+      // Scenario 2: €50 → €35 (30%, not extreme -> MAJOR_DROP)
+      expect(detectPriceEvent({
+        currentPriceEur: 35.00,
+        previousPriceEur: 50.00,
+        historicalLowEur: 30.00,
+      })).toBe('MAJOR_DROP');
+
+      // Scenario 3: €70 → €55 (21.4%, not extreme -> MAJOR_DROP via delta >= 5.00€)
+      expect(detectPriceEvent({
+        currentPriceEur: 55.00,
+        previousPriceEur: 70.00,
+        historicalLowEur: 50.00,
+      })).toBe('MAJOR_DROP');
+
+      // Scenario 4: €70 → €42 (40% / -28€, extreme)
+      expect(detectPriceEvent({
+        currentPriceEur: 42.00,
+        previousPriceEur: 70.00,
+        historicalLowEur: 35.00,
+      })).toBe('EXTREME_DROP');
+
+      // Scenario 5: €100 → €85 (15%, not extreme -> MAJOR_DROP via delta >= 5.00€)
+      expect(detectPriceEvent({
+        currentPriceEur: 85.00,
+        previousPriceEur: 100.00,
+        historicalLowEur: 70.00,
+      })).toBe('MAJOR_DROP');
+
+      // Scenario 6: €190 → €176.63 (8.1%, not extreme -> MAJOR_DROP via delta >= 5.00€)
+      const res6 = detectPriceEvent({
+        currentPriceEur: 176.63,
+        previousPriceEur: 190.00,
+        historicalLowEur: 150.00,
+      });
+      expect(res6).not.toBe('EXTREME_DROP');
+      expect(res6).toBe('MAJOR_DROP');
     });
   });
 

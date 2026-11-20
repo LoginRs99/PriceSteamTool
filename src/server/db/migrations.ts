@@ -1260,21 +1260,19 @@ export const MIGRATIONS: Migration[] = [
   {
     name: '041_activation_platform_identity',
     up: (db) => {
-      // 1. Add activation_platform to price_history
+      // 1. Add activation_platform and region_type to price_history
       try {
-        db.exec("ALTER TABLE price_history ADD COLUMN activation_platform TEXT DEFAULT 'steam';");
+        db.exec("ALTER TABLE price_history ADD COLUMN activation_platform TEXT DEFAULT 'unknown';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN region_type TEXT NOT NULL DEFAULT 'unknown';");
       } catch (e: any) {
         if (!e.message?.includes('duplicate column')) throw e;
       }
 
-      try {
-        db.exec(`
-          CREATE INDEX IF NOT EXISTS idx_price_history_stream 
-          ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, recorded_at);
-        `);
-      } catch (e: any) {}
-
-      // 2. Rebuild offers table with activation_platform and updated composite unique constraint
+      // 2. Rebuild offers table with semantic activation_platform and updated composite unique constraint
       const offersCols = db.prepare(`PRAGMA table_info(offers)`).all() as { name: string }[];
       const colNames = offersCols.map(c => c.name);
 
@@ -1323,13 +1321,26 @@ export const MIGRATIONS: Migration[] = [
             fetched_at, last_observed_at, created_at, updated_at
           )
           SELECT
-            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
-            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
-            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
-            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
-            edition_key, edition_name, identity_confidence, 'steam' AS activation_platform,
-            fetched_at, last_observed_at, created_at, updated_at
-          FROM offers;
+            o.id, o.game_id, o.merchant_id, o.product_type, o.region_type, o.region_code, o.region_confidence,
+            o.price_eur, o.original_price_eur, o.raw_price, o.raw_currency, o.raw_original_price,
+            o.discount_percent, o.voucher_code, o.deal_url, o.is_best_deal, o.is_valid, o.price_event,
+            o.is_likely_pricing_error, o.pricing_error_confidence, o.pricing_error_type, o.pricing_error_reason,
+            o.edition_key, o.edition_name, o.identity_confidence,
+            CASE
+              WHEN m.code = 'steam' OR m.name = 'Steam Store' THEN 'steam'
+              WHEN m.code = 'gog' OR m.name = 'GOG' THEN 'gog'
+              WHEN m.code = 'epicgamestore' OR m.name = 'Epic Game Store' THEN 'epic'
+              WHEN m.code = 'microsoftstore' OR m.name = 'Microsoft Store' THEN 'microsoft'
+              WHEN m.code = 'ubisoftstore' OR m.name = 'Ubisoft Store' THEN 'ubisoft'
+              WHEN m.code = 'eastore' OR m.name = 'EA Store' OR m.name = 'Origin' THEN 'ea'
+              WHEN m.code = 'blizzard' OR m.name = 'Blizzard' THEN 'battlenet'
+              WHEN m.code IN ('itch', 'zoomplatform') THEN 'drm_free'
+              WHEN o.product_type IN ('STEAM_KEY', 'STEAM_GIFT') THEN 'steam'
+              ELSE 'unknown'
+            END AS activation_platform,
+            o.fetched_at, o.last_observed_at, o.created_at, o.updated_at
+          FROM offers o
+          JOIN merchants m ON o.merchant_id = m.id;
 
           DROP TABLE offers;
           ALTER TABLE offers_new RENAME TO offers;
@@ -1346,6 +1357,51 @@ export const MIGRATIONS: Migration[] = [
           CREATE INDEX IF NOT EXISTS idx_offers_platform ON offers(game_id, activation_platform);
         `);
       }
+
+      // 3. Backfill price_history activation_platform with exact store semantics
+      db.exec(`
+        UPDATE price_history SET activation_platform = (
+          SELECT CASE
+            WHEN m.code = 'steam' OR m.name = 'Steam Store' THEN 'steam'
+            WHEN m.code = 'gog' OR m.name = 'GOG' THEN 'gog'
+            WHEN m.code = 'epicgamestore' OR m.name = 'Epic Game Store' THEN 'epic'
+            WHEN m.code = 'microsoftstore' OR m.name = 'Microsoft Store' THEN 'microsoft'
+            WHEN m.code = 'ubisoftstore' OR m.name = 'Ubisoft Store' THEN 'ubisoft'
+            WHEN m.code = 'eastore' OR m.name = 'EA Store' OR m.name = 'Origin' THEN 'ea'
+            WHEN m.code = 'blizzard' OR m.name = 'Blizzard' THEN 'battlenet'
+            WHEN m.code IN ('itch', 'zoomplatform') THEN 'drm_free'
+            WHEN price_history.source_code = 'steam' THEN 'steam'
+            WHEN price_history.source_code = 'ggdeals' THEN 'steam'
+            WHEN EXISTS (
+              SELECT 1 FROM offers o 
+              WHERE o.game_id = price_history.game_id 
+                AND o.merchant_id = price_history.merchant_id 
+                AND o.activation_platform = 'steam'
+            ) THEN 'steam'
+            ELSE 'unknown'
+          END
+          FROM merchants m
+          WHERE m.id = price_history.merchant_id
+        );
+
+        -- 4. Backfill price_history region_type:
+        -- Single-region pairs get their verified region from offers.
+        -- Multi-region pairs and un-offered history remain 'unknown' for strict stream isolation.
+        UPDATE price_history SET region_type = COALESCE(
+          (
+            SELECT MAX(o.region_type)
+            FROM offers o
+            WHERE o.game_id = price_history.game_id 
+              AND o.merchant_id = price_history.merchant_id
+            GROUP BY o.game_id, o.merchant_id
+            HAVING COUNT(DISTINCT o.region_type) = 1
+          ),
+          'unknown'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_price_history_stream 
+        ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, region_type, recorded_at);
+      `);
     }
   }
 ];

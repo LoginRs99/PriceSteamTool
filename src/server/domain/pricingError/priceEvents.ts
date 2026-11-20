@@ -96,10 +96,10 @@ export function detectPriceEvent(
   }
 
   // 6. Magnitude Evaluation against actual price drop from previous price
-  // Extreme Drop: >=50% drop with >=2.00€ savings, OR >=10.00€ absolute drop
+  // Extreme Drop: (dropPercent >= 75% AND dropEur >= 2.00€) OR (dropEur >= 15.00€ AND dropPercent >= 35%)
   if (
     (relativeDropPercent >= thresholds.EXTREME_DROP_PERCENT && priceDeltaEur >= thresholds.EXTREME_DROP_MIN_EUR) ||
-    priceDeltaEur >= thresholds.EXTREME_DROP_ABSOLUTE_EUR
+    (priceDeltaEur >= thresholds.EXTREME_DROP_ABSOLUTE_EUR && relativeDropPercent >= (thresholds.EXTREME_DROP_ABSOLUTE_MIN_PERCENT ?? 35.0))
   ) {
     return 'EXTREME_DROP';
   }

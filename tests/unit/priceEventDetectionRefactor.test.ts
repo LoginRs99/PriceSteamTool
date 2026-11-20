@@ -143,20 +143,20 @@ describe('Price Event Detection Refactor Suite', () => {
       expect(event).toBe('MAJOR_DROP');
     });
 
-    it('evaluates EXTREME_DROP: >= 50% drop and >= 2.00€ savings', () => {
+    it('evaluates EXTREME_DROP: >= 75% drop and >= 2.00€ savings', () => {
       const event = detectPriceEvent({
-        currentPriceEur: 10.00,
-        previousPriceEur: 20.00, // 50% drop, 10.00€ savings
+        currentPriceEur: 5.00,
+        previousPriceEur: 20.00, // 75% drop, 15.00€ savings
         basePriceEur: 40.00
       });
       expect(event).toBe('EXTREME_DROP');
     });
 
-    it('evaluates EXTREME_DROP via absolute drop: >= 10.00€ savings', () => {
+    it('evaluates EXTREME_DROP via absolute drop: >= 15.00€ savings with relative >= 35%', () => {
       const event = detectPriceEvent({
-        currentPriceEur: 68.00,
-        previousPriceEur: 80.00, // 15% drop, but 12.00€ savings (>= 10.00€)
-        basePriceEur: 100.00
+        currentPriceEur: 42.00,
+        previousPriceEur: 70.00, // 40% drop, 28.00€ savings (>= 15.00€ and >= 35%)
+        basePriceEur: 80.00
       });
       expect(event).toBe('EXTREME_DROP');
     });

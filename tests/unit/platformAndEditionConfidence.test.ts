@@ -335,4 +335,183 @@ describe('Final Hardening Suite: Edition Confidence, DRM Identity & Marketplace 
       expect(bestOffer?.merchantCode).toBe('steam');
     });
   });
+
+  // ==========================================
+  // 4. Regional Price History Isolation
+  // ==========================================
+  describe('4. Regional Price History Stream Isolation', () => {
+    it('EU and Global offers from same merchant maintain independent price streams and cannot contaminate each other', () => {
+      const game = gameRepo.upsert({
+        steamAppId: 1086940,
+        title: "Baldur's Gate 3 (Regional Test)",
+        slug: 'baldurs-gate-3-reg',
+        basePriceEur: 59.99
+      });
+
+      const gamesplanet = merchantRepo.getOrCreate('gamesplanet', 'Gamesplanet', true);
+
+      // 1. Record Gamesplanet EU offer at €28.49
+      const euOffer1 = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: gamesplanet.id,
+        productType: 'STEAM_KEY',
+        regionType: 'EU',
+        priceEur: 28.49,
+        dealUrl: 'https://gamesplanet.com/bg3-eu',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'nexarda'
+      });
+      expect(euOffer1.priceEvent).toBe('NEW_OFFER');
+
+      // 2. Record Gamesplanet GLOBAL offer at €6.21
+      const globalOffer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: gamesplanet.id,
+        productType: 'STEAM_KEY',
+        regionType: 'GLOBAL',
+        priceEur: 22.00,
+        dealUrl: 'https://gamesplanet.com/bg3-global',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'cheapshark'
+      });
+      // Global is a new offer stream for GLOBAL region, evaluated against empty Global history
+      expect(globalOffer.priceEvent).toBe('NEW_OFFER');
+
+      // 3. Update Gamesplanet EU offer to €28.00 (a minor drop from €28.49, 1.7% drop -> NONE)
+      const euOffer2 = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: gamesplanet.id,
+        productType: 'STEAM_KEY',
+        regionType: 'EU',
+        priceEur: 28.00,
+        dealUrl: 'https://gamesplanet.com/bg3-eu',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'nexarda'
+      });
+
+      // The EU update evaluates against previous EU €28.49, NOT against Global €6.21
+      // €28.49 -> €28.00 is a 1.7% drop (-€0.49), below 5% noise threshold -> NONE
+      // (If it had contaminated with Global €6.21, €6.21 -> €28.00 would have falsely triggered PRICE_INCREASE!)
+      expect(euOffer2.priceEvent).toBe('NONE');
+
+      // Verify both EU and Global price histories exist and are tagged with their respective region_type
+      const history = offerRepo.getPriceHistory(game.id);
+      expect(history.length).toBe(3);
+
+      const euHist = history.filter(h => h.regionType === 'EU');
+      const globalHist = history.filter(h => h.regionType === 'GLOBAL');
+      expect(euHist.length).toBe(2);
+      expect(globalHist.length).toBe(1);
+      expect(globalHist[0].priceEur).toBe(22.00);
+    });
+
+    it('US and EU offers coexist with distinct region types and do not trigger cross-regional price jumps', () => {
+      const game = gameRepo.upsert({
+        steamAppId: 1091500,
+        title: 'Cyberpunk 2077 (US/EU Regional)',
+        slug: 'cyberpunk-us-eu',
+        basePriceEur: 59.99
+      });
+
+      const g2a = merchantRepo.getOrCreate('g2a', 'G2A', false);
+
+      // US Key at €18.20
+      const usOffer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: g2a.id,
+        productType: 'STEAM_KEY',
+        regionType: 'US',
+        priceEur: 18.20,
+        dealUrl: 'https://g2a.com/cp2077-us',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'nexarda'
+      });
+      expect(usOffer.priceEvent).toBe('NEW_OFFER');
+
+      // EU Key at €22.00
+      const euOffer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: g2a.id,
+        productType: 'STEAM_KEY',
+        regionType: 'EU',
+        priceEur: 22.00,
+        dealUrl: 'https://g2a.com/cp2077-eu',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'nexarda'
+      });
+      expect(euOffer.priceEvent).toBe('NEW_OFFER');
+
+      const allOffers = offerRepo.getOffersForGame(game.id);
+      expect(allOffers.length).toBe(2);
+      const regionTypes = allOffers.map(o => o.regionType);
+      expect(regionTypes).toContain('US');
+      expect(regionTypes).toContain('EU');
+    });
+
+    it('legacy price_history records marked as region_type = unknown never contaminate verified GLOBAL or EU streams', () => {
+      const game = gameRepo.upsert({
+        steamAppId: 1234567,
+        title: 'Legacy Regional Isolation Game',
+        slug: 'legacy-reg-game',
+        basePriceEur: 49.99
+      });
+
+      const merchant = merchantRepo.getOrCreate('gamesplanet', 'Gamesplanet', true);
+
+      // Seed a legacy contaminated historical record with region_type = 'unknown' (e.g. historical €40.00)
+      getDb().prepare(`
+        INSERT INTO price_history (
+          id, game_id, merchant_id, source_code, price_eur, price_event,
+          edition_key, activation_platform, region_type, recorded_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'legacy-hist-1',
+        game.id,
+        merchant.id,
+        'nexarda',
+        40.00,
+        'NONE',
+        'standard',
+        'steam',
+        'unknown',
+        new Date(Date.now() - 86400000).toISOString()
+      );
+
+      // Now upsert a verified GLOBAL offer at €10.00
+      // If contaminated with the €40.00 unknown record, it would trigger a massive drop (-75%).
+      // Because regional streams are strictly isolated, it sees no previous GLOBAL history -> NEW_OFFER!
+      const newGlobalOffer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchant.id,
+        productType: 'STEAM_KEY',
+        regionType: 'GLOBAL',
+        priceEur: 10.00,
+        dealUrl: 'https://gamesplanet.com/bg3-global',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'cheapshark'
+      });
+      expect(newGlobalOffer.priceEvent).toBe('NEW_OFFER');
+
+      // Now upsert a verified EU offer at €28.00
+      // Similarly sees no previous EU history -> NEW_OFFER!
+      const newEuOffer = offerRepo.upsertOffer({
+        gameId: game.id,
+        merchantId: merchant.id,
+        productType: 'STEAM_KEY',
+        regionType: 'EU',
+        priceEur: 28.00,
+        dealUrl: 'https://gamesplanet.com/bg3-eu',
+        editionKey: 'standard',
+        activationPlatform: 'steam',
+        sourceCode: 'nexarda'
+      });
+      expect(newEuOffer.priceEvent).toBe('NEW_OFFER');
+    });
+  });
 });

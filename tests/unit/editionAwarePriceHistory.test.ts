@@ -167,7 +167,7 @@ describe('Edition-Aware Price History & Stream Ingestion Identity', () => {
         identityConfidence: 'CONFIDENT',
       });
 
-      // Deluxe goes on sale from €54.44 to €39.99 (a €14.45 drop >= €10.00 absolute drop threshold) -> EXTREME_DROP
+      // Deluxe goes on sale from €54.44 to €39.99 (a €14.45 drop >= €5.00 threshold) -> MAJOR_DROP
       const discountedDeluxe = offerRepo.upsertOffer({
         gameId,
         merchantId,
@@ -182,7 +182,7 @@ describe('Edition-Aware Price History & Stream Ingestion Identity', () => {
         identityConfidence: 'CONFIDENT',
       });
 
-      expect(discountedDeluxe.priceEvent).toBe('EXTREME_DROP');
+      expect(discountedDeluxe.priceEvent).toBe('MAJOR_DROP');
     });
 
     it('forces price_event to NONE when identity_confidence is AMBIGUOUS', () => {
