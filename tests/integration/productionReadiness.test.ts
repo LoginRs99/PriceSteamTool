@@ -159,6 +159,7 @@ describe('v1.0 – v1.3 Production-Readiness & Real-Data Audit Suite', () => {
   it('3. Legitimate 85-90% official deep sale is SAFE and never flagged as anomaly', () => {
     const evalRes = evaluatePriceMovement({
       currentPriceEur: 4.49,
+      previousPriceEur: 29.99,
       basePriceEur: 29.99,
       isOfficialMerchant: true,
       sourceAgreementCount: 2,

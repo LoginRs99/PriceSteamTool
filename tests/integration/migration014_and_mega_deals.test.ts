@@ -80,6 +80,7 @@ describe('Migration 014 & Mega Deals Integration Tests', () => {
   it('Mega Deal (EXTREME_DROP) properly surfaces for deep discount matching ATL', () => {
     const res = evaluatePriceMovement({
       currentPriceEur: 5.54,
+      previousPriceEur: 39.99,
       basePriceEur: 39.99,
       historicalLowEur: 5.57,
       isOfficialMerchant: false,

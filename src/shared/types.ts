@@ -16,6 +16,7 @@ export type PriceEventType =
   | 'PRICE_INCREASE' 
   | 'PRICING_ERROR' 
   | 'NONE'
+  | 'NEW_OFFER'
   | 'NEW_HISTORICAL_LOW' 
   | 'AT_HISTORICAL_LOW' 
   | 'SUSPECTED_HISTORICAL_LOW'

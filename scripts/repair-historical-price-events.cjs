@@ -2,9 +2,12 @@
 /**
  * PriceSteamTool — Historical Price Event Reclassification & Reversible Repair Utility
  *
- * Replays historical price movements chronologically using domain/pricingError/priceEvents logic.
- * Corrects false Fresh Drops caused by micro-fluctuations (<= €0.015, < 5% under €0.05)
- * and unverified record claims.
+ * Replays historical price movements chronologically using calibrated drop delta logic.
+ * Corrects false Fresh Drops caused by:
+ * 1. Initial offers misclassified as MAJOR_DROP/EXTREME_DROP instead of NEW_OFFER
+ * 2. Evaluating drops against MSRP discount rather than consecutive observation difference
+ * 3. Micro-fluctuations (<= €0.015, < 5% under €0.05, cheap game fluctuations)
+ * 4. Dual ATL invariant violations (historical_low_eur > official_historical_low_eur)
  *
  * Usage:
  *   node scripts/repair-historical-price-events.cjs [dbPath] [--dry-run | --apply | --rollback | --verify]
@@ -16,12 +19,32 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const EPSILON_EUR = 0.005;
+const DEFAULT_PRICE_DROP_THRESHOLDS = {
+  EPSILON_EUR: 0.005,
+  NOISE_FLOOR_EUR: 0.015,
+  MIN_DROP_EUR: 0.05,
+  MIN_DROP_PERCENT: 5.0,
+  LOW_PRICE_THRESHOLD_EUR: 5.00,
+  LOW_PRICE_NOISE_EUR: 0.10,
 
-function detectPriceEvent(input, isPricingError = false) {
+  EXTREME_DROP_PERCENT: 50.0,
+  EXTREME_DROP_MIN_EUR: 2.00,
+  EXTREME_DROP_ABSOLUTE_EUR: 10.00,
+
+  MAJOR_DROP_PERCENT: 25.0,
+  MAJOR_DROP_MIN_EUR: 1.00,
+  MAJOR_DROP_ABSOLUTE_EUR: 5.00,
+
+  SIGNIFICANT_DROP_PERCENT: 15.0,
+  SIGNIFICANT_DROP_MIN_EUR: 0.75,
+  SIGNIFICANT_DROP_ABSOLUTE_EUR: 3.00,
+
+  MODERATE_DROP_PERCENT: 10.0,
+  MODERATE_DROP_MIN_EUR: 0.50,
+};
+
+function detectPriceEvent(input, isPricingError = false, customThresholds = {}) {
   const currentPriceEur = input.currentPriceEur ?? input.priceEur ?? 0;
-  const originalPriceEur = input.originalPriceEur ?? input.claimedOriginalPriceEur;
-  const basePriceEur = input.basePriceEur ?? input.steamBasePriceEur;
   const historicalLowEur = input.historicalLowEur ?? input.confirmedAtlEur;
   const previousPriceEur = input.previousPriceEur;
   const isOfficialMerchant = input.isOfficialMerchant ?? false;
@@ -31,53 +54,77 @@ function detectPriceEvent(input, isPricingError = false) {
   if (currentPriceEur <= 0) return 'NONE';
   if (isPricingError) return 'PRICING_ERROR';
 
-  if (previousPriceEur !== undefined && previousPriceEur > 0 && currentPriceEur > previousPriceEur + EPSILON_EUR) {
+  // First-time observation -> NEW_OFFER
+  if (previousPriceEur === undefined || previousPriceEur === null || previousPriceEur <= 0) {
+    return 'NEW_OFFER';
+  }
+
+  const thresholds = { ...DEFAULT_PRICE_DROP_THRESHOLDS, ...customThresholds };
+
+  // Price increase
+  if (currentPriceEur > previousPriceEur + thresholds.EPSILON_EUR) {
     return 'PRICE_INCREASE';
   }
 
-  // Micro-fluctuation noise filter
-  if (previousPriceEur !== undefined && previousPriceEur > 0) {
-    const priceDeltaEur = previousPriceEur - currentPriceEur;
-    if (priceDeltaEur <= EPSILON_EUR) return 'NONE';
-    if (priceDeltaEur <= 0.015) return 'NONE';
-    const relativeDropPercent = (priceDeltaEur / previousPriceEur) * 100;
-    if (priceDeltaEur < 0.05 && relativeDropPercent < 5.0) {
-      return 'NONE';
-    }
+  const priceDeltaEur = previousPriceEur - currentPriceEur;
+
+  // No decrease
+  if (priceDeltaEur <= thresholds.EPSILON_EUR) {
+    return 'NONE';
   }
 
+  // Micro-fluctuation noise floor
+  if (priceDeltaEur <= thresholds.NOISE_FLOOR_EUR) {
+    return 'NONE';
+  }
+
+  const relativeDropPercent = (priceDeltaEur / previousPriceEur) * 100;
+
+  // Below minimum drop & percentage
+  if (priceDeltaEur < thresholds.MIN_DROP_EUR && relativeDropPercent < thresholds.MIN_DROP_PERCENT) {
+    return 'NONE';
+  }
+
+  // Low-price game noise filter
+  if (previousPriceEur < thresholds.LOW_PRICE_THRESHOLD_EUR && priceDeltaEur <= thresholds.LOW_PRICE_NOISE_EUR && relativeDropPercent < thresholds.MIN_DROP_PERCENT) {
+    return 'NONE';
+  }
+
+  // Genuine Historical Low records (>2% drop below existing ATL)
   const isNewAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur < historicalLowEur * 0.98;
   const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || independentMerchantCount >= 2 || isOfficialMerchant) && !isPricingError;
 
   if (isConfirmedAtl) return 'RECORD_DROP';
   if (isNewAtl) return 'UNCONFIRMED_RECORD_DROP';
 
-  const msrp = basePriceEur || originalPriceEur || 0;
-  const discountPercent = msrp > 0 ? Math.max(0, ((msrp - currentPriceEur) / msrp) * 100) : 0;
-  const absoluteDropEur = msrp > 0 ? Math.max(0, msrp - currentPriceEur) : 0;
+  // Drop magnitudes evaluated against actual delta from previousPriceEur
+  if (
+    (relativeDropPercent >= thresholds.EXTREME_DROP_PERCENT && priceDeltaEur >= thresholds.EXTREME_DROP_MIN_EUR) ||
+    priceDeltaEur >= thresholds.EXTREME_DROP_ABSOLUTE_EUR
+  ) {
+    return 'EXTREME_DROP';
+  }
 
-  const isAtAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02 && !isPricingError;
-  const isNearAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.10 && !isPricingError;
+  if (
+    (relativeDropPercent >= thresholds.MAJOR_DROP_PERCENT && priceDeltaEur >= thresholds.MAJOR_DROP_MIN_EUR) ||
+    priceDeltaEur >= thresholds.MAJOR_DROP_ABSOLUTE_EUR
+  ) {
+    return 'MAJOR_DROP';
+  }
 
-  const isExtremeDrop = msrp > 0 && (
-    (discountPercent >= 75 && (absoluteDropEur >= 15 || msrp >= 20)) ||
-    (discountPercent >= 80 && absoluteDropEur >= 10) ||
-    (discountPercent >= 70 && absoluteDropEur >= 20) ||
-    (isAtAtl && discountPercent >= 65 && absoluteDropEur >= 15)
-  );
+  if (
+    (relativeDropPercent >= thresholds.SIGNIFICANT_DROP_PERCENT && priceDeltaEur >= thresholds.SIGNIFICANT_DROP_MIN_EUR) ||
+    priceDeltaEur >= thresholds.SIGNIFICANT_DROP_ABSOLUTE_EUR
+  ) {
+    return 'SIGNIFICANT_DROP';
+  }
 
-  if (isExtremeDrop) return 'EXTREME_DROP';
-
-  const isMajorDrop = msrp > 0 && (
-    (discountPercent >= 50 && (absoluteDropEur >= 15 || msrp >= 20)) ||
-    (isNearAtl && discountPercent >= 45)
-  );
-
-  if (isMajorDrop) return 'MAJOR_DROP';
-  if (isAtAtl && discountPercent >= 20) return 'MAJOR_DROP';
-  if (isNearAtl && discountPercent >= 20) return 'MAJOR_DROP';
-  if (discountPercent >= 30 || absoluteDropEur >= 10) return 'SIGNIFICANT_DROP';
-  if (discountPercent >= 10) return 'MODERATE_DROP';
+  if (
+    relativeDropPercent >= thresholds.MODERATE_DROP_PERCENT &&
+    priceDeltaEur >= thresholds.MODERATE_DROP_MIN_EUR
+  ) {
+    return 'MODERATE_DROP';
+  }
 
   return 'NONE';
 }
@@ -156,7 +203,24 @@ function executeRollback(db) {
     console.log(`[Rollback] Restored ${histResult.changes} records in price_history.`);
 
     db.prepare(`DROP TABLE price_history_event_backup`).run();
-    console.log(`[Rollback] Backup table cleanly dropped.`);
+    console.log(`[Rollback] Backup table price_history_event_backup cleanly dropped.`);
+
+    // Restore games ATL if games_atl_backup exists
+    const gamesAtlBackup = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='games_atl_backup'`).get();
+    if (gamesAtlBackup) {
+      const restoreGamesStmt = db.prepare(`
+        UPDATE games
+        SET historical_low_eur = (SELECT original_historical_low_eur FROM games_atl_backup WHERE games_atl_backup.id = games.id),
+            historical_low_date = (SELECT original_historical_low_date FROM games_atl_backup WHERE games_atl_backup.id = games.id),
+            historical_low_source = (SELECT original_historical_low_source FROM games_atl_backup WHERE games_atl_backup.id = games.id),
+            atl_is_confirmed = (SELECT original_atl_is_confirmed FROM games_atl_backup WHERE games_atl_backup.id = games.id)
+        WHERE id IN (SELECT id FROM games_atl_backup)
+      `);
+      const gResult = restoreGamesStmt.run();
+      console.log(`[Rollback] Restored ${gResult.changes} games in games table.`);
+      db.prepare(`DROP TABLE games_atl_backup`).run();
+      console.log(`[Rollback] Backup table games_atl_backup cleanly dropped.`);
+    }
   });
 
   tx();
@@ -184,6 +248,25 @@ function executeVerify(db) {
   for (const row of dropEventCounts) {
     console.log(`  ${(row.price_event || 'NULL').padEnd(25)}: ${row.count}`);
   }
+
+  // Check Dual ATL invariant
+  const atlViolations = db.prepare(`
+    SELECT id, steam_app_id, title, official_historical_low_eur, historical_low_eur 
+    FROM games 
+    WHERE official_historical_low_eur IS NOT NULL 
+      AND historical_low_eur IS NOT NULL 
+      AND historical_low_eur > official_historical_low_eur
+  `).all();
+
+  console.log(`\n[Verify] Dual ATL Invariant Violations (historical_low_eur > official_historical_low_eur):`);
+  if (atlViolations.length === 0) {
+    console.log(`  PASSED: 0 violations found. Invariant holds across 100% of catalog.`);
+  } else {
+    console.log(`  FAILED: ${atlViolations.length} violations found:`);
+    for (const v of atlViolations) {
+      console.log(`    - [App ${v.steam_app_id}] ${v.title}: official=${v.official_historical_low_eur}€, overall=${v.historical_low_eur}€`);
+    }
+  }
 }
 
 function executeReplay(db, applyChanges, dbPath) {
@@ -192,7 +275,7 @@ function executeReplay(db, applyChanges, dbPath) {
 
   // Load games map
   const gamesMap = new Map();
-  for (const g of db.prepare(`SELECT id, title, base_price_eur, historical_low_eur FROM games`).all()) {
+  for (const g of db.prepare(`SELECT id, title, base_price_eur, historical_low_eur, official_historical_low_eur FROM games`).all()) {
     gamesMap.set(g.id, g);
   }
 
@@ -229,8 +312,6 @@ function executeReplay(db, applyChanges, dbPath) {
   let correctedDrops3d = new Set();
   let correctedDrops7d = new Set();
 
-  const gameLatestCorrectedDropAt = new Map();
-
   for (const row of allHistory) {
     const streamKey = `${row.game_id}_${row.merchant_id}_${row.source_code}`;
     const previousPriceEur = streamPrevious.get(streamKey);
@@ -249,8 +330,8 @@ function executeReplay(db, applyChanges, dbPath) {
 
     const storedEvent = row.price_event || 'NONE';
 
-    const isStoredDrop = !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR'].includes(storedEvent);
-    const isCorrectedDrop = !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR'].includes(correctedEvent);
+    const isStoredDrop = !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER'].includes(storedEvent);
+    const isCorrectedDrop = !['NONE', 'PRICE_INCREASE', 'PRICING_ERROR', 'NEW_OFFER'].includes(correctedEvent);
 
     if (isStoredDrop) {
       if (row.recorded_at >= oneDayAgo) storedDrops1d.add(row.game_id);
@@ -262,11 +343,6 @@ function executeReplay(db, applyChanges, dbPath) {
       if (row.recorded_at >= oneDayAgo) correctedDrops1d.add(row.game_id);
       if (row.recorded_at >= threeDaysAgo) correctedDrops3d.add(row.game_id);
       if (row.recorded_at >= sevenDaysAgo) correctedDrops7d.add(row.game_id);
-
-      const existingLatest = gameLatestCorrectedDropAt.get(row.game_id);
-      if (!existingLatest || row.recorded_at > existingLatest) {
-        gameLatestCorrectedDropAt.set(row.game_id, row.recorded_at);
-      }
     }
 
     if (storedEvent !== correctedEvent) {
@@ -282,21 +358,37 @@ function executeReplay(db, applyChanges, dbPath) {
     }
   }
 
+  // Check Dual ATL invariant
+  const atlViolations = db.prepare(`
+    SELECT id, steam_app_id, title, official_historical_low_eur, official_historical_low_date, official_historical_low_source,
+           historical_low_eur, historical_low_date, historical_low_source, atl_is_confirmed
+    FROM games 
+    WHERE official_historical_low_eur IS NOT NULL 
+      AND official_historical_low_eur > 0
+      AND (historical_low_eur IS NULL OR historical_low_eur > official_historical_low_eur)
+  `).all();
+
   console.log(`\n--- RECLASSIFICATION AUDIT METRICS ---`);
   console.log(`Total records evaluated:              ${allHistory.length}`);
   console.log(`Total records to reclassify:          ${changes.length} (${((changes.length / allHistory.length) * 100).toFixed(2)}%)`);
   console.log(`Unique games affected:                ${affectedGames.size} (${((affectedGames.size / gamesMap.size) * 100).toFixed(1)}% of all games)`);
 
+  console.log(`\n--- DUAL ALL-TIME LOW INVARIANT AUDIT ---`);
+  console.log(`Games with historical_low_eur > official_historical_low_eur: ${atlViolations.length}`);
+  for (const v of atlViolations) {
+    console.log(`  - [App ${v.steam_app_id}] ${v.title}: official=${v.official_historical_low_eur}€, overall=${v.historical_low_eur}€`);
+  }
+
   console.log(`\n--- TOP TRANSITIONS (Stored -> Corrected) ---`);
   const sortedTransitions = Object.entries(transitionMatrix).sort((a, b) => b[1] - a[1]);
-  for (const [trans, count] of sortedTransitions.slice(0, 12)) {
+  for (const [trans, count] of sortedTransitions.slice(0, 15)) {
     console.log(`  ${trans.padEnd(35)} : ${count}`);
   }
 
   console.log(`\n--- FRESH DROPS IMPACT (Stored Feed vs Corrected Feed) ---`);
-  console.log(`  • 1-Day Window (< 24h): Stored=${storedDrops1d.size} games -> Corrected=${correctedDrops1d.size} games (-${storedDrops1d.size - correctedDrops1d.size} false alarms, -${(((storedDrops1d.size - correctedDrops1d.size) / storedDrops1d.size) * 100).toFixed(1)}%)`);
-  console.log(`  • 3-Day Window (< 72h): Stored=${storedDrops3d.size} games -> Corrected=${correctedDrops3d.size} games (-${storedDrops3d.size - correctedDrops3d.size} false alarms, -${(((storedDrops3d.size - correctedDrops3d.size) / storedDrops3d.size) * 100).toFixed(1)}%)`);
-  console.log(`  • 7-Day Window (< 7d):  Stored=${storedDrops7d.size} games -> Corrected=${correctedDrops7d.size} games (-${storedDrops7d.size - correctedDrops7d.size} false alarms, -${(((storedDrops7d.size - correctedDrops7d.size) / storedDrops7d.size) * 100).toFixed(1)}%)`);
+  console.log(`  • 1-Day Window (< 24h): Stored=${storedDrops1d.size} games -> Corrected=${correctedDrops1d.size} games (-${storedDrops1d.size - correctedDrops1d.size} false alarms, -${storedDrops1d.size > 0 ? (((storedDrops1d.size - correctedDrops1d.size) / storedDrops1d.size) * 100).toFixed(1) : 0}%)`);
+  console.log(`  • 3-Day Window (< 72h): Stored=${storedDrops3d.size} games -> Corrected=${correctedDrops3d.size} games (-${storedDrops3d.size - correctedDrops3d.size} false alarms, -${storedDrops3d.size > 0 ? (((storedDrops3d.size - correctedDrops3d.size) / storedDrops3d.size) * 100).toFixed(1) : 0}%)`);
+  console.log(`  • 7-Day Window (< 7d):  Stored=${storedDrops7d.size} games -> Corrected=${correctedDrops7d.size} games (-${storedDrops7d.size - correctedDrops7d.size} false alarms, -${storedDrops7d.size > 0 ? (((storedDrops7d.size - correctedDrops7d.size) / storedDrops7d.size) * 100).toFixed(1) : 0}%)`);
 
   if (!applyChanges) {
     console.log(`\n[DRY RUN COMPLETE] Zero database modifications performed.`);
@@ -334,6 +426,46 @@ function executeReplay(db, applyChanges, dbPath) {
     }
     console.log(`[APPLY] Updated ${changes.length} records in price_history and stored in backup table.`);
 
+    // 3. Heal Dual ATL Invariant Violations
+    if (atlViolations.length > 0) {
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS games_atl_backup (
+          id TEXT PRIMARY KEY,
+          original_historical_low_eur REAL,
+          original_historical_low_date TEXT,
+          original_historical_low_source TEXT,
+          original_atl_is_confirmed INTEGER,
+          healed_historical_low_eur REAL,
+          updated_at TEXT NOT NULL
+        )
+      `).run();
+
+      const insertAtlBackupStmt = db.prepare(`
+        INSERT OR REPLACE INTO games_atl_backup (
+          id, original_historical_low_eur, original_historical_low_date, 
+          original_historical_low_source, original_atl_is_confirmed, healed_historical_low_eur, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const healAtlStmt = db.prepare(`
+        UPDATE games
+        SET historical_low_eur = official_historical_low_eur,
+            historical_low_date = COALESCE(official_historical_low_date, historical_low_date),
+            historical_low_source = COALESCE(official_historical_low_source, historical_low_source),
+            atl_is_confirmed = 1,
+            updated_at = datetime('now')
+        WHERE id = ?
+      `);
+
+      for (const v of atlViolations) {
+        insertAtlBackupStmt.run(
+          v.id, v.historical_low_eur, v.historical_low_date, 
+          v.historical_low_source, v.atl_is_confirmed, v.official_historical_low_eur, nowIso
+        );
+        healAtlStmt.run(v.id);
+      }
+      console.log(`[APPLY] Healed ${atlViolations.length} games with dual ATL invariant violations and created games_atl_backup.`);
+    }
   });
 
   applyTx();

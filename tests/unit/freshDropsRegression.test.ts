@@ -156,14 +156,14 @@ describe('Fresh Drops & Price Event Classification Regression Suite', () => {
       expect(event).toBe('EXTREME_DROP');
     });
 
-    it('classifies 50% discount sale start from regular price as MAJOR_DROP', () => {
+    it('classifies 50% discount sale start from regular price as EXTREME_DROP', () => {
       const event = detectPriceEvent({
         currentPriceEur: 19.99,
         previousPriceEur: 39.99, // full MSRP
         basePriceEur: 39.99,
         isOfficialMerchant: true
       });
-      expect(event).toBe('MAJOR_DROP');
+      expect(event).toBe('EXTREME_DROP');
     });
 
     it('classifies 50% price slash on already-discounted offer as EXTREME_DROP', () => {
@@ -206,13 +206,13 @@ describe('Fresh Drops & Price Event Classification Regression Suite', () => {
       expect(event).toBe('PRICING_ERROR');
     });
 
-    it('classifies first observation of moderately discounted catalog game as SIGNIFICANT_DROP', () => {
+    it('classifies first observation of catalog game as NEW_OFFER', () => {
       const event = detectPriceEvent({
         currentPriceEur: 29.99, // 40% discount (saving 20€)
         // no previousPriceEur
         basePriceEur: 49.99
       });
-      expect(event).toBe('SIGNIFICANT_DROP');
+      expect(event).toBe('NEW_OFFER');
     });
   });
 
@@ -265,7 +265,7 @@ describe('Fresh Drops & Price Event Classification Regression Suite', () => {
       expect(event).toBe('PRICE_INCREASE');
     });
 
-    it('preserves newly discovered legitimate offer near ATL as MAJOR_DROP without claiming record', () => {
+    it('classifies newly discovered legitimate offer near ATL as NEW_OFFER without false drop alert', () => {
       // Brand new discovery near ATL (MSRP €49.99 -> €10.50, ATL €10.00)
       const event = detectPriceEvent({
         currentPriceEur: 10.50,
@@ -274,8 +274,8 @@ describe('Fresh Drops & Price Event Classification Regression Suite', () => {
         historicalLowEur: 10.00,
         isOfficialMerchant: true
       });
-      // Evaluates as genuine deep sale (MAJOR_DROP or EXTREME_DROP), strictly NOT RECORD_DROP
-      expect(event).toBe('EXTREME_DROP');
+      // First observation of an offer is NEW_OFFER, strictly NOT RECORD_DROP or false fresh drop
+      expect(event).toBe('NEW_OFFER');
       expect(event).not.toBe('RECORD_DROP');
       expect(event).not.toBe('UNCONFIRMED_RECORD_DROP');
     });

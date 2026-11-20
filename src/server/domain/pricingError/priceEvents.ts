@@ -1,29 +1,33 @@
 import type { PriceEventType } from '../../../shared/types.js';
 import type { PriceEventInput } from './types.js';
+import { DEFAULT_PRICE_DROP_THRESHOLDS, type PriceDropThresholds } from '../constants.js';
 
-const EPSILON_EUR = 0.005;
+export { DEFAULT_PRICE_DROP_THRESHOLDS, type PriceDropThresholds };
 
 /**
  * Evaluates the market event of an offer (discount magnitude, historical record, price direction).
  * Trust-free: replaces the former riskLevel gate with the pure isPricingError boolean flag.
  *
  * Reliably separates:
- * 1. Pricing errors (flagged anomalies)
- * 2. Price increases (current > previous)
- * 3. Confirmed historical low records (strictly lower than known ATL with multi-source or official confirmation)
- * 4. Unconfirmed historical low records (strictly lower than known ATL from single keyshop)
- * 5. Minor fluctuations / currency rounding (< 0.05€ and < 2.0% change)
- * 6. Start of sale from regular MSRP (evaluated against MSRP)
- * 7. Sale deepening (evaluated by relative and absolute drop from previous price)
- * 8. Newly discovered offers on sale (standard sale classification, never false record/extreme drops)
+ * 1. Pricing errors (flagged anomalies) -> PRICING_ERROR
+ * 2. Confirmed historical low records (strictly lower than known ATL with multi-source or official confirmation) -> RECORD_DROP
+ * 3. Unconfirmed historical low records (strictly lower than known ATL from single keyshop) -> UNCONFIRMED_RECORD_DROP
+ * 4. First-time observations of an offer (not breaking ATL) -> NEW_OFFER (never MAJOR_DROP or EXTREME_DROP)
+ * 5. Price increases (current > previous) -> PRICE_INCREASE
+ * 6. Minor fluctuations / FX noise (noise floor, < 5% under 0.05€, cheap game noise) -> NONE
+ * 7. Genuine price reductions evaluated by actual drop delta from previousPriceEur:
+ *    - EXTREME_DROP: >=50% drop and >=2.00€, or >=10.00€ absolute drop
+ *    - MAJOR_DROP: >=25% drop and >=1.00€, or >=5.00€ absolute drop
+ *    - SIGNIFICANT_DROP: >=15% drop and >=0.75€, or >=3.00€ absolute drop
+ *    - MODERATE_DROP: >=10% drop and >=0.50€
+ *    - Otherwise: NONE
  */
 export function detectPriceEvent(
   input: PriceEventInput,
-  isPricingError: boolean = false
+  isPricingError: boolean = false,
+  customThresholds?: Partial<PriceDropThresholds>
 ): PriceEventType {
   const currentPriceEur = input.currentPriceEur ?? input.priceEur ?? 0;
-  const originalPriceEur = input.originalPriceEur ?? input.claimedOriginalPriceEur;
-  const basePriceEur = input.basePriceEur ?? input.steamBasePriceEur;
   const historicalLowEur = input.historicalLowEur ?? input.confirmedAtlEur;
   const previousPriceEur = input.previousPriceEur;
   const isOfficialMerchant = input.isOfficialMerchant ?? false;
@@ -39,33 +43,7 @@ export function detectPriceEvent(
     return 'PRICING_ERROR';
   }
 
-  // 2. Check for price increase vs previous price
-  if (previousPriceEur !== undefined && previousPriceEur > 0 && currentPriceEur > previousPriceEur + EPSILON_EUR) {
-    return 'PRICE_INCREASE';
-  }
-
-  // 3. Minor fluctuation filter: micro-movements on existing offers are noise / FX rounding
-  if (previousPriceEur !== undefined && previousPriceEur > 0) {
-    const priceDeltaEur = previousPriceEur - currentPriceEur;
-
-    // Price did not decrease (within floating point epsilon)
-    if (priceDeltaEur <= EPSILON_EUR) {
-      return 'NONE';
-    }
-
-    // Any micro-decrease of <= 1 cent (<= 0.015€) on an existing offer is pure noise / FX rounding
-    if (priceDeltaEur <= 0.015) {
-      return 'NONE';
-    }
-
-    // Drops under 5 cents with < 5.0% relative movement are also minor fluctuations
-    const relativeDropPercent = (priceDeltaEur / previousPriceEur) * 100;
-    if (priceDeltaEur < 0.05 && relativeDropPercent < 5.0) {
-      return 'NONE';
-    }
-  }
-
-  // 4. Check for genuine Historical Low records (current price beats previous ATL by >2%)
+  // 2. Check for genuine Historical Low records (current price beats previous ATL by >2%)
   const isNewAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur < historicalLowEur * 0.98;
   const isConfirmedAtl = isNewAtl && (sourceAgreementCount >= 2 || independentMerchantCount >= 2 || isOfficialMerchant) && !isPricingError;
 
@@ -77,58 +55,76 @@ export function detectPriceEvent(
     return 'UNCONFIRMED_RECORD_DROP';
   }
 
-  // 5. Magnitude Evaluation against MSRP / Original price
-  const msrp = basePriceEur || originalPriceEur || 0;
-  const discountPercent = msrp > 0 ? Math.max(0, ((msrp - currentPriceEur) / msrp) * 100) : 0;
-  const absoluteDropEur = msrp > 0 ? Math.max(0, msrp - currentPriceEur) : 0;
+  // 3. First-time observation (no prior price recorded for this offer) -> NEW_OFFER
+  // Never classify a newly discovered or imported offer as MAJOR_DROP or EXTREME_DROP
+  if (previousPriceEur === undefined || previousPriceEur === null || previousPriceEur <= 0) {
+    return 'NEW_OFFER';
+  }
 
-  const isAtAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02 && !isPricingError;
-  const isNearAtl = historicalLowEur !== undefined && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.10 && !isPricingError;
+  const thresholds = customThresholds
+    ? { ...DEFAULT_PRICE_DROP_THRESHOLDS, ...customThresholds }
+    : DEFAULT_PRICE_DROP_THRESHOLDS;
 
-  // Mega Deal / Extreme Price Collapse:
-  // - >=75% discount with >=15€ savings or MSRP >= 20€
-  // - >=80% discount with >=10€ savings (great indie / AA deal)
-  // - >=70% discount with >=20€ savings
-  // - At ATL with >=65% discount and >=15€ savings
-  const isExtremeDrop = msrp > 0 && (
-    (discountPercent >= 75 && (absoluteDropEur >= 15 || msrp >= 20)) ||
-    (discountPercent >= 80 && absoluteDropEur >= 10) ||
-    (discountPercent >= 70 && absoluteDropEur >= 20) ||
-    (isAtAtl && discountPercent >= 65 && absoluteDropEur >= 15)
-  );
+  // 4. Check for price increase vs previous price
+  if (currentPriceEur > previousPriceEur + thresholds.EPSILON_EUR) {
+    return 'PRICE_INCREASE';
+  }
 
-  if (isExtremeDrop) {
+  // 5. Minor fluctuation filter: micro-movements on existing offers are noise / FX rounding
+  const priceDeltaEur = previousPriceEur - currentPriceEur;
+
+  // Price did not decrease (within floating point epsilon)
+  if (priceDeltaEur <= thresholds.EPSILON_EUR) {
+    return 'NONE';
+  }
+
+  // Any micro-decrease <= noise floor (<= 0.015€) on an existing offer is pure noise / FX rounding
+  if (priceDeltaEur <= thresholds.NOISE_FLOOR_EUR) {
+    return 'NONE';
+  }
+
+  const relativeDropPercent = (priceDeltaEur / previousPriceEur) * 100;
+
+  // Drops under 5 cents with < 5.0% relative movement are minor fluctuations
+  if (priceDeltaEur < thresholds.MIN_DROP_EUR && relativeDropPercent < thresholds.MIN_DROP_PERCENT) {
+    return 'NONE';
+  }
+
+  // On low-price games (< 5.00€), drops <= 10 cents with < 5% movement are also noise
+  if (previousPriceEur < thresholds.LOW_PRICE_THRESHOLD_EUR && priceDeltaEur <= thresholds.LOW_PRICE_NOISE_EUR && relativeDropPercent < thresholds.MIN_DROP_PERCENT) {
+    return 'NONE';
+  }
+
+  // 6. Magnitude Evaluation against actual price drop from previous price
+  // Extreme Drop: >=50% drop with >=2.00€ savings, OR >=10.00€ absolute drop
+  if (
+    (relativeDropPercent >= thresholds.EXTREME_DROP_PERCENT && priceDeltaEur >= thresholds.EXTREME_DROP_MIN_EUR) ||
+    priceDeltaEur >= thresholds.EXTREME_DROP_ABSOLUTE_EUR
+  ) {
     return 'EXTREME_DROP';
   }
 
-  // 6. Major Drop:
-  // - >=50% discount with >=15€ drop, or >=50% discount on MSRP >= 20€
-  // - Near ATL with >=45% discount
-  const isMajorDrop = msrp > 0 && (
-    (discountPercent >= 50 && (absoluteDropEur >= 15 || msrp >= 20)) ||
-    (isNearAtl && discountPercent >= 45)
-  );
-
-  if (isMajorDrop) {
+  // Major Drop: >=25% drop with >=1.00€ savings, OR >=5.00€ absolute drop
+  if (
+    (relativeDropPercent >= thresholds.MAJOR_DROP_PERCENT && priceDeltaEur >= thresholds.MAJOR_DROP_MIN_EUR) ||
+    priceDeltaEur >= thresholds.MAJOR_DROP_ABSOLUTE_EUR
+  ) {
     return 'MAJOR_DROP';
   }
 
-  // 7. At or near Historical Low with moderate discount (genuine major deal without false record claim)
-  if (isAtAtl && discountPercent >= 20) {
-    return 'MAJOR_DROP';
-  }
-
-  if (isNearAtl && discountPercent >= 20) {
-    return 'MAJOR_DROP';
-  }
-
-  // 8. Significant drop (30%+ discount or €10+ savings)
-  if (discountPercent >= 30 || absoluteDropEur >= 10) {
+  // Significant Drop: >=15% drop with >=0.75€ savings, OR >=3.00€ absolute drop
+  if (
+    (relativeDropPercent >= thresholds.SIGNIFICANT_DROP_PERCENT && priceDeltaEur >= thresholds.SIGNIFICANT_DROP_MIN_EUR) ||
+    priceDeltaEur >= thresholds.SIGNIFICANT_DROP_ABSOLUTE_EUR
+  ) {
     return 'SIGNIFICANT_DROP';
   }
 
-  // 9. Standard sale (10%+ discount)
-  if (discountPercent >= 10) {
+  // Moderate Drop: >=10% drop with >=0.50€ savings
+  if (
+    relativeDropPercent >= thresholds.MODERATE_DROP_PERCENT &&
+    priceDeltaEur >= thresholds.MODERATE_DROP_MIN_EUR
+  ) {
     return 'MODERATE_DROP';
   }
 

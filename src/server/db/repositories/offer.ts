@@ -15,7 +15,8 @@ import type {
   Game, 
   Offer, 
   SourceCode, 
-  PriceHistoryEntry 
+  PriceHistoryEntry,
+  PriceEventType
 } from '../../../shared/types.js';
 
 const FRESHNESS_WINDOW_HOURS = Math.round(FRESHNESS_WINDOW_MS / (60 * 60 * 1000));
@@ -1102,14 +1103,14 @@ export const offerRepo = {
           const shopName = pt.shopName || 'Store';
           const shopCode = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'store';
           const sLower = shopName.toLowerCase();
-          const isOfficialShop = !isKeyshopSourceStr(shopName) && !/gog|epic|origin|uplay|ubisoft|battle.net|blizzard|microsoft|xbox|playstation|nintendo/i.test(sLower);
+          const isOfficialShop = !isKeyshopSourceStr(shopName);
           const merchant = merchantRepo.getOrCreate(shopCode, shopName, isOfficialShop);
 
           const existing = checkHistStmt.get(gameId, merchant.id, pt.timestamp);
           if (existing) continue;
 
           const disc = pt.discountPercent ? Math.round(pt.discountPercent) : 0;
-          let priceEvent = disc >= 50 ? 'MAJOR_DROP' : (disc >= 15 ? 'STANDARD_SALE' : 'NONE');
+          let priceEvent: PriceEventType = 'NEW_OFFER';
 
           const pricingEval = detectPricingError({
             priceEur: pt.priceEur,
