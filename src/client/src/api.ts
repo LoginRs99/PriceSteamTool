@@ -36,6 +36,23 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
 }
 
+export interface BestDealsParams {
+  limit?: number;
+  page?: number;
+  merchantType?: 'all' | 'official' | 'keyshop';
+  maxPrice?: number;
+  search?: string;
+  sort?: 'value' | 'deal_score' | 'savings' | 'discount' | 'price' | 'rating' | 'priority';
+  minTier?: string;
+}
+
+export interface BestDealsResponse {
+  deals: Game[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 export interface RefreshGameResult {
   success: boolean;
   game: Game;
@@ -173,8 +190,22 @@ export const api = {
     return apiFetch<WishlistStatistics>(`${API_BASE}/wishlist/statistics`);
   },
 
-  async getBestDeals(limit: number = 50): Promise<{ deals: Game[] }> {
-    return apiFetch<{ deals: Game[] }>(`${API_BASE}/wishlist/best-deals?limit=${limit}`);
+  async getBestDeals(paramsOrLimit?: number | BestDealsParams): Promise<BestDealsResponse> {
+    const params: BestDealsParams = typeof paramsOrLimit === 'number'
+      ? { limit: paramsOrLimit }
+      : (paramsOrLimit || {});
+    const query = new URLSearchParams();
+    if (params.limit !== undefined) query.set('limit', String(params.limit));
+    if (params.page !== undefined) query.set('page', String(params.page));
+    if (params.merchantType) query.set('merchantType', params.merchantType);
+    if (params.maxPrice !== undefined) query.set('maxPrice', String(params.maxPrice));
+    if (params.search) query.set('search', params.search);
+    if (params.sort) query.set('sort', params.sort);
+    if (params.minTier) query.set('minTier', params.minTier);
+
+    const queryString = query.toString();
+    const url = `${API_BASE}/wishlist/best-deals${queryString ? `?${queryString}` : ''}`;
+    return apiFetch<BestDealsResponse>(url);
   },
 
   async getGameDetails(id: string): Promise<{

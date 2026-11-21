@@ -787,7 +787,7 @@ export const offerRepo = {
   getById(id: string): Offer | null {
     const r = prepareStmt(`
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official,
-             g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
+             g.base_price_eur, g.historical_low_eur, g.official_historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
              g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur,
              g.typical_sale_sample_count, g.price_tracking_first_observed_at, g.best_offer_source_count,
              g.atl_is_confirmed, g.atl_is_single_source_low
@@ -836,6 +836,7 @@ export const offerRepo = {
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
       allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
       historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+      officialHistoricalLowEur: r.official_historical_low_eur ? Number(r.official_historical_low_eur) : undefined,
       isConfirmedAtl,
       isSingleSourceLow,
       isOfficialStore: isOfficial,
@@ -900,7 +901,7 @@ export const offerRepo = {
   getOffersForGame(gameId: string): Offer[] {
     const rows = prepareStmt(`
       SELECT o.*, m.name as merchant_name, m.code as merchant_code, m.is_official,
-             g.base_price_eur, g.historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
+             g.base_price_eur, g.historical_low_eur, g.official_historical_low_eur, g.typical_sale_median_eur, g.typical_sale_q1_eur,
              g.typical_sale_q3_eur, g.typical_sale_low_confidence, g.low_90d_eur, g.low_1y_eur,
              g.typical_sale_sample_count, g.price_tracking_first_observed_at, g.best_offer_source_count,
              g.atl_is_confirmed, g.atl_is_single_source_low
@@ -972,6 +973,7 @@ export const offerRepo = {
         low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
         allTimeLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
         historicalLowEur: r.historical_low_eur ? Number(r.historical_low_eur) : undefined,
+        officialHistoricalLowEur: r.official_historical_low_eur ? Number(r.official_historical_low_eur) : undefined,
         isConfirmedAtl,
         isSingleSourceLow,
         isOfficialStore: isOfficial,

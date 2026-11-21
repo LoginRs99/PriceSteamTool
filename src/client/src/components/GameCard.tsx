@@ -62,12 +62,20 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
   const isHighRisk = Boolean(game.hasPricingError);
   const isPricingError = game.bestPriceEvent === 'PRICING_ERROR' || (isHighRisk && (game.bestDiscountPercent ?? 0) >= 75);
 
+  const histLow = (game.bestMerchantIsOfficial && game.officialHistoricalLowEur)
+    ? game.officialHistoricalLowEur
+    : game.historicalLowEur;
+  const bestPrice = game.bestPriceEur;
+  const isNearATL = !isConfirmedATL && histLow !== undefined && bestPrice !== undefined && bestPrice > histLow && (bestPrice <= histLow * 1.05 || bestPrice <= histLow + 0.50);
+
   const railColor = isPricingError
     ? 'rgba(239, 68, 68, 0.75)'
     : isHighRisk 
     ? 'var(--up)' 
     : isConfirmedATL 
     ? 'var(--signal)' 
+    : isNearATL
+    ? '#38bdf8'
     : dealTier === 'Exceptional' || dealTier === 'Great' 
     ? 'var(--down)' 
     : dealTier === 'Good' 
@@ -415,13 +423,17 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
               </span>
             )}
 
-            {savingVsMedian && savingVsMedian > 0 && typicalMedian ? (
-              <span style={{ color: 'var(--down)', fontWeight: 600 }}>
-                €{savingVsMedian.toFixed(2)} below typical (€{typicalMedian.toFixed(2)})
-              </span>
-            ) : isConfirmedATL ? (
+            {isConfirmedATL ? (
               <span style={{ color: 'var(--signal)', fontWeight: 600 }}>
                 ★ Matches All-Time Low
+              </span>
+            ) : isNearATL ? (
+              <span style={{ color: '#38bdf8', fontWeight: 600 }} title={`Within €${(bestPrice! - histLow!).toFixed(2)} of historical record low (€${histLow!.toFixed(2)})`}>
+                ★ Near Record Low (€{(bestPrice! - histLow!).toFixed(2)} from ATL)
+              </span>
+            ) : savingVsMedian && savingVsMedian > 0 && typicalMedian ? (
+              <span style={{ color: 'var(--down)', fontWeight: 600 }}>
+                €{savingVsMedian.toFixed(2)} below typical (€{typicalMedian.toFixed(2)})
               </span>
             ) : game.historicalLowEur !== undefined ? (
               <span className="ticker-num">Hist. Low: {formatPrice(game.historicalLowEur)}</span>
@@ -566,6 +578,26 @@ const GameCardComponent: React.FC<GameCardProps> = ({ game, onClick, onSelect, o
                 </span>
               )}
             </span>
+
+            {game.alternativeOfferPriceEur !== undefined && (
+              <span
+                className="alternative-store-pill"
+                title={`Alternative: ${game.alternativeMerchantIsOfficial ? '🛡️ Official Store' : '🗝️ Keyshop'} (${game.alternativeMerchantName || 'Other'}) has this for ${formatPrice(game.alternativeOfferPriceEur)}`}
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  background: game.alternativeMerchantIsOfficial ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                  color: game.alternativeMerchantIsOfficial ? '#10b981' : 'var(--text-muted)',
+                  border: `1px solid ${game.alternativeMerchantIsOfficial ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`,
+                  whiteSpace: 'nowrap',
+                  cursor: 'default'
+                }}
+              >
+                {game.alternativeMerchantIsOfficial ? `🛡️ ${formatPrice(game.alternativeOfferPriceEur)}` : `🗝️ ${formatPrice(game.alternativeOfferPriceEur)}`}
+              </span>
+            )}
 
             {onExplain && (
               <button 
