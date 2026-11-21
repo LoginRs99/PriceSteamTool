@@ -166,6 +166,10 @@ export interface Game {
   bestSavingVsMedianEur?: number;
   bestAtlDistanceEur?: number;
   valueRankingScore?: number; // Monotonic value score combining Deal Score & Confidence
+  shoppingScore?: number;
+  alternativeOfferPriceEur?: number;
+  alternativeMerchantName?: string;
+  alternativeMerchantIsOfficial?: boolean;
   
   // Action Signal Engine recommendation
   actionSignal?: ActionSignal;
@@ -562,6 +566,22 @@ export interface DealScoreResult {
     atlDistanceEur: number;
     confidenceFactors: Record<string, number>;
   };
+  shoppingScore?: number;
+}
+
+export interface ShoppingScoreInput {
+  dealScore: number;
+  currentPriceEur: number;
+  basePriceEur?: number;
+  typicalSaleMedianEur?: number | null;
+  historicalLowEur?: number | null;
+  competingPriceEur?: number | null;
+  confidenceScore?: number;
+  // Backward compatibility / optional fields (ignored in pure price ranking)
+  isOfficial?: boolean;
+  isOfficialStore?: boolean;
+  metacriticScore?: number | null;
+  steamReviewPercent?: number | null;
 }
 
 export interface DealScoreInput {
@@ -576,6 +596,7 @@ export interface DealScoreInput {
   low1yEur?: number | null;
   allTimeLowEur?: number | null;
   historicalLowEur?: number | null;
+  officialHistoricalLowEur?: number | null;
   historicalLowDate?: string;
   
   // Confidence Inputs

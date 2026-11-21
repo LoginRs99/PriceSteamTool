@@ -8,6 +8,7 @@ dist/
 data/
 Current Linux Server Setup/
 Linux server current/
+Current data/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

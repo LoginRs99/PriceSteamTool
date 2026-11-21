@@ -212,7 +212,7 @@ Values automatically convert to your selected display currency.
 ### 8.1 Main Navigation Tabs
 * **Wishlist Deals**: Paid wishlist games, filtering out free titles so metrics remain unskewed.
 * **Free to Play**: Gathers all free titles (`is_free = 1`) with direct Steam store links and 1-click launch (`steam://run/<appId>`).
-* **Top Best Deals**: Highlights the highest Deal Score opportunities across the entire catalog.
+* **Top Best Deals**: Intelligent daily shopping destination ranking your personal wishlist by genuine price attractiveness and purchasing opportunities. Combines mathematical Deal Score v2.4, verified historical record low standing, retailer market competitiveness, and real cash savings utility (bounded against authentic reference prices). Official retailers and keyshops compete on 100% equal terms with zero store or review score bias. Includes dedicated Store filters (`All Stores`, `🛡️ Official Stores`, `🗝️ Keyshops`), price ceiling quick-filters (`<€5`, `<€10`, `<€20`), search, multi-mode sorting (`Best Value`, `Highest Cash Savings (€)`, `Deal Score v2.4`, `Deepest Discount`, `Lowest Price`, `Top Rated`, `Wishlist Priority`), side-by-side alternative store comparison, and pagination.
 * **Data Safety**: Dedicated review interface for active pricing errors with user feedback and 14-column CSV export.
 * **Megtakarítások**: Purchase journal and realized savings analytics dashboard.
 

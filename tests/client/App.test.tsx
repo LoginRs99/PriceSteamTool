@@ -119,7 +119,10 @@ describe('App Root Component (Monolith & Decomposed Regression Tests)', () => {
     });
     vi.spyOn(api, 'getWishlistStatistics').mockResolvedValue(mockStats);
     vi.spyOn(api, 'getBestDeals').mockResolvedValue({
-      deals: [mockGames[0]]
+      deals: [mockGames[0]],
+      total: 1,
+      page: 1,
+      totalPages: 1
     });
     vi.spyOn(api, 'getAnomalies').mockResolvedValue([]);
     vi.spyOn(api, 'getGameDetails').mockResolvedValue({

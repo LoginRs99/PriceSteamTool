@@ -514,13 +514,30 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   const getBestDealsHandler = async (request: FastifyRequest) => {
     const activeProfile = profileRepo.getActive();
     if (!activeProfile) {
-      return { deals: [] };
+      return { deals: [], total: 0, page: 1, totalPages: 1 };
     }
     const query = request.query as any;
     const limit = Math.min(100, Math.max(1, safeInt(query.limit, 50) || 50));
     const minTier = query.minTier !== undefined ? (query.minTier || undefined) : 'Good';
-    const deals = gameRepo.getBestDeals(activeProfile.id, limit, { minTier, hideFamilyShared: true });
-    return { deals };
+    const merchantType = (query.merchantType === 'official' || query.merchantType === 'keyshop' || query.merchantType === 'all')
+      ? query.merchantType
+      : 'all';
+    const maxPrice = query.maxPrice ? parseFloat(query.maxPrice) : undefined;
+    const search = query.search ? String(query.search) : undefined;
+    const sort = query.sort || 'value';
+    const page = Math.max(1, safeInt(query.page, 1) || 1);
+
+    const result = gameRepo.getBestDeals(activeProfile.id, limit, {
+      minTier,
+      hideFamilyShared: true,
+      merchantType,
+      maxPrice,
+      search,
+      sort,
+      page,
+      asResultObject: true
+    }) as any;
+    return result;
   };
 
   fastify.get('/api/wishlist/best-deals', getBestDealsHandler);

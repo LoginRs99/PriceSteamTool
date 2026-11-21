@@ -1,6 +1,6 @@
-import type { PriceEventType, DealScoreTier, ConfidenceTier, DealVerdict, DealScoreInput, DealScoreResult } from '../../../shared/types.js';
+import type { PriceEventType, DealScoreTier, ConfidenceTier, DealVerdict, DealScoreInput, DealScoreResult, ShoppingScoreInput } from '../../../shared/types.js';
 
-export type { DealScoreInput, DealScoreResult, DealVerdict, DealScoreTier, ConfidenceTier };
+export type { DealScoreInput, DealScoreResult, DealVerdict, DealScoreTier, ConfidenceTier, ShoppingScoreInput };
 
 // ============================================================================
 // Deal Score v2 — Exact Formula Weights & Thresholds

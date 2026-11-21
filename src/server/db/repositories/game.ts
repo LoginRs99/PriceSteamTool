@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getDb, prepareStmt } from '../core.js';
 import { offerRepo } from './offer.js';
-import { calculateDealScore } from '../../domain/dealScore.js';
+import { calculateDealScore, calculateShoppingScore, calculateCredibleSavings } from '../../domain/dealScore.js';
 import { generateActionSignal } from '../../domain/actionSignal.js';
 import { generatePriceIntelligence } from '../../domain/priceIntelligence.js';
 import { isKeyshopSourceStr, isOfficialStoreSource, isAggregatorSource } from '../../domain/priceIntelligence/types.js';
@@ -41,6 +41,24 @@ export interface WishlistSyncGame {
 export interface WishlistFilterClauseResult {
   whereSql: string;
   params: any[];
+}
+
+export interface BestDealsOptions {
+  minTier?: string;
+  hideFamilyShared?: boolean;
+  merchantType?: 'all' | 'official' | 'keyshop';
+  maxPrice?: number;
+  search?: string;
+  sort?: 'value' | 'deal_score' | 'savings' | 'discount' | 'price' | 'rating' | 'priority';
+  page?: number;
+  asResultObject?: boolean;
+}
+
+export interface BestDealsResult {
+  deals: Game[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
 export function buildWishlistFilterClause(
@@ -661,11 +679,19 @@ export const gameRepo = {
 
   getBestDeals(
     profileId: string, 
-    limit: number = 12,
-    options?: { minTier?: string; hideFamilyShared?: boolean }
+    limit: number = 50,
+    options?: BestDealsOptions
   ): Game[] {
     const hideFamilyShared = options?.hideFamilyShared ?? true;
     const minTier = options?.minTier;
+    const merchantType = (options?.merchantType === 'official' || options?.merchantType === 'keyshop' || options?.merchantType === 'all')
+      ? options.merchantType
+      : 'all';
+    const maxPrice = options?.maxPrice;
+    const search = options?.search?.trim();
+    const sort = options?.sort || 'value';
+    const page = Math.max(1, options?.page || 1);
+    const asResultObject = Boolean(options?.asResultObject);
 
     const familyFilterClause = hideFamilyShared ? `
         AND NOT EXISTS (
@@ -675,24 +701,163 @@ export const gameRepo = {
             AND NOT EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id)
         )` : '';
 
-    const rows = prepareStmt(`
+    let searchClause = '';
+    const queryParams: any[] = [profileId];
+    if (search) {
+      searchClause = ` AND g.title LIKE ? `;
+      queryParams.push(`%${search}%`);
+    }
+
+    const sql = `
+      WITH official_ranked AS (
+        SELECT o.id, o.game_id, o.price_eur, o.discount_percent, o.deal_url, o.voucher_code,
+               o.price_event, o.last_observed_at, o.product_type, o.region_type,
+               o.edition_key, o.activation_platform,
+               m.name as merchant_name, m.code as merchant_code, m.is_official as merchant_is_official,
+               ROW_NUMBER() OVER (
+                 PARTITION BY o.game_id
+                 ORDER BY
+                   CASE WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= 168 THEN 0 ELSE 1 END ASC,
+                   CASE WHEN o.edition_key = 'standard' THEN 0 ELSE 1 END ASC,
+                   CASE WHEN o.activation_platform = 'steam' THEN 0 ELSE 1 END ASC,
+                   o.price_eur ASC,
+                   COALESCE(o.last_observed_at, o.fetched_at) DESC
+               ) as rn
+        FROM offers o
+        JOIN merchants m ON o.merchant_id = m.id
+        WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0 AND m.is_official = 1
+      ),
+      keyshop_ranked AS (
+        SELECT o.id, o.game_id, o.price_eur, o.discount_percent, o.deal_url, o.voucher_code,
+               o.price_event, o.last_observed_at, o.product_type, o.region_type,
+               o.edition_key, o.activation_platform,
+               m.name as merchant_name, m.code as merchant_code, m.is_official as merchant_is_official,
+               ROW_NUMBER() OVER (
+                 PARTITION BY o.game_id
+                 ORDER BY
+                   CASE WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= 168 THEN 0 ELSE 1 END ASC,
+                   CASE WHEN o.edition_key = 'standard' THEN 0 ELSE 1 END ASC,
+                   CASE WHEN o.activation_platform = 'steam' THEN 0 ELSE 1 END ASC,
+                   o.price_eur ASC,
+                   COALESCE(o.last_observed_at, o.fetched_at) DESC
+               ) as rn
+        FROM offers o
+        JOIN merchants m ON o.merchant_id = m.id
+        WHERE o.is_valid = 1 AND o.is_likely_pricing_error = 0 AND o.price_eur > 0 AND m.is_official = 0
+      )
       SELECT g.*, 
         w.priority,
         w.date_added_steam,
         w.target_price_eur,
-        bo.id as best_offer_id,
-        bo.price_eur as best_price_eur,
-        bo.discount_percent as best_discount_percent,
-        bo.product_type as best_product_type,
-        bo.region_type as best_region_type,
-        bo.deal_url as best_deal_url,
-        bo.voucher_code as best_voucher_code,
-        bo.price_event as best_price_event,
-        bo.last_observed_at as best_last_observed_at,
-        m.name as best_merchant_name,
-        m.code as best_merchant_code,
-        m.is_official as best_merchant_is_official,
-        (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = bo.id) as best_source_agreement_count,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.id
+          WHEN '${merchantType}' = 'keyshop' THEN key.id
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.id
+          ELSE COALESCE(key.id, off.id)
+        END as best_offer_id,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.edition_key
+          WHEN '${merchantType}' = 'keyshop' THEN key.edition_key
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.edition_key
+          ELSE COALESCE(key.edition_key, off.edition_key)
+        END as best_edition_key,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.activation_platform
+          WHEN '${merchantType}' = 'keyshop' THEN key.activation_platform
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.activation_platform
+          ELSE COALESCE(key.activation_platform, off.activation_platform)
+        END as best_activation_platform,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.price_eur
+          WHEN '${merchantType}' = 'keyshop' THEN key.price_eur
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.price_eur
+          ELSE COALESCE(key.price_eur, off.price_eur)
+        END as best_price_eur,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.discount_percent
+          WHEN '${merchantType}' = 'keyshop' THEN key.discount_percent
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.discount_percent
+          ELSE COALESCE(key.discount_percent, off.discount_percent)
+        END as best_discount_percent,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.product_type
+          WHEN '${merchantType}' = 'keyshop' THEN key.product_type
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.product_type
+          ELSE COALESCE(key.product_type, off.product_type)
+        END as best_product_type,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.region_type
+          WHEN '${merchantType}' = 'keyshop' THEN key.region_type
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.region_type
+          ELSE COALESCE(key.region_type, off.region_type)
+        END as best_region_type,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.deal_url
+          WHEN '${merchantType}' = 'keyshop' THEN key.deal_url
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.deal_url
+          ELSE COALESCE(key.deal_url, off.deal_url)
+        END as best_deal_url,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.voucher_code
+          WHEN '${merchantType}' = 'keyshop' THEN key.voucher_code
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.voucher_code
+          ELSE COALESCE(key.voucher_code, off.voucher_code)
+        END as best_voucher_code,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.price_event
+          WHEN '${merchantType}' = 'keyshop' THEN key.price_event
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.price_event
+          ELSE COALESCE(key.price_event, off.price_event)
+        END as best_price_event,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.last_observed_at
+          WHEN '${merchantType}' = 'keyshop' THEN key.last_observed_at
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.last_observed_at
+          ELSE COALESCE(key.last_observed_at, off.last_observed_at)
+        END as best_last_observed_at,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.merchant_name
+          WHEN '${merchantType}' = 'keyshop' THEN key.merchant_name
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.merchant_name
+          ELSE COALESCE(key.merchant_name, off.merchant_name)
+        END as best_merchant_name,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN off.merchant_code
+          WHEN '${merchantType}' = 'keyshop' THEN key.merchant_code
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.merchant_code
+          ELSE COALESCE(key.merchant_code, off.merchant_code)
+        END as best_merchant_code,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN 1
+          WHEN '${merchantType}' = 'keyshop' THEN 0
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN 1
+          ELSE COALESCE(key.merchant_is_official, off.merchant_is_official)
+        END as best_merchant_is_official,
+        -- Alternative Offer Info (transparent side-by-side comparison)
+        CASE
+          WHEN '${merchantType}' = 'official' THEN key.price_eur
+          WHEN '${merchantType}' = 'keyshop' THEN off.price_eur
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN key.price_eur
+          ELSE off.price_eur
+        END as alternative_offer_price_eur,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN key.merchant_name
+          WHEN '${merchantType}' = 'keyshop' THEN off.merchant_name
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN key.merchant_name
+          ELSE off.merchant_name
+        END as alternative_merchant_name,
+        CASE
+          WHEN '${merchantType}' = 'official' THEN 0
+          WHEN '${merchantType}' = 'keyshop' THEN 1
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN 0
+          ELSE 1
+        END as alternative_merchant_is_official,
+        (SELECT COUNT(DISTINCT source_code) FROM source_observations WHERE offer_id = CASE
+          WHEN '${merchantType}' = 'official' THEN off.id
+          WHEN '${merchantType}' = 'keyshop' THEN key.id
+          WHEN off.id IS NOT NULL AND (key.id IS NULL OR off.price_eur <= key.price_eur) THEN off.id
+          ELSE COALESCE(key.id, off.id)
+        END) as best_source_agreement_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1) as offers_count,
         (SELECT COUNT(*) FROM offers o WHERE o.game_id = g.id AND o.is_likely_pricing_error = 1 AND o.is_valid = 1) as anomaly_count,
         (SELECT MIN(o.price_eur) FROM offers o WHERE o.game_id = g.id AND o.is_valid = 1 AND o.is_likely_pricing_error = 0) as market_min_eur,
@@ -702,29 +867,79 @@ export const gameRepo = {
         (EXISTS (SELECT 1 FROM family_owned_apps fo JOIN profiles fp ON fo.profile_id = fp.id WHERE fp.is_family = 1 AND fo.steam_app_id = g.steam_app_id AND EXISTS (SELECT 1 FROM family_sharing_exclusions fse WHERE fse.steam_app_id = g.steam_app_id))) as is_family_excluded
       FROM wishlist_entries w
       JOIN games g ON w.game_id = g.id
-      JOIN offers bo ON bo.game_id = g.id AND bo.is_best_deal = 1
-      JOIN merchants m ON bo.merchant_id = m.id
+      LEFT JOIN official_ranked off ON off.game_id = g.id AND off.rn = 1
+      LEFT JOIN keyshop_ranked key ON key.game_id = g.id AND key.rn = 1
       WHERE w.profile_id = ? AND w.is_active = 1
         AND (g.is_free = 0 OR g.is_free IS NULL)
-        AND bo.is_valid = 1
-        AND (bo.discount_percent > 0 OR (g.base_price_eur IS NOT NULL AND bo.price_eur < g.base_price_eur))
+        AND (
+          ('${merchantType}' = 'official' AND off.id IS NOT NULL) OR
+          ('${merchantType}' = 'keyshop' AND key.id IS NOT NULL) OR
+          ('${merchantType}' = 'all' AND (off.id IS NOT NULL OR key.id IS NOT NULL))
+        )
         ${familyFilterClause}
-    `).all(profileId) as any[];
+        ${searchClause}
+    `;
+
+    const rows = prepareStmt(sql).all(...queryParams) as any[];
 
     const qualifyingTiers = minTier ? new Set(['Exceptional', 'Great', 'Good']) : null;
-    const games = rows
+    let games = rows
       .map(mapGameRow)
-      .filter(g => !qualifyingTiers || (g.bestDealTier && qualifyingTiers.has(g.bestDealTier)));
+      .filter(g => !qualifyingTiers || (g.bestDealTier && qualifyingTiers.has(g.bestDealTier)))
+      .filter(g => {
+        if (g.bestPriceEur === undefined || g.bestPriceEur <= 0) return false;
+        if (g.bestDiscountPercent !== undefined && g.bestDiscountPercent > 0) return true;
+        if (g.basePriceEur !== undefined && g.bestPriceEur < g.basePriceEur) return true;
+        return false;
+      });
+
+    if (maxPrice !== undefined && maxPrice > 0) {
+      games = games.filter(g => g.bestPriceEur !== undefined && g.bestPriceEur <= maxPrice);
+    }
 
     games.sort((a, b) => {
-      const scoreA = a.bestDealScore ?? 0;
-      const scoreB = b.bestDealScore ?? 0;
-      if (scoreB !== scoreA) return scoreB - scoreA;
-
+      if (sort === 'value') {
+        const diff = (b.shoppingScore ?? 0) - (a.shoppingScore ?? 0);
+        if (diff !== 0) return diff;
+      } else if (sort === 'deal_score') {
+        const diff = (b.bestDealScore ?? 0) - (a.bestDealScore ?? 0);
+        if (diff !== 0) return diff;
+      } else if (sort === 'savings') {
+        const savA = calculateCredibleSavings(a.bestPriceEur, a.basePriceEur, a.typicalSaleMedianEur);
+        const savB = calculateCredibleSavings(b.bestPriceEur, b.basePriceEur, b.typicalSaleMedianEur);
+        const diff = savB - savA;
+        if (diff !== 0) return diff;
+      } else if (sort === 'discount') {
+        const diff = (b.bestDiscountPercent ?? 0) - (a.bestDiscountPercent ?? 0);
+        if (diff !== 0) return diff;
+      } else if (sort === 'price') {
+        const diff = (a.bestPriceEur ?? 9999) - (b.bestPriceEur ?? 9999);
+        if (diff !== 0) return diff;
+      } else if (sort === 'rating') {
+        const ratingA = a.metacriticScore ?? a.steamReviewPercent ?? 0;
+        const ratingB = b.metacriticScore ?? b.steamReviewPercent ?? 0;
+        const diff = ratingB - ratingA;
+        if (diff !== 0) return diff;
+      }
       return (a.priority ?? 999999) - (b.priority ?? 999999);
     });
 
-    return games.slice(0, Math.min(limit, 50));
+    const total = games.length;
+    const effectiveLimit = Math.max(1, limit);
+    const totalPages = Math.max(1, Math.ceil(total / effectiveLimit));
+    const offset = (page - 1) * effectiveLimit;
+    const paginatedDeals = games.slice(offset, offset + effectiveLimit);
+
+    if (asResultObject) {
+      return {
+        deals: paginatedDeals,
+        total,
+        page,
+        totalPages
+      } as any;
+    }
+
+    return paginatedDeals;
   },
 
   getWishlistGames(profileId: string, options: WishlistFilterOptions = {}): { games: Game[]; total: number } {
@@ -1237,6 +1452,7 @@ function mapGameRow(r: any): Game {
       typicalSaleQ3Eur: r.typical_sale_q3_eur !== null && r.typical_sale_q3_eur !== undefined ? Number(r.typical_sale_q3_eur) : undefined,
       low90dEur: r.low_90d_eur !== null && r.low_90d_eur !== undefined ? Number(r.low_90d_eur) : null,
       low1yEur: r.low_1y_eur !== null && r.low_1y_eur !== undefined ? Number(r.low_1y_eur) : null,
+      officialHistoricalLowEur: r.official_historical_low_eur !== null && r.official_historical_low_eur !== undefined ? Number(r.official_historical_low_eur) : undefined,
       allTimeLowEur: rawHistLow,
       historicalLowEur: rawHistLow,
       isConfirmedAtl,
@@ -1267,6 +1483,31 @@ function mapGameRow(r: any): Game {
     bestAtlDistanceEur = dealResult.explanation?.atlDistanceEur;
     // Value Ranking Score for discovery: monotonic combination of deal score and confidence
     valueRankingScore = Number((dealResult.score * (0.65 + 0.35 * (dealResult.confidenceScore / 100))).toFixed(1));
+  }
+
+  let shoppingScore: number | undefined;
+  if (bestDealScore !== undefined && bestPrice !== undefined) {
+    const isStandardSteam = (!r.best_edition_key || r.best_edition_key === 'standard') &&
+                            (!r.best_activation_platform || r.best_activation_platform === 'steam');
+
+    // Only standard edition on steam matches the canonical games.historical_low_eur.
+    // Non-standard editions or alternate platforms cannot contaminate or be contaminated by standard Steam ATL.
+    // Official retailer offers compare against official_historical_low_eur to prevent keyshop dumps from contaminating official deals.
+    const relevantAtl = isStandardSteam
+      ? (r.best_merchant_is_official && r.official_historical_low_eur && Number(r.official_historical_low_eur) > 0
+          ? Number(r.official_historical_low_eur)
+          : rawHistLow)
+      : undefined;
+
+    shoppingScore = calculateShoppingScore({
+      dealScore: bestDealScore,
+      currentPriceEur: bestPrice,
+      basePriceEur: r.base_price_eur ? Number(r.base_price_eur) : undefined,
+      typicalSaleMedianEur: r.typical_sale_median_eur !== null && r.typical_sale_median_eur !== undefined ? Number(r.typical_sale_median_eur) : undefined,
+      historicalLowEur: relevantAtl,
+      competingPriceEur: r.alternative_offer_price_eur !== null && r.alternative_offer_price_eur !== undefined ? Number(r.alternative_offer_price_eur) : undefined,
+      confidenceScore: bestConfidenceScore
+    });
   }
 
   let actionSignal: ActionSignal | undefined = undefined;
@@ -1356,6 +1597,10 @@ function mapGameRow(r: any): Game {
     bestSavingVsMedianEur,
     bestAtlDistanceEur,
     valueRankingScore,
+    shoppingScore,
+    alternativeOfferPriceEur: r.alternative_offer_price_eur !== null && r.alternative_offer_price_eur !== undefined ? Number(r.alternative_offer_price_eur) : undefined,
+    alternativeMerchantName: r.alternative_merchant_name || undefined,
+    alternativeMerchantIsOfficial: r.alternative_merchant_is_official !== null && r.alternative_merchant_is_official !== undefined ? Boolean(r.alternative_merchant_is_official) : undefined,
     actionSignal,
     hasPricingError: Number(r.anomaly_count || 0) > 0,
     pricingErrorCount: Number(r.anomaly_count || 0),

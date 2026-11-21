@@ -1,4 +1,4 @@
-import type { DealScoreInput, DealScoreResult, DealVerdict } from './types.js';
+import type { DealScoreInput, DealScoreResult, DealVerdict, ShoppingScoreInput } from './types.js';
 import { EPSILON_EUR } from '../../../shared/types.js';
 import {
   W_ATL,
@@ -67,7 +67,9 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
   const rawAnchor = input.basePriceEur ?? input.originalPriceEur;
   const anchor = (typeof rawAnchor === 'number' && Number.isFinite(rawAnchor) && rawAnchor > 0) ? rawAnchor : undefined;
 
-  const rawAtl = input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur;
+  const rawAtl = (input.isOfficialStore === true && input.officialHistoricalLowEur !== undefined && input.officialHistoricalLowEur !== null && input.officialHistoricalLowEur > 0)
+    ? input.officialHistoricalLowEur
+    : (input.allTimeLowEur ?? input.historicalLowEur ?? input.low1yEur);
   const atlRaw = (typeof rawAtl === 'number' && Number.isFinite(rawAtl) && rawAtl >= 0) ? rawAtl : undefined;
 
   const rawMed = input.typicalSaleMedianEur;
@@ -312,6 +314,16 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
     ? Number((price - atl).toFixed(2))
     : 0;
 
+  const shoppingScore = calculateShoppingScore({
+    dealScore: finalScore,
+    isOfficial: Boolean(input.isOfficialStore),
+    basePriceEur: anchor,
+    currentPriceEur: price,
+    typicalSaleMedianEur: med,
+    historicalLowEur: atl,
+    confidenceScore: confidenceData.confidence
+  });
+
   return {
     score: finalScore,
     tier,
@@ -334,6 +346,98 @@ export function calculateDealScore(input: DealScoreInput): DealScoreResult {
       medianSavingEur,
       atlDistanceEur,
       confidenceFactors: confidenceData.factors
-    }
+    },
+    shoppingScore
   };
+}
+
+/**
+ * Calculates credible absolute cash savings in EUR against a trustworthy reference price.
+ * Bounded against typical sale median (median * 1.6) to prevent inflated MSRP distortion.
+ * Returns 0 if current price is invalid or reference price is missing/unreliable.
+ */
+export function calculateCredibleSavings(
+  currentPriceEur?: number | null,
+  basePriceEur?: number | null,
+  typicalSaleMedianEur?: number | null
+): number {
+  if (currentPriceEur === undefined || currentPriceEur === null || currentPriceEur <= 0) {
+    return 0;
+  }
+  let refPrice = (basePriceEur && basePriceEur > 0) ? basePriceEur : undefined;
+  if (typicalSaleMedianEur && typicalSaleMedianEur > 0) {
+    if (refPrice && refPrice > typicalSaleMedianEur) {
+      refPrice = Math.min(refPrice, typicalSaleMedianEur * 1.6);
+    } else {
+      refPrice = typicalSaleMedianEur;
+    }
+  }
+  if (!refPrice || refPrice <= currentPriceEur) {
+    return 0;
+  }
+  return Number((refPrice - currentPriceEur).toFixed(2));
+}
+
+/**
+ * Multi-Dimensional Price Opportunity Score (0 - 100)
+ *
+ * Dedicated to ranking personal wishlist games by genuine price attractiveness:
+ * 1. Base: Pure mathematical Deal Score v2.4 (0 - 100)
+ * 2. Authentic Reference Price & Real Absolute Savings:
+ *    Calculates cash saved vs credible historical reference price (protects against inflated MSRP).
+ *    Awards a logarithmic utility bonus (up to +7.0 pts for saving €20 - €50+)
+ *    without letting expensive games artificially monopolize the view.
+ * 3. Market Competitiveness Edge:
+ *    Awards +2 to +5 pts if the winning store significantly undercuts competing stores (>=15% cheaper).
+ * 4. Persistent Historical Low Standing:
+ *    Awards +3 pts when an offer is sitting at or within 2% of the verified record low.
+ * 5. Data Confidence Guard:
+ *    Dampens provisional 1-sample or unverified single-source observations.
+ *
+ * ZERO store bias (official stores and keyshops compete on 100% equal terms).
+ * ZERO external game-quality bias (Metacritic and review scores do not affect the ranking).
+ */
+export function calculateShoppingScore(input: ShoppingScoreInput): number {
+  const {
+    dealScore,
+    basePriceEur,
+    currentPriceEur,
+    typicalSaleMedianEur,
+    historicalLowEur,
+    competingPriceEur,
+    confidenceScore
+  } = input;
+
+  if (dealScore <= 0 || currentPriceEur <= 0) return 0;
+
+  // 1. Authentic Reference Price for Savings
+  const savingsEur = calculateCredibleSavings(currentPriceEur, basePriceEur, typicalSaleMedianEur);
+
+  // 2. Absolute Savings Utility Bonus (logarithmic)
+  let savingsBonus = 0;
+  if (savingsEur > 0) {
+    savingsBonus = Math.min(7.0, Math.log10(Math.max(1, savingsEur)) * 3.0);
+  }
+
+  // 3. Current Market Competitiveness Edge (Unusual retailer undercut)
+  let marketEdgeBonus = 0;
+  if (competingPriceEur && competingPriceEur > currentPriceEur) {
+    const undercutRatio = (competingPriceEur - currentPriceEur) / competingPriceEur;
+    if (undercutRatio >= 0.15) {
+      marketEdgeBonus = Math.min(5.0, undercutRatio * 8.0);
+    }
+  }
+
+  // 4. Proximity to Historical Record Low (Persistent attractiveness)
+  let recordLowBonus = 0;
+  if (historicalLowEur && historicalLowEur > 0 && currentPriceEur <= historicalLowEur * 1.02) {
+    recordLowBonus = 3.0;
+  }
+
+  // 5. Data Confidence Factor
+  const conf = confidenceScore ?? 50;
+  const confFactor = 0.92 + 0.08 * (conf / 100);
+
+  const raw = (dealScore * confFactor) + savingsBonus + marketEdgeBonus + recordLowBonus;
+  return Math.round(Math.min(100, Math.max(0, raw)));
 }
