@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.12.0] - 2026-11-21
+
+### Added & Improved
+* **Top Best Deals Intelligence & Personal Shopping Opportunity Engine**:
+  * Transformed Top Best Deals into an intelligent price-opportunity ranking engine dedicated to personal Steam wishlist purchasing.
+  * **Zero Store & Quality Bias**: Official retailers and marketplace keyshops compete on 100% equal terms with zero score discount penalty; external review scores (Metacritic / Steam review percentages) removed as ranking signals.
+  * **Equal-Terms Store Competition**: Cheaper price always wins. In exact cent ties, official stores serve as the neutral tie-breaker.
+  * **Side-by-Side Alternative Offer Projection**: Winning offers display competing store alternatives transparently (e.g. `🛡️ €3.78` or `🗝️ €3.74`).
+  * **Authentic Reference Price & Real Cash Savings Utility (`calculateCredibleSavings`)**:
+    * Reference prices bounded against typical sale medians ($\le \text{median} \times 1.6$), eliminating 3,913 catalog instances of inflated MSRP overstatement.
+    * Logarithmic utility bonus rewards significant real-cash savings without allowing expensive games to artificially monopolize rankings.
+    * Added dedicated `Highest Cash Savings (€)` sort option (`sort=savings`) driven strictly by credible reference savings.
+  * **Market Competitiveness Edge**: Awards bonus points when a retailer significantly undercuts competitors by $\ge 15\%$.
+  * **Persistent Historical Low Proximity**:
+    * Awards +3 points for offers sitting at or within 2% of verified record low, ensuring outstanding long-standing prices stay prominent.
+    * **Dual ATL & Variant Isolation**: Official store offers compare strictly against `official_historical_low_eur` (protecting against keyshop dumps); alternate editions and platforms cannot cross-contaminate standard Steam historical lows.
+  * **Daily Shopping Discovery UX**:
+    * Discovery Bar with Store classification pills (`All Stores`, `🛡️ Official Stores`, `🗝️ Keyshops`), price ceiling quick-filters (`<€5`, `<€10`, `<€20`), search, and pagination.
+    * Distinct `★ Near Record Low (€X.XX from ATL)` visual flags with Cyan theme accent.
+
 ## [2.11.0] - 2026-11-21
 
 ### Fixed & Improved
