@@ -53,11 +53,20 @@ export function getDb(): Database.Database {
     dbInstance.pragma('cache_size = -64000');
     dbInstance.pragma('temp_store = MEMORY');
     dbInstance.pragma('mmap_size = 268435456');
-    dbInstance.exec(SCHEMA_SQL);
-    dbInstance.exec(SEED_SOURCES_SQL);
+    // For existing databases, execute versioned schema migrations first so table schemas
+    // and new columns are brought up-to-date before running idempotent base schema statements.
+    const isExistingDb = Boolean(
+      dbInstance.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND (name='schema_migrations' OR name='offers')").get()
+    );
 
-    // Run versioned schema migrations
-    runMigrations(dbInstance);
+    if (isExistingDb) {
+      runMigrations(dbInstance);
+      dbInstance.exec(SCHEMA_SQL);
+    } else {
+      dbInstance.exec(SCHEMA_SQL);
+      runMigrations(dbInstance);
+    }
+    dbInstance.exec(SEED_SOURCES_SQL);
 
     // Purge corrupted <= 0.05 EUR price artifacts
     try {
