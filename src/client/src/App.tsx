@@ -37,12 +37,7 @@ import {
   Gift, 
   AlertTriangle,
   PiggyBank,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  Key,
-  SlidersHorizontal,
-  X 
+  RefreshCw 
 } from 'lucide-react';
 
 import { useProfiles } from './hooks/useProfiles.js';
@@ -95,9 +90,6 @@ export const App: React.FC = () => {
     stats,
     topDeals,
     setTopDeals,
-    topDealsTotal,
-    topDealsPage,
-    topDealsTotalPages,
     isDealsLoading,
     loadTopDeals,
     freeGames,
@@ -105,25 +97,11 @@ export const App: React.FC = () => {
     loadFreeGames
   } = useWishlistStats(activeProfile?.id);
 
-  // Top Deals Discovery Controls
-  const [dealMerchantType, setDealMerchantType] = useState<'all' | 'official' | 'keyshop'>('all');
-  const [dealMaxPrice, setDealMaxPrice] = useState<number | undefined>(undefined);
-  const [dealSearch, setDealSearch] = useState<string>('');
-  const [dealSort, setDealSort] = useState<'value' | 'savings' | 'deal_score' | 'discount' | 'price' | 'rating' | 'priority'>('value');
-  const [dealPage, setDealPage] = useState<number>(1);
-
   useEffect(() => {
     if (mainTab === 'deals') {
-      loadTopDeals({
-        merchantType: dealMerchantType,
-        maxPrice: dealMaxPrice,
-        search: dealSearch.trim() || undefined,
-        sort: dealSort,
-        page: dealPage,
-        limit: 50
-      });
+      loadTopDeals({ limit: 50 });
     }
-  }, [mainTab, dealMerchantType, dealMaxPrice, dealSearch, dealSort, dealPage, loadTopDeals]);
+  }, [mainTab, loadTopDeals]);
 
   // Anomalies
   const { anomalies, loadAnomalies } = useAnomalies();
@@ -718,171 +696,6 @@ export const App: React.FC = () => {
                 <ViewModeToggle viewMode={viewMode} onViewModeChange={handleViewModeChange} />
               </div>
 
-              {/* Deal Discovery Bar: Stores, Price filter, Search, Sort & Pagination */}
-              <div 
-                className="deal-discovery-bar"
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 12,
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  marginBottom: 16,
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)'
-                }}
-              >
-                {/* Store classification filter */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginRight: 2 }}>Store:</span>
-                  <button
-                    type="button"
-                    className={`pill-btn ${dealMerchantType === 'all' ? 'active' : ''}`}
-                    onClick={() => { setDealMerchantType('all'); setDealPage(1); }}
-                  >
-                    All Stores
-                  </button>
-                  <button
-                    type="button"
-                    className={`pill-btn pill-target ${dealMerchantType === 'official' ? 'active' : ''}`}
-                    onClick={() => { setDealMerchantType('official'); setDealPage(1); }}
-                    title="Official retailers only (Steam, GMG, Fanatical, Humble, etc. — guaranteed clean keys, no hidden checkout fees)"
-                  >
-                    <ShieldCheck size={14} color="#10b981" />
-                    Official Stores
-                  </button>
-                  <button
-                    type="button"
-                    className={`pill-btn ${dealMerchantType === 'keyshop' ? 'active' : ''}`}
-                    onClick={() => { setDealMerchantType('keyshop'); setDealPage(1); }}
-                    title="Keyshop marketplace listings (GAMIVO, Eneba, Kinguin, etc.)"
-                  >
-                    <Key size={13} color="#f59e0b" />
-                    Keyshops
-                  </button>
-                </div>
-
-                {/* Price ceiling quick-filters */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginRight: 2 }}>Max Price:</span>
-                  <button
-                    type="button"
-                    className={`pill-btn ${dealMaxPrice === undefined ? 'active' : ''}`}
-                    onClick={() => { setDealMaxPrice(undefined); setDealPage(1); }}
-                  >
-                    Any
-                  </button>
-                  <button
-                    type="button"
-                    className={`pill-btn ${dealMaxPrice === 5 ? 'active' : ''}`}
-                    onClick={() => { setDealMaxPrice(5); setDealPage(1); }}
-                  >
-                    &lt; €5
-                  </button>
-                  <button
-                    type="button"
-                    className={`pill-btn ${dealMaxPrice === 10 ? 'active' : ''}`}
-                    onClick={() => { setDealMaxPrice(10); setDealPage(1); }}
-                  >
-                    &lt; €10
-                  </button>
-                  <button
-                    type="button"
-                    className={`pill-btn ${dealMaxPrice === 20 ? 'active' : ''}`}
-                    onClick={() => { setDealMaxPrice(20); setDealPage(1); }}
-                  >
-                    &lt; €20
-                  </button>
-                </div>
-
-                {/* Search input & Sort Selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Search size={14} style={{ position: 'absolute', left: 8, color: 'var(--text-muted)' }} />
-                    <input
-                      type="text"
-                      placeholder="Search deals..."
-                      value={dealSearch}
-                      onChange={(e) => { setDealSearch(e.target.value); setDealPage(1); }}
-                      style={{
-                        padding: '5px 24px 5px 28px',
-                        fontSize: 12,
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-surface-elevated)',
-                        color: 'var(--text-primary)',
-                        width: 140
-                      }}
-                    />
-                    {dealSearch && (
-                      <X
-                        size={12}
-                        onClick={() => { setDealSearch(''); setDealPage(1); }}
-                        style={{ position: 'absolute', right: 8, cursor: 'pointer', color: 'var(--text-muted)' }}
-                      />
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <SlidersHorizontal size={13} color="var(--text-muted)" />
-                    <select
-                      value={dealSort}
-                      onChange={(e) => {
-                        setDealSort(e.target.value as any);
-                        setDealPage(1);
-                      }}
-                      style={{
-                        padding: '5px 8px',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-surface-elevated)',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="value">Best Value (Recommended)</option>
-                      <option value="savings">Highest Cash Savings (€)</option>
-                      <option value="deal_score">Deal Score v2.4</option>
-                      <option value="discount">Deepest Discount</option>
-                      <option value="price">Lowest Price</option>
-                      <option value="rating">Top Rated</option>
-                      <option value="priority">Wishlist Priority</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Pagination Controls */}
-                {topDealsTotalPages > 1 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      Page {topDealsPage} of {topDealsTotalPages} ({topDealsTotal} total)
-                    </span>
-                    <button
-                      type="button"
-                      disabled={topDealsPage <= 1}
-                      onClick={() => setDealPage(p => Math.max(1, p - 1))}
-                      className="pill-btn"
-                      style={{ opacity: topDealsPage <= 1 ? 0.4 : 1, cursor: topDealsPage <= 1 ? 'not-allowed' : 'pointer', padding: '3px 8px' }}
-                    >
-                      &lt; Prev
-                    </button>
-                    <button
-                      type="button"
-                      disabled={topDealsPage >= topDealsTotalPages}
-                      onClick={() => setDealPage(p => Math.min(topDealsTotalPages, p + 1))}
-                      className="pill-btn"
-                      style={{ opacity: topDealsPage >= topDealsTotalPages ? 0.4 : 1, cursor: topDealsPage >= topDealsTotalPages ? 'not-allowed' : 'pointer', padding: '3px 8px' }}
-                    >
-                      Next &gt;
-                    </button>
-                  </div>
-                )}
-              </div>
-
               {isDealsLoading ? (
                 <div className="games-grid">
                   {Array.from({ length: 12 }).map((_, i) => (
@@ -893,7 +706,7 @@ export const App: React.FC = () => {
                 <div className="empty-state" style={{ padding: 40 }}>
                   <Sparkles size={32} color="#f59e0b" />
                   <h3 className="empty-title">No Active Deals Found</h3>
-                  <p className="empty-desc">No discounted games matched your filter criteria. Try adjusting the store or price filters.</p>
+                  <p className="empty-desc">No discounted games are currently recorded. Run a sync to find deals.</p>
                 </div>
               ) : viewMode === 'grid' ? (
                 <div className="games-grid">
