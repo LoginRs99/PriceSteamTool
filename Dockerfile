@@ -50,6 +50,7 @@ RUN apk add --no-cache tini
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --chown=node:node scripts/ ./scripts/
 
 # Pre-create data directory with unprivileged node user ownership (UID 1000:GID 1000)
 RUN mkdir -p /data && chown -R node:node /data /app

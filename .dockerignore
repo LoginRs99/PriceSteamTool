@@ -9,7 +9,8 @@ data
 .env.*
 *.log
 tests
-scripts
+scripts/*
+!scripts/repair-historical-price-events.cjs
 coverage
 *.md
 LICENSE
