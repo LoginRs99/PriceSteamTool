@@ -1,3 +1,5 @@
+import { normalizeEdition } from '../domain/edition.js';
+import { normalizeActivationPlatform } from '../domain/platform.js';
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
@@ -99,6 +101,8 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
           if (!item || typeof item !== 'object') continue;
 
           const data = item as GGDealsPriceData;
+          const editionNorm = normalizeEdition(null, data.title || data.url, 'ggdeals');
+          const platformNorm = normalizeActivationPlatform(null, null, null, 'ggdeals');
           const offers: NormalizedSourceOffer[] = [];
           const game = gameRepo.getBySteamAppId(appId);
 
@@ -130,6 +134,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 rawCurrency: curr,
                 dealUrl: data.url || `https://gg.deals/game/${appId}/`,
                 historicalLowEur: histRetailEur,
+                editionName: editionNorm.editionName,
+                editionKey: editionNorm.editionKey,
+                identityConfidence: editionNorm.identityConfidence,
+                activationPlatform: platformNorm.platform,
                 rawPayload: data
               });
             }
@@ -152,6 +160,10 @@ export class GGDealsSourceAdapter implements PriceSourceAdapter {
                 rawCurrency: curr,
                 dealUrl: data.url || `https://gg.deals/game/${appId}/`,
                 historicalLowEur: histKeyshopEur,
+                editionName: editionNorm.editionName,
+                editionKey: editionNorm.editionKey,
+                identityConfidence: editionNorm.identityConfidence,
+                activationPlatform: platformNorm.platform,
                 rawPayload: data
               });
             }

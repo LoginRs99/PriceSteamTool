@@ -493,6 +493,10 @@ export class SteamSourceAdapter implements PriceSourceAdapter {
       rawCurrency: details.rawCurrency,
       rawOriginalPrice: details.rawOriginalPrice,
       dealUrl: `https://store.steampowered.com/app/${steamAppId}/`,
+      editionName: 'Standard Edition',
+      editionKey: 'standard',
+      identityConfidence: 'CONFIDENT',
+      activationPlatform: 'steam',
       rawPayload: details
     }];
   }

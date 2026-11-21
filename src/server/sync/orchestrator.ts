@@ -854,6 +854,8 @@ export class SyncOrchestrator {
       sourceCode,
       rawObservationJson: rawOffer.rawPayload ? JSON.stringify(rawOffer.rawPayload) : undefined,
       editionName: rawOffer.editionName,
+      editionKey: rawOffer.editionKey,
+      identityConfidence: rawOffer.identityConfidence,
       sourceFamilyConflict: rawOffer.sourceFamilyConflict
     }, { deferRecompute });
   }

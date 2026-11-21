@@ -1,3 +1,4 @@
+import { normalizeActivationPlatform } from '../domain/platform.js';
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
@@ -383,6 +384,7 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
             : [];
           
           const { productTypeRaw, isOfficial } = parseItadProductAndOfficial(shopName, drms);
+          const platformNorm = normalizeActivationPlatform(drms.join(', '), null, shopName, 'itad');
 
           offers.push({
             merchantCode: shopCode,
@@ -398,6 +400,10 @@ export class ItadSourceAdapter implements PriceSourceAdapter {
             voucherCode: item.current.voucher || undefined,
             dealUrl: item.current.url || `https://isthereanydeal.com/game/${itadId}/info/`,
             historicalLowEur: lowObj?.price?.amount ? convertToEur(Number(lowObj.price.amount), itemCurrency) : undefined,
+            editionName: 'Standard Edition',
+            editionKey: 'standard',
+            identityConfidence: 'CONFIDENT',
+            activationPlatform: platformNorm.platform,
             rawPayload: item
           });
         }

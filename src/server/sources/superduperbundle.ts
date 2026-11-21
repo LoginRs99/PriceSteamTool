@@ -1,3 +1,5 @@
+import { normalizeEdition } from '../domain/edition.js';
+import { normalizeActivationPlatform } from '../domain/platform.js';
 import { config } from '../config/index.js';
 import { safeFetchJson, type PriceSourceAdapter, type NormalizedSourceOffer } from './base.js';
 import { PacedSourceQueue } from '../sync/rateLimiter.js';
@@ -67,7 +69,9 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
   /**
    * Normalize an SDB offer into PriceSteamTool's canonical representation
    */
-  private normalizeOffer(offer: SdbApiOffer, fallbackUrl: string, currency: string = 'USD'): NormalizedSourceOffer | null {
+  private normalizeOffer(offer: SdbApiOffer, fallbackUrl: string, currency: string = 'USD', gameTitle?: string): NormalizedSourceOffer | null {
+    const editionNorm = normalizeEdition(null, gameTitle, 'superduperbundle');
+    const platformNorm = normalizeActivationPlatform(offer.drm, null, offer.store_name || offer.store, 'superduperbundle');
     if (typeof offer.price !== 'number' || isNaN(offer.price) || offer.price <= 0) {
       return null;
     }
@@ -104,6 +108,10 @@ export class SuperDuperBundleSourceAdapter implements PriceSourceAdapter {
       dealUrl: fallbackUrl,
       productTypeRaw: normProduct.productType,
       regionRaw: normRegion.regionCode,
+      editionName: editionNorm.editionName,
+      editionKey: editionNorm.editionKey,
+      identityConfidence: editionNorm.identityConfidence,
+      activationPlatform: platformNorm.platform,
       rawPayload: offer
     };
   }

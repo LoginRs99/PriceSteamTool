@@ -40,7 +40,7 @@ export interface PriceEventInput {
   steamBasePriceEur?: number;
   historicalLowEur?: number;
   confirmedAtlEur?: number;
-  previousPriceEur?: number;
+  previousPriceEur?: number | null;
   isOfficialMerchant?: boolean;
   sourceAgreementCount?: number;
   independentMerchantCount?: number;

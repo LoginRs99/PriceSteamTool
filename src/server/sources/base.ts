@@ -1,4 +1,4 @@
-import type { SourceCode } from '../../shared/types.js';
+import type { SourceCode, ActivationPlatform } from '../../shared/types.js';
 import { sanitizeSecrets } from '../utils/logger.js';
 
 export interface NormalizedSourceOffer {
@@ -18,6 +18,9 @@ export interface NormalizedSourceOffer {
   historicalLowDate?: string;
   rawPayload?: any;
   editionName?: string;
+  editionKey?: string;
+  identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
+  activationPlatform?: ActivationPlatform;
   metacriticScore?: number;
   metacriticUrl?: string;
   /**

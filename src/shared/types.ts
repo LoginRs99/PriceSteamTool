@@ -1,5 +1,6 @@
 export type ProductType = 'STEAM_KEY' | 'STEAM_GIFT' | 'DIRECT_PURCHASE';
-export type RegionType = 'HU' | 'EU' | 'GLOBAL' | 'RESTRICTED';
+export type RegionType = 'HU' | 'EU' | 'GLOBAL' | 'RESTRICTED' | 'unknown';
+export type ActivationPlatform = 'steam' | 'epic' | 'gog' | 'ubisoft' | 'ea' | 'rockstar' | 'battlenet' | 'microsoft' | 'drm_free' | 'unknown';
 
 export type SourceCode = 'steam' | 'itad' | 'ggdeals' | 'cheapshark' | 'allkeyshop' | 'nexarda' | 'superduperbundle';
 
@@ -16,6 +17,7 @@ export type PriceEventType =
   | 'PRICE_INCREASE' 
   | 'PRICING_ERROR' 
   | 'NONE'
+  | 'NEW_OFFER'
   | 'NEW_HISTORICAL_LOW' 
   | 'AT_HISTORICAL_LOW' 
   | 'SUSPECTED_HISTORICAL_LOW'
@@ -227,6 +229,10 @@ export interface Offer {
   isProvisional?: boolean;
   
   isBestDeal: boolean;
+  editionKey?: string;
+  editionName?: string;
+  identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
+  activationPlatform?: ActivationPlatform;
   isFresh?: boolean;
   sources: SourceCode[];
   sourceAgreementCount?: number;
@@ -262,6 +268,11 @@ export interface PriceHistoryEntry {
   dealScore?: number;
   isOfficial?: boolean;
   isPricingError?: boolean;
+  editionKey?: string;
+  editionName?: string;
+  identityConfidence?: 'CONFIDENT' | 'AMBIGUOUS';
+  activationPlatform?: ActivationPlatform;
+  regionType?: RegionType;
   recordedAt: string;
 }
 

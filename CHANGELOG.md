@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.11.0] - 2026-11-21
+
+### Fixed & Improved
+* **Edition-Aware Price Streams & Identity Architecture (Migration 040)**:
+  * Overhauled price history ingestion to identify observations by `game_id + merchant_id + source_code + edition_key + activation_platform + region_type`.
+  * Completely eliminated multi-edition ping-pong false alarms where alternate editions (e.g., Deluxe vs. Standard) alternating in provider feeds triggered false drops and price increases.
+  * Added `edition_key`, `edition_name`, and `identity_confidence` columns to `offers` and `price_history`.
+  * Preserved data integrity by quarantining historically ambiguous records (`AMBIGUOUS`), ensuring they never trigger unverified price drop events.
+* **Platform & DRM Isolation (Migration 041)**:
+  * Added canonical `activation_platform` normalization (`steam`, `gog`, `epic`, `ubisoft`, `ea`, `battlenet`, `microsoft`, `drm_free`, `unknown`).
+  * Enforced verified platform backfill for legacy storefronts and isolated unoffered legacy records to prevent non-Steam price history from contaminating Steam deal streams.
+* **Regional Stream Partitioning & Isolation**:
+  * Added `region_type` to `price_history` and composite unique stream index `idx_price_history_stream`.
+  * Quarantined multi-region game/merchant combinations (concurrent EU and Global variants) to prevent cross-regional price collisions and false discount events.
+* **Calibrated Price Event Detection Engine**:
+  * Recalibrated price drop detection to compute real numerical drops between consecutive observations of the same offer stream rather than relying on MSRP discount percentages.
+  * Added safety percentage guard to Extreme Drops: drops >= 15.00€ require >= 35% relative price reduction to qualify as `EXTREME_DROP`, eliminating false alarms on high-value titles.
+  * Guaranteed that first-time observations are classified as `NEW_OFFER`, never as major drops.
+* **Dual All-Time Low (ATL) Invariant & Reversible Repair Utility**:
+  * Enforced mathematical constraint: `historical_low_eur <= official_historical_low_eur`.
+  * Enhanced `scripts/repair-historical-price-events.cjs` supporting 7-dimensional stream partitioning, atomic rollback, and dual-ATL healing.
+
 ## [2.10.2] - 2026-11-12
 
 ### Fixed & Improved

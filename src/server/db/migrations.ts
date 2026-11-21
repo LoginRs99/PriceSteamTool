@@ -1133,6 +1133,276 @@ export const MIGRATIONS: Migration[] = [
         console.warn('[Migration 038] cadence backfill notice:', err?.message);
       }
     }
+  },
+  {
+    name: '039_merchant_platform_storefront_classification',
+    up: (db) => {
+      try {
+        db.exec(`
+          UPDATE merchants 
+          SET is_official = 1 
+          WHERE LOWER(code) IN ('blizzard', 'microsoftstore', 'ubisoftstore', 'battlenet', 'uplay', 'ubisoft')
+             OR LOWER(name) LIKE '%blizzard%'
+             OR LOWER(name) LIKE '%microsoft store%'
+             OR LOWER(name) LIKE '%ubisoft%';
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 039] notice:', err?.message);
+      }
+    }
+  },
+  {
+    name: '040_edition_aware_price_history_and_offers',
+    up: (db) => {
+      // 1. Add edition and confidence columns to price_history
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN edition_key TEXT DEFAULT 'standard';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN edition_name TEXT DEFAULT 'Standard Edition';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN identity_confidence TEXT DEFAULT 'CONFIDENT';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      // Create price_history indexes
+      try {
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_price_history_edition_stream 
+          ON price_history(game_id, merchant_id, source_code, edition_key, recorded_at);
+          CREATE INDEX IF NOT EXISTS idx_price_history_confidence 
+          ON price_history(identity_confidence);
+        `);
+      } catch (err: any) {
+        console.warn('[Migration 040] price_history index notice:', err?.message);
+      }
+
+      // 2. Recreate offers table to include edition_key in UNIQUE constraint
+      const tableInfo = db.prepare("PRAGMA table_info(offers)").all() as any[];
+      const hasEditionKey = tableInfo.some(col => col.name === 'edition_key');
+
+      if (!hasEditionKey) {
+        db.exec(`
+          CREATE TABLE offers_new (
+            id TEXT PRIMARY KEY,
+            game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+            product_type TEXT NOT NULL,
+            region_type TEXT NOT NULL,
+            region_code TEXT,
+            region_confidence REAL NOT NULL DEFAULT 1.0,
+            price_eur REAL NOT NULL,
+            original_price_eur REAL,
+            raw_price REAL,
+            raw_currency TEXT DEFAULT 'EUR',
+            raw_original_price REAL,
+            discount_percent INTEGER NOT NULL DEFAULT 0,
+            voucher_code TEXT,
+            deal_url TEXT NOT NULL,
+            is_best_deal INTEGER NOT NULL DEFAULT 0,
+            is_valid INTEGER NOT NULL DEFAULT 1,
+            price_event TEXT NOT NULL DEFAULT 'NONE',
+            is_likely_pricing_error INTEGER NOT NULL DEFAULT 0,
+            pricing_error_confidence REAL NOT NULL DEFAULT 0.0,
+            pricing_error_type TEXT,
+            pricing_error_reason TEXT,
+            edition_key TEXT NOT NULL DEFAULT 'standard',
+            edition_name TEXT DEFAULT 'Standard Edition',
+            identity_confidence TEXT NOT NULL DEFAULT 'CONFIDENT',
+            fetched_at TEXT NOT NULL,
+            last_observed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(game_id, merchant_id, product_type, region_type, edition_key)
+          );
+
+          INSERT INTO offers_new (
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            edition_key, edition_name, identity_confidence,
+            fetched_at, last_observed_at, created_at, updated_at
+          )
+          SELECT
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            'standard' AS edition_key,
+            'Standard Edition' AS edition_name,
+            'CONFIDENT' AS identity_confidence,
+            fetched_at, last_observed_at, created_at, updated_at
+          FROM offers;
+
+          DROP TABLE offers;
+          ALTER TABLE offers_new RENAME TO offers;
+
+          CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
+          CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error);
+          CREATE INDEX IF NOT EXISTS idx_offers_edition ON offers(game_id, edition_key);
+        `);
+      }
+    }
+  },
+  {
+    name: '041_activation_platform_identity',
+    up: (db) => {
+      // 1. Add activation_platform and region_type to price_history
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN activation_platform TEXT DEFAULT 'unknown';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+      try {
+        db.exec("ALTER TABLE price_history ADD COLUMN region_type TEXT NOT NULL DEFAULT 'unknown';");
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) throw e;
+      }
+
+      // 2. Rebuild offers table with semantic activation_platform and updated composite unique constraint
+      const offersCols = db.prepare(`PRAGMA table_info(offers)`).all() as { name: string }[];
+      const colNames = offersCols.map(c => c.name);
+
+      if (!colNames.includes('activation_platform')) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS offers_new (
+            id TEXT PRIMARY KEY,
+            game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+            product_type TEXT NOT NULL,
+            region_type TEXT NOT NULL,
+            region_code TEXT,
+            region_confidence REAL NOT NULL DEFAULT 1.0,
+            price_eur REAL NOT NULL,
+            original_price_eur REAL,
+            raw_price REAL,
+            raw_currency TEXT DEFAULT 'EUR',
+            raw_original_price REAL,
+            discount_percent INTEGER NOT NULL DEFAULT 0,
+            voucher_code TEXT,
+            deal_url TEXT NOT NULL,
+            is_best_deal INTEGER NOT NULL DEFAULT 0,
+            is_valid INTEGER NOT NULL DEFAULT 1,
+            price_event TEXT NOT NULL DEFAULT 'NONE',
+            is_likely_pricing_error INTEGER NOT NULL DEFAULT 0,
+            pricing_error_confidence REAL NOT NULL DEFAULT 0.0,
+            pricing_error_type TEXT,
+            pricing_error_reason TEXT,
+            edition_key TEXT NOT NULL DEFAULT 'standard',
+            edition_name TEXT DEFAULT 'Standard Edition',
+            identity_confidence TEXT NOT NULL DEFAULT 'CONFIDENT',
+            activation_platform TEXT NOT NULL DEFAULT 'steam',
+            fetched_at TEXT NOT NULL,
+            last_observed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(game_id, merchant_id, product_type, region_type, edition_key, activation_platform)
+          );
+
+          INSERT INTO offers_new (
+            id, game_id, merchant_id, product_type, region_type, region_code, region_confidence,
+            price_eur, original_price_eur, raw_price, raw_currency, raw_original_price,
+            discount_percent, voucher_code, deal_url, is_best_deal, is_valid, price_event,
+            is_likely_pricing_error, pricing_error_confidence, pricing_error_type, pricing_error_reason,
+            edition_key, edition_name, identity_confidence, activation_platform,
+            fetched_at, last_observed_at, created_at, updated_at
+          )
+          SELECT
+            o.id, o.game_id, o.merchant_id, o.product_type, o.region_type, o.region_code, o.region_confidence,
+            o.price_eur, o.original_price_eur, o.raw_price, o.raw_currency, o.raw_original_price,
+            o.discount_percent, o.voucher_code, o.deal_url, o.is_best_deal, o.is_valid, o.price_event,
+            o.is_likely_pricing_error, o.pricing_error_confidence, o.pricing_error_type, o.pricing_error_reason,
+            o.edition_key, o.edition_name, o.identity_confidence,
+            CASE
+              WHEN m.code = 'steam' OR m.name = 'Steam Store' THEN 'steam'
+              WHEN m.code = 'gog' OR m.name = 'GOG' THEN 'gog'
+              WHEN m.code = 'epicgamestore' OR m.name = 'Epic Game Store' THEN 'epic'
+              WHEN m.code = 'microsoftstore' OR m.name = 'Microsoft Store' THEN 'microsoft'
+              WHEN m.code = 'ubisoftstore' OR m.name = 'Ubisoft Store' THEN 'ubisoft'
+              WHEN m.code = 'eastore' OR m.name = 'EA Store' OR m.name = 'Origin' THEN 'ea'
+              WHEN m.code = 'blizzard' OR m.name = 'Blizzard' THEN 'battlenet'
+              WHEN m.code IN ('itch', 'zoomplatform') THEN 'drm_free'
+              WHEN o.product_type IN ('STEAM_KEY', 'STEAM_GIFT') THEN 'steam'
+              ELSE 'unknown'
+            END AS activation_platform,
+            o.fetched_at, o.last_observed_at, o.created_at, o.updated_at
+          FROM offers o
+          JOIN merchants m ON o.merchant_id = m.id;
+
+          DROP TABLE offers;
+          ALTER TABLE offers_new RENAME TO offers;
+
+          CREATE INDEX IF NOT EXISTS idx_offers_game_id ON offers(game_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_merchant_id ON offers(merchant_id);
+          CREATE INDEX IF NOT EXISTS idx_offers_best_valid ON offers(game_id, is_valid, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_valid_price ON offers(game_id, is_valid, price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_price_event ON offers(price_event);
+          CREATE INDEX IF NOT EXISTS idx_offers_price ON offers(price_eur);
+          CREATE INDEX IF NOT EXISTS idx_offers_game_best_deal ON offers(game_id, is_best_deal);
+          CREATE INDEX IF NOT EXISTS idx_offers_pricing_error ON offers(is_likely_pricing_error);
+          CREATE INDEX IF NOT EXISTS idx_offers_edition ON offers(game_id, edition_key);
+          CREATE INDEX IF NOT EXISTS idx_offers_platform ON offers(game_id, activation_platform);
+        `);
+      }
+
+      // 3. Backfill price_history activation_platform with exact store semantics
+      db.exec(`
+        UPDATE price_history SET activation_platform = (
+          SELECT CASE
+            WHEN m.code = 'steam' OR m.name = 'Steam Store' THEN 'steam'
+            WHEN m.code = 'gog' OR m.name = 'GOG' THEN 'gog'
+            WHEN m.code = 'epicgamestore' OR m.name = 'Epic Game Store' THEN 'epic'
+            WHEN m.code = 'microsoftstore' OR m.name = 'Microsoft Store' THEN 'microsoft'
+            WHEN m.code = 'ubisoftstore' OR m.name = 'Ubisoft Store' THEN 'ubisoft'
+            WHEN m.code = 'eastore' OR m.name = 'EA Store' OR m.name = 'Origin' THEN 'ea'
+            WHEN m.code = 'blizzard' OR m.name = 'Blizzard' THEN 'battlenet'
+            WHEN m.code IN ('itch', 'zoomplatform') THEN 'drm_free'
+            WHEN price_history.source_code = 'steam' THEN 'steam'
+            WHEN price_history.source_code = 'ggdeals' THEN 'steam'
+            WHEN EXISTS (
+              SELECT 1 FROM offers o 
+              WHERE o.game_id = price_history.game_id 
+                AND o.merchant_id = price_history.merchant_id 
+                AND o.activation_platform = 'steam'
+            ) THEN 'steam'
+            ELSE 'unknown'
+          END
+          FROM merchants m
+          WHERE m.id = price_history.merchant_id
+        );
+
+        -- 4. Backfill price_history region_type:
+        -- Single-region pairs get their verified region from offers.
+        -- Multi-region pairs and un-offered history remain 'unknown' for strict stream isolation.
+        UPDATE price_history SET region_type = COALESCE(
+          (
+            SELECT MAX(o.region_type)
+            FROM offers o
+            WHERE o.game_id = price_history.game_id 
+              AND o.merchant_id = price_history.merchant_id
+            GROUP BY o.game_id, o.merchant_id
+            HAVING COUNT(DISTINCT o.region_type) = 1
+          ),
+          'unknown'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_price_history_stream 
+        ON price_history(game_id, merchant_id, source_code, edition_key, activation_platform, region_type, recorded_at);
+      `);
+    }
   }
 ];
 
@@ -1150,19 +1420,25 @@ export function runMigrations(db: Database.Database): void {
 
   const insertStmt = db.prepare(`INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)`);
 
-  for (const migration of MIGRATIONS) {
-    if (appliedSet.has(migration.name)) continue;
+  // Temporarily disable foreign keys during migrations to allow table schema restructuring
+  db.pragma('foreign_keys = OFF');
+  try {
+    for (const migration of MIGRATIONS) {
+      if (appliedSet.has(migration.name)) continue;
 
-    const tx = db.transaction(() => {
-      migration.up(db);
-      insertStmt.run(migration.name, new Date().toISOString());
-    });
+      const tx = db.transaction(() => {
+        migration.up(db);
+        insertStmt.run(migration.name, new Date().toISOString());
+      });
 
-    try {
-      tx();
-    } catch (err: any) {
-      console.error(`[Database Migration Error] Failed to execute migration "${migration.name}":`, err.message);
-      throw err;
+      try {
+        tx();
+      } catch (err: any) {
+        console.error(`[Database Migration Error] Failed to execute migration "${migration.name}":`, err.message);
+        throw err;
+      }
     }
+  } finally {
+    db.pragma('foreign_keys = ON');
   }
 }

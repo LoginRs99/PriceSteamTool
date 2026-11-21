@@ -30,6 +30,7 @@ export const BEST_DEAL_RECOMPUTE_ALL_SQL = `
           WHEN (julianday('now') - julianday(COALESCE(o.last_observed_at, o.fetched_at))) * 24 <= ${FRESHNESS_WINDOW_HOURS} THEN 0
           ELSE 1
         END ASC,
+        CASE WHEN o.edition_key = 'standard' THEN 0 ELSE 1 END ASC,
         o.price_eur ASC,
         m.is_official DESC,
         COALESCE(o.last_observed_at, o.fetched_at) DESC
